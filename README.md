@@ -10,6 +10,7 @@
 **System-wide AI autocomplete for macOS.**<br/>
 Copilot-style suggestions in every text field — completely offline, private, and on-device.
 
+[![Website](https://img.shields.io/badge/website-pretype.app-6E56CF.svg)](https://pretype.app)
 [![CI](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml/badge.svg)](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey.svg)](#-requirements)
@@ -17,6 +18,7 @@ Copilot-style suggestions in every text field — completely offline, private, a
 [![Swift](https://img.shields.io/badge/Swift-F05138.svg?logo=swift&logoColor=white)](Package.swift)
 
 <p>
+  <a href="https://pretype.app"><b>Website</b></a> ·
   <a href="#-quick-start"><b>Quick Start</b></a> ·
   <a href="#-why-pretype"><b>Why Pretype</b></a> ·
   <a href="#-features"><b>Features</b></a> ·
