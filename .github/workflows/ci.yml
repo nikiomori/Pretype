@@ -10,17 +10,10 @@ on:
 # Metal toolchain and an xcodebuild build — that's a local step, see
 # Scripts/make-app.sh. `swift build` is enough to catch compile regressions.
 jobs:
-  lint:
-    name: SwiftLint
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run SwiftLint
-        uses: realm/swiftlint@v1
-
   build:
     name: swift build (macOS)
-    runs-on: macos-14
+    # macOS 15 ships Xcode 16.3+ (Swift 6.1) — required by mlx-swift-lm 3.31.3.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 

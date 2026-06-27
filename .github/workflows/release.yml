@@ -11,7 +11,8 @@ permissions:
 jobs:
   release:
     name: Build & Package Release
-    runs-on: macos-14
+    # macOS 15 ships Xcode 16.3+ (Swift 6.1) — required by mlx-swift-lm 3.31.3.
+    runs-on: macos-15
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
