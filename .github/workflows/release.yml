@@ -1,0 +1,40 @@
+name: Draft Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Package Release
+    runs-on: macos-14
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Select Latest Stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain || true
+
+      # The pushed tag (e.g. v0.1.0) is the single source of the version;
+      # GITHUB_RUN_NUMBER is the monotonic CFBundleVersion (survives shallow checkout).
+      - name: Build App Bundle
+        run: PRETYPE_VERSION="${GITHUB_REF_NAME#v}" PRETYPE_BUILD="${GITHUB_RUN_NUMBER}" ./Scripts/make-app.sh
+
+      - name: Package App Bundle for Distribution
+        run: ./Scripts/dist.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Pretype.app.zip
+          draft: true
+          generate_release_notes: true

@@ -1,0 +1,4 @@
+--indent 4
+--trimwhitespace always
+--allman false
+--stripunusedargs closures

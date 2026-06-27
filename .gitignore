@@ -1,0 +1,29 @@
+.build/
+build/
+*.app
+*.zip
+.swiftpm/
+.DS_Store
+*.xcodeproj
+xcuserdata/
+
+# Local agent / editor tooling — never published
+.claude/
+.crush/
+.factory/
+.skill-archive/
+
+# Loose screen captures in the repo root (raw; cropped versions live in docs/)
+/image*.png
+image.png
+image copy*.png
+
+# Local dev tooling (README-asset generators, eval/CLI harness, visual demos).
+# Kept out of the published tree; the app target never depends on it.
+dev-tools/
+
+# Research / eval scaffolding — kept local, not part of the product repo.
+Eval/
+docs/finetuning.md
+Scripts/finetune.sh
+Scripts/build-eval-real.py

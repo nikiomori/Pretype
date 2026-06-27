@@ -1,0 +1,76 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! The menu-bar **Diagnostics** submenu and
+        **Debug Console…** are the fastest way to capture what went wrong —
+        please include their output where relevant.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Focus a text field in …
+        2. Type …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: Which app were you typing in?
+      placeholder: e.g. Mail, Slack, VS Code, Safari
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: e.g. 14.5 / 26.0
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model & memory
+      placeholder: e.g. MacBook Pro M3, 48 GB
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Which model was selected?
+      options:
+        - Gemma 4 E4B 8-bit
+        - Gemma 4 E4B 6-bit
+        - Gemma 4 E2B 8-bit
+        - Gemma 4 E4B 4-bit
+        - Gemma 4 E2B 4-bit
+        - Apple Intelligence
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics / Debug Console output
+      description: >
+        From the menu bar: the Diagnostics submenu lines, plus any relevant
+        Debug Console events (focus, GATE/GEN, errors). This is the single most
+        useful thing for triage.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Pretype version / commit
+      placeholder: e.g. 0.1.0 or a git SHA

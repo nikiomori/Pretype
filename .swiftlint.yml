@@ -1,0 +1,18 @@
+disabled_rules:
+  - line_length
+  - trailing_whitespace
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+  - closure_spacing
+  - fatal_error_message
+  - first_where
+  - modifier_order
+  - operator_usage_whitespace
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - toggle_bool
+  - unused_import
+included:
+  - Sources
+  - Tests
