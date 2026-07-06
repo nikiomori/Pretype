@@ -317,7 +317,15 @@ final class SuggestionController: NSObject {
         refreshTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Settings.debounceMs))
             if Task.isCancelled { return }
-            let fullPrompt = request.completionPrompt(maxChars: 1000)
+            // Log the prompt with the OCR'd screen text redacted: the debug log
+            // is exportable (bug reports), and screen context can contain OTHER
+            // people's on-screen text — it must never leave the process under
+            // the export warning's "text you typed" framing.
+            var redacted = request
+            redacted.screenSummary = request.screenSummary.map {
+                "[\($0.count) chars of on-screen text — redacted from log]"
+            }
+            let fullPrompt = redacted.completionPrompt(maxChars: 1000)
             DebugLog.shared.log(
                 "PROMPT",
                 "\(fullPrompt.count) chars"
