@@ -73,7 +73,12 @@ final class CaretIndicator {
         case .ready:
             if isQueryRunning() {
                 thinkingPhase += 1
-                window.show(mode: .thinking(thinkingPhase), at: rect)
+                // The first tick (~0.22 s) stays silent: only queries slower
+                // than ~0.45 s earn dots, so mid-speed answers don't flash
+                // them for a few frames right before the suggestion lands.
+                if thinkingPhase > 1 {
+                    window.show(mode: .thinking(thinkingPhase), at: rect)
+                }
             } else {
                 stop()
                 window.hide()

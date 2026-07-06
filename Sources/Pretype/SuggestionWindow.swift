@@ -157,9 +157,25 @@ final class SuggestionWindow: NSPanel {
         }
     }
 
+    /// Monotonic token: a `show` between fade-out start and completion cancels
+    /// the pending `orderOut`, so a new suggestion never gets yanked away.
+    private var hideGeneration = 0
+
     func hide() {
-        orderOut(nil)
         setHighlight(false)
+        guard isVisible else { return }
+        hideGeneration += 1
+        let gen = hideGeneration
+        // Symmetric to the 0.09 s fade-in: dismissal melts instead of popping.
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.12
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            guard let self, self.hideGeneration == gen else { return }
+            self.orderOut(nil)
+            self.alphaValue = 1
+        })
     }
 
     /// After the user accepts `accepted`, slide the ghost forward by that word's
@@ -175,7 +191,7 @@ final class SuggestionWindow: NSPanel {
         }
         let font = NSFont.systemFont(ofSize: ghostFontSize)
         let dx = ceil((accepted as NSString).size(withAttributes: [.font: font]).width)
-        ghost.attributed = ghostString(remaining, .secondaryLabelColor)
+        ghost.attributed = suggestionGhost(remaining)
         var f = frame
         f.origin.x += dx
         // Cap to the screen edge so a long remainder doesn't overhang for a frame
@@ -201,7 +217,7 @@ final class SuggestionWindow: NSPanel {
         switch mode {
         case .suggestion(let s):
             if presentation == .inline {
-                ghost.attributed = ghostString(s, .secondaryLabelColor)
+                ghost.attributed = suggestionGhost(s)
             } else {
                 pillLabel.attributedStringValue = panelSuggestion(s)
             }
@@ -279,12 +295,23 @@ final class SuggestionWindow: NSPanel {
         return result
     }
 
-    /// The classic panel content: the suggestion text plus a faint accept hint.
+    /// The classic panel content: the suggestion text (⇥-acceptable chunk a step
+    /// brighter) plus a faint accept hint. The keycap tutoring disappears once
+    /// accepting is muscle memory, so the pill stays compact for regulars.
     private func panelSuggestion(_ s: String) -> NSAttributedString {
-        let result = NSMutableAttributedString(string: s, attributes: [
+        let head = SuggestionController.firstWordChunk(of: s)
+        let result = NSMutableAttributedString(string: head, attributes: [
             .font: NSFont.systemFont(ofSize: 13),
             .foregroundColor: NSColor.secondaryLabelColor,
         ])
+        let tail = String(s.dropFirst(head.count))
+        if !tail.isEmpty {
+            result.append(NSAttributedString(string: tail, attributes: [
+                .font: NSFont.systemFont(ofSize: 13),
+                .foregroundColor: NSColor.tertiaryLabelColor,
+            ]))
+        }
+        guard Stats.lifetimeAccepted < 20 else { return result }
         let style = Settings.hotkeyStyle
         result.append(NSAttributedString(string: "   "))
         result.append(Self.keycap(style.label))
@@ -297,6 +324,16 @@ final class SuggestionWindow: NSPanel {
             .font: NSFont.systemFont(ofSize: 11),
             .foregroundColor: NSColor.tertiaryLabelColor
         ]))
+        return result
+    }
+
+    /// Ghost text with the ⇥-acceptable chunk (same split the controller uses)
+    /// a step brighter than the tail, so what one Tab takes is visible at a glance.
+    private func suggestionGhost(_ s: String) -> NSAttributedString {
+        let head = SuggestionController.firstWordChunk(of: s)
+        let result = NSMutableAttributedString(attributedString: ghostString(head, .secondaryLabelColor))
+        let tail = String(s.dropFirst(head.count))
+        if !tail.isEmpty { result.append(ghostString(tail, .tertiaryLabelColor)) }
         return result
     }
 
@@ -324,6 +361,7 @@ final class SuggestionWindow: NSPanel {
             return
         }
         let visible = screen.visibleFrame
+        hideGeneration += 1   // cancel any in-flight fade-out
         let appearing = !isVisible
         let ghostMode = isGhost(mode)
 
@@ -377,6 +415,12 @@ final class SuggestionWindow: NSPanel {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.09
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                animator().alphaValue = 1
+            }
+        } else if alphaValue < 1 {
+            // Caught mid-fade-out: retarget the alpha animation back to opaque.
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.06
                 animator().alphaValue = 1
             }
         }

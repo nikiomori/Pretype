@@ -41,6 +41,13 @@ enum Stats {
             defaults.integer(forKey: "stats.lifetimeChars") + chunk.count,
             forKey: "stats.lifetimeChars"
         )
+        defaults.set(lifetimeAccepted + 1, forKey: "stats.lifetimeAccepted")
+    }
+
+    /// Lifetime accept count — the UI uses it to retire tutoring hints once
+    /// accepting is muscle memory.
+    static var lifetimeAccepted: Int {
+        defaults.integer(forKey: "stats.lifetimeAccepted")
     }
 
     static func recordCorrection() {
