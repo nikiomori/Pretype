@@ -19,6 +19,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private let forgetButton = NSButton(title: "", target: nil, action: nil)
     private let journalCheck = NSButton(checkboxWithTitle: "Keep suggestion journal", target: nil, action: nil)
     private let journalClearButton = NSButton(title: "", target: nil, action: nil)
+    private let examplesCheck = NSButton(checkboxWithTitle: "Reuse my accepted phrases as examples", target: nil, action: nil)
     private let modelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let fineTunedButton = NSButton(title: "Fine-tuned…", target: nil, action: nil)
     private let modelRecLabel = NSTextField(wrappingLabelWithString: "")
@@ -118,6 +119,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         forgetButton.controlSize = .small
         journalCheck.target = self
         journalCheck.action = #selector(toggleJournal)
+        examplesCheck.target = self
+        examplesCheck.action = #selector(toggleExamples)
         journalClearButton.target = self
         journalClearButton.action = #selector(clearJournal)
         journalClearButton.bezelStyle = .rounded
@@ -230,6 +233,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             separator(),
             journalRow,
             caption("Records which suggestions you accept, dismiss or type past — the raw data for quality tuning and future personalization. Stays in Application Support on your Mac; the on-screen OCR text is never written."),
+            examplesCheck,
+            caption("Shows the model a few of your past phrases most similar to what you're typing, so suggestions pick up your names, slang and phrasing. Uses the journal above; does nothing until it has data."),
         ])
 
         let modelStack = vstack([
@@ -416,6 +421,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         instructionsTextView.string = Settings.customInstructions
         blacklistTextField.stringValue = Settings.userBlacklist.joined(separator: ", ")
         journalCheck.state = Settings.suggestionJournalEnabled ? .on : .off
+        examplesCheck.state = Settings.personalExamplesEnabled ? .on : .off
         updateForgetTitle()
         updateJournalClearTitle()
         refreshStatus()
@@ -614,6 +620,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     @objc private func toggleJournal() {
         Settings.suggestionJournalEnabled = journalCheck.state == .on
+    }
+
+    @objc private func toggleExamples() {
+        Settings.personalExamplesEnabled = examplesCheck.state == .on
     }
 
     @objc private func clearJournal() {

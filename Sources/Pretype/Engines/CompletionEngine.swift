@@ -10,6 +10,11 @@ struct CompletionRequest {
     /// OCR text from the focused window (opt-in), e.g. the conversation
     /// above a chat input.
     var screenSummary: String?
+    /// Retrieval-augmented few-shot: the user's own past accepted phrases most
+    /// similar to the current context, injected into the instruct directive as
+    /// style/phrasing examples. Refreshed off the typing path (like the screen
+    /// context) so the prompt prefix stays stable for the KV cache.
+    var personalExamples: [SuggestionJournal.AcceptedPhrase] = []
     /// Whether the caret sits right after a complete word (vs. mid-prefix).
     /// Computed on the main thread — `NSSpellChecker` isn't documented as
     /// background-safe — and read by the engines' output gate to decide whether

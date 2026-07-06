@@ -69,6 +69,14 @@ final class SuggestionController: NSObject {
     private var screenSummary: String?
     private var screenCapturedAt = Date.distantPast
     private var screenCaptureInFlight = false
+
+    // Retrieval-augmented few-shot from the user's own accepted phrases.
+    // Refreshed off the typing path (same discipline as the OCR context) so the
+    // prompt prefix only changes on a refresh, not per keystroke — a prefix
+    // change costs one full KV-cache re-prefill.
+    private var personalExamples: [SuggestionJournal.AcceptedPhrase] = []
+    private var examplesRefreshedAt = Date.distantPast
+    private var examplesRefreshInFlight = false
     /// Bumped on every real focus change; in-flight captures and corrections
     /// that finish after a change are discarded (a result for the previous app's
     /// context must never attach to the new one).
@@ -220,7 +228,37 @@ final class SuggestionController: NSObject {
         // Decided here, on the main thread, where NSSpellChecker is safe: lets the
         // engine offer a space + next word right after a finished word.
         request.endsOnCompleteWord = SpellChecker.endsOnCompleteWord(before: text, after: after)
+        if Settings.personalExamplesEnabled {
+            request.personalExamples = personalExamples
+        }
         return request
+    }
+
+    /// Retrieve the accepted phrases most similar to what's being typed, at
+    /// most every 25 s and never on the keystroke path. The result set stays
+    /// frozen between refreshes so the instruct prompt prefix — and with it the
+    /// KV cache — survives incremental typing.
+    private func refreshPersonalExamplesIfNeeded(typed: String) {
+        guard Settings.personalExamplesEnabled, !examplesRefreshInFlight,
+              typed.count >= 12,
+              Date().timeIntervalSince(examplesRefreshedAt) > 25 else { return }
+        examplesRefreshInFlight = true
+        let generation = focusGeneration
+        let query = String(typed.suffix(300))
+        Task.detached { [weak self] in
+            let found = SuggestionJournal.shared.similarAcceptedPhrases(to: query)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.examplesRefreshInFlight = false
+                guard self.focusGeneration == generation else { return }
+                self.examplesRefreshedAt = Date()
+                guard found != self.personalExamples else { return }
+                self.personalExamples = found
+                DebugLog.shared.log(
+                    "PROMPT", "personal examples: \(found.count)",
+                    detail: found.map { "…\($0.ctx) ⟶\($0.next)" }.joined(separator: "\n"))
+            }
+        }
     }
 
     /// Surfaced in the Context submenu.
@@ -296,6 +334,7 @@ final class SuggestionController: NSObject {
         latestTextBeforeCaret = text
         lastCaretRect = ctx.caretRect
         refreshScreenContextIfNeeded(typed: text)
+        refreshPersonalExamplesIfNeeded(typed: text)
 
         // A reviving last-word fix preview, or an inline spell-fix on the word at
         // the caret, preempts a completion — fixing what's written matters more
@@ -805,6 +844,10 @@ extension SuggestionController: FocusTrackerDelegate {
         // Stale window text must not leak into the new context.
         screenSummary = nil
         screenCapturedAt = .distantPast
+        // Examples anchored to the previous app's text go stale too; the next
+        // keystroke in the new field re-retrieves immediately.
+        personalExamples = []
+        examplesRefreshedAt = .distantPast
         dismiss()
         // Capture shortly after focus settles: passing through apps with
         // cmd-tab must not trigger screenshots, but a chat's first message

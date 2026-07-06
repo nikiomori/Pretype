@@ -581,6 +581,18 @@ final class MLXEngine: CompletionEngine {
                 directive += "\n\nAuthor profile (for voice only, never quote it):\n\(persona)"
             }
         }
+        // Retrieval-augmented few-shot: the user's own past continuations, most
+        // similar to the current context (LaMP-style personalization). Rides in
+        // the directive AFTER persona so the changing text stays the prompt tail
+        // (KV-cache-friendly: examples only change on their off-path refresh).
+        if !request.personalExamples.isEmpty {
+            directive += localized
+                ? "\n\nКак автор продолжал похожий текст раньше (только для стиля, не копировать дословно):"
+                : "\n\nHow the author continued similar text before (style reference only, do not copy verbatim):"
+            for example in request.personalExamples.prefix(3) {
+                directive += "\nText: …\(example.ctx)\nNext:\(example.next.hasPrefix(" ") ? "" : " ")\(example.next)"
+            }
+        }
         // Capture an immutable copy in the @Sendable token closure below: a
         // captured `var` crosses a concurrency boundary.
         let directiveText = directive

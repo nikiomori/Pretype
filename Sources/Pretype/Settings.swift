@@ -300,6 +300,7 @@ enum Settings {
             "confidenceGateThreshold": 0.6,
             "userBlacklist": [String](),
             "suggestionJournal": true,
+            "personalExamples": true,
             "ghostOpacity": 0.45,
             "hotkeyStyle": HotkeyStyle.tab.rawValue,
             "onboardingCompleted": false,
@@ -331,6 +332,14 @@ enum Settings {
     static var suggestionJournalEnabled: Bool {
         get { defaults.bool(forKey: "suggestionJournal") }
         set { defaults.set(newValue, forKey: "suggestionJournal") }
+    }
+
+    /// Retrieval-augmented few-shot: inject the user's own most-similar past
+    /// accepted phrases into the instruct prompt. A no-op until the journal has
+    /// data; the eval harness A/Bs it via PRETYPE_RAG.
+    static var personalExamplesEnabled: Bool {
+        get { defaults.bool(forKey: "personalExamples") }
+        set { defaults.set(newValue, forKey: "personalExamples") }
     }
 
     /// Opt-in OCR of the focused window for richer model context.

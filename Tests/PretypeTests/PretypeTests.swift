@@ -208,6 +208,43 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(journal.fileSize, 0)
     }
 
+    // Retrieval feeds the model the user's own phrases — pin that it finds the
+    // overlapping phrase, drops ⌘Z-reverted ones, and indexes live appends.
+    func testJournalRetrieval() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("journal-rag-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        func entry(ctx: String, _ suggestion: String, _ outcome: SuggestionJournal.Outcome) -> SuggestionJournal.Entry {
+            SuggestionJournal.Entry(
+                ts: SuggestionJournal.timestamp(), app: "com.test", engine: "MLX",
+                ctx: ctx, after: "", suggestion: suggestion, outcome: outcome,
+                acceptedChars: 0, typed: nil, shownForMs: 100, screen: false)
+        }
+
+        let writer = SuggestionJournal(url: url)
+        writer.append(entry(ctx: "обсудили проект с Никитой по", " дедлайнам", .accepted))
+        writer.append(entry(ctx: "the quarterly report for marketing", " is ready", .accepted))
+        writer.append(entry(ctx: "созвон с Никитой про проект завтра", " утром", .typedThrough))
+        writer.append(entry(ctx: "", " дедлайнам", .undone))   // ⌘Z revert of the first
+        _ = writer.fileSize   // drain the write queue
+
+        // Fresh instance loads the corpus from disk: the reverted phrase is out,
+        // the Никита/проект phrase wins on shared rare words, marketing doesn't match.
+        let journal = SuggestionJournal(url: url)
+        let found = journal.similarAcceptedPhrases(to: "надо обсудить проект с Никитой")
+        XCTAssertEqual(found.map(\.next), [" утром"])
+
+        // Under two meaningful shared words — no example beats a wrong example.
+        XCTAssertTrue(journal.similarAcceptedPhrases(to: "проект").isEmpty)
+        XCTAssertTrue(journal.similarAcceptedPhrases(to: "купить хлеб и молоко").isEmpty)
+
+        // An accept recorded after the corpus loaded is retrievable immediately.
+        journal.append(entry(ctx: "ужин с мамой в субботу вечером", " дома", .accepted))
+        let live = journal.similarAcceptedPhrases(to: "планируем ужин в субботу вечером")
+        XCTAssertEqual(live.map(\.next), [" дома"])
+    }
+
     @MainActor
     func testSuggestionControllerUndo() {
         let controller = SuggestionController()

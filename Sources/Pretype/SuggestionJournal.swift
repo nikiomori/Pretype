@@ -40,11 +40,33 @@ final class SuggestionJournal: @unchecked Sendable {
         var screen: Bool
     }
 
+    /// A phrase the user demonstrably wanted (accepted or typed through),
+    /// with the context it appeared in — the corpus for retrieval-augmented
+    /// personalization (dynamic few-shot from the user's own writing).
+    struct AcceptedPhrase: Sendable, Equatable {
+        let ctx: String
+        let next: String
+        /// Index words of ctx+next, precomputed for retrieval scoring.
+        let words: Set<String>
+
+        init(ctx: String, next: String) {
+            self.ctx = ctx
+            self.next = next
+            self.words = Set(SuggestionJournal.indexWords(ctx + " " + next))
+        }
+    }
+
     private let url: URL
     private let maxBytes: Int
     private let queue = DispatchQueue(label: "app.pretype.journal", qos: .utility)
     private let encoder = JSONEncoder()
     private var appended = 0
+    /// Retrieval corpus, lazily loaded from the file and kept current by
+    /// `append`. `nil` until first use. Guarded by `queue`.
+    private var phrases: [AcceptedPhrase]?
+    /// Document frequency of index words across `phrases` (for IDF scoring).
+    private var wordDocFreq: [String: Int] = [:]
+    private let maxPhrases = 2000
 
     private static let iso: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -81,11 +103,89 @@ final class SuggestionJournal: @unchecked Sendable {
             }
             appended += 1
             if appended % 200 == 0 { trim() }
+            if phrases != nil, let phrase = Self.phrase(from: entry) { indexPhrase(phrase) }
         }
     }
 
     func reset() {
-        queue.sync { try? FileManager.default.removeItem(at: url) }
+        queue.sync {
+            try? FileManager.default.removeItem(at: url)
+            phrases = nil
+            wordDocFreq = [:]
+        }
+    }
+
+    // MARK: - Retrieval (RAG few-shot from the user's own accepted phrases)
+
+    /// The accepted phrases most similar to `query`, by IDF-weighted word
+    /// overlap (rare shared words — names, project slang — count for much more
+    /// than common ones). Requires ≥2 shared index words so a single stop-wordy
+    /// match never surfaces an unrelated example. Deduped by phrase text.
+    func similarAcceptedPhrases(to query: String, limit: Int = 3) -> [AcceptedPhrase] {
+        let queryWords = Set(Self.indexWords(query))
+        guard queryWords.count >= 2 else { return [] }
+        return queue.sync {
+            loadPhrasesLocked()
+            guard let phrases, !phrases.isEmpty else { return [] }
+            let n = Double(phrases.count)
+            var scored: [(AcceptedPhrase, Double)] = []
+            for phrase in phrases {
+                let shared = phrase.words.intersection(queryWords)
+                guard shared.count >= 2 else { continue }
+                let score = shared.reduce(0.0) {
+                    $0 + log(1.0 + n / Double(max(1, wordDocFreq[$1] ?? 1)))
+                }
+                scored.append((phrase, score))
+            }
+            var seen = Set<String>()
+            return Array(scored.sorted { $0.1 > $1.1 }
+                .map(\.0)
+                .filter { seen.insert($0.ctx + $0.next).inserted }
+                .prefix(limit))
+        }
+    }
+
+    /// An entry the retrieval corpus should learn from: the user accepted the
+    /// text or typed it out themselves.
+    private static func phrase(from e: Entry) -> AcceptedPhrase? {
+        guard e.outcome == .accepted || e.outcome == .typedThrough,
+              !e.suggestion.isEmpty, !e.ctx.isEmpty else { return nil }
+        return AcceptedPhrase(ctx: String(e.ctx.suffix(120)), next: e.suggestion)
+    }
+
+    /// Parse the journal into the corpus once. Phrases later reverted with ⌘Z
+    /// are dropped — an undone accept must not teach. Runs on `queue`.
+    private func loadPhrasesLocked() {
+        guard phrases == nil else { return }
+        var loaded: [AcceptedPhrase] = []
+        var undone = Set<String>()
+        if let data = try? Data(contentsOf: url),
+           let content = String(data: data, encoding: .utf8) {
+            let decoder = JSONDecoder()
+            for line in content.split(separator: "\n") {
+                guard let entry = try? decoder.decode(Entry.self, from: Data(line.utf8)) else { continue }
+                if entry.outcome == .undone { undone.insert(entry.suggestion) }
+                else if let phrase = Self.phrase(from: entry) { loaded.append(phrase) }
+            }
+        }
+        phrases = []
+        for phrase in loaded.suffix(maxPhrases) where !undone.contains(phrase.next) {
+            indexPhrase(phrase)
+        }
+    }
+
+    /// Add one phrase to the corpus + document frequencies. Runs on `queue`.
+    private func indexPhrase(_ phrase: AcceptedPhrase) {
+        phrases?.append(phrase)
+        for word in phrase.words { wordDocFreq[word, default: 0] += 1 }
+        // ponytail: unbounded within a session past maxPhrases — the cap
+        // re-applies on next launch's load; sessions never grow that far.
+    }
+
+    /// Lowercased ё-folded letter-runs ≥3 chars — the retrieval vocabulary.
+    static func indexWords(_ text: String) -> [String] {
+        text.lowercased().replacingOccurrences(of: "ё", with: "е")
+            .split { !$0.isLetter }.map(String.init).filter { $0.count >= 3 }
     }
 
     var fileSize: Int {
