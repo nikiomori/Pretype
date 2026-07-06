@@ -11,21 +11,29 @@
 Copilot-style suggestions in every text field — completely offline, private, and on-device.
 
 [![Website](https://img.shields.io/badge/website-pretype.app-6E56CF.svg)](https://pretype.app)
+[![Latest release](https://img.shields.io/github/v/release/nikiomori/Pretype?label=release&color=brightgreen)](https://github.com/nikiomori/Pretype/releases/latest)
 [![CI](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml/badge.svg)](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey.svg)](#-requirements)
-[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-required-black.svg?logo=apple)](#-requirements)
+[![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey.svg)](#requirements)
+[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-required-black.svg?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-F05138.svg?logo=swift&logoColor=white)](Package.swift)
 
 <p>
   <a href="https://pretype.app"><b>Website</b></a> ·
-  <a href="#-quick-start"><b>Quick Start</b></a> ·
-  <a href="#-why-pretype"><b>Why Pretype</b></a> ·
-  <a href="#-features"><b>Features</b></a> ·
-  <a href="#-how-it-works"><b>How it Works</b></a> ·
-  <a href="#-roadmap"><b>Roadmap</b></a> ·
-  <a href="#-requirements"><b>Requirements</b></a>
+  <a href="#quick-start"><b>Quick Start</b></a> ·
+  <a href="#why-pretype"><b>Why Pretype</b></a> ·
+  <a href="#features"><b>Features</b></a> ·
+  <a href="#how-it-works"><b>How it Works</b></a> ·
+  <a href="#faq"><b>FAQ</b></a> ·
+  <a href="#roadmap"><b>Roadmap</b></a> ·
+  <a href="#contributing"><b>Contributing</b></a>
 </p>
+
+<a href="https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip">
+  <img src="https://img.shields.io/badge/Download_for_macOS-Apple_Silicon_·_Free-0A84FF?style=for-the-badge&logo=apple&logoColor=white" alt="Download Pretype for macOS (Apple Silicon)" />
+</a>
+
+<br/><br/>
 
 <img src="docs/demo.gif" alt="Pretype in action — gray ghost text appears at the caret, Tab accepts it" width="720" style="border-radius: 10px;" />
 
@@ -40,39 +48,39 @@ Copilot-style suggestions in every text field — completely offline, private, a
 
 ---
 
-## ⚡ Why Pretype?
+## Why Pretype?
 
 Most autocomplete solutions live inside a single code editor and ship your text to remote servers. Pretype runs globally across macOS and processes everything locally.
 
 | Feature | **Pretype** | Cloud Autocomplete |
 | :--- | :---: | :---: |
-| 🛡️ **Privacy** | **100% On-Device** (keystrokes never leave your Mac) | Sent to a remote server |
-| 🌐 **Scope** | **System-Wide** (works in Mail, Slack, Notes, Safari, etc.) | Usually locked to a single IDE / editor |
-| 💸 **Cost** | **Free & Open-Source** (MIT License) | Subscription fees or API token costs |
-| ⚡ **Offline** | **Fully Functional** without internet | Requires active internet connection |
-| ⚙️ **Setup** | One-click local model download | Account registration + API key setup |
+| **Privacy** | **100% On-Device** (keystrokes never leave your Mac) | Sent to a remote server |
+| **Scope** | **System-Wide** (works in Mail, Slack, Notes, Safari, etc.) | Usually locked to a single IDE / editor |
+| **Cost** | **Free & Open-Source** (MIT License) | Subscription fees or API token costs |
+| **Offline** | **Fully Functional** without internet | Requires active internet connection |
+| **Setup** | One-click local model download | Account registration + API key setup |
 
-> *Pretype is an open-source reimplementation of the concept behind [Cotypist](https://cotypist.app) (closed-source, freemium). Not affiliated with Cotypist.*
+> *Pretype is a free, open-source alternative to [Cotypist](https://cotypist.app) (closed-source, freemium) — a from-scratch reimplementation of the same idea. Not affiliated with Cotypist.*
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 <div align="center">
 
-### 🔤 Inline Typo Fix
+### Inline Typo Fix
 <img src="docs/shot-typo.png" width="720" alt="Inline typo fix: a misspelled word shows its correction in a pill above it" style="border-radius: 10px;" />
 <p><sub><i>Misspelled words automatically show corrections in a pill above the caret. Press <kbd>Tab</kbd> to apply, or <kbd>Esc</kbd> to dismiss.</i></sub></p>
 
 <br/>
 
-### 🪄 Fix Selection (`⌥Tab`)
+### Fix Selection (`⌥Tab`)
 <img src="docs/shot-fix.png" width="720" alt="Fix selection: a typo-ridden line rewritten into clean text in place" style="border-radius: 10px;" />
 <p><sub><i>Select any typo-ridden line or phrase and press <kbd>⌥Tab</kbd>. The local LLM rewrites the selection in place while preserving your original tone.</i></sub></p>
 
 <br/>
 
-### 🎨 Presentation Modes
+### Presentation Modes
 <img src="docs/shot-modes.png" width="720" alt="Two presentation modes — seamless inline ghost text on the line, or a floating panel above it" style="border-radius: 10px;" />
 <p><sub><i>Choose between seamless inline ghost text (pixel-accurate even in Electron) or a clean floating capsule panel above the caret.</i></sub></p>
 
@@ -80,23 +88,38 @@ Most autocomplete solutions live inside a single code editor and ship your text 
 
 ---
 
-## ✨ Features
+## Features
 
-*   🌐 **Works Everywhere** — Integrates with any macOS text field: native AppKit/SwiftUI apps, Electron apps (VS Code, Slack, Claude Desktop), and web views.
-*   ✨ **Pixel-Perfect Ghost Text** — completion text is baseline-matched and sized dynamically to match your editor's font.
-*   ⌨️ **Smart Keystrokes** — Press <kbd>Tab</kbd> to accept the next word, <kbd>⇧Tab</kbd> to accept the rest of the suggestion, or simply type over it to reject.
-*   🔤 **Inline Typo Fixes** — Misspelled words show an instant correction pill above the word; press <kbd>Tab</kbd> to apply (uses native system spell-check, supports English & Russian).
-*   🪄 **Smart Rewrites (`⌥Tab`)** — Select any text and let the local LLM fix grammar, typos, and phrasing in place while preserving your original tone.
-*   🤖 **Local Inference Engines** — Standardized on **Gemma 4** via Apple's MLX framework, or **Apple Intelligence** system models on macOS 26+.
-*   ⚡ **Zero-Lag completion** — Reuses Key-Value (KV) cache to deliver completions in **0.05–0.2 seconds**.
-*   👀 **Context Aware & OCR** — Intelligently adjusts behavior per app (disabled in terminals). Optional on-screen OCR reads surrounding window context.
+*   **Works Everywhere** — Integrates with any macOS text field: native AppKit/SwiftUI apps, Electron apps (VS Code, Slack, Claude Desktop), and web views.
+*   **Pixel-Perfect Ghost Text** — completion text is baseline-matched and sized dynamically to match your editor's font.
+*   **Smart Keystrokes** — Press <kbd>Tab</kbd> to accept the next word, <kbd>⇧Tab</kbd> to accept the rest of the suggestion, or simply type over it to reject. The suggestion renders exactly what one <kbd>Tab</kbd> will take a step brighter than the rest.
+*   **Inline Typo Fixes** — Misspelled words show an instant correction pill above the word; press <kbd>Tab</kbd> to apply (uses native system spell-check, supports English & Russian).
+*   **Smart Rewrites (`⌥Tab`)** — Select any text and let the local LLM fix grammar, typos, and phrasing in place while preserving your original tone.
+*   **Local Inference Engines** — Standardized on **Gemma 4** via Apple's MLX framework, or **Apple Intelligence** system models on macOS 26+.
+*   **Zero-Lag completion** — Reuses Key-Value (KV) cache to deliver completions in **0.05–0.2 seconds**.
+*   **Context Aware & OCR** — Intelligently adjusts behavior per app (disabled in terminals). Optional on-screen OCR reads surrounding window context.
+*   **Real Settings, Quiet Menu** — The menu bar shows status, stats, and diagnostics; everything tunable lives in a tabbed Settings window (<kbd>⌘,</kbd>): presentation & hotkey style, completion style/length, persona & on-device personalization, model choice, and a per-app blacklist.
 
 ---
 
-## 🚦 Quick Start
+## Quick Start
+
+### Option 1 — Download the app *(recommended)*
+
+1. Download the latest [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip) from [Releases](https://github.com/nikiomori/Pretype/releases).
+2. Unzip and move `Pretype.app` to `/Applications`.
+3. On first launch Pretype picks the Gemma model that fits your RAM and downloads it once from Hugging Face (3.4–8.6 GB).
+
+> [!NOTE]
+> The app is ad-hoc signed (not notarized yet), so Gatekeeper blocks the first launch. Open it via **System Settings → Privacy & Security → Open Anyway**, or clear the quarantine flag:
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/Pretype.app
+> ```
+
+### Option 2 — Build from source
 
 > [!IMPORTANT]
-> Requires **macOS 14+ on Apple Silicon** with **full Xcode** (the MLX engine needs the Metal compiler).
+> Building requires **full Xcode** (the MLX engine needs the Metal compiler). The prebuilt app above does not.
 
 ```bash
 # Xcode 26+ only: install the Metal toolchain once
@@ -114,7 +137,7 @@ open build/Pretype.app
 > Grant **Accessibility** when prompted. This permission is how Pretype reads active text fields, catches the <kbd>Tab</kbd> key, and types suggestions back. If you grant it after launching, please restart the app.
 
 <details>
-<summary><b>🛠️ Dev Loop, Headless Testing & SwiftPM Caveats</b></summary>
+<summary><b>Dev Loop, Headless Testing & SwiftPM Caveats</b></summary>
 
 For a fast dev loop:
 ```bash
@@ -131,7 +154,7 @@ When running the raw binary from a terminal, macOS attributes the Accessibility 
 
 ---
 
-## 🧩 How It Works
+## How It Works
 
 Pretype hooks into macOS accessibility APIs to provide a system-wide overlay:
 
@@ -153,10 +176,10 @@ flowchart LR
 
 ---
 
-## 🔧 Under the Hood
+## Under the Hood
 
 <details>
-<summary><b>🤖 Engines & Models</b></summary>
+<summary><b>Engines & Models</b></summary>
 
 ### Inference Engines
 Two backends implement the `CompletionEngine` protocol:
@@ -171,10 +194,12 @@ Variants are automatically selected on startup based on your Mac's installed RAM
 *   **Gemma 4 E4B 4-bit** (≈5 GB) — Compact.
 *   **Gemma 4 E2B 4-bit** (≈3.4 GB) — Light footprint, default for Macs under 16 GB RAM.
 
+The default **Instruct** completion style runs a tuned instruct sibling as the primary model, tiered to RAM the same way (E4B 6-bit on ≥16 GB, 4-bit variants on tighter machines) — no tier ever loads a model it can't comfortably hold.
+
 </details>
 
 <details>
-<summary><b>🪄 Typo Corrections & Selection Rewrites</b></summary>
+<summary><b>Typo Corrections & Selection Rewrites</b></summary>
 
 *   **Inline Typo Fix:** Instantly displays the correction in a pill above the misspelled word as you type. Uses the macOS system spell-checker (English + Russian).
 *   **Fix Selection (`⌥Tab`):** Highlight any text and press `⌥Tab`. The local LLM rewrites the line in place, preserving tone and punctuation.
@@ -182,7 +207,7 @@ Variants are automatically selected on startup based on your Mac's installed RAM
 </details>
 
 <details>
-<summary><b>⚡ Latency & Cache Optimization</b></summary>
+<summary><b>Latency & Cache Optimization</b></summary>
 
 *   **KV-Cache Reuse:** Prefills only the newly typed tokens and reuses the existing Key-Value cache.
 *   **Performance:** Prefill speed of **400–750 tokens/sec** and decode speed of **~90–105 tokens/sec** on M-series chips, delivering hot completion latency of **0.05–0.2s**.
@@ -190,18 +215,18 @@ Variants are automatically selected on startup based on your Mac's installed RAM
 </details>
 
 <details>
-<summary><b>👀 Context & Vision OCR</b></summary>
+<summary><b>Context & Vision OCR</b></summary>
 
 *   **App Awareness:** Adapts prompt style based on the active application (e.g., short completions in chats, disabled in terminal emulators).
-*   **Screen Context:** Runs Apple's local Vision OCR framework on the focused application's window to pull nearby text (like reading the email thread you are replying to). *Requires Screen Recording permission; disabled by default.*
+*   **Screen Context:** Runs Apple's local Vision OCR framework on the focused application's window to pull nearby text (like reading the email thread you are replying to). *Requires Screen Recording permission; disabled by default.* OCR'd screen text never enters the debug log — exported logs carry a size-only placeholder in its place.
 
 </details>
 
 ---
 
-## 🩺 Troubleshooting
+## Troubleshooting
 
-If you don't see any autocomplete suggestions, check the **Diagnostics** panel by clicking the menu bar icon.
+If you don't see any autocomplete suggestions, open **Diagnostics** in the menu bar icon's menu — its Context section shows what Pretype sees (app, window, field), and Pipeline shows what the completion pipeline last did.
 
 <details>
 <summary><b>Common Issues & Fixes</b></summary>
@@ -214,29 +239,103 @@ If you don't see any autocomplete suggestions, check the **Diagnostics** panel b
 
 ---
 
-## 🗺️ Roadmap
+## FAQ
+
+<details>
+<summary><b>Is my text ever sent to the cloud?</b></summary>
+<br/>
+
+No. All inference runs on-device — either a local Gemma model via Apple MLX, or the Apple Intelligence system model. Pretype has no accounts, no telemetry, and makes exactly one kind of network request: downloading the model from Hugging Face on first launch.
+</details>
+
+<details>
+<summary><b>How is Pretype different from GitHub Copilot or IDE autocomplete?</b></summary>
+<br/>
+
+Copilot lives inside a code editor and sends your code to the cloud. Pretype is a system-wide writing assistant: it completes emails, chat messages, notes, and documents in *any* macOS text field, and everything stays on your Mac.
+</details>
+
+<details>
+<summary><b>Is Pretype a Cotypist alternative?</b></summary>
+<br/>
+
+Yes — Pretype is a free, MIT-licensed open-source alternative to Cotypist, built from scratch around the same idea (system-wide local-LLM autocomplete). It is not affiliated with Cotypist.
+</details>
+
+<details>
+<summary><b>Does it work on Intel Macs?</b></summary>
+<br/>
+
+No. MLX requires Apple Silicon (M1 or newer).
+</details>
+
+<details>
+<summary><b>Which languages are supported?</b></summary>
+<br/>
+
+Completions inherit Gemma's multilingual ability (English is strongest; Russian and other major languages work well). Inline typo fixes currently support English and Russian via the macOS system spell-checker.
+</details>
+
+<details>
+<summary><b>How much RAM do I need?</b></summary>
+<br/>
+
+8 GB is enough — Pretype automatically picks a model variant that fits your machine, from Gemma 4 E2B 4-bit (≈3.4 GB) up to E4B 8-bit (≈8.6 GB) on 32 GB+ Macs.
+</details>
+
+<details>
+<summary><b>Why does Pretype need the Accessibility permission?</b></summary>
+<br/>
+
+It's how Pretype reads the focused text field, catches the <kbd>Tab</kbd> key, and types accepted suggestions back. Screen Recording is optional and only used for on-screen OCR context (disabled by default).
+</details>
+
+---
+
+## Roadmap
 
 *   [ ] Emoji completion (`:shrug:` → 🤷)
 *   [ ] Multi-language support overrides
-*   [ ] Per-app compatibility DB and blacklist/whitelist settings
+*   [ ] Per-app compatibility DB and whitelist mode *(per-app blacklist already shipped in Settings)*
 *   [ ] Sparkle auto-updates, notarized Homebrew builds
 
 ---
 
-## 💻 Requirements
+## Requirements
 
 *   **OS**: macOS 14+ (macOS 26+ for Apple Intelligence system model)
 *   **Hardware**: Apple Silicon Mac (M1/M2/M3/M4 or newer)
-*   **Software**: Full Xcode installation (Metal toolchain)
 *   **Storage**: 3.4–8.6 GB for the local MLX model
+*   **Software**: none for the prebuilt app; full Xcode (Metal toolchain) only to build from source
 
 ---
 
-## 📄 License
+## Contributing
 
-Pretype is licensed under the [MIT License](LICENSE).
+Pretype is young and moving fast — bug reports, feature ideas, and pull requests are all welcome:
+
+*   [Open an issue](https://github.com/nikiomori/Pretype/issues) for bugs and feature requests
+*   Read the [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md)
+*   Report security issues privately per [SECURITY.md](SECURITY.md)
+
+If Pretype is useful to you, a ⭐ helps others discover it.
+
+---
+
+## Acknowledgements
+
+*   [MLX](https://github.com/ml-explore/mlx) and [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) — Apple's on-device ML stack
+*   [Gemma](https://ai.google.dev/gemma) — the open model family powering completions
+*   [swift-transformers](https://github.com/huggingface/swift-transformers) — Hugging Face tokenizers & model hub client
+*   [Cotypist](https://cotypist.app) — the original inspiration
+
+---
+
+## License
+
+Pretype is licensed under the [MIT License](LICENSE) — free for personal and commercial use.
 
 <div align="center">
 <br/>
-<sub>Built with Swift, MLX, and Gemma — entirely on-device. ⌨️</sub>
+<sub>Built with Swift, MLX, and Gemma — entirely on-device.</sub>
 </div>
