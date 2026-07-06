@@ -295,15 +295,39 @@ final class CorrectionController {
     private func applyPendingFix() {
         guard let owner, let fix = pendingFix else { return }
         pendingFix = nil
+        selection = nil
+        owner.window.hide()
+        let event = "fixed \(fix.deleteCount > 0 ? "last word" : "selection") (\(fix.original.count) chars)"
+        // The validating AX read must not run inside the event-tap callback (a
+        // hung target app would stall the tap); hop off, then validate + inject.
+        DispatchQueue.main.async { [weak self] in self?.inject(fix, event: event) }
+    }
+
+    /// Shared apply path for every fix flow: re-read the *live* text and inject
+    /// only if it still matches what the fix was computed against. The preview
+    /// is only re-validated on AX events, which trail typing by tens of ms — a
+    /// confirm key landing in that gap (e.g. Enter-to-send right after a burst
+    /// of typing) would otherwise delete and replace the wrong characters.
+    private func inject(_ fix: PendingFix, event: String) {
+        guard let owner, let element = owner.currentTextElement() else { return }
         if fix.deleteCount > 0 {
+            guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars),
+                  ctx.textAfterCaret.first?.isLetter != true,
+                  Self.lastWord(of: ctx.textBeforeCaret) == fix.original else {
+                DebugLog.shared.log("FIX", "dropped stale fix — text changed before apply")
+                return
+            }
             TextInjector.deleteBackward(fix.deleteCount)
+        } else {
+            guard AXText.selectionInfo(for: element)?.text == fix.original else {
+                DebugLog.shared.log("FIX", "dropped stale fix — selection changed before apply")
+                return
+            }
         }
         TextInjector.insert(fix.replacement)
         Stats.recordCorrection()
-        owner.lastEvent = "fixed \(fix.deleteCount > 0 ? "last word" : "selection") (\(fix.original.count) chars)"
+        owner.lastEvent = event
         DebugLog.shared.log("FIX", "applied \"\(fix.original)\" → \"\(fix.replacement)\"")
-        selection = nil
-        owner.window.hide()
         owner.scheduleKeystrokeRefresh(after: 0.12)
     }
 
@@ -335,16 +359,15 @@ final class CorrectionController {
     }
 
     /// ⇥ on an inline spell-fix: replace the mistyped word with the correction.
+    /// Routed through the same validate-then-inject path as the ⌥⇥ fixes.
     private func applyCorrection() {
         guard let owner, let correction = activeCorrection else { return }
         activeCorrection = nil
-        TextInjector.deleteBackward(correction.word.count)
-        TextInjector.insert(correction.fix)
-        Stats.recordCorrection()
-        owner.lastEvent = "fixed typo \"\(correction.word)\" → \"\(correction.fix)\""
-        DebugLog.shared.log("FIX", "inline typo \"\(correction.word)\" → \"\(correction.fix)\"")
         owner.window.hide()
-        owner.scheduleKeystrokeRefresh(after: 0.12)
+        let fix = PendingFix(original: correction.word, replacement: correction.fix,
+                             deleteCount: correction.word.count)
+        let event = "fixed typo \"\(correction.word)\" → \"\(correction.fix)\""
+        DispatchQueue.main.async { [weak self] in self?.inject(fix, event: event) }
     }
 
     /// The word just before the caret: the trailing run of letters (apostrophes
