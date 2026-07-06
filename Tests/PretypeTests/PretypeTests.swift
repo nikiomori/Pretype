@@ -101,6 +101,20 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(SuggestionController.firstWordChunk(of: "   multiple   words"), "   multiple")
     }
 
+    func testNarrowedSuggestion() {
+        // Typing the suggestion's head shrinks it.
+        XCTAssertEqual(SuggestionController.narrowedSuggestion("ing to the store", typedCharacters: "i"), "ng to the store")
+        XCTAssertEqual(SuggestionController.narrowedSuggestion(" привет мир", typedCharacters: " "), "привет мир")
+        // A diverging character invalidates it.
+        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "x"))
+        // Typing through the end leaves nothing to suggest.
+        XCTAssertNil(SuggestionController.narrowedSuggestion("i", typedCharacters: "i"))
+        // Control input (backspace, return, arrows/function keys) invalidates.
+        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "\u{08}"))
+        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "\r"))
+        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "\u{F702}"))
+    }
+
     func testStrippingStraySeparator() {
         // Prefix is a complete word AND the start of a longer one: the model is
         // finishing the current word, so the stray separator must go.

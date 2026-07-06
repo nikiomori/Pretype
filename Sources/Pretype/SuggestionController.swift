@@ -566,11 +566,61 @@ final class SuggestionController: NSObject {
             }
         }
 
+        // Keep `active` truthful before this keystroke reaches the app: the
+        // re-read below is a 60 ms *throttle*, and an accept landing inside
+        // that window would re-inject characters the OS already typed
+        // (duplicating them). Worst in Electron apps, where AX notifications
+        // are unreliable and the timer is the only update path.
+        narrowActive(with: event, flags: flags)
+
         // AX change notifications are unreliable in some apps (notably
         // Electron), so every keystroke also schedules a context re-read.
         scheduleKeystrokeRefresh()
         lastAcceptedChunk = nil
         return false
+    }
+
+    /// Synchronously shrinks (or drops) the live suggestion to match a
+    /// pass-through keystroke, using the characters carried by the event
+    /// itself — no AX round-trip, so it can't block on a hung target app.
+    private func narrowActive(with event: CGEvent, flags: CGEventFlags) {
+        guard var current = active else { return }
+        // Command/control chords don't type text; leave them to the AX refresh.
+        guard !flags.contains(.maskCommand), !flags.contains(.maskControl) else { return }
+        let typed = Self.typedCharacters(event)
+        guard !typed.isEmpty else { return }   // dead keys, bare modifiers
+        guard let remaining = Self.narrowedSuggestion(current.text, typedCharacters: typed) else {
+            // Divergent or control input — the ghost no longer matches the field.
+            active = nil
+            window.hide()
+            return
+        }
+        current.anchor += typed
+        current.text = remaining
+        active = current
+        // Advance the stale-cache marker too, so a streamed partial arriving
+        // before the AX refresh re-reads instead of trusting pre-keystroke text.
+        latestTextBeforeCaret? += typed
+        window.advance(past: typed, remaining: remaining)
+    }
+
+    /// Pure narrowing decision (testable): the suggestion remainder after the
+    /// user typed `typed`, or nil when the keystroke invalidates it — control
+    /// input (backspace, arrows, function keys), a diverging character, or
+    /// typing through the suggestion's end.
+    nonisolated static func narrowedSuggestion(_ text: String, typedCharacters typed: String) -> String? {
+        guard !typed.unicodeScalars.contains(where: {
+            $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
+        }), typed.count < text.count, text.hasPrefix(typed) else { return nil }
+        return String(text.dropFirst(typed.count))
+    }
+
+    /// The characters this key event will insert, as reported by the event.
+    private static func typedCharacters(_ event: CGEvent) -> String {
+        var length = 0
+        var chars = [UniChar](repeating: 0, count: 8)
+        event.keyboardGetUnicodeString(maxStringLength: 8, actualStringLength: &length, unicodeString: &chars)
+        return String(utf16CodeUnits: chars, count: min(length, 8))
     }
 
     func scheduleKeystrokeRefresh(after delay: TimeInterval = 0.06) {
