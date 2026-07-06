@@ -11,9 +11,13 @@ struct ModelOption {
     /// Kept at 4-bit — correction is easy and the model loads lazily.
     let correctionModelID: String
     /// Instruct sibling that becomes the *primary* model in instruct
-    /// completion style. Higher-bit than `correctionModelID`: an eval A/B showed
-    /// the instruct path only matches/beats base at 6–8 bit (4-bit handicaps it,
-    /// esp. Russian). Overridable via PRETYPE_INSTRUCT_MODEL.
+    /// completion style — and instruct is the registered default, so this id,
+    /// not `id`, is what actually loads out of the box. It is therefore sized
+    /// to the entry's RAM tier: E4B 6-bit where the tier affords ~6.8 GB (an
+    /// eval A/B showed instruct only matches/beats base at 6–8 bit), 4-bit
+    /// siblings on the tighter tiers — a handicapped instruct still beats
+    /// swapping a model the Mac can't hold. Overridable via
+    /// PRETYPE_INSTRUCT_MODEL.
     let instructModelID: String
 }
 
@@ -45,7 +49,7 @@ enum ModelCatalog {
             approxSizeMB: 5660,
             extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
-            instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
+            instructModelID: "mlx-community/gemma-4-e4b-it-4bit"  // ~5 GB — fits the 11–16 GB tier
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e4b-4bit",
@@ -53,7 +57,7 @@ enum ModelCatalog {
             approxSizeMB: 5000,
             extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
-            instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
+            instructModelID: "mlx-community/gemma-4-e4b-it-4bit"  // same size class as the base pick
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e2b-4bit",
@@ -61,7 +65,7 @@ enum ModelCatalog {
             approxSizeMB: 3450,
             extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
-            instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
+            instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
     ]
 
