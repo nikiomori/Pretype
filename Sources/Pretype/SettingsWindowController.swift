@@ -628,6 +628,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     @objc private func clearJournal() {
         SuggestionJournal.shared.reset()
+        // The n-gram model is derived from the journal — clearing one clears both.
+        PersonalNgram.shared.reset()
         updateJournalClearTitle()
     }
 

@@ -50,9 +50,18 @@ final class SuggestionController: NSObject {
         var suggestion: String
         var acceptedChars = 0
         var hadScreen: Bool
+        /// "ngram" for the fast-path, else the engine's name — so the journal
+        /// can compare their acceptance rates.
+        var engine: String
         var shownAt = Date()
     }
     private var pendingJournal: PendingJournal?
+
+    /// True while the visible suggestion came from the personal n-gram
+    /// fast-path (shown instantly, before the LLM answers). The LLM stream
+    /// supersedes it via the normal `apply` path; its *abstain* must not
+    /// hide it though — a confident personal phrase beats showing nothing.
+    private var activeIsInstant = false
 
     private var keyRefreshScheduled = false
     private var lastAcceptedChunk: String?
@@ -107,6 +116,9 @@ final class SuggestionController: NSObject {
     func start() {
         focusTracker.start()
         ensureKeyTap()
+        if Settings.personalizationLevel != .off {
+            PersonalNgram.shared.prepareIfNeeded()
+        }
         if !Settings.onboardingCompleted {
             onboardingWindow = OnboardingWindow(controller: self)
             onboardingWindow?.show()
@@ -158,7 +170,7 @@ final class SuggestionController: NSObject {
         SuggestionJournal.shared.append(SuggestionJournal.Entry(
             ts: SuggestionJournal.timestamp(),
             app: typingContext.bundleID,
-            engine: engine.name,
+            engine: pending.engine,
             ctx: String(pending.ctx.suffix(1000)),
             after: pending.after,
             suggestion: pending.suggestion,
@@ -174,6 +186,7 @@ final class SuggestionController: NSObject {
         refreshTask?.cancel()
         refreshTask = nil
         active = nil
+        activeIsInstant = false
         lastAcceptedChunk = nil
         correctionController.reset()
         indicator.stop()
@@ -370,7 +383,45 @@ final class SuggestionController: NSObject {
             window.hide()
         }
 
+        // Personal n-gram fast-path: a confident hit from the user's own
+        // recurring phrases shows at ~0 ms, before the debounce even starts;
+        // the LLM stream below then supersedes it through the same apply path.
+        if let instant = instantSuggestion(text: text, after: ctx.textAfterCaret) {
+            apply(instant, requestText: text, cachedContext: ctx, instant: true)
+        }
+
         scheduleRefresh(for: text, after: ctx.textAfterCaret, context: ctx)
+    }
+
+    /// A conservative next-word / word-completion prediction from the personal
+    /// n-gram model. Runs synchronously on the keystroke path — pure in-memory
+    /// counts, microseconds. nil unless the user's history is emphatic.
+    private func instantSuggestion(text: String, after: String) -> String? {
+        guard Settings.personalizationLevel != .off else { return nil }
+        PersonalNgram.shared.prepareIfNeeded()
+        guard text.count >= 12 else { return nil }
+
+        let prediction: String?
+        if text.hasSuffix(" ") {
+            prediction = PersonalNgram.shared.nextWord(after: text)
+        } else if text.last?.isLetter == true {
+            let partial = SpellChecker.trailingWord(of: text)
+            if let remainder = PersonalNgram.shared.completeWord(partial: partial) {
+                prediction = remainder
+            } else if SpellChecker.endsOnCompleteWord(before: text, after: after) == true,
+                      let word = PersonalNgram.shared.nextWord(after: text) {
+                prediction = " " + word
+            } else {
+                prediction = nil
+            }
+        } else {
+            prediction = nil
+        }
+        guard let prediction, !prediction.isEmpty else { return nil }
+        // Never re-suggest what already follows the caret.
+        let nextWord = prediction.trimmingCharacters(in: .whitespaces)
+        guard !after.trimmingCharacters(in: .whitespaces).hasPrefix(nextWord) else { return nil }
+        return prediction
     }
 
     private func scheduleRefresh(for text: String, after: String, context: TextContext) {
@@ -462,6 +513,10 @@ final class SuggestionController: NSObject {
                 self.lastPromptDescription = request.completionPrompt(maxChars: 1000)
                 if finalShown {
                     self.lastResultDescription = self.active?.text
+                } else if self.activeIsInstant, self.active != nil {
+                    // The LLM abstained but the personal n-gram suggestion is
+                    // up — a confident personal phrase beats showing nothing.
+                    self.lastResultDescription = self.active?.text
                 } else {
                     // Nothing passed the gates — hide and record the abstain.
                     self.lastResultDescription = nil
@@ -481,7 +536,8 @@ final class SuggestionController: NSObject {
     /// keystroke, and a keystroke cancels this task. `nil` ⇒ read AX now.
     @discardableResult
     private func apply(_ result: String?, requestText: String,
-                       cachedContext: TextContext? = nil, countShown: Bool = true) -> Bool {
+                       cachedContext: TextContext? = nil, countShown: Bool = true,
+                       instant: Bool = false) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
         guard let result else {
@@ -549,6 +605,7 @@ final class SuggestionController: NSObject {
         }
 
         active = Active(anchor: current, text: suggestion)
+        activeIsInstant = instant
         if countShown {
             Stats.recordShown()
             // A fresh suggestion opens a journal record; an unresolved one at
@@ -557,7 +614,8 @@ final class SuggestionController: NSObject {
             pendingJournal = PendingJournal(
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 hadScreen: screenSummary != nil
-                    && AppPolicy.allowsScreenContext(typingContext.bundleID))
+                    && AppPolicy.allowsScreenContext(typingContext.bundleID),
+                engine: instant ? "ngram" : engine.name)
         } else {
             // Streamed growth of the same suggestion — keep the record current.
             pendingJournal?.suggestion = suggestion

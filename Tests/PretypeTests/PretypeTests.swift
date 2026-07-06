@@ -245,6 +245,69 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(live.map(\.next), [" дома"])
     }
 
+    // The n-gram trainer must see each typed sentence once, not once per
+    // keystroke snapshot — pin the delta-dedup and the per-app tracking.
+    func testTypedStreamReconstruction() throws {
+        // Pure delta function: growing snapshot → only the new tail.
+        XCTAssertEqual(SuggestionJournal.newText(in: "привет как дела сегодня", since: "привет как дела"), " сегодня")
+        // Slid capped window: prev's ending is found inside ctx → only what follows.
+        let prev = "a very long sentence that keeps going and going until the window slides"
+        let slid = String(prev.dropFirst(10)) + " and new words"
+        XCTAssertEqual(SuggestionJournal.newText(in: slid, since: prev), " and new words")
+        // Genuinely new context → counted whole.
+        XCTAssertEqual(SuggestionJournal.newText(in: "совсем новый текст", since: prev), "совсем новый текст")
+
+        // End to end through a journal file, with per-app separation.
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("journal-stream-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let journal = SuggestionJournal(url: url)
+        func entry(app: String, ctx: String) -> SuggestionJournal.Entry {
+            SuggestionJournal.Entry(
+                ts: SuggestionJournal.timestamp(), app: app, engine: "MLX",
+                ctx: ctx, after: "", suggestion: " x", outcome: .diverged,
+                acceptedChars: 0, typed: nil, shownForMs: 100, screen: false)
+        }
+        journal.append(entry(app: "mail", ctx: "привет как дела"))
+        journal.append(entry(app: "slack", ctx: "другой чат про работу"))
+        journal.append(entry(app: "mail", ctx: "привет как дела сегодня вечером"))
+        _ = journal.fileSize   // drain the write queue
+        XCTAssertEqual(journal.typedStreamChunks(),
+                       ["привет как дела", "другой чат про работу", " сегодня вечером"])
+    }
+
+    // The instant fast-path types straight into the user's text — pin that it
+    // only fires on emphatic evidence and preserves surface case (names).
+    func testPersonalNgram() {
+        let ngram = PersonalNgram()
+        for _ in 0..<3 {
+            ngram.learn("спасибо за быстрый ответ и помощь")
+            ngram.learn("передай Никите привет")
+        }
+
+        // Trigram hit, dominant → predicted.
+        XCTAssertEqual(ngram.nextWord(after: "ну спасибо за быстрый "), "ответ")
+        // Bigram fallback when the trigram context is unseen; case preserved.
+        XCTAssertEqual(ngram.nextWord(after: "завтра передай "), "Никите")
+        // Unknown context → nil.
+        XCTAssertNil(ngram.nextWord(after: "совсем другой контекст "))
+        // Split evidence (50/50) is not dominant → nil.
+        ngram.learn("иду в кино"); ngram.learn("иду в кино")
+        ngram.learn("иду в магазин"); ngram.learn("иду в магазин")
+        XCTAssertNil(ngram.nextWord(after: "я иду в "))
+
+        // Mid-word completion: dominant vocabulary word → remainder.
+        XCTAssertEqual(ngram.completeWord(partial: "спас"), "ибо")
+        XCTAssertNil(ngram.completeWord(partial: "сп"))        // too short
+        XCTAssertNil(ngram.completeWord(partial: "магази"))    // adds <2 chars
+        // A near-tie in the vocabulary is ambiguous → nil.
+        ngram.learn("спасение утопающих"); ngram.learn("спасение утопающих")
+        XCTAssertNil(ngram.completeWord(partial: "спас"))
+
+        ngram.reset()
+        XCTAssertNil(ngram.nextWord(after: "ну спасибо за быстрый "))
+    }
+
     @MainActor
     func testSuggestionControllerUndo() {
         let controller = SuggestionController()

@@ -145,6 +145,50 @@ final class SuggestionJournal: @unchecked Sendable {
         }
     }
 
+    /// The user's typed text reconstructed from the journal, for n-gram
+    /// training. Consecutive entries in one field snapshot overlapping ctx
+    /// tails, so counting them raw would multiply every sentence; instead each
+    /// entry contributes only its DELTA vs the previous snapshot of the same
+    /// app: common prefix stripped, or — when the 1000-char ctx window has
+    /// slid — everything after the previous tail's reappearance.
+    /// ponytail: heuristic dedup; residual duplicates only inflate counts, they
+    /// don't corrupt predictions.
+    func typedStreamChunks() -> [String] {
+        queue.sync {
+            guard let data = try? Data(contentsOf: url),
+                  let content = String(data: data, encoding: .utf8) else { return [] }
+            let decoder = JSONDecoder()
+            var prevByApp: [String: String] = [:]
+            var chunks: [String] = []
+            for line in content.split(separator: "\n") {
+                guard let entry = try? decoder.decode(Entry.self, from: Data(line.utf8)),
+                      entry.outcome != .undone, !entry.ctx.isEmpty else { continue }
+                let app = entry.app ?? "?"
+                let prev = prevByApp[app] ?? ""
+                prevByApp[app] = entry.ctx
+                let delta = Self.newText(in: entry.ctx, since: prev)
+                if !delta.isEmpty { chunks.append(delta) }
+            }
+            return chunks
+        }
+    }
+
+    /// What `ctx` adds over the previous snapshot `prev` of the same field.
+    static func newText(in ctx: String, since prev: String) -> String {
+        guard !prev.isEmpty else { return ctx }
+        let lcp = zip(ctx, prev).prefix { $0 == $1 }.count
+        if lcp >= 30 || lcp == prev.count {
+            return String(ctx.dropFirst(lcp))
+        }
+        // The capped tail slid: look for the previous snapshot's ending inside
+        // this one and keep only what follows it.
+        let tail = String(prev.suffix(40))
+        if tail.count >= 20, let range = ctx.range(of: tail) {
+            return String(ctx[range.upperBound...])
+        }
+        return ctx   // genuinely new text (new document/conversation)
+    }
+
     /// An entry the retrieval corpus should learn from: the user accepted the
     /// text or typed it out themselves.
     private static func phrase(from e: Entry) -> AcceptedPhrase? {

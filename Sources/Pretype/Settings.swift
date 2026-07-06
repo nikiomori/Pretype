@@ -289,7 +289,9 @@ enum Settings {
             "completionStyle": CompletionStyle.instruct.rawValue,
             "completionLength": CompletionLength.short.rawValue,
             "customInstructions": defaultInstructions,
-            "personalizationLevel": PersonalizationLevel.off.rawValue,
+            // Subtle by default: powers the favored-word bias AND the personal
+            // n-gram fast-path; everything stays on-device.
+            "personalizationLevel": PersonalizationLevel.subtle.rawValue,
             "suggestionPresentation": SuggestionPresentation.inline.rawValue,
             "fmPromptVariant": FMPromptVariant.fewshot.rawValue,
             "useRecommendedSettings": true,
