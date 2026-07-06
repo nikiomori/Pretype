@@ -165,6 +165,49 @@ final class PretypeTests: XCTestCase {
         XCTAssertFalse(AppPolicy.allowsScreenContext("com.apple.mail"))
     }
 
+    // The journal is the dataset every future personalization feature reads;
+    // pin the append/decode round-trip and the size cap.
+    func testSuggestionJournal() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("journal-test-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let journal = SuggestionJournal(url: url, maxBytes: 4000)
+
+        func entry(_ suggestion: String, _ outcome: SuggestionJournal.Outcome) -> SuggestionJournal.Entry {
+            SuggestionJournal.Entry(
+                ts: SuggestionJournal.timestamp(), app: "com.test", engine: "MLX",
+                ctx: "привет, как", after: "", suggestion: suggestion, outcome: outcome,
+                acceptedChars: outcome == .accepted ? suggestion.count : 0,
+                typed: nil, shownForMs: 250, screen: false)
+        }
+
+        journal.append(entry(" дела", .accepted))
+        journal.append(entry(" ты?\nnewline", .diverged))   // newline must stay escaped
+        XCTAssertGreaterThan(journal.fileSize, 0)           // fileSize syncs the queue
+
+        let lines = try String(contentsOf: url, encoding: .utf8)
+            .split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.count, 2)
+        let decoded = try JSONDecoder().decode(SuggestionJournal.Entry.self, from: Data(lines[0].utf8))
+        XCTAssertEqual(decoded.suggestion, " дела")
+        XCTAssertEqual(decoded.outcome, .accepted)
+        XCTAssertEqual(decoded.acceptedChars, 5)
+
+        // Blow past maxBytes: a fresh instance trims on init to the newest half,
+        // cutting on a line boundary so every kept line still decodes.
+        for i in 0..<40 { journal.append(entry("suggestion number \(i)", .abandoned)) }
+        XCTAssertGreaterThan(journal.fileSize, 4000)
+        let trimmed = SuggestionJournal(url: url, maxBytes: 4000)
+        XCTAssertLessThanOrEqual(trimmed.fileSize, 4000)
+        XCTAssertGreaterThan(trimmed.fileSize, 0)
+        for line in try String(contentsOf: url, encoding: .utf8).split(separator: "\n") {
+            XCTAssertNoThrow(try JSONDecoder().decode(SuggestionJournal.Entry.self, from: Data(line.utf8)))
+        }
+
+        journal.reset()
+        XCTAssertEqual(journal.fileSize, 0)
+    }
+
     @MainActor
     func testSuggestionControllerUndo() {
         let controller = SuggestionController()

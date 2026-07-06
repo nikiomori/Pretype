@@ -17,6 +17,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private let lengthDesc = NSTextField(wrappingLabelWithString: "")
     private let personalizationPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let forgetButton = NSButton(title: "", target: nil, action: nil)
+    private let journalCheck = NSButton(checkboxWithTitle: "Keep suggestion journal", target: nil, action: nil)
+    private let journalClearButton = NSButton(title: "", target: nil, action: nil)
     private let modelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let fineTunedButton = NSButton(title: "Fine-tuned…", target: nil, action: nil)
     private let modelRecLabel = NSTextField(wrappingLabelWithString: "")
@@ -114,6 +116,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         forgetButton.action = #selector(forgetPersonalization)
         forgetButton.bezelStyle = .rounded
         forgetButton.controlSize = .small
+        journalCheck.target = self
+        journalCheck.action = #selector(toggleJournal)
+        journalClearButton.target = self
+        journalClearButton.action = #selector(clearJournal)
+        journalClearButton.bezelStyle = .rounded
+        journalClearButton.controlSize = .small
         buildModelPopup()
         // The longest catalog title would otherwise stretch the popup (and the
         // whole tab) past the window; the dropdown list still shows full names.
@@ -165,6 +173,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let personalizationRow = NSStackView(views: [personalizationPopup, forgetButton])
         personalizationRow.spacing = 8
 
+        let journalRow = NSStackView(views: [journalCheck, journalClearButton])
+        journalRow.spacing = 8
+
         let modelRow = NSStackView(views: [modelPopup, fineTunedButton])
         modelRow.spacing = 8
 
@@ -215,6 +226,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             separator(),
             row("Learn my words", personalizationRow),
             caption("Biases completions toward words you accept. Collected only while on; nothing leaves your Mac."),
+            spacer(8),
+            separator(),
+            journalRow,
+            caption("Records which suggestions you accept, dismiss or type past — the raw data for quality tuning and future personalization. Stays in Application Support on your Mac; the on-screen OCR text is never written."),
         ])
 
         let modelStack = vstack([
@@ -400,7 +415,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         select(idleUnloadPopup, String(Settings.idleUnloadMinutes))
         instructionsTextView.string = Settings.customInstructions
         blacklistTextField.stringValue = Settings.userBlacklist.joined(separator: ", ")
+        journalCheck.state = Settings.suggestionJournalEnabled ? .on : .off
         updateForgetTitle()
+        updateJournalClearTitle()
         refreshStatus()
     }
 
@@ -468,6 +485,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let count = Personalization.shared.wordCount
         forgetButton.title = count > 0 ? "Forget \(count) words" : "Nothing learned yet"
         forgetButton.isEnabled = count > 0
+    }
+
+    private func updateJournalClearTitle() {
+        let size = SuggestionJournal.shared.fileSize
+        journalClearButton.title = size > 0
+            ? "Clear (\(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)))"
+            : "Empty"
+        journalClearButton.isEnabled = size > 0
     }
 
     private func startStatusTimer() {
@@ -585,6 +610,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     @objc private func forgetPersonalization() {
         Personalization.shared.reset()
         updateForgetTitle()
+    }
+
+    @objc private func toggleJournal() {
+        Settings.suggestionJournalEnabled = journalCheck.state == .on
+    }
+
+    @objc private func clearJournal() {
+        SuggestionJournal.shared.reset()
+        updateJournalClearTitle()
     }
 
     @objc private func resetInstructions() {

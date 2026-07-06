@@ -299,6 +299,7 @@ enum Settings {
             // the most coverage (~54%); 0.8/1.0 trade coverage for precision.
             "confidenceGateThreshold": 0.6,
             "userBlacklist": [String](),
+            "suggestionJournal": true,
             "ghostOpacity": 0.45,
             "hotkeyStyle": HotkeyStyle.tab.rawValue,
             "onboardingCompleted": false,
@@ -322,6 +323,14 @@ enum Settings {
     static var userBlacklist: [String] {
         get { defaults.stringArray(forKey: "userBlacklist") ?? [] }
         set { defaults.set(newValue, forKey: "userBlacklist") }
+    }
+
+    /// Local JSONL journal of suggestion outcomes (accepted / dismissed /
+    /// typed-past) — the dataset for the offline replay bench and future
+    /// personalization. Never leaves the Mac.
+    static var suggestionJournalEnabled: Bool {
+        get { defaults.bool(forKey: "suggestionJournal") }
+        set { defaults.set(newValue, forKey: "suggestionJournal") }
     }
 
     /// Opt-in OCR of the focused window for richer model context.

@@ -40,6 +40,20 @@ final class SuggestionController: NSObject {
     }
 
     private var active: Active?
+
+    /// Journal record for the currently shown suggestion, opened when it first
+    /// appears and written out with its outcome when it resolves. Everything is
+    /// local-only (see `SuggestionJournal`).
+    private struct PendingJournal {
+        var ctx: String
+        var after: String
+        var suggestion: String
+        var acceptedChars = 0
+        var hadScreen: Bool
+        var shownAt = Date()
+    }
+    private var pendingJournal: PendingJournal?
+
     private var keyRefreshScheduled = false
     private var lastAcceptedChunk: String?
     /// The most recent `textBeforeCaret` seen by `textDidChange`. Lets a streamed
@@ -126,7 +140,29 @@ final class SuggestionController: NSObject {
         dismiss()
     }
 
+    /// Close the pending journal record with its outcome. Idempotent — the
+    /// first resolution wins; later calls (e.g. the `dismiss()` that follows an
+    /// Escape) find nothing pending.
+    private func resolveJournal(_ outcome: SuggestionJournal.Outcome, typed: String? = nil) {
+        guard let pending = pendingJournal else { return }
+        pendingJournal = nil
+        guard Settings.suggestionJournalEnabled else { return }
+        SuggestionJournal.shared.append(SuggestionJournal.Entry(
+            ts: SuggestionJournal.timestamp(),
+            app: typingContext.bundleID,
+            engine: engine.name,
+            ctx: String(pending.ctx.suffix(1000)),
+            after: pending.after,
+            suggestion: pending.suggestion,
+            outcome: outcome,
+            acceptedChars: pending.acceptedChars,
+            typed: typed.map { String($0.prefix(20)) },
+            shownForMs: Int(Date().timeIntervalSince(pending.shownAt) * 1000),
+            screen: pending.hadScreen))
+    }
+
     func dismiss() {
+        resolveJournal(.abandoned)
         refreshTask?.cancel()
         refreshTask = nil
         active = nil
@@ -142,6 +178,7 @@ final class SuggestionController: NSObject {
     /// Drop any live completion without touching the overlay — used when a
     /// correction preempts a suggestion.
     func clearActiveCompletion() {
+        resolveJournal(.abandoned)
         active = nil
         refreshTask?.cancel()
         refreshTask = nil
@@ -282,6 +319,13 @@ final class SuggestionController: NSObject {
                     showSuggestion(current.text, ctx)
                     return
                 }
+                // The typed delta doesn't extend the ghost: either the user typed
+                // it out in full themselves, or they went another way.
+                resolveJournal(delta.hasPrefix(current.text) ? .typedThrough : .diverged,
+                               typed: delta)
+            } else {
+                // Context jumped (backspace, caret move, programmatic edit).
+                resolveJournal(.abandoned)
             }
             active = nil
             window.hide()
@@ -459,13 +503,26 @@ final class SuggestionController: NSObject {
             // flush, so the gate can't catch this upstream. Drop it — showing
             // nothing beats showing garbage.
             lastEvent = "dropped mid-word glue suggestion"
+            resolveJournal(.abandoned)
             active = nil
             window.hide()
             return false
         }
 
         active = Active(anchor: current, text: suggestion)
-        if countShown { Stats.recordShown() }
+        if countShown {
+            Stats.recordShown()
+            // A fresh suggestion opens a journal record; an unresolved one at
+            // this point was replaced before the user reacted to it.
+            resolveJournal(.superseded)
+            pendingJournal = PendingJournal(
+                ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
+                hadScreen: screenSummary != nil
+                    && AppPolicy.allowsScreenContext(typingContext.bundleID))
+        } else {
+            // Streamed growth of the same suggestion — keep the record current.
+            pendingJournal?.suggestion = suggestion
+        }
         showSuggestion(suggestion, ctx)
         return true
     }
@@ -540,6 +597,22 @@ final class SuggestionController: NSObject {
             lastEvent = "undid acceptance of \"\(accepted)\""
             DebugLog.shared.log("UNDO", "\"\(accepted)\"")
             indicator.flashTransient(.hint("Undone"))
+            // The accept was already journaled; an undo is the strongest reject
+            // signal there is, so it gets its own event.
+            if Settings.suggestionJournalEnabled {
+                SuggestionJournal.shared.append(SuggestionJournal.Entry(
+                    ts: SuggestionJournal.timestamp(),
+                    app: typingContext.bundleID,
+                    engine: engine.name,
+                    ctx: String((latestTextBeforeCaret ?? "").suffix(1000)),
+                    after: "",
+                    suggestion: accepted,
+                    outcome: .undone,
+                    acceptedChars: -count,
+                    typed: nil,
+                    shownForMs: 0,
+                    screen: false))
+            }
             return true
         }
 
@@ -568,6 +641,7 @@ final class SuggestionController: NSObject {
             if keyCode == KeyCode.escape {
                 // Drop the ghost, but let Escape still reach the app (close a
                 // dialog, clear a field) — it isn't ours to swallow.
+                resolveJournal(.dismissed)
                 dismiss()
                 lastAcceptedChunk = nil
                 return false
@@ -599,6 +673,17 @@ final class SuggestionController: NSObject {
         guard !typed.isEmpty else { return }   // dead keys, bare modifiers
         guard let remaining = Self.narrowedSuggestion(current.text, typedCharacters: typed) else {
             // Divergent or control input — the ghost no longer matches the field.
+            let isControl = typed.unicodeScalars.contains {
+                $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
+            }
+            if isControl {
+                resolveJournal(.abandoned)
+            } else if typed.hasPrefix(current.text) {
+                // The keystroke completed the remaining suggestion unaided.
+                resolveJournal(.typedThrough)
+            } else {
+                resolveJournal(.diverged, typed: typed)
+            }
             active = nil
             window.hide()
             return
@@ -652,7 +737,9 @@ final class SuggestionController: NSObject {
         }
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
+        pendingJournal?.acceptedChars += chunk.count
         if chunk.count >= current.text.count {
+            resolveJournal(.accepted)
             active = nil
             window.hide()
         } else {
