@@ -1,11 +1,9 @@
 import AppKit
 
-/// Shared settings-surface logic so the menu (`StatusMenuController`) and the
-/// window (`SettingsWindowController`) don't each reimplement the model-catalog
+/// Settings-surface logic behind `SettingsWindowController`: the model-catalog
 /// listing, the confidence-gate availability rule, and the Screen Recording
-/// permission flow. These three were previously copied between both files and
-/// had to be kept in lock-step by hand — any new model or changed gate rule
-/// meant editing two places, and they drifted.
+/// permission flow. (The status-bar menu used to share these; it is now
+/// status/diagnostics only.)
 @MainActor
 enum SettingsUI {
     /// One selectable model row: a stable id (stored in the control's
@@ -16,13 +14,10 @@ enum SettingsUI {
         let title: String
     }
 
-    /// The model list both surfaces render: every catalog option (sized, with the
-    /// system-fit pick marked), then the Apple Intelligence system row on macOS
-    /// 26+. The menu labels that row with its "(0 GB)" footprint; the window
-    /// doesn't — `includeAppleIntelligenceSize` keeps that one cosmetic difference.
-    /// The user's fine-tuned local model is appended by each caller (only the
-    /// window pre-lists it), so it's not included here.
-    static func modelEntries(includeAppleIntelligenceSize: Bool) -> [ModelEntry] {
+    /// The model list the settings window renders: every catalog option (sized,
+    /// with the system-fit pick marked), then the Apple Intelligence system row
+    /// on macOS 26+. The user's fine-tuned local model is appended by the caller.
+    static func modelEntries() -> [ModelEntry] {
         let recommendedID = ModelCatalog.defaultID  // the system-fit pick for this Mac
         var entries = ModelCatalog.options.map { option -> ModelEntry in
             var title = "\(option.title) (≈\(option.approxSizeMB) MB)"
@@ -30,10 +25,8 @@ enum SettingsUI {
             return ModelEntry(id: option.id, title: title)
         }
         if #available(macOS 26.0, *) {
-            let title = includeAppleIntelligenceSize
-                ? "Apple Intelligence — system model (0 GB)"
-                : "Apple Intelligence — system model"
-            entries.append(ModelEntry(id: ModelCatalog.appleIntelligenceID, title: title))
+            entries.append(ModelEntry(id: ModelCatalog.appleIntelligenceID,
+                                      title: "Apple Intelligence — system model"))
         }
         return entries
     }

@@ -18,7 +18,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private let personalizationPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let forgetButton = NSButton(title: "", target: nil, action: nil)
     private let modelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let fineTunedButton = NSButton(title: "Fine-tuned…", target: nil, action: nil)
     private let modelRecLabel = NSTextField(wrappingLabelWithString: "")
+    private let fmVariantPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private var fmVariantViews: [NSView] = []
     private let idleUnloadPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let screenContextCheck = NSButton(checkboxWithTitle: "Use screen context (OCR)", target: nil, action: nil)
     private let fimCheck = NSButton(checkboxWithTitle: "Smart mid-sentence completion (fill-in-the-middle)", target: nil, action: nil)
@@ -91,6 +94,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         configureSlider(lengthSlider, ticks: 3, action: #selector(lengthChanged))
         for desc in [presentationDesc, styleDesc, lengthDesc, modelRecLabel] {
             desc.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
+            desc.preferredMaxLayoutWidth = contentWidth
         }
 
         configurePopup(hotkeyStylePopup, action: #selector(hotkeyStyleChanged), items: HotkeyStyle.allCases.map { ($0.label, $0.rawValue) })
@@ -111,6 +115,21 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         forgetButton.bezelStyle = .rounded
         forgetButton.controlSize = .small
         buildModelPopup()
+        // The longest catalog title would otherwise stretch the popup (and the
+        // whole tab) past the window; the dropdown list still shows full names.
+        modelPopup.widthAnchor.constraint(equalToConstant: 250).isActive = true
+        (modelPopup.cell as? NSPopUpButtonCell)?.lineBreakMode = .byTruncatingTail
+        fineTunedButton.target = self
+        fineTunedButton.action = #selector(loadFineTunedModel)
+        fineTunedButton.bezelStyle = .rounded
+        fineTunedButton.controlSize = .small
+        // Measured on eval-v2: fewshot best quality, directive fastest.
+        configurePopup(fmVariantPopup, action: #selector(fmVariantChanged), items: [
+            ("Examples — best quality", FMPromptVariant.fewshot.rawValue),
+            ("Terse — lean instructions", FMPromptVariant.terse.rawValue),
+            ("Plain — no scaffold", FMPromptVariant.plain.rawValue),
+            ("Directive — fastest, full coverage", FMPromptVariant.directive.rawValue),
+        ])
         configurePopup(idleUnloadPopup, action: #selector(idleUnloadChanged), items: [
             ("Never", "0"),
             ("After 1 minute", "1"),
@@ -146,107 +165,129 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let personalizationRow = NSStackView(views: [personalizationPopup, forgetButton])
         personalizationRow.spacing = 8
 
-        let stack = NSStackView(views: [
-            statusLabel,
-            separator(),
+        let modelRow = NSStackView(views: [modelPopup, fineTunedButton])
+        modelRow.spacing = 8
 
-            // Master switch up top — the first thing you'd reach for.
-            enabledCheck,
-            separator(),
+        // Recipe steers only the Apple Intelligence engine — hidden for MLX models.
+        let fmVariantRow = row("Recipe", fmVariantPopup)
+        let fmVariantCaption = caption("Prompt recipe for the Apple Intelligence engine. Examples is the most accurate; Directive the fastest.")
+        fmVariantViews = [fmVariantRow, fmVariantCaption]
 
-            header("Appearance"),
+        // One tab per topic instead of one long scroll — much easier to scan.
+        let generalStack = vstack([
+            header("Suggestion display"),
             presentationPicker,
             presentationDesc,
-            spacer(4),
+            spacer(6),
             row("Hotkey style", hotkeyStylePopup),
             caption("The shortcut to accept completions, or trigger rewrites and fixes."),
             spacer(4),
             row("Ghost opacity", ghostOpacitySlider),
             caption("Adjust readability contrast of the inline ghost suggestions."),
             spacer(6),
-
-            header("Completion"),
-            useRecommendedCheck,
-            caption("On: Style and Length follow what's best for the selected model and update when you switch models. Turn off to tune them by hand."),
-            spacer(2),
-
-            header("Style"),
-            sliderRow(styleSlider, labels: ["Instruct", "Base"]),
-            styleDesc,
-            confidenceGateCheck,
-            caption("Suggests only when the model agrees with itself across several tries — much more accurate on real text (≈39% first-word vs ~19%), but fires less often and adds latency. Available in Base style on an E4B model (≥6-bit)."),
-            spacer(6),
-
-            header("Length"),
-            sliderRow(lengthSlider, labels: ["Short", "Medium", "Long"]),
-            lengthDesc,
-            spacer(6),
-
-            header("Persona"),
-            caption("Auto-filled from your account name and keyboard languages — steers Instruct mode. Edit freely; it stays on your Mac."),
-            instructionsScroll,
-            resetButton,
-            spacer(4),
-            row("Learn my words", personalizationRow),
-            caption("Biases completions toward words you accept. Collected only while on; nothing leaves your Mac."),
-            spacer(6),
-
-            header("Model & performance"),
-            row("Model", modelPopup),
-            modelRecLabel,
-            caption("Auto-picked for your Mac's memory. Instruct mode always runs a tuned 6-bit model; this choice is the Base-mode model."),
-            row("Free when idle", idleUnloadPopup),
-            caption("Unloads the model after this long unused so Pretype isn't holding several GB idle; the next keystroke reloads it (a focus change pre-warms it)."),
-            screenContextCheck,
-            fimCheck,
-            caption("Fill-in uses the text after the cursor for mid-line edits — E4B Instruct only; auto-skipped on the smaller E2B."),
             separator(),
-            header("Blacklisted Apps"),
+            header("Blacklisted apps"),
             caption("Disable autocomplete in specific applications. Enter bundle IDs or names, comma-separated (e.g. vscode, iterm, slack):"),
             blacklistTextField,
         ])
+
+        let completionStack = vstack([
+            useRecommendedCheck,
+            caption("On: Style and Length follow what's best for the selected model and update when you switch models. Turn off to tune them by hand."),
+            spacer(6),
+            header("Style"),
+            sliderRow(styleSlider, labels: ["Instruct", "Base"]),
+            styleDesc,
+            spacer(2),
+            confidenceGateCheck,
+            caption("Suggests only when the model agrees with itself across several tries — much more accurate on real text (≈39% first-word vs ~19%), but fires less often and adds latency. Available in Base style on an E4B model (≥6-bit)."),
+            spacer(6),
+            header("Length"),
+            sliderRow(lengthSlider, labels: ["Short", "Medium", "Long"]),
+            lengthDesc,
+        ])
+
+        let personaStack = vstack([
+            caption("Auto-filled from your account name and keyboard languages — steers Instruct mode. Edit freely; it stays on your Mac."),
+            instructionsScroll,
+            resetButton,
+            spacer(8),
+            separator(),
+            row("Learn my words", personalizationRow),
+            caption("Biases completions toward words you accept. Collected only while on; nothing leaves your Mac."),
+        ])
+
+        let modelStack = vstack([
+            row("Model", modelRow),
+            modelRecLabel,
+            caption("Auto-picked for your Mac's memory. Instruct mode always runs a tuned 6-bit model; this choice is the Base-mode model."),
+            fmVariantRow,
+            fmVariantCaption,
+            spacer(4),
+            row("Free when idle", idleUnloadPopup),
+            caption("Unloads the model after this long unused so Pretype isn't holding several GB idle; the next keystroke reloads it (a focus change pre-warms it)."),
+            spacer(6),
+            separator(),
+            screenContextCheck,
+            fimCheck,
+            caption("Fill-in uses the text after the cursor for mid-line edits — E4B Instruct only; auto-skipped on the smaller E2B."),
+        ])
+
+        let tabView = NSTabView()
+        tabView.translatesAutoresizingMaskIntoConstraints = false
+        let tabStacks = [generalStack, completionStack, personaStack, modelStack]
+        for (label, stack) in zip(["General", "Completion", "Persona", "Model"], tabStacks) {
+            tabView.addTabViewItem(tab(label, stack))
+        }
+
+        // Master switch + live engine status, visible on every tab.
+        let top = NSStackView(views: [enabledCheck, statusLabel])
+        top.orientation = .vertical
+        top.alignment = .leading
+        top.spacing = 4
+        top.translatesAutoresizingMaskIntoConstraints = false
+
+        content.addSubview(top)
+        content.addSubview(tabView)
+        NSLayoutConstraint.activate([
+            top.topAnchor.constraint(equalTo: content.topAnchor, constant: 42),
+            top.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 22),
+            top.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -22),
+            tabView.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 10),
+            tabView.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+            tabView.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+            tabView.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
+        ])
+
+        // Fit the window to the tallest tab (captions report their wrapped
+        // height thanks to preferredMaxLayoutWidth), plus top bar + tab chrome.
+        let tallest = tabStacks.map { ceil($0.fittingSize.height) }.max() ?? 460
+        window.setContentSize(NSSize(width: 600, height: tallest + 176))
+        window.minSize = NSSize(width: 600, height: 420)
+    }
+
+    private func vstack(_ views: [NSView]) -> NSStackView {
+        let stack = NSStackView(views: views)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 16, left: 18, bottom: 18, right: 18)
+        return stack
+    }
+
+    private func tab(_ label: String, _ stack: NSStackView) -> NSTabViewItem {
+        let item = NSTabViewItem(identifier: label)
+        item.label = label
+        let container = NSView()
         stack.translatesAutoresizingMaskIntoConstraints = false
-        // Scroll the content so nothing is ever clipped, regardless of height.
-        let documentView = FlippedView()
-        documentView.translatesAutoresizingMaskIntoConstraints = false
-        documentView.addSubview(stack)
+        container.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: documentView.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
+            stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 14),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -16),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -14),
         ])
-
-        let scroll = NSScrollView()
-        scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
-        scroll.scrollerStyle = .overlay
-        scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = NSEdgeInsets(top: 36, left: 0, bottom: 0, right: 0)
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.documentView = documentView
-        content.addSubview(scroll)
-        NSLayoutConstraint.activate([
-            scroll.topAnchor.constraint(equalTo: content.topAnchor),
-            scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            documentView.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
-        ])
-
-        // Measure the content in a tall window (so wrapping text fully expands),
-        // then fit the window to it — capped at most of the screen, scrollable
-        // and resizable beyond.
-        window.setContentSize(NSSize(width: 540, height: 1200))
-        content.layoutSubtreeIfNeeded()
-        let needed = ceil(stack.fittingSize.height) + 36 + 8
-        let maxHeight = (NSScreen.main?.visibleFrame.height ?? 900) * 0.85
-        window.setContentSize(NSSize(width: 540, height: min(needed, maxHeight)))
-        window.minSize = NSSize(width: 540, height: 380)
+        item.view = container
+        return item
     }
 
     /// Liquid Glass fills the window *behind* the controls (macOS 26); a frosted
@@ -319,7 +360,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         modelPopup.target = self
         modelPopup.action = #selector(modelChanged)
         modelPopup.removeAllItems()
-        for entry in SettingsUI.modelEntries(includeAppleIntelligenceSize: false) {
+        for entry in SettingsUI.modelEntries() {
             let item = NSMenuItem(title: entry.title, action: nil, keyEquivalent: "")
             item.representedObject = entry.id
             modelPopup.menu?.addItem(item)
@@ -355,6 +396,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         select(hotkeyStylePopup, Settings.hotkeyStyle.rawValue)
         ghostOpacitySlider.doubleValue = Settings.ghostOpacity
         select(modelPopup, Settings.mlxModelID)
+        select(fmVariantPopup, Settings.fmPromptVariant.rawValue)
         select(idleUnloadPopup, String(Settings.idleUnloadMinutes))
         instructionsTextView.string = Settings.customInstructions
         blacklistTextField.stringValue = Settings.userBlacklist.joined(separator: ", ")
@@ -377,6 +419,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         modelRecLabel.attributedStringValue = describe("Best for this model", rec.summary)
         fimCheck.isEnabled = rec.fim
         fimCheck.state = (rec.fim && Settings.fimEnabled) ? .on : .off
+        let fmActive = Settings.mlxModelID == ModelCatalog.appleIntelligenceID
+        for view in fmVariantViews { view.isHidden = !fmActive }
     }
 
     private func select(_ popup: NSPopUpButton, _ value: String) {
@@ -510,6 +554,27 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         }
     }
 
+    @objc private func loadFineTunedModel() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use Model"
+        panel.message = "Choose a fused fine-tuned model folder (with config.json + safetensors)."
+        if panel.runModal() == .OK, let url = panel.url {
+            controller?.setModel(url.path)
+            buildModelPopup()   // list the new fine-tuned entry
+            sync()
+        }
+    }
+
+    @objc private func fmVariantChanged() {
+        if let raw = fmVariantPopup.selectedItem?.representedObject as? String,
+           let variant = FMPromptVariant(rawValue: raw) {
+            controller?.setFMPromptVariant(variant)
+        }
+    }
+
     @objc private func idleUnloadChanged() {
         if let raw = idleUnloadPopup.selectedItem?.representedObject as? String,
            let minutes = Int(raw) {
@@ -571,6 +636,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         label.font = .systemFont(ofSize: 10)
         label.textColor = .tertiaryLabelColor
         label.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
+        label.preferredMaxLayoutWidth = contentWidth   // wraps correctly when measured before display
         return label
     }
 
@@ -597,11 +663,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         view.heightAnchor.constraint(equalToConstant: height).isActive = true
         return view
     }
-}
-
-/// Top-origin container so a scroll view lays its content out top-to-bottom.
-private final class FlippedView: NSView {
-    override var isFlipped: Bool { true }
 }
 
 /// Two selectable preview cards — each renders a miniature of how that mode looks
