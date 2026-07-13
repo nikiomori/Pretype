@@ -11,21 +11,20 @@ struct ModelOption {
     /// Kept at 4-bit — correction is easy and the model loads lazily.
     let correctionModelID: String
     /// Instruct sibling that becomes the *primary* model in instruct
-    /// completion style — and instruct is the registered default, so this id,
-    /// not `id`, is what actually loads out of the box. It is therefore sized
-    /// to the entry's RAM tier: E4B 6-bit where the tier affords ~6.8 GB (an
-    /// eval A/B showed instruct only matches/beats base at 6–8 bit), 4-bit
-    /// siblings on the tighter tiers — a handicapped instruct still beats
-    /// swapping a model the Mac can't hold. Overridable via
-    /// PRETYPE_INSTRUCT_MODEL.
+    /// completion style. On the Gemma builds it is sized to the entry's RAM
+    /// tier: E4B 6-bit where the tier affords ~6.8 GB (an eval A/B showed
+    /// instruct only matches/beats base at 6–8 bit), 4-bit siblings on the
+    /// tighter tiers — a handicapped instruct still beats swapping a model the
+    /// Mac can't hold. Overridable via PRETYPE_INSTRUCT_MODEL.
     let instructModelID: String
 }
 
 enum ModelCatalog {
-    /// The project standardizes on Gemma 4 (same family Cotypist uses):
-    /// E4B as the main model, E2B for smaller machines. These are the BASE
-    /// (pretrained) conversions — instruct variants echo the prompt instead
-    /// of continuing it when used without a chat template.
+    /// MiniCPM5 1B is the default (see `defaultID`); the Gemma 4 builds (same
+    /// family Cotypist uses) are the manual heavy picks — E4B best-quality, E2B
+    /// for smaller machines. The Gemma entries are the BASE (pretrained)
+    /// conversions — instruct variants echo the prompt instead of continuing it
+    /// when used without a chat template.
     static let options: [ModelOption] = [
         ModelOption(
             id: "mlx-community/gemma-4-e4b-8bit",
@@ -67,22 +66,30 @@ enum ModelCatalog {
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
+        // The default (eval 2026-07-07 + live use): base ties E4B-8bit base on
+        // eval-v2 (TOTAL 41 vs 40, ru first-word 35 vs 28) at a quarter of the
+        // RAM and well under half the latency. Runs base-only — its instruct mode
+        // ANSWERS the text instead of continuing it (first-word ~0%), so
+        // `recommended(for:)` and the fresh-install defaults both pin base style.
+        // bf16 straight from the hub; no 8-bit Base conversion is published yet.
+        ModelOption(
+            id: "openbmb/MiniCPM5-1B-Base",
+            title: "MiniCPM5 1B — tiny & fast",
+            approxSizeMB: 2200,
+            extraEOSTokens: [],
+            correctionModelID: "openbmb/MiniCPM5-1B",  // fixes are instruction-following — the RL model handles them
+            instructModelID: "openbmb/MiniCPM5-1B"     // manual instruct flip only; completion there is broken (see above)
+        ),
     ]
 
-    /// Auto-select the heaviest model the machine can comfortably hold, stepping
-    /// down by **model size, not quant**. 8-bit measurably helps informal/Russian
-    /// text, and dropping to 4-bit is a quality cliff (eval: −13…−26 pts, mostly
-    /// Russian), so the ladder goes E4B-8bit → E4B-6bit → E2B-8bit and only lands
-    /// on a 4-bit build on the tightest machines, where size leaves no choice.
-    /// (Apple Intelligence stays a manual pick — it needs macOS 26 + an enabled,
-    /// supported device, and trails Gemma badly on Russian.)
-    static var defaultID: String {
-        let gb = ProcessInfo.processInfo.physicalMemory / (1024 * 1024 * 1024)
-        if gb >= 32 { return "mlx-community/gemma-4-e4b-8bit" }  // ~8.6 GB resident
-        if gb >= 16 { return "mlx-community/gemma-4-e4b-6bit" }  // ~6.8 GB, near-best
-        if gb >= 11 { return "mlx-community/gemma-4-e2b-8bit" }  // ~5.7 GB, small but precise
-        return "mlx-community/gemma-4-e2b-4bit"                  // ~3.5 GB, last resort
-    }
+    /// MiniCPM5 1B is the out-of-the-box model on every Mac: at ~2.2 GB it fits
+    /// the tightest RAM tier yet matches Gemma E4B-8bit base on the eval (TOTAL
+    /// first-word 41 vs 40, RU 35 vs 28) at a fraction of the latency — so there
+    /// is no heavier tier worth an auto step-up. It runs base-only (see the
+    /// catalog entry); the fresh-install style default is pinned to match in
+    /// `Settings.registerDefaults`. The Gemma builds and Apple Intelligence
+    /// remain manual picks in the catalog / settings list.
+    static var defaultID: String { "openbmb/MiniCPM5-1B-Base" }
 
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):
     /// zero download, zero app memory, runs on the Neural Engine.
@@ -145,6 +152,16 @@ enum ModelCatalog {
             // System model: short is its sweet spot (weak on long / Russian
             // tails); style is moot; no base path for the gate, no fill-in.
             return Recommendation(style: .instruct, length: .short, gateCapable: false, fim: false)
+        }
+        // MiniCPM5: base continuation only — instruct answers instead of
+        // continuing (eval-v2 first-word ~0%), so auto mode must never route
+        // style there. Length swept 2026-07-13 (base, eval-v2 + eval-real):
+        // first-word is length-independent; longer buys ~1–2 pts completeness
+        // but LOSES word-F1 and doubles latency each step (short 157 / medium
+        // 291 / long 550 ms p50 on eval-real) — so short wins for inline ghost
+        // text. No gate (not E4B-class), no fill-in.
+        if id.contains("MiniCPM5") {
+            return Recommendation(style: .base, length: .short, gateCapable: false, fim: false)
         }
         // Gemma E-series: instruct + short + persona is the validated default
         // (~85% first-word on authored text). Base + gate is the real-text

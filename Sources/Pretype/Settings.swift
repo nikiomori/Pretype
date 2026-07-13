@@ -276,6 +276,11 @@ enum Settings {
     }
 
     static func registerDefaults() {
+        // Style/length ship pre-matched to the default model's recommendation:
+        // nothing applies it at boot (main only registers defaults), and the
+        // engine reads the stored style directly — so a base-only default like
+        // MiniCPM5 would otherwise launch in its broken instruct mode.
+        let rec = ModelCatalog.recommended(for: ModelCatalog.defaultID)
         defaults.register(defaults: [
             "enabled": true,
             "mlxModelID": ModelCatalog.defaultID,
@@ -283,11 +288,10 @@ enum Settings {
             "maxContextChars": 1200,
             "idleUnloadMinutes": 5,
             "fimEnabled": true,
-            // Default to the instruct path: it hits ≥70% first-word at the
-            // minimum viable load (Gemma 4 it-6bit, ~6.8 GB), where base and
-            // lighter quants fall off a quality cliff.
-            "completionStyle": CompletionStyle.instruct.rawValue,
-            "completionLength": CompletionLength.short.rawValue,
+            // Follows the default model's recommendation (base·short for the
+            // MiniCPM5 default; instruct·short on the Gemma builds).
+            "completionStyle": rec.style.rawValue,
+            "completionLength": rec.length.rawValue,
             "customInstructions": defaultInstructions,
             // Subtle by default: powers the favored-word bias AND the personal
             // n-gram fast-path; everything stays on-device.

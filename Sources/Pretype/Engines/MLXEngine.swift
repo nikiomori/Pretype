@@ -606,7 +606,12 @@ final class MLXEngine: CompletionEngine {
                 // embeds BEFORE/AFTER in the directive — both send the directive alone.
                 let userContent = (prefill || infill) ? directiveText : "\(directiveText)\n\nText:\n\(promptText)"
                 let messages: [[String: any Sendable]] = [["role": "user", "content": userContent]]
-                var toks = try context.tokenizer.applyChatTemplate(messages: messages)
+                // Hybrid-reasoning templates (MiniCPM5/Qwen3-style) default to a
+                // <think> block that burns the whole token budget; ask for the
+                // no-think branch. Templates without the variable (Gemma) ignore it.
+                var toks = try context.tokenizer.applyChatTemplate(
+                    messages: messages, tools: nil,
+                    additionalContext: ["enable_thinking": false])
                 if prefill {
                     // Open the assistant turn with the user's text (BOS stripped)
                     // so the model continues it instead of answering about it.
