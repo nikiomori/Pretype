@@ -105,7 +105,10 @@ final class CorrectionController {
         selection = nil
         // A selection-fix preview ends when the selection is gone; a last-word
         // fix preview is re-validated against the caret context in handleCaret.
-        if pendingFix?.deleteCount == 0 { pendingFix = nil }
+        if pendingFix?.deleteCount == 0 {
+            pendingFix = nil
+            owner.window.hide()
+        }
         return false
     }
 
@@ -126,6 +129,10 @@ final class CorrectionController {
                 return true
             }
             pendingFix = nil
+            // The preview pill must not outlive its word: nobody downstream is
+            // guaranteed to redraw the overlay (the completion flow only shows
+            // when it has something), so hide it here or it lingers forever.
+            owner.window.hide()
         }
 
         // Inline spell-fix: a misspelled word at the caret shows its correction
@@ -143,7 +150,13 @@ final class CorrectionController {
             showCorrection(fix, word: wordAtCaret, caret: caret, fontSize: ctx.fontSize)
             return true
         }
-        activeCorrection = nil
+        if activeCorrection != nil {
+            // The typo this pill was correcting is gone (edited, or the user
+            // typed past it). Hide NOW — same reason as the pendingFix drop
+            // above: no later stage reliably clears the overlay.
+            activeCorrection = nil
+            owner.window.hide()
+        }
         return false
     }
 

@@ -60,9 +60,11 @@ final class SuggestionWindow: NSPanel {
     private var highlightLayer: CALayer?
 
     /// Panel background. Liquid Glass (`NSGlassEffectView`) on macOS 26+, the
-    /// classic HUD blur (`NSVisualEffectView`) below it. The label always lives
-    /// in `pillHost`, so one layout drives both — glass takes it as its
-    /// `contentView`, the blur view as a plain subview.
+    /// classic HUD blur (`NSVisualEffectView`) below it. The label lives in
+    /// `pillHost`, a SIBLING stacked above the backdrop — not inside it.
+    /// NOTE: never dim the backdrop via alphaValue — glass/blur materials lose
+    /// their blending when translucent, and the text behind bleeds through sharp
+    /// (tried; unreadable). The pill must stay opaque to do its job.
     private let pillHost = NSView()
     private let visualBackdrop = NSVisualEffectView()
     private var glassBackdrop: NSView?
@@ -116,7 +118,6 @@ final class SuggestionWindow: NSPanel {
             let glass = NSGlassEffectView()
             glass.style = .regular
             glass.cornerRadius = 11
-            glass.contentView = pillHost
             glassBackdrop = glass
             container.addSubview(glass)
         } else {
@@ -126,9 +127,9 @@ final class SuggestionWindow: NSPanel {
             visualBackdrop.wantsLayer = true
             visualBackdrop.layer?.cornerRadius = 6
             visualBackdrop.layer?.masksToBounds = true
-            visualBackdrop.addSubview(pillHost)
             container.addSubview(visualBackdrop)
         }
+        container.addSubview(pillHost)
         container.addSubview(ghost)
         contentView = container
     }
@@ -272,15 +273,16 @@ final class SuggestionWindow: NSPanel {
         return result
     }
 
-    /// An inline spell-fix as a readable diff: the mistyped word struck through
-    /// and muted, an arrow, then the proposed fix in accent — so it's obvious at
-    /// a glance what changes. A faint ⇥ marks how to apply it.
+    /// An inline spell-fix as a readable diff: the mistyped word muted with a
+    /// quiet red-tinted strikethrough (a hint of "wrong", not a shout), an
+    /// arrow, then the proposed fix in the system accent — noticeable without
+    /// being loud. A faint ⇥ marks how to apply it.
     private func correctionDiff(original: String, fix: String) -> NSAttributedString {
         let result = NSMutableAttributedString(string: original, attributes: [
             .font: NSFont.systemFont(ofSize: 13),
-            .foregroundColor: NSColor.tertiaryLabelColor,
+            .foregroundColor: NSColor.secondaryLabelColor,
             .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-            .strikethroughColor: NSColor.tertiaryLabelColor,
+            .strikethroughColor: NSColor.systemRed.withAlphaComponent(0.45),
         ])
         result.append(NSAttributedString(string: "  →  ", attributes: [
             .font: NSFont.systemFont(ofSize: 11),
@@ -302,13 +304,13 @@ final class SuggestionWindow: NSPanel {
         let head = SuggestionController.firstWordChunk(of: s)
         let result = NSMutableAttributedString(string: head, attributes: [
             .font: NSFont.systemFont(ofSize: 13),
-            .foregroundColor: NSColor.secondaryLabelColor,
+            .foregroundColor: NSColor.labelColor,
         ])
         let tail = String(s.dropFirst(head.count))
         if !tail.isEmpty {
             result.append(NSAttributedString(string: tail, attributes: [
                 .font: NSFont.systemFont(ofSize: 13),
-                .foregroundColor: NSColor.tertiaryLabelColor,
+                .foregroundColor: NSColor.secondaryLabelColor,
             ]))
         }
         guard Stats.lifetimeAccepted < 20 else { return result }
@@ -329,20 +331,31 @@ final class SuggestionWindow: NSPanel {
 
     /// Ghost text with the ⇥-acceptable chunk (same split the controller uses)
     /// a step brighter than the tail, so what one Tab takes is visible at a glance.
+    /// Base colors are label/secondaryLabel — NOT secondary/tertiary — because
+    /// the opacity slider multiplies on top; starting from already-translucent
+    /// colors double-dimmed the ghost into near-invisibility.
     private func suggestionGhost(_ s: String) -> NSAttributedString {
         let head = SuggestionController.firstWordChunk(of: s)
-        let result = NSMutableAttributedString(attributedString: ghostString(head, .secondaryLabelColor))
+        let result = NSMutableAttributedString(attributedString: ghostString(head, .labelColor))
         let tail = String(s.dropFirst(head.count))
-        if !tail.isEmpty { result.append(ghostString(tail, .tertiaryLabelColor)) }
+        if !tail.isEmpty { result.append(ghostString(tail, .secondaryLabelColor)) }
         return result
     }
 
     private func ghostString(_ string: String, _ color: NSColor) -> NSAttributedString {
         let opacity = Settings.ghostOpacity
         let adjustedColor = color.withAlphaComponent(color.alphaComponent * CGFloat(opacity))
+        // The ghost has no backdrop, so a soft halo in the window-background
+        // tone separates it from whatever the host app draws underneath —
+        // without it the ghost vanishes over busy or same-tone backgrounds.
+        let halo = NSShadow()
+        halo.shadowColor = NSColor.windowBackgroundColor.withAlphaComponent(0.9)
+        halo.shadowBlurRadius = 2
+        halo.shadowOffset = .zero
         return NSAttributedString(string: string, attributes: [
             .font: NSFont.systemFont(ofSize: ghostFontSize),
             .foregroundColor: adjustedColor,
+            .shadow: halo,
         ])
     }
 
@@ -368,6 +381,7 @@ final class SuggestionWindow: NSPanel {
         ghost.isHidden = !ghostMode
         // Both the floating panel and the over-word correction draw in the pill.
         panelBackdrop.isHidden = ghostMode
+        pillHost.isHidden = ghostMode
         // The inline ghost casts no shadow; the floating pill / over-word fix do.
         let wantShadow = !ghostMode
         if hasShadow != wantShadow { hasShadow = wantShadow }
@@ -433,7 +447,7 @@ final class SuggestionWindow: NSPanel {
         } else {
             // Pill modes and the over-word correction share the panel layout.
             panelBackdrop.frame = bounds
-            pillHost.frame = panelBackdrop.bounds
+            pillHost.frame = bounds
             pillLabel.frame = pillHost.bounds.insetBy(dx: pillPadH, dy: pillPadV)
             // Capsule the glass to the pill height — the signature Liquid Glass shape.
             if #available(macOS 26.0, *), let glass = glassBackdrop as? NSGlassEffectView {

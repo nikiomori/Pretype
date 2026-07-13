@@ -307,7 +307,9 @@ enum Settings {
             "userBlacklist": [String](),
             "suggestionJournal": true,
             "personalExamples": true,
-            "ghostOpacity": 0.45,
+            // 0.45 read as near-invisible over real app backgrounds; 0.7 is
+            // still clearly "ghost" next to the host text but survives noise.
+            "ghostOpacity": 0.7,
             "hotkeyStyle": HotkeyStyle.tab.rawValue,
             "onboardingCompleted": false,
         ])
