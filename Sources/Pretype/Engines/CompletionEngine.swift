@@ -119,6 +119,23 @@ enum EngineState: Equatable {
 protocol CompletionEngine: AnyObject {
     var name: String { get }
 
+    /// Short id (last path component) of the model that ACTUALLY generates the
+    /// suggestions — the journal's config stamp. MLXEngine reports its resolved
+    /// primary (the instruct sibling in instruct style, a fine-tune's directory
+    /// name for local models) — NOT the Settings selection, which diverges from
+    /// the loaded model in both those cases. nil when the engine has no discrete
+    /// model identity (Apple Intelligence system model; `engine` disambiguates
+    /// in the journal).
+    var loadedModelID: String? { get }
+
+    /// Confidence of the most recent COMPLETED, ungated generation: mean
+    /// log-probability per token of the suggestion's first word, captured from
+    /// the decode loop (no extra forward passes). Best-effort telemetry for the
+    /// journal's calibration curve — read it when a suggestion resolves, not
+    /// mid-stream. nil while a generation is in flight, under the K-sample
+    /// gate, or when the engine doesn't capture it.
+    var lastFirstWordLogProb: Double? { get }
+
     /// Short live status for the diagnostics menu (model download progress,
     /// connection state, …).
     var statusLine: String? { get }
@@ -164,6 +181,8 @@ protocol CompletionEngine: AnyObject {
 }
 
 extension CompletionEngine {
+    var loadedModelID: String? { nil }
+    var lastFirstWordLogProb: Double? { nil }
     var statusLine: String? { nil }
     var state: EngineState { .ready }
     var supportsCorrection: Bool { false }

@@ -183,6 +183,66 @@ extension MLXEngine {
         func didSample(token: MLXArray) { inner?.didSample(token: token) }
     }
 
+    // MARK: First-word confidence (live decode-loop capture)
+
+    /// Records, for every sampled token, the (processed) logits it was sampled
+    /// from — the raw material for the journal's `firstWordLogProb`. Costs no
+    /// extra forward passes and, crucially, no per-step GPU sync: it only
+    /// RETAINS the lazy logits arrays ([1, vocab] each, ≈0.5 MB fp16 × ≤~40
+    /// steps) and defers all scalar extraction to `finish()`, after the decode
+    /// loop, so the iterator's asyncEval pipelining is untouched.
+    /// Created and consumed entirely inside `container.perform` (not Sendable,
+    /// like the other processors here).
+    final class LogProbRecorder: LogitProcessor {
+        private var inner: LogitProcessor?
+        private var last: MLXArray?
+        private var steps: [(logits: MLXArray, token: MLXArray)] = []
+
+        init(inner: LogitProcessor?) { self.inner = inner }
+
+        func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
+
+        func process(logits: MLXArray) -> MLXArray {
+            let processed = inner?.process(logits: logits) ?? logits
+            last = processed
+            return processed
+        }
+
+        func didSample(token: MLXArray) {
+            if let logits = last { steps.append((logits, token)) }
+            inner?.didSample(token: token)
+        }
+
+        /// Per-step log P(sampled token) under the recorded (processed) logits,
+        /// index-aligned with the tokens the iterator returned. Call once, after
+        /// the decode loop.
+        func finish() -> [Float] {
+            steps.map { step in
+                let row = step.logits.reshaped([-1])   // [vocab]
+                let id = step.token.reshaped([-1]).item(Int.self)
+                return row[id].item(Float.self) - row.logSumExp().item(Float.self)
+            }
+        }
+    }
+
+    /// How many leading tokens of `textTokens` make up the first word: the
+    /// smallest prefix whose decoded text, after any leading separators,
+    /// already contains an in-word boundary (same non-alphanumeric convention
+    /// as `gateFirstWord`, so calibration matches the gate's unit). Falls back
+    /// to all tokens when the whole suggestion is a single word. Approximation:
+    /// the boundary token itself is included in the mean — one separator token
+    /// of overshoot at most.
+    static func firstWordTokenCount(textTokens: [Int], tokenizer: MLXLMCommon.Tokenizer) -> Int {
+        guard !textTokens.isEmpty else { return 0 }
+        for k in 1 ..< textTokens.count {
+            let decoded = tokenizer.decode(tokenIds: Array(textTokens.prefix(k)), skipSpecialTokens: true)
+            let core = decoded.drop { !$0.isLetter && !$0.isNumber }
+            guard !core.isEmpty else { continue }
+            if core.contains(where: { !$0.isLetter && !$0.isNumber }) { return k }
+        }
+        return textTokens.count
+    }
+
     // MARK: Token iteration
 
     /// Wraps a partial-text callback so each raw decode snapshot is run through
@@ -211,6 +271,7 @@ extension MLXEngine {
         promptCache: PromptCache?,
         bias: PersonalizationBias? = nil,
         minTokens: Int = 0,
+        logProbSink: LockedValue<Double?>? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         try await generate(
@@ -221,6 +282,7 @@ extension MLXEngine {
             promptCache: promptCache,
             bias: bias,
             minTokens: minTokens,
+            logProbSink: logProbSink,
             onPartial: onPartial
         )
     }
@@ -233,9 +295,14 @@ extension MLXEngine {
         promptCache: PromptCache?,
         bias: PersonalizationBias? = nil,
         minTokens: Int = 0,
+        logProbSink: LockedValue<Double?>? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
-        try await container.perform { context in
+        // Annotate the param: under `-enable-testing` (swift test) overload
+        // resolution otherwise prefers the deprecated 2-arg `(LanguageModel,
+        // Tokenizer)` perform (its sync closure matches our sync body more
+        // tightly than the ModelContext overload's `async`), which then fails.
+        try await container.perform { (context: ModelContext) in
             let maxTokens = parameters.maxTokens ?? 16
             let fullTokens = try makeTokens(context)
             guard !fullTokens.isEmpty else { return "" }
@@ -296,6 +363,16 @@ extension MLXEngine {
                 processor = MinTokensProcessor(inner: processor, eosIDs: Array(eosIDs), minTokens: minTokens)
                 customized = true
             }
+            // Outermost, so it sees the logits the sampler actually samples from
+            // (post-penalties, post-bias, post-EOS-mask) — that distribution is
+            // what "the engine's confidence in what it showed" means.
+            var recorder: LogProbRecorder?
+            if logProbSink != nil {
+                let r = LogProbRecorder(inner: processor)
+                processor = r
+                recorder = r
+                customized = true
+            }
             var iterator: TokenIterator
             if customized {
                 iterator = try TokenIterator(
@@ -326,6 +403,20 @@ extension MLXEngine {
             }
             let decodeSeconds = Date().timeIntervalSince(decodeStart)
 
+            // Reduce the recorded per-step log-probs to the first-word mean.
+            // `fed` and the recorder's steps are index-aligned (one didSample per
+            // next()), and textTokens is a prefix of fed (EOS breaks before
+            // appending) — so entries 0..<textTokens.count score exactly the
+            // visible text.
+            if let logProbSink, let recorder {
+                let perToken = recorder.finish()
+                let count = firstWordTokenCount(textTokens: textTokens, tokenizer: context.tokenizer)
+                let n = min(count, perToken.count)
+                logProbSink.set(n > 0
+                    ? perToken.prefix(n).reduce(0.0) { $0 + Double($1) } / Double(n)
+                    : nil)
+            }
+
             if let pc = promptCache {
                 pc.update(cache: cache, tokens: fullTokens + fed, forFullTokens: fullTokens)
             }
@@ -341,6 +432,69 @@ extension MLXEngine {
                 print("[gen] \(summary) raw=\(text.debugDescription)")
             }
             return text
+        }
+    }
+
+    // MARK: Log-probability scoring (offline: model ranking + gate calibration)
+
+    /// Mean per-token log P(`continuation` | `context`) from a SINGLE causal
+    /// forward pass — no decoding, so it's blind to paraphrase ("обязательно
+    /// отвечу" vs "отвечу вам") the way exact-match isn't. This is the model
+    /// ranker to use on eval-real, where exact-match hits a ~29% honest ceiling
+    /// on rich morphology; the same score doubles as a 0×-decode confidence gate
+    /// (vs K× decodes for self-consistency).
+    ///
+    /// One forward over [ctx+cont] with `cache: nil`: `createAttentionMask` is
+    /// `.causal` for n>1, so position i attends only to ≤i — no answer leakage.
+    /// Context is capped to a tail so the [1, L, vocab] logits stay bounded
+    /// (L·262k floats materialized once, then reduced to scalars).
+    static func logProbMean(in container: ModelContainer,
+                            continuation: String, context: String) async -> Double? {
+        guard !continuation.isEmpty else { return nil }
+        let ctxTail = String(context.suffix(600))  // ponytail: bound logits RAM; plenty of conditioning for a ranker
+        return await container.perform { (ctx: ModelContext) in  // typed param — see `generate`'s note (swift test overload resolution)
+            let ctxTokens = ctx.tokenizer.encode(text: ctxTail)
+            let allTokens = ctx.tokenizer.encode(text: ctxTail + continuation)
+            // Longest shared prefix — a boundary merge just shifts one token into
+            // the scored span, still a valid P(text after the ctx prefix).
+            var start = 0
+            let lim = min(ctxTokens.count, allTokens.count)
+            while start < lim, ctxTokens[start] == allTokens[start] { start += 1 }
+            guard start >= 1, allTokens.count > start else { return nil }  // need ≥1 conditioning + ≥1 scored token
+            let logits = ctx.model(MLXArray(allTokens, [1, allTokens.count]), cache: nil)
+            eval(logits)  // materialize before pulling scalars (MLXArray must not escape `perform`)
+            var total: Float = 0
+            let n = allTokens.count - start
+            for k in 0 ..< n {
+                let row = logits[0, start - 1 + k]  // [vocab]: the position predicting allTokens[start+k]
+                total += row[allTokens[start + k]].item(Float.self) - row.logSumExp().item(Float.self)
+            }
+            return Double(total) / Double(n)
+        }
+    }
+
+    /// Rank (0 = the model's top-1) of the FIRST token of `continuation` in the
+    /// distribution at the end of `context` — one forward pass. Feeds top-k
+    /// recall: how often the true continuation's first token sits in the model's
+    /// top-k even when it isn't top-1. top-5 ≫ top-1 ⇒ the model "knows" the
+    /// answer but mis-ranks it (selection/reranking headroom); top-5 ≈ top-1 ⇒ a
+    /// genuine information gap (go to context/personalization).
+    static func firstTokenRank(in container: ModelContainer,
+                               continuation: String, context: String) async -> Int? {
+        guard !continuation.isEmpty else { return nil }
+        let ctxTail = String(context.suffix(600))
+        return await container.perform { (ctx: ModelContext) in
+            let ctxTokens = ctx.tokenizer.encode(text: ctxTail)
+            let allTokens = ctx.tokenizer.encode(text: ctxTail + continuation)
+            var start = 0
+            let lim = min(ctxTokens.count, allTokens.count)
+            while start < lim, ctxTokens[start] == allTokens[start] { start += 1 }
+            guard start >= 1, allTokens.count > start else { return nil }
+            let logits = ctx.model(MLXArray(allTokens, [1, allTokens.count]), cache: nil)
+            let row = logits[0, start - 1]        // [vocab]: predicts allTokens[start]
+            let target = row[allTokens[start]]    // its logit
+            // rank = number of tokens strictly more likely than the true one.
+            return (row .> target).sum().item(Int.self)
         }
     }
 }

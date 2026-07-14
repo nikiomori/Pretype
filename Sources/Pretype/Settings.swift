@@ -304,6 +304,11 @@ enum Settings {
             // 0.6 (≥3/5 draws agree) clears a 35% first-word bar on real text at
             // the most coverage (~54%); 0.8/1.0 trade coverage for precision.
             "confidenceGateThreshold": 0.6,
+            "logprobGate": false,
+            // Mean first-word logprob floor. Q3 boundary from the eval-real
+            // calibration (~11% Net-KSS at ~49% coverage); tune from the journal's
+            // captured firstWordLogProb. More negative = laxer, toward 0 = stricter.
+            "logprobGateThreshold": -1.5,
             "userBlacklist": [String](),
             "suggestionJournal": true,
             "personalExamples": true,
@@ -388,6 +393,20 @@ enum Settings {
     static var confidenceGateThreshold: Double {
         get { let v = defaults.double(forKey: "confidenceGateThreshold"); return v > 0 ? v : 0.6 }
         set { defaults.set(newValue, forKey: "confidenceGateThreshold") }
+    }
+
+    /// Logprob confidence gate (base only): abstain when the shown suggestion's
+    /// mean first-word logprob is below `logprobGateThreshold`. Same
+    /// precision-for-coverage trade as the self-consistency gate but at **0×**
+    /// extra decode — the first-word logprob is already captured live by the
+    /// decode loop (validated in Eval/BASELINE.md). Off by default.
+    static var logprobGate: Bool {
+        get { defaults.bool(forKey: "logprobGate") }
+        set { defaults.set(newValue, forKey: "logprobGate") }
+    }
+    static var logprobGateThreshold: Double {
+        get { let v = defaults.double(forKey: "logprobGateThreshold"); return v != 0 ? v : -1.5 }
+        set { defaults.set(newValue, forKey: "logprobGateThreshold") }
     }
 
     /// Free the resident MLX model after this many minutes idle (0 = never). A

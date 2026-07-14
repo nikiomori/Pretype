@@ -53,6 +53,13 @@ final class SuggestionController: NSObject {
         /// "ngram" for the fast-path, else the engine's name — so the journal
         /// can compare their acceptance rates.
         var engine: String
+        /// Config regime at show-time (see `Entry.model`…); `model` is the
+        /// engine's own resolved/loaded model — nil for the ngram fast-path
+        /// and Apple Intelligence.
+        var model: String?
+        var style: String
+        var gate: String
+        var personalization: String
         var shownAt = Date()
     }
     private var pendingJournal: PendingJournal?
@@ -141,6 +148,7 @@ final class SuggestionController: NSObject {
     func releaseEngineModel() { engineCoordinator.releaseModelNow() }
     func setCompletionStyle(_ style: CompletionStyle) { engineCoordinator.setCompletionStyle(style) }
     func setConfidenceGate(_ enabled: Bool) { engineCoordinator.setConfidenceGate(enabled) }
+    func setLogprobGate(_ enabled: Bool) { engineCoordinator.setLogprobGate(enabled) }
     func setCompletionLength(_ length: CompletionLength) { engineCoordinator.setCompletionLength(length) }
     func setCustomInstructions(_ instructions: String) { engineCoordinator.setCustomInstructions(instructions) }
     func setPersonalization(_ level: PersonalizationLevel) { engineCoordinator.setPersonalization(level) }
@@ -171,6 +179,16 @@ final class SuggestionController: NSObject {
             ts: SuggestionJournal.timestamp(),
             app: typingContext.bundleID,
             engine: pending.engine,
+            model: pending.model,
+            style: pending.style,
+            gate: pending.gate,
+            personalization: pending.personalization,
+            // Read at resolve, not show: the engine publishes the value only
+            // after the generation completes, which is after the first streamed
+            // partial is shown. By resolve time it belongs to the shown
+            // suggestion — except `superseded`, where a newer generation has
+            // already overwritten it (see Entry doc: calibration filters those).
+            firstWordLogProb: pending.engine == "ngram" ? nil : engine.lastFirstWordLogProb,
             ctx: String(pending.ctx.suffix(1000)),
             after: pending.after,
             suggestion: pending.suggestion,
@@ -615,7 +633,16 @@ final class SuggestionController: NSObject {
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 hadScreen: screenSummary != nil
                     && AppPolicy.allowsScreenContext(typingContext.bundleID),
-                engine: instant ? "ngram" : engine.name)
+                engine: instant ? "ngram" : engine.name,
+                // The engine's OWN resolved model — not Settings.mlxModelID,
+                // which diverges from what actually generated (instruct loads
+                // the it-sibling; Apple Intelligence has no MLX model at all).
+                model: instant ? nil : engine.loadedModelID,
+                style: Settings.completionStyle.rawValue,
+                gate: Settings.confidenceGate
+                    ? "\(Settings.confidenceGateSamples)@\(Settings.confidenceGateThreshold)" : "off",
+                personalization: Settings.personalizationLevel.rawValue
+                    + (Settings.personalExamplesEnabled ? "+rag" : ""))
         } else {
             // Streamed growth of the same suggestion — keep the record current.
             pendingJournal?.suggestion = suggestion

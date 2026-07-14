@@ -31,6 +31,9 @@ final class MLXEngine: CompletionEngine {
     /// Instruct prompt format, A/B-swept on eval-v2 (PRETYPE_PROMPT_VARIANT
     /// overrides). One of: userturn · prefill · localized · prefill-localized.
     static let defaultPromptVariant = LockedValue<String>("userturn")
+    /// Pre-caret context-tail cap (chars). PRETYPE_MAX_CHARS sweeps context ROI
+    /// offline; default 1000, unchanged in production. Read once, process-wide.
+    static let maxContextChars = Int(ProcessInfo.processInfo.environment["PRETYPE_MAX_CHARS"] ?? "") ?? 1000
 
     let name = "Local LLM (MLX)"
 
@@ -50,6 +53,11 @@ final class MLXEngine: CompletionEngine {
     /// Settings.confidenceGate / PRETYPE_CONFIDENCE_GATE.
     private let confidenceGateK: Int
     private let confidenceGateThreshold: Double
+    /// Logprob confidence gate (base only): abstain when the shown suggestion's
+    /// first-word logprob < this. nil = off. Fixed at init like the K-sample gate;
+    /// enabled via Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode —
+    /// the value is already captured by the live decode loop (firstWordLogProbBox).
+    private let logprobGateThreshold: Double?
     /// Forces sampling (temperature) inside the gate's K draws even when the eval
     /// harness pinned greedy. Set only around the gate loop.
     private let gateForceSample = LockedValue(false)
@@ -84,6 +92,20 @@ final class MLXEngine: CompletionEngine {
 
     var state: EngineState { stateBox.get() }
 
+    /// The RESOLVED primary model (instruct sibling in instruct style, local
+    /// fine-tune directory name) — what the journal must stamp. `modelID` is
+    /// already post-resolution here (see `init`), unlike `Settings.mlxModelID`.
+    var loadedModelID: String? {
+        modelID.split(separator: "/").last.map(String.init) ?? modelID
+    }
+
+    /// First-word confidence of the last completed ungated generation (see the
+    /// protocol doc). Reset to nil when a generation starts, set only when it
+    /// survives the output gate — so a read at suggestion-resolve time refers
+    /// to the suggestion that was actually shown, not an abstained draw.
+    private let firstWordLogProbBox = LockedValue<Double?>(nil)
+    var lastFirstWordLogProb: Double? { firstWordLogProbBox.get() }
+
     var statusLine: String? {
         let model = modelID.split(separator: "/").last.map(String.init) ?? modelID
         switch stateBox.get() {
@@ -105,6 +127,8 @@ final class MLXEngine: CompletionEngine {
             ?? (Settings.confidenceGate ? Settings.confidenceGateSamples : 0)
         self.confidenceGateThreshold = Double(env["PRETYPE_CONFIDENCE_THRESHOLD"] ?? "")
             ?? Settings.confidenceGateThreshold
+        self.logprobGateThreshold = Double(env["PRETYPE_LOGPROB_GATE"] ?? "")
+            ?? (Settings.logprobGate ? Settings.logprobGateThreshold : nil)
 
         // Instruct style runs completion *and* correction on the instruct
         // sibling, so load that as the primary model (no second model in RAM).
@@ -328,6 +352,10 @@ final class MLXEngine: CompletionEngine {
     private func completeGated(_ request: CompletionRequest) async throws -> String? {
         gateForceSample.set(true)
         defer { gateForceSample.set(false) }
+        // Gated draws don't record first-word confidence (they sample at T≈0.6;
+        // agreement is the gate's own signal) — clear the box so a resolve-time
+        // read can't surface a value from before the gate was enabled.
+        firstWordLogProbBox.set(nil)
         var byFirstWord: [String: (count: Int, sample: String)] = [:]
         var draws = 0
         for _ in 0..<confidenceGateK {
@@ -353,6 +381,25 @@ final class MLXEngine: CompletionEngine {
     private static func gateFirstWord(_ s: String) -> String? {
         s.lowercased().replacingOccurrences(of: "ё", with: "е")
             .split { !$0.isLetter && !$0.isNumber }.first.map(String.init)
+    }
+
+    /// Mean per-token log P(continuation | context) via one forward pass (see
+    /// `logProbMean`). Loads/reuses the resident model; nil if it can't load or
+    /// the strings are empty. Dev/eval only — NOT on the live keystroke path.
+    func logProbability(of continuation: String, given context: String) async -> Double? {
+        guard let task = beginRequest() else { return nil }
+        defer { endRequest() }
+        guard let container = try? await task.value else { return nil }
+        return await Self.logProbMean(in: container, continuation: continuation, context: context)
+    }
+
+    /// Rank of the true continuation's first token (0 = top-1) via one forward
+    /// pass (see `firstTokenRank`). Dev/eval only — for top-k recall.
+    func firstTokenRank(of continuation: String, given context: String) async -> Int? {
+        guard let task = beginRequest() else { return nil }
+        defer { endRequest() }
+        guard let container = try? await task.value else { return nil }
+        return await Self.firstTokenRank(in: container, continuation: continuation, context: context)
     }
 
     func completions(for request: CompletionRequest) -> AsyncThrowingStream<String, Error> {
@@ -447,7 +494,7 @@ final class MLXEngine: CompletionEngine {
     /// applies at a word boundary. Screen context counts toward the threshold.
     private func prepare(_ request: CompletionRequest,
                          midWordFloor: Int, boundaryFloor: Int) -> PreparedPrompt? {
-        var text = request.completionPrompt(maxChars: 1000)
+        var text = request.completionPrompt(maxChars: Self.maxContextChars)
         let floor = text.last?.isLetter == true ? midWordFloor : boundaryFloor
         guard text.count >= floor else {
             DebugLog.shared.log("GATE", "below context floor (\(text.count) chars < \(floor)) — not querying the model")
@@ -484,15 +531,38 @@ final class MLXEngine: CompletionEngine {
 
         guard let prepared = prepare(request, midWordFloor: 10, boundaryFloor: 16) else { return nil }
 
+        // First-word confidence capture: reset up front so a stale value from a
+        // previous generation can never be journaled against this one; publish
+        // below only when the result survives the output gate, so a resolve-time
+        // read refers to the suggestion that was shown. Skipped inside the
+        // K-sample gate's draws — those sample at T≈0.6, so their logprobs are
+        // not comparable to the live path's, and the gate's own signal is
+        // agreement, not logprob.
+        let recording = !gateForceSample.get()
+        if recording { firstWordLogProbBox.set(nil) }
+        let logProbSink = recording ? LockedValue<Double?>(nil) : nil
+
         let parameters = completionParameters(for: request)
         let gate = prepared.gate(cleanInstruct: false)
         let output = try await Self.generate(
             in: container, prompt: prepared.text, parameters: parameters,
             extraEOSTokens: extraEOSTokens, promptCache: promptCache, bias: currentBias(),
+            logProbSink: logProbSink,
             onPartial: Self.makeStreamHandler(onPartial, gate: gate)
         )
         try Task.checkCancellation()
-        return gate(output)
+        let result = gate(output)
+        let lp = recording ? logProbSink?.get() : nil
+        // Logprob confidence gate: abstain on a low-confidence first word. 0× extra
+        // decode (lp is already captured above). Base only by construction —
+        // completeBase is never the instruct path, where the calibration doesn't hold.
+        if let thr = logprobGateThreshold, result != nil, let lp, lp < thr {
+            DebugLog.shared.log("GATE", "logprob-gate: first-word \(String(format: "%.2f", lp)) < \(thr) — abstaining")
+            firstWordLogProbBox.set(nil)
+            return nil
+        }
+        if recording, result != nil { firstWordLogProbBox.set(lp) }
+        return result
     }
 
     /// Persona-aware continuation through the instruct model's chat template:
@@ -597,6 +667,15 @@ final class MLXEngine: CompletionEngine {
         // captured `var` crosses a concurrency boundary.
         let directiveText = directive
 
+        // Same first-word confidence capture as the base path (see there). One
+        // caveat for calibration: this logprob is conditioned on the instruct
+        // prompt (directive + persona + template), i.e. the distribution the
+        // live path actually sampled from — deliberately NOT the raw-context
+        // score `logProbMean` computes offline.
+        let recording = !gateForceSample.get()
+        if recording { firstWordLogProbBox.set(nil) }
+        let logProbSink = recording ? LockedValue<Double?>(nil) : nil
+
         let parameters = completionParameters(for: request)
         let gate = prepared.gate(cleanInstruct: true)
         let output = try await Self.generate(
@@ -627,10 +706,13 @@ final class MLXEngine: CompletionEngine {
             // Prefill needs ≥a few real tokens before EOS is allowed, or Gemma
             // ends the turn immediately after the prefilled text.
             minTokens: prefill ? 3 : 0,
+            logProbSink: logProbSink,
             onPartial: Self.makeStreamHandler(onPartial, gate: gate)
         )
         try Task.checkCancellation()
-        return gate(output)
+        let result = gate(output)
+        if recording, result != nil { firstWordLogProbBox.set(logProbSink?.get()) }
+        return result
     }
 
     /// Per-keystroke token budget: the length setting, trimmed harder for chat.

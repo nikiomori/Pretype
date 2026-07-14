@@ -29,6 +29,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private let screenContextCheck = NSButton(checkboxWithTitle: "Use screen context (OCR)", target: nil, action: nil)
     private let fimCheck = NSButton(checkboxWithTitle: "Smart mid-sentence completion (fill-in-the-middle)", target: nil, action: nil)
     private let confidenceGateCheck = NSButton(checkboxWithTitle: "High-precision mode (confidence gate)", target: nil, action: nil)
+    private let logprobGateCheck = NSButton(checkboxWithTitle: "Fast high-precision (logprob gate)", target: nil, action: nil)
     private let blacklistTextField = NSTextField()
     private let hotkeyStylePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let ghostOpacitySlider = NSSlider()
@@ -88,6 +89,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         fimCheck.action = #selector(toggleFIM)
         confidenceGateCheck.target = self
         confidenceGateCheck.action = #selector(toggleConfidenceGate)
+        logprobGateCheck.target = self
+        logprobGateCheck.action = #selector(toggleLogprobGate)
 
         presentationPicker.onSelect = { [weak self] mode in
             self?.controller?.setSuggestionPresentation(mode)
@@ -215,6 +218,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             spacer(2),
             confidenceGateCheck,
             caption("Suggests only when the model agrees with itself across several tries — much more accurate on real text (≈39% first-word vs ~19%), but fires less often and adds latency. Available in Base style on an E4B model (≥6-bit)."),
+            logprobGateCheck,
+            caption("Same accuracy trade-off with NO added latency — it reads the model's own confidence in its first word (≈42% first-word vs ~29%, fires about half as often). Works on any Base model. The two high-precision modes are mutually exclusive."),
             spacer(6),
             header("Length"),
             sliderRow(lengthSlider, labels: ["Short", "Medium", "Long"]),
@@ -401,6 +406,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         screenContextCheck.state = Settings.screenContextEnabled ? .on : .off
         fimCheck.state = Settings.fimEnabled ? .on : .off
         syncConfidenceGate()
+        syncLogprobGate()
         updateModelRecommendation()
         presentationPicker.selected = Settings.suggestionPresentation
         updatePresentationDescription(Settings.suggestionPresentation)
@@ -433,6 +439,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let usable = SettingsUI.confidenceGateUsable()
         confidenceGateCheck.isEnabled = usable
         confidenceGateCheck.state = (usable && Settings.confidenceGate) ? .on : .off
+    }
+
+    /// Base-mode only (any model); greyed elsewhere so it never reads as "on but idle".
+    private func syncLogprobGate() {
+        let usable = SettingsUI.logprobGateUsable()
+        logprobGateCheck.isEnabled = usable
+        logprobGateCheck.state = (usable && Settings.logprobGate) ? .on : .off
     }
 
     /// Surface the model's recommended settings (and grey fill-in where it can't
@@ -552,6 +565,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     @objc private func toggleConfidenceGate() {
         controller?.setConfidenceGate(confidenceGateCheck.state == .on)
+        syncConfidenceGate(); syncLogprobGate()   // mutually exclusive — reflect both
+    }
+
+    @objc private func toggleLogprobGate() {
+        controller?.setLogprobGate(logprobGateCheck.state == .on)
+        syncConfidenceGate(); syncLogprobGate()
     }
 
     @objc private func styleChanged() {
@@ -559,6 +578,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         controller?.setCompletionStyle(style)
         updateStyleDescription()
         syncConfidenceGate()
+        syncLogprobGate()
         refreshStatus()
     }
 
@@ -580,6 +600,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         if let id = modelPopup.selectedItem?.representedObject as? String {
             controller?.setModel(id)
             syncConfidenceGate()
+            syncLogprobGate()
             updateModelRecommendation()
             refreshStatus()
         }

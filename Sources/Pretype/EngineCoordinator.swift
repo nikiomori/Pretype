@@ -40,6 +40,9 @@ final class EngineCoordinator {
         if Settings.confidenceGate, !(rec.gateCapable && Settings.completionStyle == .base) {
             Settings.confidenceGate = false
         }
+        if Settings.logprobGate, Settings.completionStyle != .base {
+            Settings.logprobGate = false   // logprob gate is Base-only
+        }
         rebuild()
     }
 
@@ -51,6 +54,7 @@ final class EngineCoordinator {
         Settings.completionStyle = rec.style
         Settings.completionLength = rec.length
         if !(rec.gateCapable && rec.style == .base) { Settings.confidenceGate = false }
+        if rec.style != .base { Settings.logprobGate = false }
         rebuild()
     }
 
@@ -61,9 +65,19 @@ final class EngineCoordinator {
     }
 
     /// The confidence gate is read when the engine is built, so toggling it
-    /// rebuilds (same as a style switch).
+    /// rebuilds (same as a style switch). The two high-precision gates are mutually
+    /// exclusive — enabling one drops the other.
     func setConfidenceGate(_ enabled: Bool) {
         Settings.confidenceGate = enabled
+        if enabled { Settings.logprobGate = false }
+        rebuild()
+    }
+
+    /// Logprob gate: same build-time-then-rebuild contract; enabling it drops the
+    /// self-consistency gate (both abstain on low confidence, but logprob is 0× decode).
+    func setLogprobGate(_ enabled: Bool) {
+        Settings.logprobGate = enabled
+        if enabled { Settings.confidenceGate = false }
         rebuild()
     }
 

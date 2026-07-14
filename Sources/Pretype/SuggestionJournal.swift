@@ -25,6 +25,28 @@ final class SuggestionJournal: @unchecked Sendable {
         var ts: String
         var app: String?
         var engine: String?
+        /// The config regime that produced this suggestion — snapshotted at
+        /// show-time so the offline replay can A/B *live days*, not just models.
+        /// All optional: absent on older entries (decode → nil) and on undo
+        /// events. `model` is the ACTUALLY LOADED model (instruct sibling in
+        /// instruct style, fine-tune dir name for local models); nil for the
+        /// ngram fast-path and Apple Intelligence (`engine` disambiguates).
+        /// Compact by design — `gate` is "K@thr" or "off", `personalization`
+        /// is "level[+rag]". Defaults keep the memberwise init source-compatible
+        /// with pre-stamp call sites (undo events, tests).
+        var model: String? = nil
+        var style: String? = nil
+        var gate: String? = nil
+        var personalization: String? = nil
+        /// Mean per-token log-probability of the FIRST word of `suggestion`,
+        /// captured from the live decode loop (zero extra forward passes) — the
+        /// raw material for the confidence→correctness calibration curve that
+        /// decides whether a logprob threshold can replace the K-sample gate.
+        /// Best-effort: nil for ngram/FM/gated/undo entries and legacy rows;
+        /// read at resolve time, so a `superseded` entry may carry the value of
+        /// the generation that superseded it — filter calibration to
+        /// accepted/dismissed/diverged/typedThrough outcomes.
+        var firstWordLogProb: Double? = nil
         /// Text before the caret when the suggestion appeared (capped tail).
         var ctx: String
         var after: String

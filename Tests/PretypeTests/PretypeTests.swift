@@ -208,6 +208,54 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(journal.fileSize, 0)
     }
 
+    // The config stamp + first-word logprob are new OPTIONAL Entry fields. Pin the
+    // serialization contract they depend on — the exact class of break that a
+    // missing `= nil` caused: legacy lines still decode (fields nil), a populated
+    // stamp round-trips, and nil fields are OMITTED so journals stay compact.
+    func testJournalEntryStampCodable() throws {
+        // 1. A legacy line — written before the fields existed, so none of the
+        //    keys are present — must decode, with every new field nil, and the
+        //    core fields intact. (Existing on-disk journals must stay readable.)
+        let legacy = #"{"ts":"t","app":"a","engine":"MLX","ctx":"c","after":"","suggestion":" x","outcome":"accepted","acceptedChars":2,"shownForMs":100,"screen":false}"#
+        let old = try JSONDecoder().decode(SuggestionJournal.Entry.self, from: Data(legacy.utf8))
+        XCTAssertNil(old.model)
+        XCTAssertNil(old.style)
+        XCTAssertNil(old.gate)
+        XCTAssertNil(old.personalization)
+        XCTAssertNil(old.firstWordLogProb)
+        XCTAssertEqual(old.suggestion, " x")
+        XCTAssertEqual(old.outcome, .accepted)
+
+        // 2. A fully-stamped entry round-trips through encode → decode.
+        var stamped = SuggestionJournal.Entry(
+            ts: "t", app: "com.test", engine: "MLX",
+            ctx: "привет, как", after: "", suggestion: " дела", outcome: .accepted,
+            acceptedChars: 5, typed: nil, shownForMs: 250, screen: false)
+        stamped.model = "gemma-4-e2b-8bit"
+        stamped.style = "base"
+        stamped.gate = "off"
+        stamped.personalization = "subtle+rag"
+        stamped.firstWordLogProb = -0.42
+        let back = try JSONDecoder().decode(
+            SuggestionJournal.Entry.self, from: JSONEncoder().encode(stamped))
+        XCTAssertEqual(back.model, "gemma-4-e2b-8bit")
+        XCTAssertEqual(back.style, "base")
+        XCTAssertEqual(back.gate, "off")
+        XCTAssertEqual(back.personalization, "subtle+rag")
+        XCTAssertEqual(back.firstWordLogProb ?? .nan, -0.42, accuracy: 1e-9)
+
+        // 3. nil optionals are omitted (synthesized encodeIfPresent) — a bare
+        //    entry (undo / ngram / legacy) must not bloat the journal with null keys.
+        let bare = SuggestionJournal.Entry(
+            ts: "t", app: nil, engine: nil,
+            ctx: "c", after: "", suggestion: "x", outcome: .diverged,
+            acceptedChars: 0, typed: nil, shownForMs: 0, screen: false)
+        let json = try XCTUnwrap(String(data: JSONEncoder().encode(bare), encoding: .utf8))
+        XCTAssertFalse(json.contains("firstWordLogProb"))
+        XCTAssertFalse(json.contains("\"model\""))
+        XCTAssertFalse(json.contains("\"gate\""))
+    }
+
     // Retrieval feeds the model the user's own phrases — pin that it finds the
     // overlapping phrase, drops ⌘Z-reverted ones, and indexes live appends.
     func testJournalRetrieval() throws {

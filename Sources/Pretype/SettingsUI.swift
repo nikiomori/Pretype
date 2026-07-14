@@ -39,6 +39,13 @@ enum SettingsUI {
             && ModelCatalog.recommended(for: Settings.mlxModelID).gateCapable
     }
 
+    /// The logprob gate is a Base-mode feature on ANY base model — it thresholds
+    /// the model's own first-word confidence, so it doesn't need the E4B agreement
+    /// signal the self-consistency gate does. Greyed out only in Instruct.
+    static func logprobGateUsable() -> Bool {
+        Settings.completionStyle == .base
+    }
+
     /// Turn screen-context OCR on or off from a toggling control. Enabling it when
     /// permission isn't granted yet registers the app with TCC, opens the Screen
     /// Recording pane, and shows the relaunch alert (macOS applies this permission
