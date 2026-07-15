@@ -62,9 +62,14 @@ struct ProjectionConfig: Equatable {
                 c.logprobGate = false
                 c.confidenceGate = false
             }
-            // Mirror the pipeline: a switch to a base-only model never keeps
-            // the measured-broken Instruct style.
+            // A switch to a base-only model never keeps the measured-broken
+            // Instruct style; and if the landing style is still Instruct
+            // (stale persisted state), the Base-only gates cannot survive.
             if rec.style == .base, c.style == .instruct { c.style = .base }
+            if c.style != .base {
+                c.logprobGate = false
+                c.confidenceGate = false
+            }
             if !rec.gateCapable { c.confidenceGate = false }
         case .style(let s):
             c.style = s

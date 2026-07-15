@@ -27,13 +27,22 @@ final class EngineCoordinator {
         onRebuild?()
     }
 
-    /// Commit a fully-resolved configuration in one shot — presets and the
-    /// model-map settings dots land here. One Settings write-out, ONE engine
-    /// rebuild, instead of a rebuild per field like the individual setters.
-    /// The target comes from `ProjectionConfig.applying`, cascades included.
-    // ponytail: the per-field setters below still hand-encode the same
-    // cascade rules ProjectionConfig.applying centralizes; route them through
-    // apply(_:) if the rules grow again.
+    /// The persisted configuration as a pure value — what every setter
+    /// cascades from.
+    private var current: ProjectionConfig {
+        ProjectionConfig(modelID: Settings.mlxModelID,
+                         style: Settings.completionStyle,
+                         length: Settings.completionLength,
+                         logprobGate: Settings.logprobGate,
+                         confidenceGate: Settings.confidenceGate,
+                         useRecommended: Settings.useRecommendedSettings)
+    }
+
+    /// Commit a fully-resolved configuration: one Settings write-out, ONE
+    /// engine rebuild. Every build-time setter below routes through here with
+    /// `ProjectionConfig.applying` as the single cascade authority — the same
+    /// function the settings UI previews with, so preview and commit cannot
+    /// diverge.
     func apply(_ target: ProjectionConfig) {
         Settings.mlxModelID = target.modelID
         Settings.useRecommendedSettings = target.useRecommended
@@ -44,70 +53,20 @@ final class EngineCoordinator {
         rebuild()
     }
 
-    func setModel(_ id: String) {
-        Settings.mlxModelID = id
-        let rec = ModelCatalog.recommended(for: id)
-        // In "auto" mode the per-model recommendation drives style + length.
-        if Settings.useRecommendedSettings {
-            Settings.completionStyle = rec.style
-            Settings.completionLength = rec.length
-        }
-        // Instruct is measured-broken on base-only models (answers instead of
-        // continuing, ~0% first-word) — a model switch must not carry it there.
-        if rec.style == .base, Settings.completionStyle == .instruct {
-            Settings.completionStyle = .base
-        }
-        // The confidence gate only helps as a Base-style feature on a gate-capable
-        // model — clear it when that no longer holds, so it can't cost latency for nothing.
-        if Settings.confidenceGate, !(rec.gateCapable && Settings.completionStyle == .base) {
-            Settings.confidenceGate = false
-        }
-        if Settings.logprobGate, Settings.completionStyle != .base {
-            Settings.logprobGate = false   // logprob gate is Base-only
-        }
-        rebuild()
-    }
+    func setModel(_ id: String) { apply(current.applying(.model(id))) }
 
     /// Snap Style + Length to the selected model's recommendation (the "auto"
-    /// switch turning on, or a one-shot re-apply). Rebuilds since style is a
-    /// build-time choice.
-    func applyRecommendedSettings() {
-        let rec = ModelCatalog.recommended(for: Settings.mlxModelID)
-        Settings.completionStyle = rec.style
-        Settings.completionLength = rec.length
-        if !(rec.gateCapable && rec.style == .base) { Settings.confidenceGate = false }
-        if rec.style != .base { Settings.logprobGate = false }
-        rebuild()
-    }
+    /// switch turning on, or a one-shot re-apply).
+    func applyRecommendedSettings() { apply(current.applying(.useRecommended(true))) }
 
-    /// Base ↔ instruct switches the loaded model, so rebuild. The precision
-    /// gates are Base-only: leaving Base turns them off rather than leaving
-    /// them set-but-inert ("Confident-only" in the UI while doing nothing).
-    func setCompletionStyle(_ style: CompletionStyle) {
-        Settings.completionStyle = style
-        if style != .base {
-            Settings.logprobGate = false
-            Settings.confidenceGate = false
-        }
-        rebuild()
-    }
+    /// Base ↔ instruct switches the loaded model, so rebuild; the cascade
+    /// clears the Base-only gates rather than leaving them set-but-inert.
+    func setCompletionStyle(_ style: CompletionStyle) { apply(current.applying(.style(style))) }
 
-    /// The confidence gate is read when the engine is built, so toggling it
-    /// rebuilds (same as a style switch). The two high-precision gates are mutually
-    /// exclusive — enabling one drops the other.
-    func setConfidenceGate(_ enabled: Bool) {
-        Settings.confidenceGate = enabled
-        if enabled { Settings.logprobGate = false }
-        rebuild()
-    }
-
-    /// Logprob gate: same build-time-then-rebuild contract; enabling it drops the
-    /// self-consistency gate (both abstain on low confidence, but logprob is 0× decode).
-    func setLogprobGate(_ enabled: Bool) {
-        Settings.logprobGate = enabled
-        if enabled { Settings.confidenceGate = false }
-        rebuild()
-    }
+    /// The gates are read when the engine is built, so toggling rebuilds; the
+    /// cascade keeps the two mutually exclusive.
+    func setConfidenceGate(_ enabled: Bool) { apply(current.applying(.confidenceGate(enabled))) }
+    func setLogprobGate(_ enabled: Bool) { apply(current.applying(.logprobGate(enabled))) }
 
     /// Length/persona are live — no reload.
     func setCompletionLength(_ length: CompletionLength) {

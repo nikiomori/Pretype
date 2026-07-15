@@ -462,6 +462,17 @@ final class PretypeTests: XCTestCase {
         instructed = instructed.applying(.model(mini))
         XCTAssertEqual(instructed.style, .base)
 
+        // Stale persisted state (gate set alongside Instruct, from before the
+        // hygiene existed): a model switch heals it — Base-only gates never
+        // survive an Instruct landing. The coordinator commits through this
+        // same cascade, so preview and pipeline agree by construction.
+        var stale = ProjectionConfig(modelID: e4b6, style: .instruct, length: .short,
+                                     logprobGate: true, confidenceGate: false,
+                                     useRecommended: false)
+        stale = stale.applying(.model("mlx-community/gemma-4-e4b-8bit"))
+        XCTAssertEqual(stale.style, .instruct)   // usable here, kept
+        XCTAssertFalse(stale.logprobGate)        // but the gate cannot ride along
+
         // In recommended mode a model switch re-snaps everything.
         var auto = ProjectionConfig(modelID: mini, style: .base, length: .long,
                                     logprobGate: true, confidenceGate: false,

@@ -278,8 +278,17 @@ private struct PriorityCard: View {
 /// `ConfigProjection` figures as the rail — one truth, two views.
 private struct ModelMapView: View {
     @ObservedObject var store: SettingsStore
-    @State private var hoverID: String?
-    @State private var hoverConfigLabel: String?
+
+    /// Model highlighted by the current preview, whichever surface set it
+    /// (bubble, ranked row, preset card or settings dot) — the single hover
+    /// source; the map keeps no local hover state of its own.
+    private var previewedModelID: String? {
+        switch store.preview {
+        case .model(let id), .preset(let id): return id
+        case .config(let config): return config.modelID
+        default: return nil
+        }
+    }
 
     private static let height: CGFloat = 300
     private typealias Scale = ConfigProjection.Scale
@@ -299,7 +308,6 @@ private struct ModelMapView: View {
             }
         }
         .frame(height: Self.height)
-        .onHover { if !$0 { hoverID = nil; hoverConfigLabel = nil } }
     }
 
     /// Chart coordinates: x = log-speed (faster → right), y = accuracy.
@@ -482,12 +490,9 @@ private struct ModelMapView: View {
                     radius: selected ? 5 : 2, y: 1)
             .contentShape(Circle())
             .onTapGesture { store.selectModel(m.id) }
-            .onHover { hovering in
-                hoverID = hovering ? m.id : (hoverID == m.id ? nil : hoverID)
-                store.setHover(.model(m.id), hovering)
-            }
+            .onHover { store.setHover(.model(m.id), $0) }
             .position(center)
-            if selected || hoverID == m.id {
+            if selected || previewedModelID == m.id {
                 Text(m.shortName)
                     .font(.system(size: 9).weight(selected ? .bold : .medium))
                     .foregroundStyle(selected ? Color.primary : Color.secondary)
@@ -513,14 +518,10 @@ private struct ModelMapView: View {
                     .contentShape(Circle().inset(by: -4))
                     .help("\(reachable.label) — click to switch this model's settings here")
                     .onTapGesture { store.applyConfig(reachable.config) }
-                    .onHover { hovering in
-                        hoverConfigLabel = hovering ? reachable.label
-                            : (hoverConfigLabel == reachable.label ? nil : hoverConfigLabel)
-                        store.setHover(.config(reachable.config), hovering)
-                    }
+                    .onHover { store.setHover(.config(reachable.config), $0) }
                     .position(point)
                     .zIndex(5)
-                if hoverConfigLabel == reachable.label {
+                if store.preview == .config(reachable.config) {
                     Text(reachable.label)
                         .font(.system(size: 9).weight(.semibold))
                         .foregroundStyle(Color.accentColor)
@@ -569,7 +570,7 @@ private struct ModelMapView: View {
     }
 
     @ViewBuilder private var infoCard: some View {
-        let m = hoverID.flatMap { ModelMetrics.metrics(for: $0) }
+        let m = previewedModelID.flatMap { ModelMetrics.metrics(for: $0) }
             ?? ModelMetrics.metrics(for: store.modelID)
         if let m {
             VStack(alignment: .leading, spacing: 4) {

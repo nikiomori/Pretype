@@ -276,6 +276,12 @@ enum Settings {
     }
 
     static func registerDefaults() {
+        // Migrate the retired `.word` length (pre-redesign UI offered it) to
+        // its successor, so the stored value always matches what the settings
+        // surface can display and the projection describes.
+        if defaults.string(forKey: "completionLength") == CompletionLength.word.rawValue {
+            defaults.set(CompletionLength.short.rawValue, forKey: "completionLength")
+        }
         // Style/length ship pre-matched to the default model's recommendation:
         // nothing applies it at boot (main only registers defaults), and the
         // engine reads the stored style directly — so a base-only default like

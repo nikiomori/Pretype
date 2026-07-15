@@ -292,7 +292,7 @@ final class SettingsStore: ObservableObject {
         blacklist = Settings.userBlacklist
         useRecommended = Settings.useRecommendedSettings
         style = Settings.completionStyle
-        length = Settings.completionLength == .word ? .short : Settings.completionLength
+        length = Settings.completionLength  // .word migrated away in registerDefaults
         // Mask inapplicable persisted flags (same pattern as fimEnabled): a
         // gate restored from a state the coordinator's hygiene never saw must
         // not render as on-but-doing-nothing.
