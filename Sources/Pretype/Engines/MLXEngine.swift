@@ -62,7 +62,13 @@ final class MLXEngine: CompletionEngine {
     /// token whose logprob < this (never inside the first word). nil = off.
     /// Same live recorder as the logprob gate — 0× extra decode; unlike the
     /// gates it trims instead of abstaining. PRETYPE_TRIM_LOGPROB sweeps it.
-    private let trimLogProbThreshold: Float?
+    /// Read live (unlike the gates it's style/model-independent), so the
+    /// Settings toggle applies without an engine rebuild.
+    private var trimLogProbThreshold: Float? {
+        trimLogProbEnvOverride
+            ?? (Settings.confidenceTrim ? Float(Settings.confidenceTrimThreshold) : nil)
+    }
+    private let trimLogProbEnvOverride: Float?
     /// Forces sampling (temperature) inside the gate's K draws even when the eval
     /// harness pinned greedy. Set only around the gate loop.
     private let gateForceSample = LockedValue(false)
@@ -134,8 +140,7 @@ final class MLXEngine: CompletionEngine {
             ?? Settings.confidenceGateThreshold
         self.logprobGateThreshold = Double(env["PRETYPE_LOGPROB_GATE"] ?? "")
             ?? (Settings.logprobGate ? Settings.logprobGateThreshold : nil)
-        self.trimLogProbThreshold = Float(env["PRETYPE_TRIM_LOGPROB"] ?? "")
-            ?? (Settings.confidenceTrim ? Float(Settings.confidenceTrimThreshold) : nil)
+        self.trimLogProbEnvOverride = Float(env["PRETYPE_TRIM_LOGPROB"] ?? "")
 
         // Instruct style runs completion *and* correction on the instruct
         // sibling, so load that as the primary model (no second model in RAM).
@@ -437,7 +442,16 @@ final class MLXEngine: CompletionEngine {
                     // The confidence trim shortens the final text AFTER the last
                     // partial went out — yield the reconciled result so the UI
                     // replaces the streamed tail with the trimmed suggestion.
-                    if let final, final != lastYielded.get() { continuation.yield(final) }
+                    if let final, final != lastYielded.get() {
+                        continuation.yield(final)
+                    } else if final == nil, lastYielded.get() != nil {
+                        // A post-stream abstain (logprob gate; a final-only gate
+                        // rejection like a language flip that needs ≥12 chars)
+                        // must RETRACT the partials already on screen. "" is the
+                        // retract signal — a real suggestion is never empty (the
+                        // gates reject empty).
+                        continuation.yield("")
+                    }
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()

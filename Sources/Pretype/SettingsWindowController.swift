@@ -30,6 +30,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     private let fimCheck = NSButton(checkboxWithTitle: "Smart mid-sentence completion (fill-in-the-middle)", target: nil, action: nil)
     private let confidenceGateCheck = NSButton(checkboxWithTitle: "High-precision mode (confidence gate)", target: nil, action: nil)
     private let logprobGateCheck = NSButton(checkboxWithTitle: "Fast high-precision (logprob gate)", target: nil, action: nil)
+    private let confidenceTrimCheck = NSButton(checkboxWithTitle: "Trim low-confidence endings", target: nil, action: nil)
     private let blacklistTextField = NSTextField()
     private let hotkeyStylePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let ghostOpacitySlider = NSSlider()
@@ -91,6 +92,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         confidenceGateCheck.action = #selector(toggleConfidenceGate)
         logprobGateCheck.target = self
         logprobGateCheck.action = #selector(toggleLogprobGate)
+        confidenceTrimCheck.target = self
+        confidenceTrimCheck.action = #selector(toggleConfidenceTrim)
 
         presentationPicker.onSelect = { [weak self] mode in
             self?.controller?.setSuggestionPresentation(mode)
@@ -224,6 +227,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             header("Length"),
             sliderRow(lengthSlider, labels: ["Short", "Medium", "Long"]),
             lengthDesc,
+            spacer(2),
+            confidenceTrimCheck,
+            caption("Cuts a suggestion right before the first word the model isn't sure about, so the length above is a maximum — the shaky tail is dropped instead of shown. Works with every style and model."),
         ])
 
         let personaStack = vstack([
@@ -428,6 +434,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         blacklistTextField.stringValue = Settings.userBlacklist.joined(separator: ", ")
         journalCheck.state = Settings.suggestionJournalEnabled ? .on : .off
         examplesCheck.state = Settings.personalExamplesEnabled ? .on : .off
+        confidenceTrimCheck.state = Settings.confidenceTrim ? .on : .off
         updateForgetTitle()
         updateJournalClearTitle()
         refreshStatus()
@@ -571,6 +578,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     @objc private func toggleLogprobGate() {
         controller?.setLogprobGate(logprobGateCheck.state == .on)
         syncConfidenceGate(); syncLogprobGate()
+    }
+
+    // The engine reads the threshold live — no rebuild needed (see MLXEngine).
+    @objc private func toggleConfidenceTrim() {
+        Settings.confidenceTrim = confidenceTrimCheck.state == .on
     }
 
     @objc private func styleChanged() {

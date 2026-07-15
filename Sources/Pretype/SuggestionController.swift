@@ -558,14 +558,15 @@ final class SuggestionController: NSObject {
                        instant: Bool = false) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
-        guard let result else {
-            lastEvent = "engine returned no suggestion"
-            window.hide()
-            return false
-        }
-        var suggestion = sanitize(result)
+        var suggestion = result.map(sanitize) ?? ""
         guard !suggestion.isEmpty else {
+            // nil/empty is an abstain — or a mid-stream RETRACT ("" from the
+            // engine when its final gate rejected what the partials already
+            // showed). Close the journal record and clear the stale suggestion
+            // so a hidden one can't still be accepted.
             lastEvent = "engine returned no suggestion"
+            resolveJournal(.abandoned)
+            active = nil
             window.hide()
             return false
         }
