@@ -429,6 +429,16 @@ final class MLXEngine: CompletionEngine {
                         continuation.finish()
                         return
                     }
+                    // Same reasoning for the logprob gate: its accept/abstain
+                    // verdict (first-word mean logprob) only exists after the
+                    // full decode, so streaming partials would show a suggestion
+                    // the gate then retracts — a visible flash-and-vanish on
+                    // every abstain. No partials; yield the single gated result.
+                    if logprobGateThreshold != nil, style == .base {
+                        if let result = try await completeBase(request) { continuation.yield(result) }
+                        continuation.finish()
+                        return
+                    }
                     let lastYielded = LockedValue<String?>(nil)
                     let onPartial: @Sendable (String) -> Void = {
                         lastYielded.set($0)

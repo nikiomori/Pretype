@@ -71,7 +71,13 @@ final class CaretIndicator {
         case .preparing(let detail):
             window.show(mode: .status(detail), at: rect)
         case .ready:
+            // A visible suggestion owns the shared window: never overdraw it
+            // with thinking dots, and never hide it when the query ends — the
+            // gated single-yield path can finish with NO apply() call (abstain
+            // with an instant n-gram suggestion kept), so this timer used to
+            // stomp a valid suggestion: text → dots → gone.
             if isQueryRunning() {
+                guard !hasActiveSuggestion() else { return }
                 thinkingPhase += 1
                 // The first tick (~0.22 s) stays silent: only queries slower
                 // than ~0.45 s earn dots, so mid-speed answers don't flash
@@ -81,7 +87,7 @@ final class CaretIndicator {
                 }
             } else {
                 stop()
-                window.hide()
+                if !hasActiveSuggestion() { window.hide() }
             }
         case .failed:
             window.show(mode: .error("engine not working"), at: rect)
