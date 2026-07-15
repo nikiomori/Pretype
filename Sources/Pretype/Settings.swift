@@ -309,6 +309,14 @@ enum Settings {
             // calibration (~11% Net-KSS at ~49% coverage); tune from the journal's
             // captured firstWordLogProb. More negative = laxer, toward 0 = stricter.
             "logprobGateThreshold": -1.5,
+            // Confidence trim: cut the suggestion just before the first decode
+            // token whose logprob drops below the threshold (never inside the
+            // first word) — the fixed-budget tail is a completion's weakest
+            // part. Unlike the gates it never abstains, so it's on by default.
+            // ponytail: -3.0 (p≈5% under the sampled distribution) is uncalibrated
+            // — conservative on purpose; sweep via PRETYPE_TRIM_LOGPROB on eval-real.
+            "confidenceTrim": true,
+            "confidenceTrimThreshold": -3.0,
             "userBlacklist": [String](),
             "suggestionJournal": true,
             "personalExamples": true,
@@ -407,6 +415,19 @@ enum Settings {
     static var logprobGateThreshold: Double {
         get { let v = defaults.double(forKey: "logprobGateThreshold"); return v != 0 ? v : -1.5 }
         set { defaults.set(newValue, forKey: "logprobGateThreshold") }
+    }
+
+    /// Confidence trim: cut the shown suggestion just before the first decode
+    /// token whose logprob falls below `confidenceTrimThreshold` (never inside
+    /// the first word). Higher shown-tail precision at 0× extra decode; unlike
+    /// the gates it trims instead of abstaining, so it's on by default.
+    static var confidenceTrim: Bool {
+        get { defaults.bool(forKey: "confidenceTrim") }
+        set { defaults.set(newValue, forKey: "confidenceTrim") }
+    }
+    static var confidenceTrimThreshold: Double {
+        get { let v = defaults.double(forKey: "confidenceTrimThreshold"); return v != 0 ? v : -3.0 }
+        set { defaults.set(newValue, forKey: "confidenceTrimThreshold") }
     }
 
     /// Free the resident MLX model after this many minutes idle (0 = never). A

@@ -208,6 +208,34 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(journal.fileSize, 0)
     }
 
+    // Confidence trim decides how much of a decoded suggestion the user actually
+    // sees — pin the boundary rules (first word protected, stranded word heads
+    // dropped, cut lands on a word boundary).
+    func testConfidenceTrimmed() {
+        let table = [1: " завтра", 2: " ве", 3: "чером", 4: " в", 5: " семь"]
+        let decode: ([Int]) -> String = { $0.compactMap { table[$0] }.joined() }
+        // The weak token CONTINUES a word → the stranded head is dropped too.
+        XCTAssertEqual(
+            MLXEngine.confidenceTrimmed(
+                text: " завтра вечером", textTokens: [1, 2, 3], perToken: [-0.1, -0.2, -4.0],
+                firstWordTokens: 2, threshold: -3.0, decode: decode),
+            " завтра")
+        // The weak token STARTS a word → the cut is already on a boundary.
+        XCTAssertEqual(
+            MLXEngine.confidenceTrimmed(
+                text: " завтра в семь", textTokens: [1, 4, 5], perToken: [-0.1, -0.2, -3.5],
+                firstWordTokens: 2, threshold: -3.0, decode: decode),
+            " завтра в")
+        // Confident everywhere → untouched.
+        XCTAssertNil(MLXEngine.confidenceTrimmed(
+            text: " завтра вечером", textTokens: [1, 2, 3], perToken: [-0.1, -0.2, -0.3],
+            firstWordTokens: 2, threshold: -3.0, decode: decode))
+        // A weak FIRST word is the logprob gate's job, never the trim's.
+        XCTAssertNil(MLXEngine.confidenceTrimmed(
+            text: " завтра", textTokens: [1], perToken: [-5.0],
+            firstWordTokens: 1, threshold: -3.0, decode: decode))
+    }
+
     // The config stamp + first-word logprob are new OPTIONAL Entry fields. Pin the
     // serialization contract they depend on — the exact class of break that a
     // missing `= nil` caused: legacy lines still decode (fields nil), a populated

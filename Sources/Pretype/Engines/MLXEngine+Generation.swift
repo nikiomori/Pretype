@@ -243,6 +243,31 @@ extension MLXEngine {
         return textTokens.count
     }
 
+    /// Confidence trim: the decoded prefix cut just before the first token at
+    /// or after the first word whose logprob falls below `threshold` — the
+    /// tail of a fixed-budget completion is its weakest part, so showing only
+    /// the confident prefix raises precision at zero extra decode cost, and
+    /// (unlike the gates) it never abstains: the first word always survives.
+    /// When the weak token would have CONTINUED a word, the stranded head of
+    /// that word is dropped too. Returns nil when nothing needs trimming.
+    /// `decode` abstracts the tokenizer so the boundary logic is testable.
+    static func confidenceTrimmed(
+        text: String, textTokens: [Int], perToken: [Float],
+        firstWordTokens: Int, threshold: Float,
+        decode: ([Int]) -> String
+    ) -> String? {
+        let n = min(textTokens.count, perToken.count)
+        let start = min(max(firstWordTokens, 1), n)
+        guard let cut = (start..<n).first(where: { perToken[$0] < threshold }) else { return nil }
+        var kept = decode(Array(textTokens.prefix(cut)))
+        func isWordChar(_ c: Character?) -> Bool { c.map { $0.isLetter || $0.isNumber } ?? false }
+        if isWordChar(kept.last), isWordChar(decode([textTokens[cut]]).first) {
+            while isWordChar(kept.last) { kept.removeLast() }
+        }
+        while kept.last?.isWhitespace == true { kept.removeLast() }
+        return kept.isEmpty || kept.count >= text.count ? nil : kept
+    }
+
     // MARK: Token iteration
 
     /// Wraps a partial-text callback so each raw decode snapshot is run through
@@ -272,6 +297,7 @@ extension MLXEngine {
         bias: PersonalizationBias? = nil,
         minTokens: Int = 0,
         logProbSink: LockedValue<Double?>? = nil,
+        trimLogProb: Float? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         try await generate(
@@ -283,6 +309,7 @@ extension MLXEngine {
             bias: bias,
             minTokens: minTokens,
             logProbSink: logProbSink,
+            trimLogProb: trimLogProb,
             onPartial: onPartial
         )
     }
@@ -296,6 +323,7 @@ extension MLXEngine {
         bias: PersonalizationBias? = nil,
         minTokens: Int = 0,
         logProbSink: LockedValue<Double?>? = nil,
+        trimLogProb: Float? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         // Annotate the param: under `-enable-testing` (swift test) overload
@@ -367,7 +395,7 @@ extension MLXEngine {
             // (post-penalties, post-bias, post-EOS-mask) — that distribution is
             // what "the engine's confidence in what it showed" means.
             var recorder: LogProbRecorder?
-            if logProbSink != nil {
+            if logProbSink != nil || trimLogProb != nil {
                 let r = LogProbRecorder(inner: processor)
                 processor = r
                 recorder = r
@@ -408,13 +436,30 @@ extension MLXEngine {
             // next()), and textTokens is a prefix of fed (EOS breaks before
             // appending) — so entries 0..<textTokens.count score exactly the
             // visible text.
-            if let logProbSink, let recorder {
+            if let recorder {
                 let perToken = recorder.finish()
-                let count = firstWordTokenCount(textTokens: textTokens, tokenizer: context.tokenizer)
-                let n = min(count, perToken.count)
-                logProbSink.set(n > 0
-                    ? perToken.prefix(n).reduce(0.0) { $0 + Double($1) } / Double(n)
-                    : nil)
+                let firstWord = firstWordTokenCount(textTokens: textTokens, tokenizer: context.tokenizer)
+                if let logProbSink {
+                    let n = min(firstWord, perToken.count)
+                    logProbSink.set(n > 0
+                        ? perToken.prefix(n).reduce(0.0) { $0 + Double($1) } / Double(n)
+                        : nil)
+                }
+                // Confidence trim: show only the prefix before the first weak
+                // token. Display-only — `fed` (and thus the KV cache) is untouched.
+                if let threshold = trimLogProb,
+                   let trimmed = confidenceTrimmed(
+                       text: text, textTokens: textTokens, perToken: perToken,
+                       firstWordTokens: firstWord, threshold: threshold,
+                       decode: { context.tokenizer.decode(tokenIds: $0, skipSpecialTokens: true) }
+                   ) {
+                    DebugLog.shared.log(
+                        "GATE",
+                        String(format: "confidence-trim: weak tail below %.2f", threshold),
+                        detail: "kept \(trimmed.debugDescription) of \(text.debugDescription)"
+                    )
+                    text = trimmed
+                }
             }
 
             if let pc = promptCache {

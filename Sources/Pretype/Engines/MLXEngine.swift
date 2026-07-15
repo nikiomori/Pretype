@@ -58,6 +58,11 @@ final class MLXEngine: CompletionEngine {
     /// enabled via Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode —
     /// the value is already captured by the live decode loop (firstWordLogProbBox).
     private let logprobGateThreshold: Double?
+    /// Confidence trim: cut the shown suggestion just before the first decode
+    /// token whose logprob < this (never inside the first word). nil = off.
+    /// Same live recorder as the logprob gate — 0× extra decode; unlike the
+    /// gates it trims instead of abstaining. PRETYPE_TRIM_LOGPROB sweeps it.
+    private let trimLogProbThreshold: Float?
     /// Forces sampling (temperature) inside the gate's K draws even when the eval
     /// harness pinned greedy. Set only around the gate loop.
     private let gateForceSample = LockedValue(false)
@@ -129,6 +134,8 @@ final class MLXEngine: CompletionEngine {
             ?? Settings.confidenceGateThreshold
         self.logprobGateThreshold = Double(env["PRETYPE_LOGPROB_GATE"] ?? "")
             ?? (Settings.logprobGate ? Settings.logprobGateThreshold : nil)
+        self.trimLogProbThreshold = Float(env["PRETYPE_TRIM_LOGPROB"] ?? "")
+            ?? (Settings.confidenceTrim ? Float(Settings.confidenceTrimThreshold) : nil)
 
         // Instruct style runs completion *and* correction on the instruct
         // sibling, so load that as the primary model (no second model in RAM).
@@ -417,13 +424,20 @@ final class MLXEngine: CompletionEngine {
                         continuation.finish()
                         return
                     }
-                    let onPartial: @Sendable (String) -> Void = { continuation.yield($0) }
-                    switch style {
-                    case .base: _ = try await completeBase(request, onPartial: onPartial)
-                    case .instruct: _ = try await completeInstruct(request, onPartial: onPartial)
+                    let lastYielded = LockedValue<String?>(nil)
+                    let onPartial: @Sendable (String) -> Void = {
+                        lastYielded.set($0)
+                        continuation.yield($0)
                     }
-                    // The final result equals the last gated partial, so the
-                    // stream's last element is already the answer — just finish.
+                    let final: String?
+                    switch style {
+                    case .base: final = try await completeBase(request, onPartial: onPartial)
+                    case .instruct: final = try await completeInstruct(request, onPartial: onPartial)
+                    }
+                    // The confidence trim shortens the final text AFTER the last
+                    // partial went out — yield the reconciled result so the UI
+                    // replaces the streamed tail with the trimmed suggestion.
+                    if let final, final != lastYielded.get() { continuation.yield(final) }
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -548,6 +562,9 @@ final class MLXEngine: CompletionEngine {
             in: container, prompt: prepared.text, parameters: parameters,
             extraEOSTokens: extraEOSTokens, promptCache: promptCache, bias: currentBias(),
             logProbSink: logProbSink,
+            // The gate's K draws sample at T≈0.6 — their logprobs aren't
+            // comparable to the live path's, so no trim there either.
+            trimLogProb: recording ? trimLogProbThreshold : nil,
             onPartial: Self.makeStreamHandler(onPartial, gate: gate)
         )
         try Task.checkCancellation()
@@ -707,6 +724,7 @@ final class MLXEngine: CompletionEngine {
             // ends the turn immediately after the prefilled text.
             minTokens: prefill ? 3 : 0,
             logProbSink: logProbSink,
+            trimLogProb: recording ? trimLogProbThreshold : nil,
             onPartial: Self.makeStreamHandler(onPartial, gate: gate)
         )
         try Task.checkCancellation()
