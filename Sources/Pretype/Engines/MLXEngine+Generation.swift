@@ -482,19 +482,20 @@ extension MLXEngine {
 
     // MARK: Log-probability scoring (offline: model ranking + gate calibration)
 
-    /// Mean per-token log P(`continuation` | `context`) from a SINGLE causal
-    /// forward pass — no decoding, so it's blind to paraphrase ("обязательно
-    /// отвечу" vs "отвечу вам") the way exact-match isn't. This is the model
-    /// ranker to use on eval-real, where exact-match hits a ~29% honest ceiling
-    /// on rich morphology; the same score doubles as a 0×-decode confidence gate
-    /// (vs K× decodes for self-consistency).
+    /// Total log P(`continuation` | `context`) + scored-token count from a SINGLE
+    /// causal forward pass — no decoding, so it's blind to paraphrase ("обязательно
+    /// отвечу" vs "отвечу вам") the way exact-match isn't. Callers normalize:
+    /// per-TOKEN is the gate-calibration scale (τ thresholds are defined on it),
+    /// but it is confounded by tokenizer fertility across languages and model
+    /// families (RU tokenizes ~2× denser than EN, MiniCPM's tokenizer ≠ Gemma's) —
+    /// rank models/languages per-CHAR instead (`refLogProb`).
     ///
     /// One forward over [ctx+cont] with `cache: nil`: `createAttentionMask` is
     /// `.causal` for n>1, so position i attends only to ≤i — no answer leakage.
     /// Context is capped to a tail so the [1, L, vocab] logits stay bounded
     /// (L·262k floats materialized once, then reduced to scalars).
-    static func logProbMean(in container: ModelContainer,
-                            continuation: String, context: String) async -> Double? {
+    static func logProbScore(in container: ModelContainer,
+                             continuation: String, context: String) async -> (total: Double, tokens: Int)? {
         guard !continuation.isEmpty else { return nil }
         let ctxTail = String(context.suffix(600))  // ponytail: bound logits RAM; plenty of conditioning for a ranker
         return await container.perform { (ctx: ModelContext) in  // typed param — see `generate`'s note (swift test overload resolution)
@@ -514,7 +515,7 @@ extension MLXEngine {
                 let row = logits[0, start - 1 + k]  // [vocab]: the position predicting allTokens[start+k]
                 total += row[allTokens[start + k]].item(Float.self) - row.logSumExp().item(Float.self)
             }
-            return Double(total) / Double(n)
+            return (total: Double(total), tokens: n)
         }
     }
 

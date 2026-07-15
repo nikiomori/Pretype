@@ -396,13 +396,27 @@ final class MLXEngine: CompletionEngine {
     }
 
     /// Mean per-token log P(continuation | context) via one forward pass (see
-    /// `logProbMean`). Loads/reuses the resident model; nil if it can't load or
+    /// `logProbScore`). Loads/reuses the resident model; nil if it can't load or
     /// the strings are empty. Dev/eval only — NOT on the live keystroke path.
+    /// Per-token is the gate-calibration scale (τ thresholds live on it); for
+    /// cross-model or cross-language ranking use `refLogProb`'s per-char value.
     func logProbability(of continuation: String, given context: String) async -> Double? {
         guard let task = beginRequest() else { return nil }
         defer { endRequest() }
         guard let container = try? await task.value else { return nil }
-        return await Self.logProbMean(in: container, continuation: continuation, context: context)
+        guard let s = await Self.logProbScore(in: container, continuation: continuation, context: context) else { return nil }
+        return s.total / Double(s.tokens)
+    }
+
+    /// Reference-ranking variant: per-token AND per-char log P. Per-char is the
+    /// normalization comparable across tokenizers (model families) and languages —
+    /// per-token is confounded by fertility (RU ~2× denser tokens than EN).
+    func refLogProb(of continuation: String, given context: String) async -> (perToken: Double, perChar: Double)? {
+        guard let task = beginRequest() else { return nil }
+        defer { endRequest() }
+        guard let container = try? await task.value else { return nil }
+        guard let s = await Self.logProbScore(in: container, continuation: continuation, context: context) else { return nil }
+        return (s.total / Double(s.tokens), s.total / Double(continuation.count))
     }
 
     /// Rank of the true continuation's first token (0 = top-1) via one forward
