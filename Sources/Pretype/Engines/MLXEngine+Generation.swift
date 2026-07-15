@@ -297,6 +297,8 @@ extension MLXEngine {
         bias: PersonalizationBias? = nil,
         minTokens: Int = 0,
         logProbSink: LockedValue<Double?>? = nil,
+        firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
+        forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
@@ -309,6 +311,8 @@ extension MLXEngine {
             bias: bias,
             minTokens: minTokens,
             logProbSink: logProbSink,
+            firstWordStats: firstWordStats,
+            forcedFirst: forcedFirst,
             trimLogProb: trimLogProb,
             onPartial: onPartial
         )
@@ -323,6 +327,8 @@ extension MLXEngine {
         bias: PersonalizationBias? = nil,
         minTokens: Int = 0,
         logProbSink: LockedValue<Double?>? = nil,
+        firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
+        forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
@@ -332,7 +338,12 @@ extension MLXEngine {
         // tightly than the ModelContext overload's `async`), which then fails.
         try await container.perform { (context: ModelContext) in
             let maxTokens = parameters.maxTokens ?? 16
-            let fullTokens = try makeTokens(context)
+            // Beam branch: the forced candidate rides in as the last PROMPT
+            // token (prefilled, not decoded) but is part of the visible text —
+            // textTokens is seeded with it and its logprob is prepended to the
+            // recorder's, so first-word scoring covers the whole word.
+            var fullTokens = try makeTokens(context)
+            if let forcedFirst { fullTokens.append(forcedFirst.token) }
             guard !fullTokens.isEmpty else { return "" }
 
             var eosIDs = Set<Int>()
@@ -395,7 +406,7 @@ extension MLXEngine {
             // (post-penalties, post-bias, post-EOS-mask) — that distribution is
             // what "the engine's confidence in what it showed" means.
             var recorder: LogProbRecorder?
-            if logProbSink != nil || trimLogProb != nil {
+            if logProbSink != nil || trimLogProb != nil || firstWordStats != nil {
                 let r = LogProbRecorder(inner: processor)
                 processor = r
                 recorder = r
@@ -419,8 +430,10 @@ extension MLXEngine {
             // keeping the trim arithmetic exact on the next request.
             let decodeStart = Date()
             var fed: [Int] = []
-            var textTokens: [Int] = []
-            var text = ""
+            var textTokens: [Int] = forcedFirst.map { [$0.token] } ?? []
+            // Seed the text too: an immediate EOS after a forced token must
+            // still return that token's text, not "".
+            var text = textTokens.isEmpty ? "" : context.tokenizer.decode(tokenIds: textTokens, skipSpecialTokens: true)
             while fed.count < maxTokens, let token = iterator.next() {
                 fed.append(token)
                 if Task.isCancelled || eosIDs.contains(token) { break }
@@ -435,15 +448,22 @@ extension MLXEngine {
             // `fed` and the recorder's steps are index-aligned (one didSample per
             // next()), and textTokens is a prefix of fed (EOS breaks before
             // appending) — so entries 0..<textTokens.count score exactly the
-            // visible text.
+            // visible text. A forced first token was prefilled, not decoded:
+            // prepend its logprob to realign (raw scale vs the recorder's
+            // post-processor scale — identical unless penalties/bias are on).
             if let recorder {
-                let perToken = recorder.finish()
+                var perToken = recorder.finish()
+                if let forcedFirst { perToken.insert(forcedFirst.logProb, at: 0) }
                 let firstWord = firstWordTokenCount(textTokens: textTokens, tokenizer: context.tokenizer)
+                let n = min(firstWord, perToken.count)
+                let firstWordSum = perToken.prefix(n).reduce(0.0) { $0 + Double($1) }
                 if let logProbSink {
-                    let n = min(firstWord, perToken.count)
-                    logProbSink.set(n > 0
-                        ? perToken.prefix(n).reduce(0.0) { $0 + Double($1) } / Double(n)
-                        : nil)
+                    logProbSink.set(n > 0 ? firstWordSum / Double(n) : nil)
+                }
+                // Beam scoring: sum = log P(first word | ctx) — comparable
+                // across candidate words; mean is the gate's calibrated scale.
+                if let firstWordStats {
+                    firstWordStats.set(n > 0 ? (sum: firstWordSum, mean: firstWordSum / Double(n)) : nil)
                 }
                 // Confidence trim: show only the prefix before the first weak
                 // token. Display-only — `fed` (and thus the KV cache) is untouched.
@@ -542,5 +562,100 @@ extension MLXEngine {
             // rank = number of tokens strictly more likely than the true one.
             return (row .> target).sum().item(Int.self)
         }
+    }
+
+    // MARK: First-word beam rerank (PRETYPE_BEAM)
+
+    /// Top-k first-token candidates at the end of `prompt` — one raw forward
+    /// pass (the decode-time processors — penalties, personalization bias —
+    /// don't apply here, same scale caveat as `logProbScore`). EOS, special and
+    /// newline-bearing tokens are skipped: a branch must start visible text.
+    /// Best-first.
+    static func topFirstTokens(in container: ModelContainer, prompt: String, k: Int,
+                               extraEOSTokens: Set<String>) async -> [(token: Int, logProb: Float)] {
+        await container.perform { (ctx: ModelContext) in
+            let tokens = ctx.tokenizer.encode(text: prompt)
+            guard !tokens.isEmpty else { return [] }
+            var eosIDs = Set<Int>()
+            if let eos = ctx.tokenizer.eosToken, let id = ctx.tokenizer.convertTokenToId(eos) {
+                eosIDs.insert(id)
+            }
+            for token in extraEOSTokens {
+                if let id = ctx.tokenizer.convertTokenToId(token) { eosIDs.insert(id) }
+            }
+            let logits = ctx.model(MLXArray(tokens, [1, tokens.count]), cache: nil)
+            let row = logits[0, tokens.count - 1]
+            let logProbs = row - row.logSumExp()
+            eval(logProbs)
+            // argSort is ascending; walk the tail (most likely first). The +8
+            // headroom absorbs skipped EOS/special/newline candidates.
+            let order = argSort(logProbs, axis: -1).asArray(Int32.self)
+            var out: [(token: Int, logProb: Float)] = []
+            for id32 in order.suffix(k + 8).reversed() {
+                let id = Int(id32)
+                guard !eosIDs.contains(id) else { continue }
+                let piece = ctx.tokenizer.decode(tokenIds: [id], skipSpecialTokens: true)
+                guard !piece.isEmpty, !piece.contains("\n") else { continue }
+                out.append((token: id, logProb: logProbs[id].item(Float.self)))
+                if out.count == k { break }
+            }
+            return out
+        }
+    }
+
+    /// First-word beam rerank: decode one short branch per top-k first token
+    /// and return the branch whose first WORD the model believes most, plus an
+    /// optional personal-ngram boost (the fusion lever: "the user has typed
+    /// this word here before").
+    ///
+    /// `scoreByMean` picks the branch statistic. Both cover the first word PLUS
+    /// its boundary token (`firstWordTokenCount`'s one-token overshoot), so
+    /// sum = log P(word · next-token-start) — a 1-step lookahead, length-biased
+    /// against multi-token words; mean is the τ-gate's calibrated scale
+    /// (measured monotone in correctness), length-normalized. Which ranks
+    /// better is an empirical knob: sweep on the even half, verify on odd.
+    ///
+    /// Cost: one candidate forward + k short decodes; branches after the first
+    /// reuse the shared prompt KV via `promptCache` (common=prompt, tail=1 —
+    /// the incremental-typing path), so prompts ≥16 tokens prefill once.
+    /// No streaming — the winner only exists after the last branch. The output
+    /// gate runs on the winner only; a gated-out winner abstains even if a
+    /// runner-up would have passed (rare, accepted).
+    static func beamGenerate(
+        in container: ModelContainer, prompt: String, k: Int,
+        parameters: GenerateParameters, extraEOSTokens: Set<String>,
+        promptCache: PromptCache?, bias: PersonalizationBias? = nil,
+        logProbSink: LockedValue<Double?>? = nil, trimLogProb: Float? = nil,
+        scoreByMean: Bool = true,
+        ngramBoost: (@Sendable (String) -> Double)? = nil
+    ) async throws -> String {
+        let candidates = await topFirstTokens(
+            in: container, prompt: prompt, k: k, extraEOSTokens: extraEOSTokens)
+        guard candidates.count > 1 else {
+            return try await generate(
+                in: container, prompt: prompt, parameters: parameters,
+                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
+                bias: bias, logProbSink: logProbSink, trimLogProb: trimLogProb)
+        }
+        var best: (score: Double, text: String, mean: Double)?
+        for candidate in candidates {
+            try Task.checkCancellation()
+            let stats = LockedValue<(sum: Double, mean: Double)?>(nil)
+            let text = try await generate(
+                in: container, prompt: prompt, parameters: parameters,
+                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
+                bias: bias, firstWordStats: stats, forcedFirst: candidate,
+                trimLogProb: trimLogProb)
+            guard let stat = stats.get(), !text.isEmpty else { continue }
+            // Same fold as gateFirstWord (private to the other file).
+            let word = text.lowercased().replacingOccurrences(of: "ё", with: "е")
+                .split { !$0.isLetter && !$0.isNumber }.first.map(String.init) ?? ""
+            let score = (scoreByMean ? stat.mean : stat.sum)
+                + (word.isEmpty ? 0 : (ngramBoost?(word) ?? 0))
+            if score > (best?.score ?? -.infinity) { best = (score, text, stat.mean) }
+        }
+        // Publish the winner's first-word mean — the gate/journal scale.
+        logProbSink?.set(best?.mean)
+        return best?.text ?? ""
     }
 }

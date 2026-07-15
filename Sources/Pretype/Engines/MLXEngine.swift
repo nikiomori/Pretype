@@ -61,14 +61,23 @@ final class MLXEngine: CompletionEngine {
     /// Confidence trim: cut the shown suggestion just before the first decode
     /// token whose logprob < this (never inside the first word). nil = off.
     /// Same live recorder as the logprob gate — 0× extra decode; unlike the
-    /// gates it trims instead of abstaining. PRETYPE_TRIM_LOGPROB sweeps it.
+    /// gates it trims instead of abstaining. PRETYPE_TRIM_LOGPROB pins it
+    /// (numeric = τ sweep, non-numeric "off" = force off, unset = Settings).
     /// Read live (unlike the gates it's style/model-independent), so the
     /// Settings toggle applies without an engine rebuild.
     private var trimLogProbThreshold: Float? {
-        trimLogProbEnvOverride
-            ?? (Settings.confidenceTrim ? Float(Settings.confidenceTrimThreshold) : nil)
+        if let e = trimLogProbEnv { return Float(e) }
+        return Settings.confidenceTrim ? Float(Settings.confidenceTrimThreshold) : nil
     }
-    private let trimLogProbEnvOverride: Float?
+    private let trimLogProbEnv: String?
+    /// First-word beam rerank (dev/eval, PRETYPE_BEAM=k): decode k branches
+    /// off the top-k first tokens, show the branch with the best-summed
+    /// first-word logprob. 1 = off (plain greedy). PRETYPE_BEAM_NGRAM=β adds
+    /// β·ln(1+count) of personal-ngram evidence to each branch's first word.
+    private let beamK: Int
+    private let beamNgramWeight: Double
+    /// PRETYPE_BEAM_SCORE=mean|sum — branch statistic (see `beamGenerate`).
+    private let beamScoreByMean: Bool
     /// Forces sampling (temperature) inside the gate's K draws even when the eval
     /// harness pinned greedy. Set only around the gate loop.
     private let gateForceSample = LockedValue(false)
@@ -117,6 +126,19 @@ final class MLXEngine: CompletionEngine {
     private let firstWordLogProbBox = LockedValue<Double?>(nil)
     var lastFirstWordLogProb: Double? { firstWordLogProbBox.get() }
 
+    /// Effective gate/trim config — the eval header prints this so every run
+    /// records what silently came from Settings rather than env.
+    var gateSummary: String {
+        let lp = logprobGateThreshold.map { String(format: "%.2f", $0) } ?? "off"
+        let tr = trimLogProbThreshold.map { String(format: "%.2f", $0) } ?? "off"
+        let sc = confidenceGateK > 1
+            ? "K=\(confidenceGateK)@\(String(format: "%.2f", confidenceGateThreshold))" : "off"
+        let beam = beamK > 1
+            ? "\(beamK)·\(beamScoreByMean ? "mean" : "sum")\(beamNgramWeight > 0 ? "+ngram·\(beamNgramWeight)" : "")"
+            : "off"
+        return "logprobGate=\(lp) · trim=\(tr) · selfConsist=\(sc) · beam=\(beam)"
+    }
+
     var statusLine: String? {
         let model = modelID.split(separator: "/").last.map(String.init) ?? modelID
         switch stateBox.get() {
@@ -134,13 +156,25 @@ final class MLXEngine: CompletionEngine {
         self.instructionsBox = LockedValue(config.instructions)
         self.personalizationBox = LockedValue(config.personalization)
         let env = ProcessInfo.processInfo.environment
-        self.confidenceGateK = Int(env["PRETYPE_CONFIDENCE_GATE"] ?? "")
-            ?? (Settings.confidenceGate ? Settings.confidenceGateSamples : 0)
+        // A SET env var pins the knob regardless of Settings — non-numeric
+        // ("off") disables. Falling back to Settings on a set-but-non-numeric
+        // value would let eval runs silently inherit the app's live config.
+        if let e = env["PRETYPE_CONFIDENCE_GATE"] {
+            self.confidenceGateK = Int(e) ?? 0
+        } else {
+            self.confidenceGateK = Settings.confidenceGate ? Settings.confidenceGateSamples : 0
+        }
         self.confidenceGateThreshold = Double(env["PRETYPE_CONFIDENCE_THRESHOLD"] ?? "")
             ?? Settings.confidenceGateThreshold
-        self.logprobGateThreshold = Double(env["PRETYPE_LOGPROB_GATE"] ?? "")
-            ?? (Settings.logprobGate ? Settings.logprobGateThreshold : nil)
-        self.trimLogProbEnvOverride = Float(env["PRETYPE_TRIM_LOGPROB"] ?? "")
+        if let e = env["PRETYPE_LOGPROB_GATE"] {
+            self.logprobGateThreshold = Double(e)
+        } else {
+            self.logprobGateThreshold = Settings.logprobGate ? Settings.logprobGateThreshold : nil
+        }
+        self.trimLogProbEnv = env["PRETYPE_TRIM_LOGPROB"]
+        self.beamK = max(1, Int(env["PRETYPE_BEAM"] ?? "") ?? 1)
+        self.beamNgramWeight = Double(env["PRETYPE_BEAM_NGRAM"] ?? "") ?? 0
+        self.beamScoreByMean = env["PRETYPE_BEAM_SCORE"] != "sum"
 
         // Instruct style runs completion *and* correction on the instruct
         // sibling, so load that as the primary model (no second model in RAM).
@@ -596,15 +630,37 @@ final class MLXEngine: CompletionEngine {
 
         let parameters = completionParameters(for: request)
         let gate = prepared.gate(cleanInstruct: false)
-        let output = try await Self.generate(
-            in: container, prompt: prepared.text, parameters: parameters,
-            extraEOSTokens: extraEOSTokens, promptCache: promptCache, bias: currentBias(),
-            logProbSink: logProbSink,
-            // The gate's K draws sample at T≈0.6 — their logprobs aren't
-            // comparable to the live path's, so no trim there either.
-            trimLogProb: recording ? trimLogProbThreshold : nil,
-            onPartial: Self.makeStreamHandler(onPartial, gate: gate)
-        )
+        let output: String
+        if beamK > 1 {
+            // Beam can't stream — the winner only exists after the last branch
+            // (partials from a losing branch would visibly flash-and-switch).
+            let prompt = prepared.text
+            let weight = beamNgramWeight
+            var boost: (@Sendable (String) -> Double)?
+            if weight > 0 {
+                boost = { word in
+                    weight * log1p(Double(PersonalNgram.shared.count(of: word, after: prompt)))
+                }
+            }
+            output = try await Self.beamGenerate(
+                in: container, prompt: prompt, k: beamK, parameters: parameters,
+                extraEOSTokens: extraEOSTokens, promptCache: promptCache, bias: currentBias(),
+                logProbSink: logProbSink,
+                trimLogProb: recording ? trimLogProbThreshold : nil,
+                scoreByMean: beamScoreByMean,
+                ngramBoost: boost
+            )
+        } else {
+            output = try await Self.generate(
+                in: container, prompt: prepared.text, parameters: parameters,
+                extraEOSTokens: extraEOSTokens, promptCache: promptCache, bias: currentBias(),
+                logProbSink: logProbSink,
+                // The gate's K draws sample at T≈0.6 — their logprobs aren't
+                // comparable to the live path's, so no trim there either.
+                trimLogProb: recording ? trimLogProbThreshold : nil,
+                onPartial: Self.makeStreamHandler(onPartial, gate: gate)
+            )
+        }
         try Task.checkCancellation()
         let result = gate(output)
         let lp = recording ? logProbSink?.get() : nil

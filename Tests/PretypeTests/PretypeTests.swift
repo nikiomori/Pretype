@@ -380,6 +380,13 @@ final class PretypeTests: XCTestCase {
         ngram.learn("спасение утопающих"); ngram.learn("спасение утопающих")
         XCTAssertNil(ngram.completeWord(partial: "спас"))
 
+        // Beam-fusion evidence: unthresholded counts, fold-matched (ё→е, case),
+        // trigram beats bigram when both hit; unseen → 0.
+        XCTAssertEqual(ngram.count(of: "ответ", after: "ну спасибо за быстрый "), 3)
+        XCTAssertEqual(ngram.count(of: "никите", after: "завтра передай "), 3)
+        XCTAssertEqual(ngram.count(of: "кино", after: "я иду в "), 2)   // below nextWord's dominance bar, still counted
+        XCTAssertEqual(ngram.count(of: "ответ", after: "совсем другой контекст "), 0)
+
         ngram.reset()
         XCTAssertNil(ngram.nextWord(after: "ну спасибо за быстрый "))
     }

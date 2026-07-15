@@ -54,6 +54,26 @@ final class PersonalNgram: @unchecked Sendable {
         return Self.confident(bigram[last], minCount: 3)
     }
 
+    /// Evidence that `word` follows `text` in the user's own typing: the max
+    /// of the trigram and bigram counts for it (0 = never seen). Unthresholded,
+    /// unlike `nextWord` — fuel for the beam fusion boost, where weak evidence
+    /// still nudges the ranking instead of gating it. Fold-matched both sides.
+    func count(of word: String, after text: String) -> Int {
+        let context = Self.words(text).suffix(2).map(Self.fold)
+        guard let last = context.last else { return 0 }
+        let folded = Self.fold(word)
+        lock.lock()
+        defer { lock.unlock() }
+        func matched(_ counts: [String: Int]?) -> Int {
+            counts?.reduce(0) { $0 + (Self.fold($1.key) == folded ? $1.value : 0) } ?? 0
+        }
+        var count = matched(bigram[last])
+        if context.count == 2 {
+            count = max(count, matched(trigram[context.joined(separator: " ")]))
+        }
+        return count
+    }
+
     /// Complete the partial word at the caret from the personal vocabulary:
     /// the dominant surface form starting with it (count ≥3, ≥2× the runner-up,
     /// adding ≥2 chars). Returns only the remainder to type.
