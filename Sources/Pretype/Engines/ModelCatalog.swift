@@ -80,6 +80,52 @@ enum ModelCatalog {
             correctionModelID: "openbmb/MiniCPM5-1B",  // fixes are instruction-following — the RL model handles them
             instructModelID: "openbmb/MiniCPM5-1B"     // manual instruct flip only; completion there is broken (see above)
         ),
+        // Lowest-RAM pick (eval-real 2026-07-15, base·greedy·short, n=870): at
+        // ~1 GB it STATISTICALLY TIES the 2.2 GB MiniCPM5 default and the 5.7 GB
+        // E2B-8bit on first-word (McNemar p=0.51 / 0.13, both of-all 24–26%) —
+        // half the footprint of the default. It's the bottom of the pack on the
+        // continuous axes (logP/char −1.069, RU-weak like MiniCPM), so it's the
+        // 8 GB-Mac option, NOT a quality upgrade — MiniCPM stays the default
+        // (faster p50 49 vs 79 ms, better RU + logP/char). Base bf16 from the
+        // hub; runs base-only (Qwen2.5 instruct echoes the prompt).
+        ModelOption(
+            id: "mlx-community/Qwen2.5-0.5B-bf16",
+            title: "Qwen2.5 0.5B — smallest footprint",
+            approxSizeMB: 990,
+            extraEOSTokens: [],
+            correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+            instructModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+        ),
+        // Additional base-completion picks measured in the 2026-07-15 candidate
+        // sweep (eval-real n=870): all load and run base-only, all TIE-or-LOSE
+        // the MiniCPM5 default on first-word — offered as manual choices, not
+        // auto-selected. correction/instruct siblings point at the base id
+        // itself (guaranteed to load; recommended(for:) pins base so auto never
+        // flips to the echoing instruct mode). See Eval/BASELINE.md.
+        ModelOption(
+            id: "mlx-community/Qwen3.5-2B-4bit",
+            title: "Qwen3.5 2B — 4-bit base",  // ties default; mildest RU of the small non-Gemma models
+            approxSizeMB: 1600,
+            extraEOSTokens: [],
+            correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
+            instructModelID: "mlx-community/Qwen3.5-2B-4bit"
+        ),
+        ModelOption(
+            id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
+            title: "Ternary Bonsai 4B — 1 GB base",  // ternary QAT of Qwen3-4B; ties default, slower, RU-weak
+            approxSizeMB: 1100,
+            extraEOSTokens: [],
+            correctionModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
+            instructModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit"
+        ),
+        ModelOption(
+            id: "LiquidAI/LFM2.5-1.2B-Base",
+            title: "LFM2.5 1.2B — fast, English",  // fastest small model (p50 59 ms) but weakest RU (no-RU model card)
+            approxSizeMB: 2200,
+            extraEOSTokens: [],
+            correctionModelID: "LiquidAI/LFM2.5-1.2B-Base",
+            instructModelID: "LiquidAI/LFM2.5-1.2B-Base"
+        ),
     ]
 
     /// MiniCPM5 1B is the out-of-the-box model on every Mac: at ~2.2 GB it fits
@@ -161,6 +207,15 @@ enum ModelCatalog {
         // 291 / long 550 ms p50 on eval-real) — so short wins for inline ghost
         // text. No gate (not E4B-class), no fill-in.
         if id.contains("MiniCPM5") {
+            return Recommendation(style: .base, length: .short, gateCapable: false, fim: false)
+        }
+        // Small base-continuation picks from the 07-15 sweep (Qwen2.5-0.5B,
+        // Qwen3.5-2B, ternary Bonsai-4B, LFM2.5-1.2B): base only — instruct
+        // echoes; short (first-word is length-independent here); not E4B-class
+        // so no self-consistency gate / fill-in. The shipped logprob gate still
+        // works (monotone calibration), independent of gateCapable.
+        if id.contains("Qwen2.5-0.5B") || id.contains("Qwen3.5-2B")
+            || id.contains("Ternary-Bonsai") || id.contains("LFM2.5") {
             return Recommendation(style: .base, length: .short, gateCapable: false, fim: false)
         }
         // Gemma E-series: instruct + short + persona is the validated default
