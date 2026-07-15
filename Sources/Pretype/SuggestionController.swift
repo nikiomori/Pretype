@@ -144,6 +144,7 @@ final class SuggestionController: NSObject {
     // these forward the menu/window actions to it. A rebuild calls back into
     // `dismiss()` (wired in `init`) to drop the stale suggestion.
     func setModel(_ id: String) { engineCoordinator.setModel(id) }
+    func applyConfig(_ target: ProjectionConfig) { engineCoordinator.apply(target) }
     func applyRecommendedSettings() { engineCoordinator.applyRecommendedSettings() }
     func releaseEngineModel() { engineCoordinator.releaseModelNow() }
     func setCompletionStyle(_ style: CompletionStyle) { engineCoordinator.setCompletionStyle(style) }

@@ -27,6 +27,23 @@ final class EngineCoordinator {
         onRebuild?()
     }
 
+    /// Commit a fully-resolved configuration in one shot — presets and the
+    /// model-map settings dots land here. One Settings write-out, ONE engine
+    /// rebuild, instead of a rebuild per field like the individual setters.
+    /// The target comes from `ProjectionConfig.applying`, cascades included.
+    // ponytail: the per-field setters below still hand-encode the same
+    // cascade rules ProjectionConfig.applying centralizes; route them through
+    // apply(_:) if the rules grow again.
+    func apply(_ target: ProjectionConfig) {
+        Settings.mlxModelID = target.modelID
+        Settings.useRecommendedSettings = target.useRecommended
+        Settings.completionStyle = target.style
+        Settings.completionLength = target.length
+        Settings.confidenceGate = target.confidenceGate
+        Settings.logprobGate = target.logprobGate
+        rebuild()
+    }
+
     func setModel(_ id: String) {
         Settings.mlxModelID = id
         let rec = ModelCatalog.recommended(for: id)
@@ -34,6 +51,11 @@ final class EngineCoordinator {
         if Settings.useRecommendedSettings {
             Settings.completionStyle = rec.style
             Settings.completionLength = rec.length
+        }
+        // Instruct is measured-broken on base-only models (answers instead of
+        // continuing, ~0% first-word) — a model switch must not carry it there.
+        if rec.style == .base, Settings.completionStyle == .instruct {
+            Settings.completionStyle = .base
         }
         // The confidence gate only helps as a Base-style feature on a gate-capable
         // model — clear it when that no longer holds, so it can't cost latency for nothing.
@@ -58,9 +80,15 @@ final class EngineCoordinator {
         rebuild()
     }
 
-    /// Base ↔ instruct switches the loaded model, so rebuild.
+    /// Base ↔ instruct switches the loaded model, so rebuild. The precision
+    /// gates are Base-only: leaving Base turns them off rather than leaving
+    /// them set-but-inert ("Confident-only" in the UI while doing nothing).
     func setCompletionStyle(_ style: CompletionStyle) {
         Settings.completionStyle = style
+        if style != .base {
+            Settings.logprobGate = false
+            Settings.confidenceGate = false
+        }
         rebuild()
     }
 

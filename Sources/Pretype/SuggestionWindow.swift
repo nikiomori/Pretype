@@ -77,6 +77,11 @@ final class SuggestionWindow: NSPanel {
     /// controller from `Settings.suggestionPresentation`.
     var presentation: SuggestionPresentation = .inline
 
+    /// Flips the window's appearance to match the host app's background under
+    /// the caret (dark editor ↔ light page), so every semantic color in the
+    /// ghost, halo and pill resolves against what it's actually drawn over.
+    private let backgroundProbe = BackgroundProbe()
+
     /// Ghost font size resolved for the current caret.
     private var ghostFontSize: CGFloat = 13
     /// Resolved host-font size for the current caret — drives both the ghost size
@@ -142,6 +147,13 @@ final class SuggestionWindow: NSPanel {
     /// otherwise it's inferred from the caret height.
     func show(mode: SuggestionDisplayMode, at caretRect: CGRect, fontSize: CGFloat? = nil) {
         lastCaret = caretRect
+        backgroundProbe.refresh(near: caretRect) { [weak self] resolved in
+            guard let self, self.appearance?.name != resolved?.name else { return }
+            self.appearance = resolved
+            // Custom-drawn text caches nothing appearance-aware — repaint.
+            self.container.needsDisplay = true
+            self.ghost.needsDisplay = true
+        }
         // Prefer the measured host font; fall back to the caret height over a
         // typical line-height ratio (1.30, not 1.18 — 1.18 oversized the ghost,
         // which read as "floating too high"). One value drives text size AND the

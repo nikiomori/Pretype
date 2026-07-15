@@ -395,14 +395,182 @@ final class PretypeTests: XCTestCase {
     func testSuggestionControllerUndo() {
         let controller = SuggestionController()
         let mirror = Mirror(reflecting: controller)
-        
+
         // It should be nil on start
         let initial = mirror.descendant("lastAcceptedChunk") as? String?
         XCTAssertEqual(initial, nil)
-        
+
         // Calling dismiss should clear it
         controller.dismiss()
         let afterDismiss = mirror.descendant("lastAcceptedChunk") as? String?
         XCTAssertEqual(afterDismiss, nil)
+    }
+
+    // The overlay's background probe decides dark-vs-light text from this mean;
+    // pin the byte-order/color-space assumptions of the 1-px downsample.
+    func testBackgroundProbeMeanLuminance() {
+        func solidImage(white: CGFloat) -> CGImage {
+            let ctx = CGContext(data: nil, width: 8, height: 4, bitsPerComponent: 8,
+                                bytesPerRow: 32, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            ctx.setFillColor(CGColor(srgbRed: white, green: white, blue: white, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 4))
+            return ctx.makeImage()!
+        }
+        let dark = BackgroundProbe.meanLuminance(of: solidImage(white: 0))!
+        let light = BackgroundProbe.meanLuminance(of: solidImage(white: 1))!
+        XCTAssertLessThan(dark, 0.1)
+        XCTAssertGreaterThan(light, 0.9)
+    }
+
+    // ConfigProjection powers everything the settings UI claims a setting will
+    // do — pin the cascade rules and the eval-backed figures it projects.
+    func testConfigProjectionCascades() {
+        let e4b6 = "mlx-community/gemma-4-e4b-6bit"
+        let mini = "openbmb/MiniCPM5-1B-Base"
+        var c = ProjectionConfig(modelID: e4b6, style: .base, length: .short,
+                                 logprobGate: false, confidenceGate: true,
+                                 useRecommended: false)
+
+        // The gates are mutually exclusive, both ways.
+        c = c.applying(.logprobGate(true))
+        XCTAssertTrue(c.logprobGate); XCTAssertFalse(c.confidenceGate)
+        c = c.applying(.confidenceGate(true))
+        XCTAssertTrue(c.confidenceGate); XCTAssertFalse(c.logprobGate)
+
+        // Instruct has no gate path.
+        c = c.applying(.style(.instruct))
+        XCTAssertFalse(c.confidenceGate); XCTAssertFalse(c.logprobGate)
+        XCTAssertFalse(c.useRecommended)
+
+        // Recommended mode snaps style/length to the model's measured best.
+        c = c.applying(.useRecommended(true))
+        XCTAssertEqual(c.style, ModelCatalog.recommended(for: e4b6).style)
+
+        // Switching to a non-gate-capable model drops the consensus gate.
+        var manual = ProjectionConfig(modelID: e4b6, style: .base, length: .short,
+                                      logprobGate: false, confidenceGate: true,
+                                      useRecommended: false)
+        manual = manual.applying(.model(mini))
+        XCTAssertFalse(manual.confidenceGate)
+
+        // A model switch never carries Instruct onto a base-only model where
+        // it's measured-broken — style snaps to Base even in manual mode.
+        var instructed = ProjectionConfig(modelID: e4b6, style: .instruct, length: .short,
+                                          logprobGate: false, confidenceGate: false,
+                                          useRecommended: false)
+        instructed = instructed.applying(.model(mini))
+        XCTAssertEqual(instructed.style, .base)
+
+        // In recommended mode a model switch re-snaps everything.
+        var auto = ProjectionConfig(modelID: mini, style: .base, length: .long,
+                                    logprobGate: true, confidenceGate: false,
+                                    useRecommended: true)
+        auto = auto.applying(.model(e4b6))
+        XCTAssertEqual(auto.style, .instruct)  // E4B's measured best
+        XCTAssertEqual(auto.length, .short)
+        XCTAssertFalse(auto.logprobGate)
+    }
+
+    func testConfigProjectionFigures() {
+        let e4b6 = "mlx-community/gemma-4-e4b-6bit"
+        let mini = "openbmb/MiniCPM5-1B-Base"
+        func cfg(_ id: String, _ style: CompletionStyle, _ length: CompletionLength = .short,
+                 logprob: Bool = false, confidence: Bool = false) -> ConfigProjection {
+            ConfigProjection.project(ProjectionConfig(
+                modelID: id, style: style, length: length,
+                logprobGate: logprob, confidenceGate: confidence, useRecommended: false))
+        }
+
+        // Plain base = the model's own eval row.
+        let base = cfg(mini, .base)
+        XCTAssertEqual(base.accuracyPct, 30)
+        XCTAssertEqual(base.p50Ms, 49)
+        XCTAssertEqual(base.ramGB, 2.2)
+        XCTAssertFalse(base.broken)
+
+        // Instruct on a base-only model is truthfully broken, not hidden.
+        let broken = cfg(mini, .instruct)
+        XCTAssertTrue(broken.broken)
+        XCTAssertEqual(broken.accuracyPct, 0)
+
+        // Instruct on E4B: measured sibling figures, second-model memory.
+        let instruct = cfg(e4b6, .instruct)
+        XCTAssertEqual(instruct.accuracyPct, 22)
+        XCTAssertEqual(instruct.authoredPct, 85)
+        XCTAssertEqual(instruct.p50Ms, 129)
+
+        // Instruct on a tier with an unmeasured sibling: base figure stands in,
+        // marked as an estimate — never a blank speed meter.
+        let instructE2B = cfg("mlx-community/gemma-4-e2b-8bit", .instruct)
+        XCTAssertEqual(instructE2B.p50Ms, 75)
+        XCTAssertTrue(instructE2B.latencyText.hasPrefix("≈"))
+
+        // Consensus gate: 39% @ 54% coverage, ×5 latency.
+        let consensus = cfg(e4b6, .base, confidence: true)
+        XCTAssertEqual(consensus.accuracyPct, 39)
+        XCTAssertEqual(consensus.coveragePct, 54)
+        XCTAssertEqual(consensus.p50Ms, 129 * 5)
+
+        // Logprob gate on the calibration (default) model: the measured band.
+        let gated = cfg(mini, .base, logprob: true)
+        XCTAssertEqual(gated.accuracyText, "62–67%")
+        XCTAssertEqual(gated.p50Ms, 49)
+
+        // On any other model the gate figure is SCALED from that model's own
+        // base accuracy (and says so) — different models project differently.
+        let gatedE4B = cfg(e4b6, .base, logprob: true)
+        XCTAssertEqual(gatedE4B.accuracyPct, Int((33.0 * 64.0 / 30.0).rounded()))
+        XCTAssertTrue(gatedE4B.accuracyText.hasPrefix("≈"))
+        XCTAssertTrue(gatedE4B.accuracySub.contains("not measured on this model"))
+        let gatedLFM = cfg("LiquidAI/LFM2.5-1.2B-Base", .base, logprob: true)
+        XCTAssertNotEqual(gatedE4B.accuracyPct, gatedLFM.accuracyPct)
+
+        // Length scales latency by the measured sweep factor.
+        XCTAssertEqual(cfg(mini, .base, .long).p50Ms, Int((49 * 3.5).rounded()))
+
+        // System model: no app memory, compute is the Neural Engine.
+        let ai = cfg(ModelCatalog.appleIntelligenceID, .instruct)
+        XCTAssertEqual(ai.ramGB, 0)
+        XCTAssertNil(ai.computeRel)
+        XCTAssertEqual(ai.computeText, "ANE")
+
+        // Deltas: switching MiniCPM base → E4B instruct costs memory, buys nothing real.
+        let deltas = ConfigProjection.deltas(from: base, to: instruct)
+        XCTAssertTrue(deltas.contains { $0.label == "Memory" && !$0.improved })
+    }
+
+    // Priority presets resolve by dominance rules over the measured catalog —
+    // pin the current answers so a catalog edit that flips them is noticed.
+    func testModelPriorityPicks() {
+        XCTAssertEqual(ModelPriority.lightest.pick, "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
+        XCTAssertEqual(ModelPriority.accurate.pick, "mlx-community/gemma-4-e4b-6bit")    // 33%, lighter of the tied pair
+        XCTAssertEqual(ModelPriority.quick.pick, "mlx-community/gemma-4-e2b-8bit")       // ≥31% at 75 ms
+        XCTAssertEqual(ModelPriority.balanced.pick, ModelCatalog.defaultID)
+
+        // A preset lands on the measured protocol its card advertises
+        // (Base · Short — NOT the Gemma recommendation, which is Instruct and
+        // measures 22% on real text), and preserves compatible gates.
+        let custom = ProjectionConfig(modelID: ModelCatalog.defaultID, style: .instruct,
+                                      length: .long, logprobGate: true,
+                                      confidenceGate: false, useRecommended: false)
+        let landed = custom.applying(.preset(ModelPriority.accurate.pick))
+        XCTAssertEqual(landed.modelID, ModelPriority.accurate.pick)
+        XCTAssertEqual(landed.style, .base)
+        XCTAssertEqual(landed.length, .short)
+        XCTAssertTrue(landed.logprobGate)        // user's gate survives
+        XCTAssertFalse(landed.useRecommended)    // recommendation (Instruct) ≠ landing
+        // Where the recommendation IS Base · Short, auto mode stays on.
+        XCTAssertTrue(custom.applying(.preset(ModelPriority.balanced.pick)).useRecommended)
+
+        // A map settings-dot jumps to its exact configuration, verbatim.
+        let dot = ProjectionConfig(modelID: custom.modelID, style: .base, length: .medium,
+                                   logprobGate: false, confidenceGate: false,
+                                   useRecommended: false)
+        XCTAssertEqual(custom.applying(.config(dot)), dot)
+        // Runtime equivalence ignores only the auto-mode flag.
+        var dotAuto = dot; dotAuto.useRecommended = true
+        XCTAssertTrue(dot.sameRuntime(as: dotAuto))
+        XCTAssertFalse(dot.sameRuntime(as: custom))
     }
 }
