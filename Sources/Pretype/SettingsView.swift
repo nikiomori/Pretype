@@ -543,12 +543,17 @@ extension View {
 }
 
 /// Segmented control with per-option hover callbacks (the native Picker
-/// exposes none), drawn to read as the system segmented picker.
+/// exposes none). The selection thumb is a single view that SLIDES between
+/// segments (matchedGeometryEffect + spring) and renders as Liquid Glass on
+/// macOS 26, with the classic control fill as the fallback.
 struct HoverSegments<T: Hashable>: View {
     let options: [(value: T, label: String)]
     let selection: T
     let select: (T) -> Void
     var hover: ((T, Bool) -> Void)?
+
+    @Namespace private var thumbSpace
+    @State private var hovered: T?
 
     var body: some View {
         HStack(spacing: 2) {
@@ -564,16 +569,33 @@ struct HoverSegments<T: Hashable>: View {
                 .buttonStyle(.plain)
                 .background {
                     if isOn {
+                        thumb.matchedGeometryEffect(id: "thumb", in: thumbSpace)
+                    } else if hovered == option.value {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(nsColor: .controlColor))
-                            .shadow(color: .black.opacity(0.15), radius: 1.5, y: 0.5)
+                            .fill(.quaternary.opacity(0.4))
                     }
                 }
-                .onHover { hover?(option.value, $0) }
+                .onHover { over in
+                    hovered = over ? option.value : (hovered == option.value ? nil : hovered)
+                    hover?(option.value, over)
+                }
             }
         }
         .padding(2)
         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: selection)
+        .animation(.easeOut(duration: 0.12), value: hovered)
+    }
+
+    /// The sliding selection thumb.
+    @ViewBuilder private var thumb: some View {
+        if #available(macOS 26.0, *) {
+            Color.clear.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 6))
+        } else {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: .controlColor))
+                .shadow(color: .black.opacity(0.15), radius: 1.5, y: 0.5)
+        }
     }
 }
 
