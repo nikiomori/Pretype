@@ -527,8 +527,15 @@ final class MLXEngine: CompletionEngine {
     /// word-boundary state the output gate needs. Returns nil — abstain — below
     /// the floor or when nothing is left to encode.
     private struct PreparedPrompt {
-        /// Context tail with trailing spaces removed; what actually gets encoded.
+        /// Context tail (user text + screen block) with trailing spaces removed —
+        /// what the context floor, the output gate and the n-gram lookups see.
+        /// Never contains the personal preamble: retrieved examples must not
+        /// satisfy the floor, flip the language gate, or poison the n-gram
+        /// context with words the user never typed here.
         let text: String
+        /// What actually gets encoded: the personal-examples preamble (base
+        /// path, when present), then `text`.
+        let generationText: String
         /// How many trailing spaces the user typed (the gate restores the separator).
         let trailingSpaces: Int
         /// The caret sits right after a run of letters with no separator.
@@ -579,7 +586,8 @@ final class MLXEngine: CompletionEngine {
     /// floor is safe and surfaces word completions earlier); `boundaryFloor`
     /// applies at a word boundary. Screen context counts toward the threshold.
     private func prepare(_ request: CompletionRequest,
-                         midWordFloor: Int, boundaryFloor: Int) -> PreparedPrompt? {
+                         midWordFloor: Int, boundaryFloor: Int,
+                         personalPreamble: Bool = false) -> PreparedPrompt? {
         var text = request.completionPrompt(maxChars: Self.maxContextChars)
         let floor = text.last?.isLetter == true ? midWordFloor : boundaryFloor
         guard text.count >= floor else {
@@ -597,8 +605,11 @@ final class MLXEngine: CompletionEngine {
         let endsMidWord = trailingSpaces == 0 && text.last?.isLetter == true
         let endsCompleteWord = endsMidWord
             && (request.endsOnCompleteWord ?? SpellChecker.endsOnCompleteWord(before: text, after: after))
+        let preamble = personalPreamble ? request.personalPreambleBlock : nil
         return PreparedPrompt(
-            text: text, trailingSpaces: trailingSpaces,
+            text: text,
+            generationText: preamble.map { "\($0)\n\n\(text)" } ?? text,
+            trailingSpaces: trailingSpaces,
             endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
             textAfterCaret: after, singleWord: lengthBox.get().isSingleWord
         )
@@ -615,7 +626,11 @@ final class MLXEngine: CompletionEngine {
         let container = try await task.value
         try Task.checkCancellation()
 
-        guard let prepared = prepare(request, midWordFloor: 10, boundaryFloor: 16) else { return nil }
+        // The retrieved accepted phrases ride the base prompt as a label-free
+        // preamble (the RAG signal, p=0.016 on instruct, ported to the path
+        // that actually wins — see Eval/BASELINE.md "the prize").
+        guard let prepared = prepare(request, midWordFloor: 10, boundaryFloor: 16,
+                                     personalPreamble: true) else { return nil }
 
         // First-word confidence capture: reset up front so a stale value from a
         // previous generation can never be journaled against this one; publish
@@ -634,17 +649,23 @@ final class MLXEngine: CompletionEngine {
         if beamK > 1 {
             // Beam can't stream — the winner only exists after the last branch
             // (partials from a losing branch would visibly flash-and-switch).
-            let prompt = prepared.text
+            // The n-gram context is the USER text (prepared.text), never the
+            // preamble-carrying generation prompt.
+            let ngramContext = prepared.text
             let weight = beamNgramWeight
             var boost: (@Sendable (String) -> Double)?
             if weight > 0 {
                 boost = { word in
-                    weight * log1p(Double(PersonalNgram.shared.count(of: word, after: prompt)))
+                    weight * PersonalNgram.fusionBoost(
+                        count: PersonalNgram.shared.count(of: word, after: ngramContext))
                 }
             }
+            // No first-token bias here: branches force their first token, so
+            // the boost would land on the wrong step — beam fusion is the
+            // explicit ngramBoost above.
             output = try await Self.beamGenerate(
-                in: container, prompt: prompt, k: beamK, parameters: parameters,
-                extraEOSTokens: extraEOSTokens, promptCache: promptCache, bias: currentBias(),
+                in: container, prompt: prepared.generationText, k: beamK, parameters: parameters,
+                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
                 logProbSink: logProbSink,
                 trimLogProb: recording ? trimLogProbThreshold : nil,
                 scoreByMean: beamScoreByMean,
@@ -652,8 +673,9 @@ final class MLXEngine: CompletionEngine {
             )
         } else {
             output = try await Self.generate(
-                in: container, prompt: prepared.text, parameters: parameters,
-                extraEOSTokens: extraEOSTokens, promptCache: promptCache, bias: currentBias(),
+                in: container, prompt: prepared.generationText, parameters: parameters,
+                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
+                bias: ngramBias(for: prepared),
                 logProbSink: logProbSink,
                 // The gate's K draws sample at T≈0.6 — their logprobs aren't
                 // comparable to the live path's, so no trim there either.
@@ -812,8 +834,11 @@ final class MLXEngine: CompletionEngine {
             },
             parameters: parameters,
             // Instruct replies end on the turn marker; add it defensively.
+            // No first-token boost: instruct answers flush, so the space-led
+            // boost tokens can't match — personalization rides the directive
+            // (persona + RAG examples) here instead.
             extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
-            promptCache: promptCache, bias: currentBias(),
+            promptCache: promptCache,
             // Prefill needs ≥a few real tokens before EOS is allowed, or Gemma
             // ends the turn immediately after the prefilled text.
             minTokens: prefill ? 3 : 0,
@@ -871,13 +896,28 @@ final class MLXEngine: CompletionEngine {
         personalizationBox.set(level)
     }
 
-    /// The favored-word bias to apply this request, or nil when off / no history.
-    private func currentBias() -> PersonalizationBias? {
+    /// Context-conditioned personal boost for the first generated token: the
+    /// words the user has typed after this very context (personal n-gram),
+    /// weighted by evidence — level.bias × `PersonalNgram.fusionBoost`, the
+    /// beam-fusion formula (measured directionally positive, discordants 3/0)
+    /// applied to the greedy path at zero extra decode cost. Replaces the flat
+    /// favored-word bias, which measured null (p=1.0): context-free frequent
+    /// words are already probable, so biasing them moves nothing. nil when
+    /// personalization is off or the context is unseen.
+    private func ngramBias(for prepared: PreparedPrompt) -> PersonalizationBias? {
         let level = personalizationBox.get()
         guard level.bias > 0 else { return nil }
-        let words = Personalization.shared.topWords(256)
-        guard !words.isEmpty else { return nil }
-        return PersonalizationBias(words: words, weight: level.bias)
+        // An unfinished word at the caret: a next-word boost could truncate it.
+        if prepared.endsMidWord, !prepared.endsCompleteWord { return nil }
+        let counts = PersonalNgram.shared.continuations(after: prepared.text)
+        guard !counts.isEmpty else { return nil }
+        // ponytail: top-32 by evidence — bounds the per-generation tokenizer
+        // encodes in makeBiasProcessor (a frequent context word can carry
+        // hundreds of continuations); raise if a measured win ever wants more.
+        let top = counts.sorted { $0.value > $1.value }.prefix(32)
+        return PersonalizationBias(weights: Dictionary(uniqueKeysWithValues: top.map {
+            ($0.key, level.bias * Float(PersonalNgram.fusionBoost(count: $0.value)))
+        }))
     }
 
     /// True when the recent text is majority-Cyrillic — used to widen the token

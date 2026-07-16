@@ -77,7 +77,10 @@ final class SettingsStore: ObservableObject {
     @Published var personalization = PersonalizationLevel.off {
         didSet { guard !syncing, oldValue != personalization else { return }
             controller?.setPersonalization(personalization)
-            learnedWords = Personalization.shared.wordCount }
+            // Enabling mid-session must start the journal build right away —
+            // otherwise live learning stays inert until the next keystroke.
+            if personalization != .off { PersonalNgram.shared.prepareIfNeeded() }
+            learnedWords = PersonalNgram.shared.wordCount }
     }
     @Published var journalEnabled = true {
         didSet { guard !syncing else { return }
@@ -263,16 +266,12 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    func forgetLearnedWords() {
-        Personalization.shared.reset()
-        learnedWords = 0
-    }
-
     func clearJournal() {
         SuggestionJournal.shared.reset()
         // The n-gram model is derived from the journal — clearing one clears both.
         PersonalNgram.shared.reset()
         journalBytes = 0
+        learnedWords = 0
     }
 
     func resetInstructions() {
@@ -307,7 +306,7 @@ final class SettingsStore: ObservableObject {
         idleUnloadMinutes = Settings.idleUnloadMinutes
         fimEnabled = Settings.fimEnabled && recommendation.fim
         screenContext = Settings.screenContextEnabled
-        learnedWords = Personalization.shared.wordCount
+        learnedWords = PersonalNgram.shared.wordCount
         journalBytes = SuggestionJournal.shared.fileSize
         syncing = false
         preview = nil  // committed state changed — it is the new baseline
@@ -1061,17 +1060,16 @@ struct PersonalTab: View {
                     Text("Strong").tag(PersonalizationLevel.strong)
                 }
                 BadgeRow(badges: [
-                    EffectBadge(icon: "flask", text: "no measured accuracy gain yet", tone: .neutral,
-                                source: "Honest status: the favored-word bias A/B was null (p=1.0); the personal n-gram path trends positive but is underpowered (p=0.25) — re-measured as your journal grows. Collected only while on; nothing leaves your Mac."),
+                    EffectBadge(icon: "flask", text: "directionally positive, needs more data", tone: .neutral,
+                                source: "Boost = level × ln(1 + times you typed this word after this context, capped), applied to the first token — the n-gram fusion whose time-split replay went 3/0 in its favor (p=0.25, underpowered at n=54; re-measured as your journal grows). The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
                 ])
                 HStack {
-                    Caption("Biases completions toward words you accept.")
+                    Caption("Boosts the words you habitually type next — learned from your suggestion journal. Clear the journal to forget them.")
                     Spacer()
-                    Button(store.learnedWords > 0 ? "Forget \(store.learnedWords) words" : "Nothing learned yet") {
-                        store.forgetLearnedWords()
-                    }
-                    .controlSize(.small)
-                    .disabled(store.learnedWords == 0)
+                    Text(store.learnedWords > 0 ? "\(store.learnedWords) words" : "nothing learned yet")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
             }
 
@@ -1091,9 +1089,9 @@ struct PersonalTab: View {
                 Toggle("Reuse my accepted phrases as examples", isOn: $store.examplesEnabled)
                 BadgeRow(badges: [
                     EffectBadge(icon: "checkmark.seal", text: "measured win on Instruct style", tone: .quality,
-                                source: "Few-shot from your own accepted phrases: first-word 4% → 10% on the journal replay, all 7 discordant samples in its favor, exact p=0.016 (Instruct path only)."),
-                    EffectBadge(icon: "info.circle", text: "no effect in Base style", tone: .neutral,
-                                source: "The Base path ignores examples — confirmed no-op in the A/B (0 discordants)."),
+                                source: "Few-shot from your own accepted phrases: first-word 4% → 10% on the journal replay, all 7 discordant samples in its favor, exact p=0.016 (Instruct path)."),
+                    EffectBadge(icon: "info.circle", text: "now feeds Base style too — unmeasured", tone: .neutral,
+                                source: "Base used to ignore examples (confirmed no-op A/B). Since 2026-07-16 they are prefixed to the Base prompt as a label-free block (the screen-context format) — the instruct win motivated the port; the Base-path effect itself is not measured yet."),
                 ])
             }
         }

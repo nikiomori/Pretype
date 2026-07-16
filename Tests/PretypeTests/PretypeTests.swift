@@ -391,6 +391,67 @@ final class PretypeTests: XCTestCase {
         XCTAssertNil(ngram.nextWord(after: "ну спасибо за быстрый "))
     }
 
+    // Fuel for the greedy first-token boost: every continuation with its
+    // evidence count, unthresholded, trigram/bigram max.
+    func testPersonalNgramContinuations() {
+        let ngram = PersonalNgram()
+        for _ in 0..<3 { ngram.learn("спасибо за быстрый ответ") }
+        ngram.learn("спасибо за быстрый отклик")
+        let counts = ngram.continuations(after: "и снова спасибо за быстрый ")
+        XCTAssertEqual(counts["ответ"], 3)
+        XCTAssertEqual(counts["отклик"], 1)
+        XCTAssertTrue(ngram.continuations(after: "…—…").isEmpty)
+    }
+
+    // Live learning on the resolve path: the first ctx snapshot per app only
+    // seeds the cursor (its text is already journaled); later snapshots
+    // contribute their delta, per app.
+    func testPersonalNgramObserve() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("journal-observe-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let ngram = PersonalNgram()
+        // Inert until the build FINISHED (before that, entries belong to the
+        // build's own journal read — learning them live would double-count).
+        ngram.observe(ctx: "передай Никите привет", app: "mail")
+        XCTAssertEqual(ngram.wordCount, 0)
+        ngram.prepareIfNeeded(journal: SuggestionJournal(url: url))   // empty journal
+        let deadline = Date().addingTimeInterval(5)
+        while !ngram.isPrepared, Date() < deadline { usleep(10_000) }
+        XCTAssertTrue(ngram.isPrepared)
+        // First snapshot per app: cursor seeded, nothing learned.
+        ngram.observe(ctx: "передай Никите привет", app: "mail")
+        XCTAssertNil(ngram.nextWord(after: "завтра передай "))
+        var ctx = "передай Никите привет"
+        for _ in 0..<3 {
+            ctx += " и передай Никите привет"
+            ngram.observe(ctx: ctx, app: "mail")
+        }
+        XCTAssertEqual(ngram.nextWord(after: "завтра передай "), "Никите")
+        // A different app starts from its own cursor — no cross-app delta.
+        ngram.observe(ctx: "совсем другое поле", app: "slack")
+        XCTAssertEqual(ngram.count(of: "поле", after: "совсем другое "), 0)
+    }
+
+    // Base-path RAG: accepted phrases form a separate label-free preamble block
+    // the engine prepends to the GENERATION prompt only — completionPrompt
+    // (what the context floor, the gates and the n-gram context reason about)
+    // must never contain it.
+    func testPersonalPreambleBlock() {
+        var request = CompletionRequest(textBeforeCaret: "пишу тебе про новый релиз")
+        XCTAssertNil(request.personalPreambleBlock)
+        request.personalExamples = [
+            .init(ctx: "мы обсуждали релиз", next: " вчера вечером"),
+            .init(ctx: "созвон в", next: " четверг"),
+        ]
+        XCTAssertEqual(request.personalPreambleBlock,
+                       "мы обсуждали релиз вчера вечером\nсозвон в четверг")
+        // The floor/gate prompt stays example-free.
+        request.screenSummary = "чат про релиз"
+        XCTAssertEqual(request.completionPrompt(maxChars: 1000),
+                       "чат про релиз\n\nпишу тебе про новый релиз")
+    }
+
     @MainActor
     func testSuggestionControllerUndo() {
         let controller = SuggestionController()

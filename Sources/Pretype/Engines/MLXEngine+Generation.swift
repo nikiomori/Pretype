@@ -84,33 +84,34 @@ extension MLXEngine {
         }
     }
 
-    // MARK: Personalization (favored-word logit bias)
+    // MARK: Personalization (n-gram first-token boost)
 
-    /// Favored words + strength for one generation (built from the user's
-    /// accepted-completion history in `currentBias()`).
+    /// Personal next-word candidates → additive logit boost, for one generation
+    /// (built from the n-gram evidence after the current context in `ngramBias`).
     struct PersonalizationBias {
-        let words: [String]
-        let weight: Float
+        let weights: [String: Float]
     }
 
     /// Builds a logit processor that keeps the parameters' penalties (repetition
-    /// etc.) and adds a flat bias to the favored words' *start* tokens. Returns
-    /// nil if nothing resolves to a token.
+    /// etc.) and boosts each candidate word's *start* token on the FIRST decode
+    /// step only — the step that picks the next word; later steps just spell it.
+    /// Returns nil if nothing resolves to a token.
     private static func makeBiasProcessor(
         _ bias: PersonalizationBias, context: ModelContext, inner: LogitProcessor?
     ) -> LogitProcessor? {
         // encode() prepends BOS (e.g. " appreciate" → [2, 14756]); bias the first
-        // real content token (the "▁word" start), never BOS.
+        // real content token (the "▁word" start), never BOS. Related surface
+        // forms sharing a start token keep the max boost, not the sum.
         let bosID = context.tokenizer.convertTokenToId("<bos>")
-        var ids = Set<Int>()
-        for word in bias.words {
+        var boosts: [Int: Float] = [:]
+        for (word, weight) in bias.weights {
             let tokens = context.tokenizer.encode(text: " " + word)
             if let id = tokens.first(where: { $0 != bosID }) {
-                ids.insert(id)
+                boosts[id] = max(boosts[id] ?? 0, weight)
             }
         }
-        guard !ids.isEmpty else { return nil }
-        return PersonalizationProcessor(inner: inner, favored: Array(ids), weight: bias.weight)
+        guard !boosts.isEmpty else { return nil }
+        return PersonalizationProcessor(inner: inner, boosts: boosts)
     }
 
     /// Masks the EOS tokens for the first `minTokens` decode steps so the model
@@ -151,36 +152,33 @@ extension MLXEngine {
         }
     }
 
-    /// Runs the default penalty processor, then adds a flat additive bias to the
-    /// favored token ids. The dense bias vector is built lazily on the first
-    /// step, once the vocab size is known.
+    /// Runs the default penalty processor, then adds the per-token boosts to
+    /// the first decode step's logits; later steps pass through untouched.
     private final class PersonalizationProcessor: LogitProcessor {
         private var inner: LogitProcessor?
-        private let favored: [Int]
-        private let weight: Float
-        private var bias: MLXArray?
+        private let boosts: [Int: Float]
+        private var step = 0
 
-        init(inner: LogitProcessor?, favored: [Int], weight: Float) {
+        init(inner: LogitProcessor?, boosts: [Int: Float]) {
             self.inner = inner
-            self.favored = favored
-            self.weight = weight
+            self.boosts = boosts
         }
 
         func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
 
         func process(logits: MLXArray) -> MLXArray {
             let processed = inner?.process(logits: logits) ?? logits
-            if bias == nil {
-                let vocab = logits.shape.last ?? 0
-                var values = [Float](repeating: 0, count: vocab)
-                for id in favored where id >= 0 && id < vocab { values[id] = weight }
-                bias = MLXArray(values).reshaped([1, vocab])
-            }
-            guard let bias else { return processed }
-            return processed + bias
+            guard step == 0 else { return processed }
+            let vocab = logits.shape.last ?? 0
+            var values = [Float](repeating: 0, count: vocab)
+            for (id, weight) in boosts where id >= 0 && id < vocab { values[id] = weight }
+            return processed + MLXArray(values).reshaped([1, vocab])
         }
 
-        func didSample(token: MLXArray) { inner?.didSample(token: token) }
+        func didSample(token: MLXArray) {
+            step += 1
+            inner?.didSample(token: token)
+        }
     }
 
     // MARK: First-word confidence (live decode-loop capture)
@@ -389,7 +387,7 @@ extension MLXEngine {
 
             let prefillStart = Date()
             let lmInput = LMInput(tokens: MLXArray(inputTokens))
-            // Compose the logit-processor chain: penalties → favored-word bias →
+            // Compose the logit-processor chain: penalties → personal first-token boost →
             // min-token EOS mask. Only take the custom path when something was
             // added; otherwise the plain parameters init (unchanged behaviour).
             var processor: LogitProcessor? = parameters.processor()

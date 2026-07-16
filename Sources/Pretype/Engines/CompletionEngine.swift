@@ -50,6 +50,20 @@ extension CompletionRequest {
         return "\(screenSummary)\n\n\(text)"
     }
 
+    /// Retrieved accepted phrases as one label-free block — the base path
+    /// prepends it to the encoded prompt so the examples read as earlier
+    /// fragments of the document being continued (same format as the screen
+    /// block), pulling the continuation toward the user's own phrasing. Kept
+    /// OUT of `completionPrompt` deliberately: the preamble must not satisfy
+    /// the context floor, flip the language gate, or feed the n-gram context —
+    /// those all reason about the user's text. The instruct path injects the
+    /// same examples into its directive instead. ctx+next verbatim: next is
+    /// literally what followed ctx when the user accepted it.
+    var personalPreambleBlock: String? {
+        guard !personalExamples.isEmpty else { return nil }
+        return personalExamples.prefix(3).map { $0.ctx + $0.next }.joined(separator: "\n")
+    }
+
     /// Chat-style apps want short, informal continuations.
     var isChatApp: Bool {
         guard let appBundleID = appBundleID?.lowercased() else { return false }
@@ -166,7 +180,7 @@ protocol CompletionEngine: AnyObject {
     /// Style/model changes rebuild the engine instead; these don't.
     func updateCompletion(length: CompletionLength, instructions: String)
 
-    /// Live update of the favored-word biasing strength.
+    /// Live update of the personal n-gram boost strength.
     func updatePersonalization(_ level: PersonalizationLevel)
 
     /// Flush state before the engine is released or the app quits.

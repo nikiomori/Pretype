@@ -123,6 +123,13 @@ final class SuggestionController: NSObject {
     func start() {
         focusTracker.start()
         ensureKeyTap()
+        // Legacy favored-word store (measured null, removed 2026-07-16): the
+        // learned-word list must not outlive the feature on disk.
+        if let dir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            try? FileManager.default.removeItem(
+                at: dir.appendingPathComponent("Pretype/personalization.json"))
+        }
         if Settings.personalizationLevel != .off {
             PersonalNgram.shared.prepareIfNeeded()
         }
@@ -176,6 +183,15 @@ final class SuggestionController: NSObject {
         guard let pending = pendingJournal else { return }
         pendingJournal = nil
         guard Settings.suggestionJournalEnabled else { return }
+        // ONE snapshot for both consumers: observe's delta cursor must see
+        // exactly the ctx window the journal stores, or the next launch's
+        // replay re-splits the stream differently and double-learns.
+        let ctx = String(pending.ctx.suffix(1000))
+        // Live n-gram learning from the same ctx snapshots the startup build
+        // replays — so today's typing predicts today, not from the next launch.
+        if Settings.personalizationLevel != .off {
+            PersonalNgram.shared.observe(ctx: ctx, app: typingContext.bundleID)
+        }
         SuggestionJournal.shared.append(SuggestionJournal.Entry(
             ts: SuggestionJournal.timestamp(),
             app: typingContext.bundleID,
@@ -190,7 +206,7 @@ final class SuggestionController: NSObject {
             // suggestion — except `superseded`, where a newer generation has
             // already overwritten it (see Entry doc: calibration filters those).
             firstWordLogProb: pending.engine == "ngram" ? nil : engine.lastFirstWordLogProb,
-            ctx: String(pending.ctx.suffix(1000)),
+            ctx: ctx,
             after: pending.after,
             suggestion: pending.suggestion,
             outcome: outcome,
@@ -857,10 +873,6 @@ final class SuggestionController: NSObject {
         lastAcceptedChunk = chunk
         TextInjector.insert(chunk)
         Stats.recordAccepted(chunk: chunk)
-        // Learn the user's vocabulary only while personalization is enabled.
-        if Settings.personalizationLevel != .off {
-            Personalization.shared.record(chunk)
-        }
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
         pendingJournal?.acceptedChars += chunk.count

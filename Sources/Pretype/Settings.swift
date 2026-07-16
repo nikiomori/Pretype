@@ -63,8 +63,9 @@ enum PersonalizationLevel: String, CaseIterable {
     case medium
     case strong
 
-    /// Logit bias added to favored word-start tokens. Kept modest — too high
-    /// favors a frequent word over a better-fitting one.
+    /// β in the first-token n-gram boost: β × ln(1+count) logits on a personal
+    /// next-word candidate's start token. Kept modest — too high favors a
+    /// habitual word over a better-fitting one.
     var bias: Float {
         switch self {
         case .off: return 0
@@ -299,8 +300,8 @@ enum Settings {
             "completionStyle": rec.style.rawValue,
             "completionLength": rec.length.rawValue,
             "customInstructions": defaultInstructions,
-            // Subtle by default: powers the favored-word bias AND the personal
-            // n-gram fast-path; everything stays on-device.
+            // Subtle by default: powers the n-gram first-token boost AND the
+            // personal n-gram fast-path; everything stays on-device.
             "personalizationLevel": PersonalizationLevel.subtle.rawValue,
             "suggestionPresentation": SuggestionPresentation.inline.rawValue,
             "fmPromptVariant": FMPromptVariant.fewshot.rawValue,
@@ -471,7 +472,7 @@ enum Settings {
         set { defaults.set(newValue, forKey: "customInstructions") }
     }
 
-    /// Strength of favored-word logit biasing. Off disables learning too.
+    /// Strength of the personal n-gram boost. Off disables learning too.
     static var personalizationLevel: PersonalizationLevel {
         get { PersonalizationLevel(rawValue: defaults.string(forKey: "personalizationLevel") ?? "") ?? .off }
         set { defaults.set(newValue.rawValue, forKey: "personalizationLevel") }
