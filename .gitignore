@@ -27,3 +27,4 @@ Eval/
 docs/finetuning.md
 Scripts/finetune.sh
 Scripts/build-eval-real.py
+Scripts/build-register-corpus.py
