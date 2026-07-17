@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 800" font-family="-apple-system,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="Model quality for English: first-word accuracy is a nine-way tie within error bars; the default model MiniCPM5 1B is the fastest at 49 ms">
+<rect x="1" y="1" width="1438" height="798" rx="28" fill="#17171A" stroke="#2A2A2E" stroke-width="2"/>
+<text x="72" y="88" font-size="30" font-weight="650" fill="#F2F2F4">Pick by speed — English accuracy is a nine-way tie</text>
+<text x="72" y="122" font-size="15" fill="#A8A8AE">First-word accuracy with silence counted as a miss · ≈560 English samples, ±5 pp · sorted by accuracy</text>
+<text x="1368" y="88" font-size="12" letter-spacing="2.5" text-anchor="end" fill="#77777D">PRETYPE · MODEL EVAL · 07-2026</text>
+<text x="72" y="180" font-size="12" letter-spacing="1.2" fill="#77777D">MODEL</text>
+<text x="356" y="180" font-size="12" letter-spacing="1.2" fill="#77777D">FIRST-WORD ACCURACY, % OF ALL CASES</text>
+<text x="938" y="180" font-size="12" letter-spacing="1.2" fill="#77777D">LATENCY, P50</text>
+<line x1="356.0" y1="196" x2="356.0" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="356.0" y="708" font-size="12" text-anchor="middle" fill="#77777D">0%</text>
+<line x1="513.5" y1="196" x2="513.5" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="513.5" y="708" font-size="12" text-anchor="middle" fill="#77777D">10%</text>
+<line x1="671.0" y1="196" x2="671.0" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="671.0" y="708" font-size="12" text-anchor="middle" fill="#77777D">20%</text>
+<line x1="828.5" y1="196" x2="828.5" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="828.5" y="708" font-size="12" text-anchor="middle" fill="#77777D">30%</text>
+<line x1="938.0" y1="196" x2="938.0" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="938.0" y="708" font-size="12" text-anchor="middle" fill="#77777D">0 ms</text>
+<line x1="1081.3" y1="196" x2="1081.3" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="1081.3" y="708" font-size="12" text-anchor="middle" fill="#77777D">150</text>
+<line x1="1224.7" y1="196" x2="1224.7" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="1224.7" y="708" font-size="12" text-anchor="middle" fill="#77777D">300</text>
+<line x1="1368.0" y1="196" x2="1368.0" y2="684" stroke="#232327" stroke-width="1"/>
+<text x="1368.0" y="708" font-size="12" text-anchor="middle" fill="#77777D">450</text>
+<text x="72" y="225" font-size="15" font-weight="500" fill="#F2F2F4">Ternary Bonsai 4B</text>
+<text x="72" y="243" font-size="12" fill="#77777D">1.1 GB</text>
+<line x1="718.2" y1="226" x2="860.0" y2="226" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="797.0" cy="226" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 217 h 93.5 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -93.5 z" fill="#7A7A80"/>
+<text x="72" y="279" font-size="15" font-weight="650" fill="#F2F2F4">MiniCPM5 1B</text>
+<text x="72" y="297" font-size="12" fill="#77777D">2.2 GB</text>
+<rect x="168" y="286" width="62" height="17" rx="8.5" fill="#28A745" fill-opacity="0.16" stroke="#28A745" stroke-opacity="0.45" stroke-width="1"/>
+<text x="199" y="298" font-size="10.5" font-weight="600" letter-spacing="0.6" text-anchor="middle" fill="#C9EED3">DEFAULT</text>
+<line x1="702.5" y1="280" x2="860.0" y2="280" stroke="#28A745" stroke-opacity="0.5" stroke-width="2" stroke-linecap="round"/>
+<circle cx="781.2" cy="280" r="7" fill="#28A745" stroke="#17171A" stroke-width="2"/>
+<text x="781.2" y="264" font-size="13" font-weight="600" text-anchor="middle" fill="#F2F2F4">27%</text>
+<path d="M 938 271 h 42.8 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -42.8 z" fill="#0A84FF"/>
+<text x="994.8" y="285" font-size="13" font-weight="600" fill="#F2F2F4">49 ms</text>
+<text x="72" y="333" font-size="15" font-weight="500" fill="#F2F2F4">Gemma 4 E2B 4-bit</text>
+<text x="72" y="351" font-size="12" fill="#77777D">3.5 GB</text>
+<line x1="702.5" y1="334" x2="860.0" y2="334" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="781.2" cy="334" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 325 h 117.4 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -117.4 z" fill="#7A7A80"/>
+<text x="72" y="387" font-size="15" font-weight="500" fill="#F2F2F4">Gemma 4 E4B 6-bit</text>
+<text x="72" y="405" font-size="12" fill="#77777D">6.8 GB</text>
+<line x1="702.5" y1="388" x2="860.0" y2="388" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="781.2" cy="388" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 379 h 119.3 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -119.3 z" fill="#7A7A80"/>
+<text x="72" y="441" font-size="15" font-weight="500" fill="#F2F2F4">Gemma 4 E4B 8-bit</text>
+<text x="72" y="459" font-size="12" fill="#77777D">8.6 GB</text>
+<line x1="702.5" y1="442" x2="860.0" y2="442" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="781.2" cy="442" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 433 h 134.6 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -134.6 z" fill="#7A7A80"/>
+<text x="72" y="495" font-size="15" font-weight="500" fill="#F2F2F4">Gemma 4 E2B 8-bit</text>
+<text x="72" y="513" font-size="12" fill="#77777D">5.7 GB</text>
+<line x1="686.8" y1="496" x2="844.2" y2="496" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="765.5" cy="496" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 487 h 67.7 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -67.7 z" fill="#7A7A80"/>
+<text x="72" y="549" font-size="15" font-weight="500" fill="#F2F2F4">Qwen2.5 0.5B</text>
+<text x="72" y="567" font-size="12" fill="#77777D">1.0 GB</text>
+<line x1="686.8" y1="550" x2="844.2" y2="550" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="765.5" cy="550" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 541 h 71.5 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -71.5 z" fill="#7A7A80"/>
+<text x="72" y="603" font-size="15" font-weight="500" fill="#F2F2F4">Qwen3.5 2B</text>
+<text x="72" y="621" font-size="12" fill="#77777D">1.6 GB</text>
+<line x1="686.8" y1="604" x2="844.2" y2="604" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="765.5" cy="604" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 595 h 84.9 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -84.9 z" fill="#7A7A80"/>
+<text x="72" y="657" font-size="15" font-weight="500" fill="#F2F2F4">Apple Intelligence</text>
+<text x="72" y="675" font-size="12" fill="#77777D">system</text>
+<line x1="655.2" y1="658" x2="812.8" y2="658" stroke="#7A7A80" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+<circle cx="734.0" cy="658" r="6" fill="#7A7A80" stroke="#17171A" stroke-width="2"/>
+<path d="M 938 649 h 406.9 a 4 4 0 0 1 4 4 v 10 a 4 4 0 0 1 -4 4 h -406.9 z" fill="#7A7A80"/>
+<text x="1358.9" y="663" font-size="13" font-weight="600" fill="#F2F2F4">430 ms</text>
+<text x="72" y="762" font-size="12.5" fill="#77777D">Every local model lands within ±5 pp of the others on English — so the out-of-the-box pick optimizes latency. Multilingual ranks differently: see Settings → Model.</text>
+</svg>

@@ -23,6 +23,7 @@ Copilot-style suggestions in every text field — completely offline, private, a
   <a href="#quick-start"><b>Quick Start</b></a> ·
   <a href="#why-pretype"><b>Why Pretype</b></a> ·
   <a href="#features"><b>Features</b></a> ·
+  <a href="#choosing-a-model"><b>Models</b></a> ·
   <a href="#how-it-works"><b>How it Works</b></a> ·
   <a href="#faq"><b>FAQ</b></a> ·
   <a href="#roadmap"><b>Roadmap</b></a> ·
@@ -84,7 +85,41 @@ Most autocomplete solutions live inside a single code editor and ship your text 
 <img src="docs/shot-modes.png" width="720" alt="Two presentation modes — seamless inline ghost text on the line, or a floating panel above it" style="border-radius: 10px;" />
 <p><sub><i>Choose between seamless inline ghost text (pixel-accurate even in Electron) or a clean floating capsule panel above the caret.</i></sub></p>
 
+<br/>
+
+### Settings with a Live Impact Rail
+<img src="docs/shot-settings.png" width="720" alt="Settings window — glass sidebar, grouped options, and a Live Impact inspector showing measured accuracy, speed, memory, and compute" style="border-radius: 10px;" />
+<p><sub><i>Every option shows its measured consequence: hover any choice and the accuracy / speed / memory / compute meters preview the change before you commit it.</i></sub></p>
+
+<br/>
+
+### Your Voice, Per App
+<img src="docs/shot-personal.png" width="720" alt="Personalization tab — a persona field and per-app style instructions for Mail, Messages, Notes, and more" style="border-radius: 10px;" />
+<p><sub><i>One persona for everything, plus per-app styles: formal prose in Mail, short casual replies in Messages — with one-click presets for your installed apps.</i></sub></p>
+
 </div>
+
+---
+
+## Choosing a Model
+
+Every model in the catalog is measured on the same open eval — first-word accuracy on real text, where staying silent counts as a miss. Here is the whole catalog on **English**:
+
+<div align="center">
+<img src="docs/chart-models-en.svg" width="720" alt="Chart: on English every model's first-word accuracy is a statistical tie (24–28% ± 5 pp), while p50 latency spans 49 ms (MiniCPM5 1B, the default) to 430 ms (Apple Intelligence)" />
+</div>
+
+*   **Typing in English?** Every local model measures within the error bars of the others — so pick by speed. The default **MiniCPM5 1B** is the fastest thing in the catalog at 49 ms; the big Gemma builds buy you nothing here.
+*   **Tight on RAM?** **Qwen2.5 0.5B** runs in ≈1 GB and stays right in the pack.
+*   **Typing in other languages?** The picture changes completely — the Gemma 4 tiers pull clearly ahead, and among the small models Qwen3.5 2B is the strongest pick. The Model tab re-ranks the catalog for any of the 17 evaluated languages:
+
+<div align="center">
+<br/>
+<img src="docs/shot-models.png" width="720" alt="Model tab — an interactive speed × accuracy map of the catalog with eval-backed priority presets and a ranked list" style="border-radius: 10px;" />
+<p><sub><i>The same data, live in the app — a speed × accuracy map with one-click presets, hover previews, and a per-language accuracy axis.</i></sub></p>
+</div>
+
+Pretype picks a sensible default from your keyboard layouts automatically; everything else is one click in **Settings → Model**, where each entry ships its own eval-backed recommended settings.
 
 ---
 
