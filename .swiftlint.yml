@@ -1,6 +1,25 @@
+# Encodes the house style actually used in this codebase (enforced in CI via
+# `swiftlint --strict`). Rules that fight deliberate idioms are off:
+# short math-style names in scoring/AX geometry code, aligned multiline
+# literals, cohesive single-file subsystems, and CFGetTypeID-guarded AX
+# force-casts. "blacklist" is the shipped setting name, hence
+# inclusive_language is off.
 disabled_rules:
   - line_length
   - trailing_whitespace
+  - trailing_comma
+  - comma
+  - identifier_name
+  - file_length
+  - type_body_length
+  - function_body_length
+  - function_parameter_count
+  - cyclomatic_complexity
+  - nesting
+  - large_tuple
+  - force_cast
+  - inclusive_language
+  - implicit_optional_initialization
 opt_in_rules:
   - empty_count
   - force_unwrapping
@@ -15,4 +34,3 @@ opt_in_rules:
   - unused_import
 included:
   - Sources
-  - Tests

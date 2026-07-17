@@ -244,6 +244,15 @@ enum Settings {
         return names
     }
 
+    /// Base language codes of the enabled keyboard layouts, deduped (e.g.
+    /// {"en", "ru"}) — the signal behind both the persona languages and the
+    /// language-aware `ModelCatalog.defaultID`.
+    static var keyboardLanguageCodes: Set<String> {
+        Set(keyboardLanguages().compactMap {
+            Locale(identifier: $0).language.languageCode?.identifier
+        })
+    }
+
     /// First language of each enabled keyboard layout / input mode (e.g. the
     /// "Russian – PC" keyboard → "ru"). Carbon Text Input Sources; no permission.
     private static func keyboardLanguages() -> [String] {
@@ -282,6 +291,20 @@ enum Settings {
         // surface can display and the projection describes.
         if defaults.string(forKey: "completionLength") == CompletionLength.word.rawValue {
             defaults.set(CompletionLength.short.rawValue, forKey: "completionLength")
+        }
+        // Controls retired from the UI 2026-07-16/17: the consensus gate (same
+        // precision trade as the free logprob gate, at ~5× the decode), the
+        // trim toggle (a measured no-cost win — now always on), the FM
+        // recipe picker (fewshot measured best; env override still works for
+        // the harness), fill-in-the-middle (already auto-gated to the E4B
+        // class where it's reliable — the off position only degraded quality)
+        // and personal examples (measured instruct win at zero latency cost;
+        // journal off / cleared already covers the privacy angle). Clear
+        // stored values so the registered defaults rule and nobody is stuck
+        // with invisible state.
+        for retired in ["confidenceGate", "confidenceTrim", "fmPromptVariant",
+                        "fimEnabled", "personalExamples"] {
+            defaults.removeObject(forKey: retired)
         }
         // Style/length ship pre-matched to the default model's recommendation:
         // nothing applies it at boot (main only registers defaults), and the
@@ -363,8 +386,10 @@ enum Settings {
     }
 
     /// Retrieval-augmented few-shot: inject the user's own most-similar past
-    /// accepted phrases into the instruct prompt. A no-op until the journal has
-    /// data; the eval harness A/Bs it via PRETYPE_RAG.
+    /// accepted phrases into the prompt. A no-op until the journal has data;
+    /// the eval harness A/Bs it via PRETYPE_RAG. Always on since 2026-07-17
+    /// (UI toggle retired — a measured win at zero cost; clearing the journal
+    /// is the way to forget the phrases).
     static var personalExamplesEnabled: Bool {
         get { defaults.bool(forKey: "personalExamples") }
         set { defaults.set(newValue, forKey: "personalExamples") }
@@ -374,6 +399,32 @@ enum Settings {
     static var screenContextEnabled: Bool {
         get { defaults.bool(forKey: "screenContext") }
         set { defaults.set(newValue, forKey: "screenContext") }
+    }
+
+    /// Opt-in: feed the current clipboard text to the model as extra context
+    /// (the thing being replied to is often just-copied). Same label-free
+    /// prompt block as the screen context; concealed/transient pasteboards
+    /// (password managers mark both) are never read.
+    static var clipboardContextEnabled: Bool {
+        get { defaults.bool(forKey: "clipboardContext") }
+        set { defaults.set(newValue, forKey: "clipboardContext") }
+    }
+
+    /// Extra persona lines for one specific app (exact lowercased bundle ID →
+    /// text), appended to `customInstructions` in the instruct directive —
+    /// "formal, no emoji" for Mail, "casual and short" for Slack.
+    static var perAppInstructions: [String: String] {
+        get { defaults.dictionary(forKey: "perAppInstructions") as? [String: String] ?? [:] }
+        set { defaults.set(newValue, forKey: "perAppInstructions") }
+    }
+
+    /// The per-app addition for the app being typed in, or nil when none is
+    /// configured (or it's blank).
+    static func perAppInstructions(for bundleID: String?) -> String? {
+        guard let id = bundleID?.lowercased(),
+              let text = perAppInstructions[id]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return nil }
+        return text
     }
 
     static var mlxModelID: String {
@@ -447,10 +498,22 @@ enum Settings {
 
     /// Fill-in-the-middle: when editing mid-sentence, condition the completion on
     /// the text after the cursor too. Auto-applies only on E4B-class models (it's
-    /// unreliable on the smaller E2B). On by default.
+    /// unreliable on the smaller E2B). Always on since 2026-07-17 (UI toggle
+    /// retired — the model-class auto-gate is the only decision that matters).
     static var fimEnabled: Bool {
         get { defaults.bool(forKey: "fimEnabled") }
         set { defaults.set(newValue, forKey: "fimEnabled") }
+    }
+
+    /// Which measured axis the Model tab's accuracy surfaces show: "*" =
+    /// equal-weight average over all measured languages (the multilingual
+    /// default), "core" = the EN+RU booking (largest sample — and the only
+    /// axis the settings projections are measured on), or a language code
+    /// from `ModelMetrics.evalLanguages`. Presentation-only: never feeds the
+    /// completion pipeline.
+    static var accuracyAxis: String {
+        get { defaults.string(forKey: "accuracyAxis") ?? "*" }
+        set { defaults.set(newValue, forKey: "accuracyAxis") }
     }
 
     /// Base (raw continuation) vs instruct (persona-aware) completion.

@@ -26,17 +26,6 @@ struct ProjectionConfig: Equatable {
         case preset(String)
         /// Jump to an exact configuration — a settings dot on the model map.
         case config(ProjectionConfig)
-
-        /// Which settings section owns the control — anchors the inline
-        /// preview strip under the section being hovered.
-        var section: String {
-            switch self {
-            case .model, .preset, .config: return "model"
-            case .style, .useRecommended: return "style"
-            case .length: return "length"
-            case .logprobGate, .confidenceGate: return "precision"
-            }
-        }
     }
 
     /// Same runtime state, ignoring the auto-mode flag — what the map's
@@ -144,8 +133,8 @@ enum ModelPriority: String, CaseIterable {
         switch self {
         case .lightest: return "Smallest footprint — for Macs with little free memory."
         case .quick: return "Fastest of the models within 2 pp of the best accuracy."
-        case .accurate: return "Best measured accuracy; ties go to the lighter build."
-        case .balanced: return "The out-of-the-box pick: ties much larger models at the lowest latency."
+        case .accurate: return "Best measured accuracy; first-word ties break on reference scoring."
+        case .balanced: return "The out-of-the-box pick: fastest at near-parity on English and Russian; the best small multilingual model on other languages."
         }
     }
 
@@ -155,23 +144,39 @@ enum ModelPriority: String, CaseIterable {
         ModelMetrics.all.filter { $0.ramGB > 0 }
     }
 
-    var pick: String {
+    /// Measured-best model for the goal ON the given accuracy axis (see
+    /// `Settings.accuracyAxis`) — the whole tab re-resolves when the axis
+    /// changes, so "Most accurate" means most accurate for YOUR language.
+    func pick(axis: String) -> String {
         let pool = Self.measured
         guard !pool.isEmpty else { return ModelCatalog.defaultID }
+        func acc(_ m: ModelMetrics) -> Int {
+            ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct
+        }
         switch self {
         case .lightest:
             return pool.min {
-                $0.ramGB != $1.ramGB ? $0.ramGB < $1.ramGB : $0.firstWordPct > $1.firstWordPct
-            }!.id
+                $0.ramGB != $1.ramGB ? $0.ramGB < $1.ramGB : acc($0) > acc($1)
+            }?.id ?? ModelCatalog.defaultID
         case .accurate:
-            let top = pool.map(\.firstWordPct).max()!
-            return pool.filter { $0.firstWordPct == top }.min { $0.ramGB < $1.ramGB }!.id
+            // Coarse-% ties break on logP/char (the tokenizer-fair quality
+            // continuum; booked EN+RU-weighted — per-language logP isn't).
+            let top = pool.map(acc).max() ?? 0
+            return pool.filter { acc($0) == top }
+                .max { ($0.logProbPerChar ?? -.infinity) < ($1.logProbPerChar ?? -.infinity) }?.id
+                ?? ModelCatalog.defaultID
         case .quick:
-            let top = pool.map(\.firstWordPct).max()!
-            return pool.filter { $0.firstWordPct >= top - 2 }.min { $0.p50Ms < $1.p50Ms }!.id
+            let top = pool.map(acc).max() ?? 0
+            return pool.filter { acc($0) >= top - 2 }.min { $0.p50Ms < $1.p50Ms }?.id
+                ?? ModelCatalog.defaultID
         case .balanced:
-            // The eval-validated default: no heavier tier measured worth a step-up.
-            return ModelCatalog.defaultID
+            // Same rule as the fresh-install default, keyed on the axis instead
+            // of the keyboards: on EN/RU the fastest model at parity with the
+            // big ones; elsewhere the EN/RU specialist gives way to the best
+            // small multilingual pick (the Gemmas above it are Accurate/Quick
+            // territory).
+            return ["core", "en", "ru"].contains(axis)
+                ? "openbmb/MiniCPM5-1B-Base" : "mlx-community/Qwen3.5-2B-4bit"
         }
     }
 }
@@ -268,7 +273,7 @@ struct ConfigProjection {
             }
             // Only the it-6bit instruct sibling went through the harness — the
             // measured 129 ms applies exactly to models that RUN that sibling
-            // (e4b-4bit's sibling is it-4bit, unmeasured). Elsewhere the base
+            // (the E2B tiers run 4-bit siblings, unmeasured). Elsewhere the base
             // figure stands in, marked ≈ and labeled as an estimate.
             let measuredMs: Int? = ModelCatalog.option(for: c.modelID)?.instructModelID
                 == "mlx-community/gemma-4-e4b-it-6bit" ? 129 : nil
@@ -300,12 +305,15 @@ struct ConfigProjection {
         if c.logprobGate {
             let ms = Int((Double(m.p50Ms) * lf).rounded())
             // The calibration (62–67% shown at ~30% offered) was measured on
-            // the default model only. Other models get the same measured TRADE
-            // scaled from their own base figures — the ratios read the default
-            // model's eval row, so a re-run can't leave a stale divisor here —
-            // capped and labeled as scaled, never as measured.
-            let calibrated = c.modelID == ModelCatalog.defaultID
-            let ref = ModelMetrics.metrics(for: ModelCatalog.defaultID)
+            // MiniCPM5 only (split-half, eval-real n=870, 2026-07-15) — pinned
+            // to that id, NOT to the language-aware defaultID. Other models get
+            // the same measured TRADE scaled from their own base figures — the
+            // ratios read the calibration model's eval row, so a re-run can't
+            // leave a stale divisor here — capped and labeled as scaled, never
+            // as measured.
+            let calibrationID = "openbmb/MiniCPM5-1B-Base"
+            let calibrated = c.modelID == calibrationID
+            let ref = ModelMetrics.metrics(for: calibrationID)
             let accLift = 64.0 / Double(ref?.firstWordPct ?? 30)
             let covFactor = 30.0 / Double(ref?.coveragePct ?? 83)
             let acc = calibrated ? 64 : min(72, Int((Double(m.firstWordPct) * accLift).rounded()))
@@ -407,8 +415,7 @@ struct ConfigProjection {
             let faster = b < a
             let ratio = faster ? Double(a) / Double(b) : Double(b) / Double(a)
             out.append(MetricDelta(label: "Speed",
-                                   text: String(format: ratio >= 2 ? "%.0f× %@" : "%.1f× %@",
-                                                ratio, faster ? "faster" : "slower"),
+                                   text: ratioText(ratio) + (faster ? " faster" : " slower"),
                                    improved: faster))
         }
         if let a = base.ramGB, let b = tgt.ramGB, abs(a - b) >= 0.1 {
@@ -421,11 +428,17 @@ struct ConfigProjection {
             let ratio = lighter ? a / b : b / a
             if ratio >= 1.1 {
                 out.append(MetricDelta(label: "Compute",
-                                       text: String(format: ratio >= 2 ? "%.0f× %@" : "%.1f× %@",
-                                                    ratio, lighter ? "lighter" : "heavier"),
+                                       text: ratioText(ratio) + (lighter ? " lighter" : " heavier"),
                                        improved: lighter))
             }
         }
         return out
+    }
+
+    /// "3.5×", "4×", "12×" — one decimal below 10 (rounding 3.5 up to "4×"
+    /// next to the exact target value read as a contradiction), whole above.
+    private static func ratioText(_ ratio: Double) -> String {
+        ratio >= 10 ? "\(Int(ratio.rounded()))×"
+                    : String(format: "%g×", (ratio * 10).rounded() / 10)
     }
 }

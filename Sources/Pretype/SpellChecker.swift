@@ -205,4 +205,3 @@ enum SpellChecker {
         return checker.availableLanguages.first { $0.lowercased().hasPrefix(want) } ?? want
     }
 }
-

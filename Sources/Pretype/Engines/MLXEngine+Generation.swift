@@ -141,7 +141,7 @@ extension MLXEngine {
                     for id in eosIDs where id >= 0 && id < vocab { v[id] = -1e9 }
                     mask = MLXArray(v).reshaped([1, vocab])
                 }
-                if let mask { l = l + mask }
+                if let mask { l += mask }
             }
             return l
         }
@@ -266,6 +266,103 @@ extension MLXEngine {
         return kept.isEmpty || kept.count >= text.count ? nil : kept
     }
 
+    // MARK: Healing-constrained decoding (mid-word caret)
+
+    /// Indices of the `k` largest values, descending — one CPU pass over the
+    /// vocab row. The constrained phase runs for ≤ a handful of steps, so a
+    /// partial selection here beats shipping a GPU sort.
+    static func topIndices(_ values: [Float], k: Int) -> [Int] {
+        var top: [Int] = []
+        top.reserveCapacity(k + 1)
+        for i in values.indices {
+            let v = values[i]
+            if top.count == k, let last = top.last, v <= values[last] { continue }
+            let pos = top.firstIndex { values[$0] < v } ?? top.count
+            top.insert(i, at: pos)
+            if top.count > k { top.removeLast() }
+        }
+        return top
+    }
+
+    /// First candidate (highest-logit first) whose JOINT decode with the already
+    /// sampled tokens stays prefix-compatible with the typed fragment: either
+    /// still inside it (decode ⊂ expected) or covering it (decode ⊇ expected).
+    /// Joint decode, not per-token, so BPE merges can't fake a mismatch. A
+    /// candidate that adds no text (special token stripped by the decoder) is
+    /// skipped — forcing it would loop the constrained phase forever.
+    static func healCompatibleToken(
+        expected: String, sampled: [Int], candidates: [Int], decode: ([Int]) -> String
+    ) -> Int? {
+        let current = decode(sampled)
+        for id in candidates {
+            let cand = decode(sampled + [id])
+            guard cand.count > current.count else { continue }
+            if cand.hasPrefix(expected) || expected.hasPrefix(cand) { return id }
+        }
+        return nil
+    }
+
+    /// Constrained decoding for the token-healing path: while the decode has
+    /// not yet reproduced the typed fragment, mask the logits to the most
+    /// probable token that keeps the decode prefix-compatible with it (top-50
+    /// scan); no compatible token → force EOS, which the fragment gate reads
+    /// as an abstain, so precision is preserved by construction. Outermost in
+    /// the chain so the LogProbRecorder beneath records honest PRE-mask logits
+    /// (the healed gate/journal signal must be the model's true confidence in
+    /// the fragment path, not ~0 from a one-hot mask). Match-only healing
+    /// abstained whenever greedy top-1 disagreed with the fragment — 87%
+    /// precision at 13% coverage (Eval/BASELINE.md 2026-07-17); this recovers
+    /// the abstains whose fragment path exists but wasn't top-1.
+    /// Created and consumed inside `container.perform` (not Sendable, like the
+    /// other processors here).
+    final class HealConstraintProcessor: LogitProcessor {
+        private var inner: LogitProcessor?
+        private let expected: String
+        private let eosID: Int?
+        private let decode: ([Int]) -> String
+        private var sampled: [Int] = []
+        private var active = true
+
+        init(inner: LogitProcessor?, expected: String, eosID: Int?,
+             decode: @escaping ([Int]) -> String) {
+            self.inner = inner
+            self.expected = expected
+            self.eosID = eosID
+            self.decode = decode
+        }
+
+        func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
+
+        func process(logits: MLXArray) -> MLXArray {
+            let processed = inner?.process(logits: logits) ?? logits
+            guard active else { return processed }
+            let current = decode(sampled)
+            guard current.count < expected.count, expected.hasPrefix(current) else {
+                active = false   // fragment covered (or overshot) — decode freely
+                return processed
+            }
+            let row = processed.reshaped([-1]).asArray(Float.self)
+            let ranked = MLXEngine.topIndices(row, k: 50)
+            let chosen = MLXEngine.healCompatibleToken(
+                expected: expected, sampled: sampled, candidates: ranked, decode: decode)
+            var mask = [Float](repeating: -1e9, count: row.count)
+            if let chosen {
+                mask[chosen] = 0
+            } else if let eosID {
+                mask[eosID] = 0   // dead end: end the turn → fragment gate abstains
+                active = false
+            } else {
+                return processed  // no EOS to force — stop constraining
+            }
+            return processed + MLXArray(mask).reshaped(processed.shape)
+        }
+
+        func didSample(token: MLXArray) {
+            if active { sampled.append(token.reshaped([-1]).item(Int.self)) }
+            inner?.didSample(token: token)
+        }
+    }
+
     // MARK: Token iteration
 
     /// Wraps a partial-text callback so each raw decode snapshot is run through
@@ -298,6 +395,7 @@ extension MLXEngine {
         firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
         forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
+        healExpected: String? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         try await generate(
@@ -312,6 +410,7 @@ extension MLXEngine {
             firstWordStats: firstWordStats,
             forcedFirst: forcedFirst,
             trimLogProb: trimLogProb,
+            healExpected: healExpected,
             onPartial: onPartial
         )
     }
@@ -328,6 +427,7 @@ extension MLXEngine {
         firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
         forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
+        healExpected: String? = nil,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         // Annotate the param: under `-enable-testing` (swift test) overload
@@ -408,6 +508,14 @@ extension MLXEngine {
                 let r = LogProbRecorder(inner: processor)
                 processor = r
                 recorder = r
+                customized = true
+            }
+            // Healing constraint OUTERMOST — the recorder beneath must record the
+            // honest pre-mask logits (see HealConstraintProcessor).
+            if let healExpected {
+                processor = HealConstraintProcessor(
+                    inner: processor, expected: healExpected, eosID: eosIDs.first,
+                    decode: { context.tokenizer.decode(tokenIds: $0, skipSpecialTokens: true) })
                 customized = true
             }
             var iterator: TokenIterator

@@ -17,10 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest stable Xcode
+      # Pinned so a runner-image toolchain bump can't break builds silently;
+      # 16.4 satisfies the Swift 6.1 floor above. Bump deliberately.
+      - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '16.4'
+
+      - name: Lint
+        run: |
+          command -v swiftlint >/dev/null || brew install swiftlint
+          swiftlint --strict
 
       - name: Cache SwiftPM
         uses: actions/cache@v4

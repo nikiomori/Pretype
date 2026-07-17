@@ -13,8 +13,9 @@ engines, prompt/quality work, and documentation.
 
 ## Development setup
 
-Requirements (same as the README's *Build & run*): macOS 14+, **full Xcode**
-(the MLX engine needs the Metal shader compiler — Command Line Tools alone are
+Requirements (same as the README's *Build & run*): macOS 14+, **full Xcode
+16.3+** (Swift 6.1 — older toolchains fail compiling the MLX dependencies, and
+the MLX engine needs the Metal shader compiler; Command Line Tools alone are
 not enough), and Apple Silicon for the MLX engine. On Xcode 26+ install the
 Metal toolchain once:
 
@@ -63,18 +64,20 @@ Environment variables it reads (they override stored Settings):
 ## Quality eval — please measure prompt/model changes
 
 Any change touching prompting, sampling, the output gates, or the model catalog
-should be measured before and after with the eval harness (in the git-ignored
-`dev-tools/` tree; ask a maintainer to run it if you don't have it set up).
-
-Ask a maintainer for the current baseline numbers and include the
-before/after numbers (coverage, first-word accuracy, saved chars, p50 latency)
-in your PR. The eval is a **comparison** tool — absolute first-word accuracy
-understates quality because it rejects valid paraphrases.
+should be measured before and after. The eval harness lives in a git-ignored
+`dev-tools/` tree, so **external contributors can't run it themselves — that's
+expected**: open the PR anyway and note that it needs an eval run; a maintainer
+will run the before/after numbers (coverage, first-word accuracy, saved chars,
+p50 latency) and post them on the PR. The eval is a **comparison** tool —
+absolute first-word accuracy understates quality because it rejects valid
+paraphrases.
 
 ## Code style
 
 - Match the surrounding code: 4-space indentation, no trailing whitespace.
-- There's no autoformatter config — follow the existing idioms.
+- SwiftLint runs in CI (`swiftlint --strict`, config in `.swiftlint.yml`); a
+  `.swiftformat` config covers formatting. Run `swiftlint` locally before
+  pushing if you have it installed.
 - Comments explain *why*, not *what*; the codebase favors short, high-signal
   comments (see the output-gate comments in `MLXEngine.swift` for the house
   style).
@@ -85,7 +88,7 @@ understates quality because it rejects valid paraphrases.
 Engines conform to the `CompletionEngine` protocol
 (`Sources/Pretype/Engines/CompletionEngine.swift`): implement `complete(_:)`
 (and optionally `correct(selection:request:)`), reuse the shared output gates
-via `MLXEngine.postProcess(...)`, and surface progress through `EngineState` so
+via `CompletionGates.postProcess(...)`, and surface progress through `EngineState` so
 the menu and the caret indicator stay accurate. `FoundationModelsEngine.swift`
 is a compact reference implementation.
 
@@ -94,5 +97,6 @@ is a compact reference implementation.
 - [ ] `swift build` succeeds.
 - [ ] The app launches and the change works against a real text field (TextEdit
       and Notes have the best Accessibility support).
-- [ ] For prompt/model/gate changes: eval numbers before & after included.
+- [ ] For prompt/model/gate changes: eval numbers requested (a maintainer runs
+      the harness — see *Quality eval* above).
 - [ ] Diff is focused; comments explain non-obvious decisions.

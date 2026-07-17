@@ -121,11 +121,10 @@ enum CompletionGates {
         let bodyLower = bodyWords.map { $0.lowercased() }
 
         var overlap = 0
-        for candidate in stride(from: min(tailWords.count, bodyLower.count), through: 1, by: -1) {
-            if Array(tailWords.suffix(candidate)) == Array(bodyLower.prefix(candidate)) {
-                overlap = candidate
-                break
-            }
+        for candidate in stride(from: min(tailWords.count, bodyLower.count), through: 1, by: -1)
+            where Array(tailWords.suffix(candidate)) == Array(bodyLower.prefix(candidate)) {
+            overlap = candidate
+            break
         }
         guard overlap > 0 else { return suggestion }
         let remaining = bodyWords.dropFirst(overlap).joined(separator: " ")

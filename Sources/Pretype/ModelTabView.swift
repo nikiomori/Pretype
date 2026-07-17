@@ -7,26 +7,52 @@ import SwiftUI
 /// (see `ModelMetrics`); no axes to decode, no spec-sheet estimates.
 struct ModelTab: View {
     @ObservedObject var store: SettingsStore
+    /// The accuracy axis every surface on this tab reads ("*" = all
+    /// languages, "core" = EN+RU, or one language) — one store-persisted
+    /// selection, so cards, map and ranking always tell the same story.
+    private var axis: String { store.accuracyAxis }
+
+    private func langName(_ code: String) -> String {
+        Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code
+    }
 
     var body: some View {
         Form {
+            Section {
+                Picker("Accuracy shown for", selection: $store.accuracyAxis) {
+                    Text("All \(ModelMetrics.evalLanguages.count) languages — equal-weight average").tag("*")
+                    Text("English + Russian — largest sample, full settings map").tag("core")
+                    Divider()
+                    ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
+                        Text(langName(code)).tag(code)
+                    }
+                }
+                axisCaption
+            }
+
             Section("What matters most") {
                 HStack(spacing: 10) {
                     ForEach(ModelPriority.allCases, id: \.self) { priority in
-                        PriorityCard(priority: priority,
+                        let pick = priority.pick(axis: axis)
+                        PriorityCard(priority: priority, pick: pick,
+                                     acc: ModelMetrics.axisAccuracy(for: pick, axis: axis),
                                      isActive: store.priorityIsActive(priority),
                                      apply: { store.applyPriority(priority) },
-                                     hover: { store.setHover(.preset(priority.pick), $0) })
+                                     hover: { store.setHover(.preset(pick), $0) })
                     }
                 }
-                Caption("One click switches to the measured-best model for that goal, in the exact configuration the card's figures come from (Base · Short). Your precision gates stay on where the model supports them — hover to preview.")
+                Caption("One click switches to the measured-best model for that goal on the axis above, in the exact configuration the card's figures come from (Base · Short). Your precision gates stay on where the model supports them — hover to preview.")
             }
 
             Section("The model map") {
-                ModelMapView(store: store)
-                PreviewDeltaStrip(store: store, section: "model")
-                Caption("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource), EN+RU). "
-                    + "The ring is your current configuration; the small dots inside the dashed zone are this model's other settings — hover to preview, click to apply.")
+                ModelMapView(store: store, hover: store.hoverState)
+                if axis == "core" {
+                    Caption("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource)). "
+                        + "The ring is your current configuration; the small dots inside the dashed zone are this model's other settings — hover to preview, click to apply.")
+                } else {
+                    Caption("Up = more accurate for \(ModelMetrics.axisDisplayName(axis)), silence counted as a miss · right = faster · bubble size = memory. "
+                        + "Settings dots and the reachable zone are measured on the EN+RU sample only — switch the axis above to explore them.")
+                }
             }
 
             Section("Ranked by measured accuracy") {
@@ -36,7 +62,8 @@ struct ModelTab: View {
                     ModelRow(id: entry.id, title: entry.title,
                              isSelected: store.modelID == entry.id,
                              select: { store.selectModel(entry.id) },
-                             hover: { store.setHover(.model(entry.id), $0) })
+                             hover: { store.setHover(.model(entry.id), $0) },
+                             langAccuracy: langAccuracy(for: entry.id))
                 }
                 HStack {
                     Spacer()
@@ -64,19 +91,6 @@ struct ModelTab: View {
                     ])
                 }
 
-                Toggle("Smart mid-sentence completion (fill-in-the-middle)", isOn: $store.fimEnabled)
-                    .disabled(!store.recommendation.fim)
-                if !store.recommendation.fim {
-                    RequirementRow(met: false,
-                                   text: "E4B-class model — unreliable on smaller models, so it's skipped for \(ModelMetrics.metrics(for: store.modelID)?.shortName ?? "this model")")
-                } else {
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "arrow.left.and.right.text.vertical",
-                                    text: "uses the text after the cursor", tone: .neutral,
-                                    source: "Conditions mid-line edits on what follows the cursor, so the completion meets the existing text instead of re-typing it. Reliable on E4B-class models only — auto-skipped elsewhere."),
-                    ])
-                }
-
                 Toggle("Use screen context (OCR)", isOn: $store.screenContext)
                 BadgeRow(badges: [
                     EffectBadge(icon: "eye", text: "on-device window OCR", tone: .neutral,
@@ -87,22 +101,48 @@ struct ModelTab: View {
                                 source: "Honest status: no eval isolates the OCR context's effect on suggestion accuracy yet."),
                 ])
 
-                if store.isAppleIntelligence {
-                    Picker("Recipe", selection: $store.fmVariant) {
-                        Text("Examples — best quality").tag(FMPromptVariant.fewshot)
-                        Text("Terse — lean instructions").tag(FMPromptVariant.terse)
-                        Text("Plain — no scaffold").tag(FMPromptVariant.plain)
-                        Text("Directive — fastest, full coverage").tag(FMPromptVariant.directive)
-                    }
-                    Caption("Prompt recipe for the Apple Intelligence engine. Examples measured most accurate on eval-v2; Directive fastest.")
-                }
+                Toggle("Use clipboard context", isOn: $store.clipboardContext)
+                BadgeRow(badges: [
+                    EffectBadge(icon: "doc.on.clipboard", text: "helps when replying to copied text", tone: .neutral,
+                                source: "The current clipboard text (capped at 600 chars) is fed to the model as extra context — the thing being replied to is often just-copied. Read only when the clipboard changes; concealed clipboards from password managers are never read; never written to the journal or debug log."),
+                    EffectBadge(icon: "flask", text: "accuracy gain unmeasured", tone: .neutral,
+                                source: "Honest status: no eval isolates the clipboard context's effect on suggestion accuracy yet."),
+                ])
             }
         }
         .formStyle(.grouped)
     }
 
+    /// The axis caption: what the numbers on this tab mean and where they
+    /// come from — swapped with the axis so the citation is never stale.
+    @ViewBuilder private var axisCaption: some View {
+        switch axis {
+        case "*":
+            Caption("Every measured language weighted equally; staying silent counts as a miss. "
+                + "An average hides per-language cliffs — pick the language you type in to see the whole tab re-measured for it.")
+        case "core":
+            Caption("The largest measured sample (\(ModelMetrics.evalSource)) and the only axis settings projections are measured on: "
+                + "accuracy here = correct first word of shown suggestions.")
+        default:
+            Caption("Everything on this tab — cards, map, ranking — is measured for \(langName(axis)): "
+                + "first word right with silence counted as a miss (matched text registers, ≈280 samples, ±5 pp). "
+                + "Compare models, not languages against each other (Chinese and Japanese score per character).")
+        }
+    }
+
+    /// Axis accuracy for a row, with the axis best for bar normalization —
+    /// nil on the core axis (rows show the richer headline bars there) and
+    /// for unmeasured models.
+    private func langAccuracy(for id: String) -> (pct: Int, max: Int)? {
+        guard axis != "core",
+              let pct = ModelMetrics.axisAccuracy(for: id, axis: axis) else { return nil }
+        return (pct, ModelMetrics.axisBest(axis))
+    }
+
     /// Catalog + system model (+ the selected fine-tuned path), measured
     /// entries ranked best-first, unmeasured last — comparison-ready order.
+    /// With a language picked, that language's "of all" figure ranks first;
+    /// the overall comparator breaks its coarse-% ties.
     private var rankedEntries: [(id: String, title: String)] {
         var entries: [(id: String, title: String)] = ModelCatalog.options.map { ($0.id, $0.title) }
         if #available(macOS 26.0, *) {
@@ -112,9 +152,18 @@ struct ModelTab: View {
             entries.append((store.modelID, store.selectedModelName))
         }
         return entries.sorted { a, b in
+            if axis != "core" {
+                let la = ModelMetrics.axisAccuracy(for: a.id, axis: axis)
+                let lb = ModelMetrics.axisAccuracy(for: b.id, axis: axis)
+                if let la, let lb, la != lb { return la > lb }
+                if (la == nil) != (lb == nil) { return la != nil }
+            }
             switch (ModelMetrics.metrics(for: a.id), ModelMetrics.metrics(for: b.id)) {
             case let (ma?, mb?):
                 if ma.firstWordPct != mb.firstWordPct { return ma.firstWordPct > mb.firstWordPct }
+                // Coarse-% ties break on logP/char, the tokenizer-fair
+                // quality continuum — same rule as the "Most accurate" preset.
+                if let la = ma.logProbPerChar, let lb = mb.logProbPerChar, la != lb { return la > lb }
                 return ma.p50Ms < mb.p50Ms
             case (.some, .none): return true
             case (.none, .some): return false
@@ -129,9 +178,22 @@ struct ModelTab: View {
                 LabeledContent("Offers a suggestion") {
                     Text("\(m.coveragePct)% of the time — stays silent otherwise")
                 }
+                if axis != "core", let v = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis) {
+                    LabeledContent("Accuracy — \(ModelMetrics.axisDisplayName(axis))") {
+                        Text("\(v)% first word, silence counted as a miss")
+                    }
+                }
                 LabeledContent("Best measured config") {
                     Text(store.recommendation.summary)
                 }
+                LabeledContent("Mid-sentence edits") {
+                    Text(store.recommendation.fim
+                        ? "fill-in — also reads the text after the cursor"
+                        : "left context only — fill-in is unreliable below E4B class")
+                }
+                .help(store.recommendation.fim
+                    ? "Mid-line edits condition on what follows the cursor, so the completion meets the existing text instead of re-typing it."
+                    : "Fill-in-the-middle is reliable on E4B-class models only, so it's skipped automatically here — not a setting, just how this model is driven.")
                 if let note = m.note {
                     Caption(note)
                 }
@@ -153,6 +215,13 @@ private struct ModelRow: View {
     let isSelected: Bool
     let select: () -> Void
     var hover: ((Bool) -> Void)?
+    /// When the list is ranked for one language: that language's "of all"
+    /// accuracy and the best catalog value in it (for bar normalization).
+    var langAccuracy: (pct: Int, max: Int)?
+    /// Local hover for the row highlight — the rail preview (`hover`) lands
+    /// 500 px away in the inspector, so a highlight at the pointer confirms
+    /// the row is live. Kept off the observed store.
+    @State private var hovering = false
 
     var body: some View {
         Button(action: select) {
@@ -169,15 +238,22 @@ private struct ModelRow: View {
                             .padding(.horizontal, 5).padding(.vertical, 1.5)
                             .foregroundStyle(Color.accentColor)
                             .background(Color.accentColor.opacity(0.14), in: Capsule())
-                            .help("Auto-picked for this Mac's memory: ties much larger models on measured first-word accuracy at the lowest latency in the catalog.")
+                            .help("Auto-picked for this Mac's memory: the lowest latency in the catalog, within a few points of much larger models on English and Russian. If you type in many languages, prefer a Gemma tier — see the model's note below.")
                     }
                     Spacer()
                 }
                 if let m = ModelMetrics.metrics(for: id) {
                     HStack(spacing: 16) {
-                        MetricBar(label: "Accuracy", fraction: Bounds.accuracy(m), text: "\(m.firstWordPct)%",
-                                  color: .green,
-                                  help: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource).")
+                        if let la = langAccuracy {
+                            MetricBar(label: "Accuracy", fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
+                                      text: "\(la.pct)%",
+                                      color: .green,
+                                      help: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other.")
+                        } else {
+                            MetricBar(label: "Accuracy", fraction: Bounds.accuracy(m), text: "\(m.firstWordPct)%",
+                                      color: .green,
+                                      help: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource).")
+                        }
                         MetricBar(label: "Speed", fraction: Bounds.speed(m), text: "\(m.p50Ms) ms",
                                   color: .blue,
                                   help: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster.")
@@ -195,11 +271,14 @@ private struct ModelRow: View {
                         .padding(.leading, 24)
                 }
             }
-            .padding(.vertical, 3)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 6)
+                .fill(hovering && !isSelected ? Color.primary.opacity(0.05) : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hover?($0) }
+        .onHover { hovering = $0; hover?($0) }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
     /// Normalization bounds across the measured catalog, so bar lengths are
@@ -219,11 +298,18 @@ private struct ModelRow: View {
 
 /// One "what matters most" card: goal on top, the measured landing spot below
 /// (model + its three figures), check ring when the pipeline is already there.
+/// `pick`/`acc` come from the tab's accuracy axis, so the card re-resolves
+/// when the axis changes — "Most accurate" is per-language.
 private struct PriorityCard: View {
     let priority: ModelPriority
+    let pick: String
+    let acc: Int?
     let isActive: Bool
     let apply: () -> Void
     var hover: ((Bool) -> Void)?
+    /// Local hover for the card highlight — kept off the store the Form
+    /// observes, unlike the rail-preview `hover` callback below.
+    @State private var hovering = false
 
     var body: some View {
         Button(action: apply) {
@@ -242,30 +328,38 @@ private struct PriorityCard: View {
                             .foregroundStyle(Color.accentColor)
                     }
                 }
-                if let m = ModelMetrics.metrics(for: priority.pick) {
+                if let m = ModelMetrics.metrics(for: pick) {
                     Text(m.shortName)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
-                    Text("\(m.firstWordPct)% · \(m.p50Ms) ms · " +
-                         String(format: "%.1f GB", m.ramGB))
-                        .font(.system(size: 9).monospacedDigit())
-                        .foregroundStyle(.tertiary)
+                    // Metric colors match every other surface (rail meters,
+                    // ranked bars, map info card) — green accuracy, blue
+                    // speed, teal memory — so the triple scans, not reads.
+                    (Text("\(acc ?? m.firstWordPct)%").foregroundStyle(.green)
+                        + Text(" · ").foregroundStyle(.tertiary)
+                        + Text("\(m.p50Ms) ms").foregroundStyle(.blue)
+                        + Text(" · ").foregroundStyle(.tertiary)
+                        + Text(String(format: "%.1f GB", m.ramGB)).foregroundStyle(.teal))
+                        .font(.system(size: 10).monospacedDigit())
                 }
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 9)
-                    .fill(isActive ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.03)))
+                    .fill(isActive ? Color.accentColor.opacity(0.08)
+                          : Color.primary.opacity(hovering ? 0.06 : 0.03)))
             .overlay(
                 RoundedRectangle(cornerRadius: 9)
-                    .stroke(isActive ? Color.accentColor : Color(nsColor: .separatorColor),
+                    .stroke(isActive ? Color.accentColor
+                            : Color.primary.opacity(hovering ? 0.22 : 0.09),
                             lineWidth: isActive ? 1.5 : 1))
             .contentShape(RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain)
         .help(priority.goal)
-        .onHover { hover?($0) }
+        .onHover { hovering = $0; hover?($0) }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
@@ -278,6 +372,24 @@ private struct PriorityCard: View {
 /// `ConfigProjection` figures as the rail — one truth, two views.
 private struct ModelMapView: View {
     @ObservedObject var store: SettingsStore
+    /// Hover previews live on their own observable so pointer movement
+    /// re-renders the map and rail — never the scrolling Form around them.
+    @ObservedObject var hover: HoverState
+
+    /// The tab's accuracy axis. Off the "core" axis the settings machinery
+    /// (dots, envelope, config-projected ring) hides: config effects are
+    /// measured on the EN+RU sample only, and drawing them against a
+    /// different scale would fabricate numbers.
+    private var axis: String { store.accuracyAxis }
+
+    /// Where a model's bubble sits on the current axis.
+    private func bubbleCenter(for id: String, _ plot: PlotFrame) -> CGPoint {
+        guard let m = ModelMetrics.metrics(for: id) else {
+            return CGPoint(x: plot.x(ms: 100), y: plot.y(acc: 2))
+        }
+        let acc = Double(ModelMetrics.axisAccuracy(for: id, axis: axis) ?? m.firstWordPct)
+        return CGPoint(x: plot.x(ms: Double(m.p50Ms)), y: plot.y(acc: max(acc, 2)))
+    }
 
     /// Model highlighted by the current preview, whichever surface set it
     /// (bubble, ranked row, preset card or settings dot) — the single hover
@@ -293,9 +405,37 @@ private struct ModelMapView: View {
     private static let height: CGFloat = 300
     private typealias Scale = ConfigProjection.Scale
 
+    /// Accuracy span of the y axis. The core axis keeps the fixed scale that
+    /// fits the gated config projections (up to ~67%); on any other axis the
+    /// models span a much narrower band (all-language averages sit at 9–23%),
+    /// and the fixed scale squeezed every bubble into the bottom fifth — so
+    /// the scale fits the plotted data instead, rounded to 5s.
+    private var accBounds: (lo: Double, hi: Double) {
+        guard axis != "core" else { return (Scale.accMin, Scale.accMax) }
+        let values = visibleMetrics.map {
+            Double(ModelMetrics.axisAccuracy(for: $0.id, axis: axis) ?? $0.firstWordPct)
+        }
+        guard let minV = values.min(), let maxV = values.max() else {
+            return (Scale.accMin, Scale.accMax)
+        }
+        return (max(0, ((minV - 3) / 5).rounded(.down) * 5),
+                ((maxV + 4) / 5).rounded(.up) * 5)
+    }
+
+    /// Round gridline values for the current span — the coarsest step that
+    /// still yields a few lines.
+    private func gridValues(lo: Double, hi: Double) -> [Int] {
+        let step = [2.0, 5, 10, 20].first { (hi - lo) / $0 <= 4 } ?? 20
+        var v = (lo / step).rounded(.up) * step
+        var out: [Int] = []
+        while v <= hi { out.append(Int(v)); v += step }
+        return out
+    }
+
     var body: some View {
         GeometryReader { geo in
-            let plot = PlotFrame(size: geo.size)
+            let bounds = accBounds
+            let plot = PlotFrame(size: geo.size, accLo: bounds.lo, accHi: bounds.hi)
             ZStack(alignment: .topLeading) {
                 gridAndAxes(plot)
                 envelope(plot)
@@ -310,9 +450,12 @@ private struct ModelMapView: View {
         .frame(height: Self.height)
     }
 
-    /// Chart coordinates: x = log-speed (faster → right), y = accuracy.
+    /// Chart coordinates: x = log-speed (faster → right), y = accuracy on the
+    /// axis-dependent span.
     private struct PlotFrame {
         let size: CGSize
+        let accLo: Double
+        let accHi: Double
         var minX: CGFloat { 38 }
         var maxX: CGFloat { size.width - 12 }
         var minY: CGFloat { 8 }
@@ -323,9 +466,8 @@ private struct ModelMapView: View {
             return minX + (1 - f) * (maxX - minX)
         }
         func y(acc: Double) -> CGFloat {
-            let clamped = min(max(acc, ConfigProjection.Scale.accMin), ConfigProjection.Scale.accMax)
-            let f = (clamped - ConfigProjection.Scale.accMin)
-                / (ConfigProjection.Scale.accMax - ConfigProjection.Scale.accMin)
+            let clamped = min(max(acc, accLo), accHi)
+            let f = (clamped - accLo) / (accHi - accLo)
             return minY + (1 - f) * (maxY - minY)
         }
     }
@@ -346,7 +488,7 @@ private struct ModelMapView: View {
 
     private func gridAndAxes(_ plot: PlotFrame) -> some View {
         ZStack(alignment: .topLeading) {
-            ForEach([60, 37, 15], id: \.self) { acc in
+            ForEach(gridValues(lo: plot.accLo, hi: plot.accHi), id: \.self) { acc in
                 let y = plot.y(acc: Double(acc))
                 Path { p in
                     p.move(to: CGPoint(x: plot.minX, y: y))
@@ -377,27 +519,26 @@ private struct ModelMapView: View {
         var id: String { label }
     }
 
-    /// Everything a model can reach as settings change: base at each length,
-    /// the two gates where available, instruct where usable.
+    /// The settings positions worth plotting for a model: plain base, the
+    /// confident-only gate, instruct where usable. Length variants stay off
+    /// the map on purpose — they move only on an axis the map doesn't plot
+    /// (how far one suggestion runs) and would render as strictly-worse dots
+    /// (same accuracy, 2–3.5× slower); the Length control carries that
+    /// trade-off with its own badges instead.
     private func reachableConfigs(for id: String) -> [ReachableConfig] {
         guard ModelMetrics.metrics(for: id) != nil else { return [] }
         let rec = ModelCatalog.recommended(for: id)
         func cfg(_ style: CompletionStyle, _ length: CompletionLength,
-                 logprob: Bool = false, confidence: Bool = false) -> ProjectionConfig {
+                 logprob: Bool = false) -> ProjectionConfig {
             ProjectionConfig(modelID: id, style: style, length: length,
-                             logprobGate: logprob, confidenceGate: confidence,
+                             logprobGate: logprob, confidenceGate: false,
                              useRecommended: false)
         }
         if id == ModelCatalog.appleIntelligenceID {
             return [ReachableConfig(label: "Short", config: cfg(.instruct, .short))]
         }
         var out = [ReachableConfig(label: "Short", config: cfg(.base, .short)),
-                   ReachableConfig(label: "Medium", config: cfg(.base, .medium)),
-                   ReachableConfig(label: "Long", config: cfg(.base, .long)),
                    ReachableConfig(label: "Confident-only", config: cfg(.base, .short, logprob: true))]
-        if rec.gateCapable {
-            out.append(ReachableConfig(label: "Consensus ×5", config: cfg(.base, .short, confidence: true)))
-        }
         if rec.style == .instruct {
             out.append(ReachableConfig(label: "Instruct", config: cfg(.instruct, .short)))
         }
@@ -429,7 +570,8 @@ private struct ModelMapView: View {
 
     @ViewBuilder private func envelope(_ plot: PlotFrame) -> some View {
         // A single-config model (system model) has no spread — no zone to show.
-        if let rect = reachableEnvelope(for: store.modelID, plot,
+        if axis == "core",
+           let rect = reachableEnvelope(for: store.modelID, plot,
                                         including: chartPoint(for: store.committedConfig, plot: plot)),
            max(rect.width, rect.height) > 60 {
             RoundedRectangle(cornerRadius: 18)
@@ -447,12 +589,15 @@ private struct ModelMapView: View {
                 .padding(.horizontal, 4)
                 .background(Color(nsColor: .windowBackgroundColor).opacity(0.9),
                             in: Capsule())
-                .position(x: rect.minX + 62, y: rect.minY)
+                // Clamp into the plot: a narrow zone hugging the right edge
+                // (Short + gate share one x) must not clip its own label.
+                .position(x: min(rect.minX + 62, plot.maxX - 66), y: rect.minY)
                 .allowsHitTesting(false)
         }
         // Hovering another model (bubble, ranked row or preset card) ghosts
         // ITS settings zone in accent, so zones compare before committing.
-        if let previewed = store.previewedConfig, previewed.modelID != store.modelID,
+        if axis == "core",
+           let previewed = store.previewedConfig, previewed.modelID != store.modelID,
            let rect = reachableEnvelope(for: previewed.modelID, plot,
                                         including: chartPoint(for: previewed, plot: plot)),
            max(rect.width, rect.height) > 60 {
@@ -471,8 +616,7 @@ private struct ModelMapView: View {
         ForEach(visibleMetrics, id: \.id) { m in
             let selected = m.id == store.modelID
             let r = radius(m.ramGB)
-            let center = CGPoint(x: plot.x(ms: Double(m.p50Ms)),
-                                 y: plot.y(acc: Double(m.firstWordPct)))
+            let center = bubbleCenter(for: m.id, plot)
             // Hover and tap attach BEFORE .position: onHover tracks the
             // view's FRAME, and a positioned wrapper fills the whole plot —
             // eleven overlapping full-plot hover areas, the last one winning.
@@ -493,10 +637,15 @@ private struct ModelMapView: View {
             .onHover { store.setHover(.model(m.id), $0) }
             .position(center)
             if selected || previewedModelID == m.id {
+                // Clamp into the plot horizontally and flip above the bubble
+                // near the floor — edge bubbles must not push their name into
+                // the axis labels or out of frame.
+                let below = center.y + r + 9
                 Text(m.shortName)
                     .font(.system(size: 9).weight(selected ? .bold : .medium))
                     .foregroundStyle(selected ? Color.primary : Color.secondary)
-                    .position(x: center.x, y: center.y + r + 9)
+                    .position(x: min(max(center.x, plot.minX + 34), plot.maxX - 34),
+                              y: below > plot.maxY - 3 ? center.y - r - 9 : below)
                     .allowsHitTesting(false)
             }
         }
@@ -507,7 +656,7 @@ private struct ModelMapView: View {
     /// dots — a different species from the gray model bubbles.
     @ViewBuilder private func configDots(_ plot: PlotFrame) -> some View {
         let committed = store.committedConfig
-        ForEach(reachableConfigs(for: store.modelID)) { reachable in
+        ForEach(reachableConfigs(for: axis == "core" ? store.modelID : "")) { reachable in
             if !reachable.config.sameRuntime(as: committed) {
                 let point = chartPoint(for: reachable.config, plot: plot)
                 // Interactivity before .position — see the bubbles comment.
@@ -528,7 +677,8 @@ private struct ModelMapView: View {
                         .padding(.horizontal, 4)
                         .background(Color(nsColor: .windowBackgroundColor).opacity(0.9),
                                     in: Capsule())
-                        .position(x: point.x, y: point.y + 13)
+                        .position(x: min(max(point.x, plot.minX + 34), plot.maxX - 34),
+                                  y: point.y + 13 > plot.maxY - 3 ? point.y - 13 : point.y + 13)
                         .zIndex(6)
                         .allowsHitTesting(false)
                 }
@@ -539,7 +689,11 @@ private struct ModelMapView: View {
     /// Where the committed configuration sits: an accent crosshair ring — a
     /// different species from both the model bubbles and the settings dots.
     @ViewBuilder private func markers(_ plot: PlotFrame) -> some View {
-        let committed = chartPoint(for: store.committedConfig, plot: plot)
+        // Off the core axis the ring can't be config-projected — it marks the
+        // selected model's bubble instead (still "you are here", by model).
+        let committed = axis == "core"
+            ? chartPoint(for: store.committedConfig, plot: plot)
+            : bubbleCenter(for: store.modelID, plot)
         ZStack {
             Circle()
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(0.75))
@@ -556,7 +710,9 @@ private struct ModelMapView: View {
         .animation(.easeOut(duration: 0.3), value: committed)
         .allowsHitTesting(false)
         if let previewed = store.previewedConfig {
-            let ghost = chartPoint(for: previewed, plot: plot)
+            let ghost = axis == "core"
+                ? chartPoint(for: previewed, plot: plot)
+                : bubbleCenter(for: previewed.modelID, plot)
             if abs(ghost.x - committed.x) > 2 || abs(ghost.y - committed.y) > 2 {
                 Circle()
                     .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [3, 2]))
@@ -576,7 +732,7 @@ private struct ModelMapView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(m.shortName).font(.caption.weight(.bold))
                 HStack(spacing: 10) {
-                    stat("ACC", "\(m.firstWordPct)%", .green)
+                    stat("ACC", "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%", .green)
                     stat("SPEED", m.p50Ms >= 1000
                         ? String(format: "%.1f s", Double(m.p50Ms) / 1000) : "\(m.p50Ms) ms", .blue)
                     stat("MEM", m.ramGB <= 0 ? "0 GB" : String(format: "%.1f GB", m.ramGB), .teal)

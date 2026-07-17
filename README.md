@@ -44,7 +44,7 @@ Copilot-style suggestions in every text field — completely offline, private, a
 ---
 
 > [!NOTE]
-> **Pretype runs entirely on your Mac.** It uses Apple Silicon MLX with Gemma 4 or the Apple Intelligence system model. Your keystrokes never leave your machine — no subscriptions, no cloud, no tracking.
+> **Pretype runs entirely on your Mac.** It runs a local LLM via Apple Silicon MLX (a ~2 GB default model picked to match your keyboard languages, with Gemma 4 and other models as options) or the Apple Intelligence system model. Your keystrokes never leave your machine — no subscriptions, no cloud, no tracking.
 
 ---
 
@@ -95,9 +95,9 @@ Most autocomplete solutions live inside a single code editor and ship your text 
 *   **Smart Keystrokes** — Press <kbd>Tab</kbd> to accept the next word, <kbd>⇧Tab</kbd> to accept the rest of the suggestion, or simply type over it to reject. The suggestion renders exactly what one <kbd>Tab</kbd> will take a step brighter than the rest.
 *   **Inline Typo Fixes** — Misspelled words show an instant correction pill above the word; press <kbd>Tab</kbd> to apply (uses native system spell-check, supports English & Russian).
 *   **Smart Rewrites (`⌥Tab`)** — Select any text and let the local LLM fix grammar, typos, and phrasing in place while preserving your original tone.
-*   **Local Inference Engines** — Standardized on **Gemma 4** via Apple's MLX framework, or **Apple Intelligence** system models on macOS 26+.
+*   **Local Inference Engines** — Ships with a small default model matched to your keyboard languages (**MiniCPM5 1B**, ≈2.2 GB, for English/Russian typists; **Qwen3.5 2B**, ≈1.6 GB, otherwise — both fit every Apple Silicon Mac, including 8 GB) via Apple's MLX framework; heavier **Gemma 4** builds and **Apple Intelligence** system models (macOS 26+) are one click away in Settings.
 *   **Zero-Lag completion** — Reuses Key-Value (KV) cache to deliver completions in **0.05–0.2 seconds**.
-*   **Context Aware & OCR** — Intelligently adjusts behavior per app (disabled in terminals). Optional on-screen OCR reads surrounding window context.
+*   **Context Aware & OCR** — Intelligently adjusts behavior per app (disabled in terminals and password managers; secure input pauses all reading). Optional on-screen OCR reads surrounding window context.
 *   **Real Settings, Quiet Menu** — The menu bar shows status, stats, and diagnostics; everything tunable lives in a tabbed Settings window (<kbd>⌘,</kbd>): presentation & hotkey style, completion style/length, persona & on-device personalization, model choice, and a per-app blacklist.
 
 ---
@@ -108,7 +108,7 @@ Most autocomplete solutions live inside a single code editor and ship your text 
 
 1. Download the latest [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip) from [Releases](https://github.com/nikiomori/Pretype/releases).
 2. Unzip and move `Pretype.app` to `/Applications`.
-3. On first launch Pretype picks the Gemma model that fits your RAM and downloads it once from Hugging Face (3.4–8.6 GB).
+3. On first launch Pretype downloads its default model once from Hugging Face (**≈1.6–2.2 GB**, picked to match your keyboard languages — the menu-bar icon shows progress). Heavier Gemma 4 builds and smaller alternatives are manual picks in **Settings → Model**.
 
 > [!NOTE]
 > The app is ad-hoc signed (not notarized yet), so Gatekeeper blocks the first launch. Open it via **System Settings → Privacy & Security → Open Anyway**, or clear the quarantine flag:
@@ -119,7 +119,7 @@ Most autocomplete solutions live inside a single code editor and ship your text 
 ### Option 2 — Build from source
 
 > [!IMPORTANT]
-> Building requires **full Xcode** (the MLX engine needs the Metal compiler). The prebuilt app above does not.
+> Building requires **full Xcode 16.3 or newer** (Swift 6.1 toolchain — older Xcodes fail compiling the MLX dependencies; the MLX engine also needs the Metal compiler). The prebuilt app above needs none of this.
 
 ```bash
 # Xcode 26+ only: install the Metal toolchain once
@@ -160,8 +160,8 @@ Pretype hooks into macOS accessibility APIs to provide a system-wide overlay:
 
 ```mermaid
 flowchart LR
-    App[Focused App\nAny text field] -->|AX API Text| FocusTracker
-    FocusTracker -->|Prompt| MLX[MLX Engine\nGemma 4]
+    App["Focused App<br/>Any text field"] -->|AX API Text| FocusTracker
+    FocusTracker -->|Prompt| MLX["MLX Engine<br/>Local LLM"]
     MLX -->|Suggestion| Window[Suggestion Overlay]
     Window -->|Ghost Text| App
     App -->|Keystrokes| EventTap
@@ -170,7 +170,7 @@ flowchart LR
 ```
 
 1.  **FocusTracker** tracks the focused text element via `AXObserver` and reads the text surrounding the caret on each keystroke.
-2.  The **CompletionEngine** (MLX / Gemma 4, debounced and cancellable) evaluates the context and returns a short continuation.
+2.  The **CompletionEngine** (a local MLX model, debounced and cancellable) evaluates the context and returns a short continuation.
 3.  **SuggestionWindow** renders the gray ghost text size- and baseline-matched to the caret.
 4.  A **CGEventTap** catches completion keys (<kbd>Tab</kbd> / <kbd>⇧Tab</kbd>). If accepted, the text is typed back into the active application as synthetic key events.
 
@@ -183,18 +183,21 @@ flowchart LR
 
 ### Inference Engines
 Two backends implement the `CompletionEngine` protocol:
-*   **In-Process MLX Inference** (Default): Runs Gemma 4 locally using Apple's `mlx-swift-lm` framework. Models are downloaded directly from Hugging Face on first launch.
+*   **In-Process MLX Inference** (Default): Runs the selected model locally using Apple's `mlx-swift-lm` framework. Models are downloaded directly from Hugging Face on first launch.
 *   **Apple Intelligence** (macOS 26+): Runs the OS-provided system model on the Neural Engine via Apple's Foundation Models framework. Zero RAM footprint.
 
 ### MLX Model Catalog
-Variants are automatically selected on startup based on your Mac's installed RAM:
-*   **Gemma 4 E4B 8-bit** (≈8.6 GB) — Best quality, default for Macs with ≥32 GB RAM.
-*   **Gemma 4 E4B 6-bit** (≈6.8 GB) — Near-best quality, default for 16-32 GB RAM.
-*   **Gemma 4 E2B 8-bit** (≈5.7 GB) — Small and precise.
-*   **Gemma 4 E4B 4-bit** (≈5 GB) — Compact.
-*   **Gemma 4 E2B 4-bit** (≈3.4 GB) — Light footprint, default for Macs under 16 GB RAM.
+The out-of-the-box pick is language-aware, resolved once from your enabled keyboard layouts (both defaults fit every Apple Silicon Mac, including 8 GB):
+*   **MiniCPM5 1B** (≈2.2 GB) — for English/Russian typists; the fastest model in the catalog, and in our evals it matches the much larger Gemma builds on EN/RU first-word accuracy.
+*   **Qwen3.5 2B 4-bit** (≈1.6 GB) — for every other keyboard language; the best small model on our 17-language eval.
 
-The default **Instruct** completion style runs a tuned instruct sibling as the primary model, tiered to RAM the same way (E4B 6-bit on ≥16 GB, 4-bit variants on tighter machines) — no tier ever loads a model it can't comfortably hold.
+Everything else is a manual pick in **Settings → Model**, each shipping with its own eval-backed recommended settings:
+*   **Gemma 4 E4B 8-bit** (≈8.6 GB) — best quality, for big-RAM Macs.
+*   **Gemma 4 E4B 6-bit** (≈6.8 GB) — near-best.
+*   **Gemma 4 E2B 8-bit** (≈5.7 GB) / **E2B 4-bit** (≈3.4 GB) — lighter Gemma tiers.
+*   **Ternary Bonsai 4B** (≈1.1 GB), **Qwen2.5 0.5B** (≈1 GB) — smallest-footprint alternatives.
+
+On the Gemma builds, the **Instruct** completion style swaps in an instruct sibling sized to that entry's RAM class (E4B 6-bit at the top, 4-bit siblings on tighter tiers) — no pick ever loads a model your Mac can't comfortably hold.
 
 </details>
 
@@ -203,6 +206,9 @@ The default **Instruct** completion style runs a tuned instruct sibling as the p
 
 *   **Inline Typo Fix:** Instantly displays the correction in a pill above the misspelled word as you type. Uses the macOS system spell-checker (English + Russian).
 *   **Fix Selection (`⌥Tab`):** Highlight any text and press `⌥Tab`. The local LLM rewrites the line in place, preserving tone and punctuation.
+
+> [!NOTE]
+> Corrections need instruction-following, so on most models the first `⌥Tab` triggers a one-time download of a small instruct sibling of your completion model (shown as *preparing…* in the menu bar). Give it a minute on first use.
 
 </details>
 
@@ -245,7 +251,9 @@ If you don't see any autocomplete suggestions, open **Diagnostics** in the menu 
 <summary><b>Is my text ever sent to the cloud?</b></summary>
 <br/>
 
-No. All inference runs on-device — either a local Gemma model via Apple MLX, or the Apple Intelligence system model. Pretype has no accounts, no telemetry, and makes exactly one kind of network request: downloading the model from Hugging Face on first launch.
+No. All inference runs on-device — either a local model via Apple MLX, or the Apple Intelligence system model. Pretype has no accounts, no telemetry, and makes exactly one kind of network request: downloading models from Hugging Face (the default model on first launch, plus a small instruct sibling the first time you use `⌥Tab` fix-selection).
+
+To power on-device personalization, Pretype keeps a local journal of suggestions and short snippets of the surrounding text you typed in `~/Library/Application Support/Pretype` (capped at 5 MB, never uploaded anywhere). You can turn it off or clear it in **Settings → Personal** — turning it off also deletes the stored data.
 </details>
 
 <details>
@@ -273,14 +281,14 @@ No. MLX requires Apple Silicon (M1 or newer).
 <summary><b>Which languages are supported?</b></summary>
 <br/>
 
-Completions inherit Gemma's multilingual ability (English is strongest; Russian and other major languages work well). Inline typo fixes currently support English and Russian via the macOS system spell-checker.
+The default model is picked from your enabled keyboard layouts: MiniCPM5 (strongest in English and Russian) for EN/RU typists, Qwen3.5 2B (solid across 17 tested languages) for everyone else. The Gemma 4 builds offer the broadest multilingual coverage overall. Inline typo fixes currently support English and Russian via the macOS system spell-checker.
 </details>
 
 <details>
 <summary><b>How much RAM do I need?</b></summary>
 <br/>
 
-8 GB is enough — Pretype automatically picks a model variant that fits your machine, from Gemma 4 E2B 4-bit (≈3.4 GB) up to E4B 8-bit (≈8.6 GB) on 32 GB+ Macs.
+8 GB is enough — the default model needs ≈1.6–2.2 GB, and the catalog goes down to ≈1 GB (Qwen2.5 0.5B). On big-RAM Macs you can manually pick the Gemma 4 builds, up to E4B 8-bit at ≈8.6 GB.
 </details>
 
 <details>
@@ -305,8 +313,32 @@ It's how Pretype reads the focused text field, catches the <kbd>Tab</kbd> key, a
 
 *   **OS**: macOS 14+ (macOS 26+ for Apple Intelligence system model)
 *   **Hardware**: Apple Silicon Mac (M1/M2/M3/M4 or newer)
-*   **Storage**: 3.4–8.6 GB for the local MLX model
-*   **Software**: none for the prebuilt app; full Xcode (Metal toolchain) only to build from source
+*   **Storage**: ≈2.2 GB for the default model (1–8.6 GB depending on the model you pick)
+*   **Software**: none for the prebuilt app; full Xcode 16.3+ (Metal toolchain) only to build from source
+
+---
+
+## Uninstall
+
+Pretype keeps everything in four places — remove them all and no trace remains:
+
+```bash
+# 1. The app itself
+rm -rf /Applications/Pretype.app
+
+# 2. Downloaded models (the big one — several GB)
+#    Deletes only Pretype's models; skip if you use the Hugging Face cache for other tools.
+rm -rf ~/.cache/huggingface/hub/models--openbmb--* \
+       ~/.cache/huggingface/hub/models--mlx-community--* \
+       ~/.cache/huggingface/hub/models--prism-ml--*
+
+# 3. Local personalization data (suggestion journal, learned n-grams)
+rm -rf ~/Library/Application\ Support/Pretype
+
+# 4. Settings and the Accessibility grant
+defaults delete app.pretype.Pretype
+tccutil reset Accessibility app.pretype.Pretype
+```
 
 ---
 
@@ -325,7 +357,8 @@ If Pretype is useful to you, a ⭐ helps others discover it.
 ## Acknowledgements
 
 *   [MLX](https://github.com/ml-explore/mlx) and [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) — Apple's on-device ML stack
-*   [Gemma](https://ai.google.dev/gemma) — the open model family powering completions
+*   [MiniCPM](https://huggingface.co/openbmb) (OpenBMB) and [Qwen](https://huggingface.co/Qwen) (Alibaba) — the default completion models
+*   [Gemma](https://ai.google.dev/gemma) — the heavy-duty optional model family
 *   [swift-transformers](https://github.com/huggingface/swift-transformers) — Hugging Face tokenizers & model hub client
 *   [Cotypist](https://cotypist.app) — the original inspiration
 
@@ -333,9 +366,9 @@ If Pretype is useful to you, a ⭐ helps others discover it.
 
 ## License
 
-Pretype is licensed under the [MIT License](LICENSE) — free for personal and commercial use.
+Pretype is licensed under the [MIT License](LICENSE) — free for personal and commercial use. Bundled third-party libraries and downloadable model weights carry their own licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 <div align="center">
 <br/>
-<sub>Built with Swift, MLX, and Gemma — entirely on-device.</sub>
+<sub>Built with Swift and MLX — entirely on-device.</sub>
 </div>

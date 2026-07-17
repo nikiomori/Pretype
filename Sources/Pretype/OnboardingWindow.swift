@@ -13,7 +13,13 @@ final class OnboardingWindow: NSPanel {
     
     private let statusLabel = NSTextField(labelWithString: "Waiting for suggestion…")
     private let gotItButton = NSButton(title: "Got It", target: nil, action: nil)
-    
+    /// Mirrors the engine state (model download progress, failures) into the
+    /// window — without this, a first launch spends minutes "Waiting for
+    /// suggestion…" while the model downloads, with no hint anything is
+    /// happening (the menu-bar icon alone is easy to miss).
+    private var statusTimer: Timer?
+    private var suggestionActive = false
+
     init(controller: SuggestionController) {
         self.controller = controller
         
@@ -128,6 +134,8 @@ final class OnboardingWindow: NSPanel {
         
         statusLabel.font = .systemFont(ofSize: 12, weight: .medium)
         statusLabel.textColor = .secondaryLabelColor
+        statusLabel.lineBreakMode = .byTruncatingTail
+        statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         footerStack.addArrangedSubview(statusLabel)
         
         gotItButton.target = self
@@ -138,13 +146,9 @@ final class OnboardingWindow: NSPanel {
         
         mainStack.addArrangedSubview(footerStack)
         
-        // AutoLayout constraints
+        // AutoLayout constraints (container IS the contentView — the window
+        // sizes it directly, so it needs no constraints of its own)
         NSLayoutConstraint.activate([
-            container.topAnchor.constraint(equalTo: contentView!.topAnchor),
-            container.bottomAnchor.constraint(equalTo: contentView!.bottomAnchor),
-            container.leadingAnchor.constraint(equalTo: contentView!.leadingAnchor),
-            container.trailingAnchor.constraint(equalTo: contentView!.trailingAnchor),
-            
             visualBackdrop.topAnchor.constraint(equalTo: container.topAnchor),
             visualBackdrop.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             visualBackdrop.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -240,15 +244,46 @@ final class OnboardingWindow: NSPanel {
         
         alphaValue = 0
         orderFrontRegardless()
-        
+
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.25
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             animator().alphaValue = 1
         }
+
+        refreshEngineStatus()
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshEngineStatus()
+            }
+        }
     }
-    
+
+    /// Same 1 s poll the menu-bar icon uses — no engine callback plumbing.
+    private func refreshEngineStatus() {
+        guard !suggestionActive else { return }
+        switch controller?.engine.state {
+        case .preparing(let detail):
+            titleLabel.stringValue = "Setting up Pretype"
+            subtitleLabel.stringValue = "One-time model download"
+            statusLabel.textColor = .secondaryLabelColor
+            statusLabel.stringValue = detail
+        case .failed(let detail):
+            titleLabel.stringValue = "Pretype hit a problem"
+            subtitleLabel.stringValue = "The completion engine couldn't start"
+            statusLabel.textColor = .systemRed
+            statusLabel.stringValue = detail
+        case .ready, .none:
+            titleLabel.stringValue = "Pretype is Ready"
+            subtitleLabel.stringValue = "Try typing in TextEdit"
+            statusLabel.textColor = .secondaryLabelColor
+            statusLabel.stringValue = "Waiting for suggestion…"
+        }
+    }
+
     func dismiss() {
+        statusTimer?.invalidate()
+        statusTimer = nil
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.2
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -267,10 +302,11 @@ final class OnboardingWindow: NSPanel {
     }
     
     func updateStatusSuggestionActive(_ active: Bool) {
+        suggestionActive = active
         if active {
             statusLabel.textColor = .controlAccentColor
             statusLabel.stringValue = "Suggestion ready! Press Tab"
-            
+
             // Subtle pulse animation on title to draw attention
             let pulse = CABasicAnimation(keyPath: "opacity")
             pulse.duration = 0.8
@@ -280,8 +316,7 @@ final class OnboardingWindow: NSPanel {
             pulse.repeatCount = 3
             titleLabel.layer?.add(pulse, forKey: "pulse")
         } else {
-            statusLabel.textColor = .secondaryLabelColor
-            statusLabel.stringValue = "Waiting for suggestion…"
+            refreshEngineStatus()
         }
     }
 }

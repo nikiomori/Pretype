@@ -59,10 +59,13 @@ struct DebugMetrics {
 
     // GEN message format (MLXEngine):
     //   reused=YES prefill=42tok/12ms (348 tok/s) decode=5tok/41ms (121 tok/s)
+    // Constant patterns — cannot fail at runtime.
+    // swiftlint:disable force_try
     private static let prefillRe = try! NSRegularExpression(
         pattern: "prefill=(\\d+)tok/([0-9.]+)ms \\(([0-9.]+) tok/s\\)")
     private static let decodeRe = try! NSRegularExpression(
         pattern: "decode=(\\d+)tok/([0-9.]+)ms \\(([0-9.]+) tok/s\\)")
+    // swiftlint:enable force_try
 
     private static func parseDecode(_ s: String) -> Double? {
         guard let m = decodeRe.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),

@@ -86,6 +86,10 @@ final class SuggestionController: NSObject {
     private var screenCapturedAt = Date.distantPast
     private var screenCaptureInFlight = false
 
+    // Opt-in clipboard context, re-read only when the pasteboard changes.
+    private var clipboardChangeCount = -1
+    private var clipboardSnippet: String?
+
     // Retrieval-augmented few-shot from the user's own accepted phrases.
     // Refreshed off the typing path (same discipline as the OCR context) so the
     // prompt prefix only changes on a refresh, not per keystroke — a prefix
@@ -272,6 +276,13 @@ final class SuggestionController: NSObject {
         var request = CompletionRequest(textBeforeCaret: text, textAfterCaret: after, context: typingContext)
         if AppPolicy.allowsScreenContext(typingContext.bundleID) {
             request.screenSummary = screenSummary
+            // Same app gate as the OCR: clipboard in a terminal/code editor is
+            // usually code, which poisons a prose model. Skip once pasted —
+            // the field already contains it.
+            if Settings.clipboardContextEnabled, let clip = currentClipboardContext(),
+               !text.contains(clip) {
+                request.clipboardContext = clip
+            }
         }
         // Decided here, on the main thread, where NSSpellChecker is safe: lets the
         // engine offer a space + next word right after a finished word.
@@ -307,6 +318,25 @@ final class SuggestionController: NSObject {
                     detail: found.map { "…\($0.ctx) ⟶\($0.next)" }.joined(separator: "\n"))
             }
         }
+    }
+
+    /// Clipboard text for the prompt, re-read only when the pasteboard
+    /// changes (reading a multi-MB copy per keystroke would hurt). Concealed
+    /// and transient contents — password managers mark both — are never read.
+    private func currentClipboardContext() -> String? {
+        let pasteboard = NSPasteboard.general
+        if pasteboard.changeCount != clipboardChangeCount {
+            clipboardChangeCount = pasteboard.changeCount
+            let concealed = pasteboard.types?.contains {
+                $0.rawValue == "org.nspasteboard.ConcealedType"
+                    || $0.rawValue == "org.nspasteboard.TransientType"
+            } ?? false
+            let text = concealed
+                ? nil
+                : pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            clipboardSnippet = text.flatMap { $0.isEmpty ? nil : String($0.prefix(600)) }
+        }
+        return clipboardSnippet
     }
 
     /// Surfaced in the Context submenu.
@@ -486,19 +516,23 @@ final class SuggestionController: NSObject {
         refreshTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Settings.debounceMs))
             if Task.isCancelled { return }
-            // Log the prompt with the OCR'd screen text redacted: the debug log
-            // is exportable (bug reports), and screen context can contain OTHER
-            // people's on-screen text — it must never leave the process under
-            // the export warning's "text you typed" framing.
+            // Log the prompt with the OCR'd screen text and clipboard redacted:
+            // the debug log is exportable (bug reports), and both can contain
+            // OTHER people's text — it must never leave the process under the
+            // export warning's "text you typed" framing.
             var redacted = request
             redacted.screenSummary = request.screenSummary.map {
                 "[\($0.count) chars of on-screen text — redacted from log]"
+            }
+            redacted.clipboardContext = request.clipboardContext.map {
+                "[\($0.count) chars of clipboard text — redacted from log]"
             }
             let fullPrompt = redacted.completionPrompt(maxChars: 1000)
             DebugLog.shared.log(
                 "PROMPT",
                 "\(fullPrompt.count) chars"
                     + (request.screenSummary.map { " (incl. \($0.count) screen)" } ?? "")
+                    + (request.clipboardContext.map { " (incl. \($0.count) clip)" } ?? "")
                     + " — \(request.appName ?? "?")",
                 detail: fullPrompt
             )

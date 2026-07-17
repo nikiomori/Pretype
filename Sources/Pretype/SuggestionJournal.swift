@@ -230,8 +230,11 @@ final class SuggestionJournal: @unchecked Sendable {
             let decoder = JSONDecoder()
             for line in content.split(separator: "\n") {
                 guard let entry = try? decoder.decode(Entry.self, from: Data(line.utf8)) else { continue }
-                if entry.outcome == .undone { undone.insert(entry.suggestion) }
-                else if let phrase = Self.phrase(from: entry) { loaded.append(phrase) }
+                if entry.outcome == .undone {
+                    undone.insert(entry.suggestion)
+                } else if let phrase = Self.phrase(from: entry) {
+                    loaded.append(phrase)
+                }
             }
         }
         phrases = []

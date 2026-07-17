@@ -12,6 +12,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Permissions.isTrusted {
             start()
         } else {
+            // A bare system Accessibility dialog with no context reads as scary
+            // for an app that watches typing — explain the why first.
+            let alert = NSAlert()
+            alert.messageText = "Pretype needs Accessibility access"
+            alert.informativeText = """
+            Accessibility is how Pretype reads the text field you're typing in, \
+            catches the Tab key, and types accepted suggestions back.
+
+            macOS will ask you to grant it next. Everything you type stays on this Mac.
+            """
+            alert.addButton(withTitle: "Continue")
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
             Permissions.prompt()
             // Poll until the user grants Accessibility, then start the pipeline.
             permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] timer in

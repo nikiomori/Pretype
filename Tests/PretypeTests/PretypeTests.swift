@@ -452,6 +452,45 @@ final class PretypeTests: XCTestCase {
                        "чат про релиз\n\nпишу тебе про новый релиз")
     }
 
+    func testClipboardContextBlock() {
+        var request = CompletionRequest(textBeforeCaret: "спасибо за письмо, отвечаю")
+        request.clipboardContext = "Привет! Когда ждать релиз?"
+        XCTAssertEqual(request.completionPrompt(maxChars: 1000),
+                       "Привет! Когда ждать релиз?\n\nспасибо за письмо, отвечаю")
+        // Clipboard reads as the earlier fragment, screen stays adjacent to the text.
+        request.screenSummary = "чат про релиз"
+        XCTAssertEqual(request.completionPrompt(maxChars: 1000),
+                       "Привет! Когда ждать релиз?\n\nчат про релиз\n\nспасибо за письмо, отвечаю")
+    }
+
+    func testPerAppInstructions() {
+        let saved = Settings.perAppInstructions
+        defer { Settings.perAppInstructions = saved }
+        Settings.perAppInstructions = ["com.apple.mail": "Formal, no emoji.", "com.blank.app": "   "]
+
+        var request = CompletionRequest(textBeforeCaret: "hello")
+        request.appBundleID = "com.apple.MAIL"  // engines match case-insensitively
+        XCTAssertEqual(request.persona(global: "I write concisely."),
+                       "I write concisely.\nFormal, no emoji.")
+        XCTAssertEqual(request.persona(global: " "), "Formal, no emoji.")
+
+        request.appBundleID = "com.blank.app"  // blank text = not configured
+        XCTAssertEqual(request.persona(global: "I write concisely."), "I write concisely.")
+        request.appBundleID = nil
+        XCTAssertEqual(request.persona(global: "I write concisely."), "I write concisely.")
+    }
+
+    func testPerAppPresetTemplates() {
+        // Exact catalog IDs and case-insensitivity.
+        XCTAssertEqual(PerAppPresets.template(for: "com.apple.MAIL"), PerAppPresets.email)
+        XCTAssertEqual(PerAppPresets.template(for: "ru.keepcoder.Telegram"), PerAppPresets.casualChat)
+        // Heuristic for apps outside the catalog.
+        XCTAssertEqual(PerAppPresets.template(for: "com.airmailapp.airmail-email"), PerAppPresets.email)
+        XCTAssertEqual(PerAppPresets.template(for: "com.lukilabs.craft-notes"), PerAppPresets.notes)
+        // Unknown kind starts blank rather than guessing wrong.
+        XCTAssertNil(PerAppPresets.template(for: "com.example.mystery"))
+    }
+
     @MainActor
     func testSuggestionControllerUndo() {
         let controller = SuggestionController()
@@ -556,7 +595,7 @@ final class PretypeTests: XCTestCase {
 
         // Plain base = the model's own eval row.
         let base = cfg(mini, .base)
-        XCTAssertEqual(base.accuracyPct, 30)
+        XCTAssertEqual(base.accuracyPct, 28)
         XCTAssertEqual(base.p50Ms, 49)
         XCTAssertEqual(base.ramGB, 2.2)
         XCTAssertFalse(base.broken)
@@ -592,11 +631,11 @@ final class PretypeTests: XCTestCase {
         // On any other model the gate figure is SCALED from that model's own
         // base accuracy (and says so) — different models project differently.
         let gatedE4B = cfg(e4b6, .base, logprob: true)
-        XCTAssertEqual(gatedE4B.accuracyPct, Int((33.0 * 64.0 / 30.0).rounded()))
+        XCTAssertEqual(gatedE4B.accuracyPct, Int((30.0 * 64.0 / 28.0).rounded()))
         XCTAssertTrue(gatedE4B.accuracyText.hasPrefix("≈"))
         XCTAssertTrue(gatedE4B.accuracySub.contains("not measured on this model"))
-        let gatedLFM = cfg("LiquidAI/LFM2.5-1.2B-Base", .base, logprob: true)
-        XCTAssertNotEqual(gatedE4B.accuracyPct, gatedLFM.accuracyPct)
+        let gatedQwen05 = cfg("mlx-community/Qwen2.5-0.5B-bf16", .base, logprob: true)
+        XCTAssertNotEqual(gatedE4B.accuracyPct, gatedQwen05.accuracyPct)
 
         // Length scales latency by the measured sweep factor.
         XCTAssertEqual(cfg(mini, .base, .long).p50Ms, Int((49 * 3.5).rounded()))
@@ -612,13 +651,42 @@ final class PretypeTests: XCTestCase {
         XCTAssertTrue(deltas.contains { $0.label == "Memory" && !$0.improved })
     }
 
-    // Priority presets resolve by dominance rules over the measured catalog —
-    // pin the current answers so a catalog edit that flips them is noticed.
+    // Priority presets resolve by dominance rules over the measured catalog,
+    // per accuracy axis — pin the current answers so a catalog edit that
+    // flips them is noticed.
     func testModelPriorityPicks() {
-        XCTAssertEqual(ModelPriority.lightest.pick, "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
-        XCTAssertEqual(ModelPriority.accurate.pick, "mlx-community/gemma-4-e4b-6bit")    // 33%, lighter of the tied pair
-        XCTAssertEqual(ModelPriority.quick.pick, "mlx-community/gemma-4-e2b-8bit")       // ≥31% at 75 ms
-        XCTAssertEqual(ModelPriority.balanced.pick, ModelCatalog.defaultID)
+        XCTAssertEqual(ModelPriority.lightest.pick(axis: "core"), "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
+        XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-8bit")    // 31%; logP/char beats E2B-4bit's stale-sample tie
+        XCTAssertEqual(ModelPriority.quick.pick(axis: "core"), "mlx-community/gemma-4-e2b-8bit")       // ≥29% at 75 ms
+        XCTAssertEqual(ModelPriority.balanced.pick(axis: "core"), "openbmb/MiniCPM5-1B-Base")
+
+        // Axis-dependence is the feature: on the all-languages average the
+        // answers hold, but on Romanian E2B 8-bit measures BEST outright
+        // (31 vs E4B's 30) — the cards must re-resolve per language.
+        XCTAssertEqual(ModelPriority.accurate.pick(axis: "*"), "mlx-community/gemma-4-e4b-8bit")
+        XCTAssertEqual(ModelPriority.quick.pick(axis: "*"), "mlx-community/gemma-4-e2b-8bit")
+        XCTAssertEqual(ModelPriority.accurate.pick(axis: "ro"), "mlx-community/gemma-4-e2b-8bit")
+        // Balanced follows the language: EN/RU keeps the fast specialist, any
+        // other axis flips to the best small multilingual model — the same
+        // split the keyboard-aware fresh-install default makes.
+        XCTAssertEqual(ModelPriority.balanced.pick(axis: "ru"), "openbmb/MiniCPM5-1B-Base")
+        XCTAssertEqual(ModelPriority.balanced.pick(axis: "ro"), "mlx-community/Qwen3.5-2B-4bit")
+        XCTAssertEqual(ModelPriority.balanced.pick(axis: "*"), "mlx-community/Qwen3.5-2B-4bit")
+        XCTAssertEqual(ModelCatalog.defaultID(forKeyboardLanguages: ["en", "ru"]),
+                       "openbmb/MiniCPM5-1B-Base")
+        XCTAssertEqual(ModelCatalog.defaultID(forKeyboardLanguages: []),
+                       "openbmb/MiniCPM5-1B-Base")
+        XCTAssertEqual(ModelCatalog.defaultID(forKeyboardLanguages: ["en", "ru", "de"]),
+                       "mlx-community/Qwen3.5-2B-4bit")
+
+        // The axis figures themselves: core = of-answered headline, "*" =
+        // equal-weight mean of the booked per-language of-all cells.
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "core"), 31)
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "*"), 23)
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "cs"), 23)
+        XCTAssertNil(ModelMetrics.axisAccuracy(for: "no-such-model", axis: "*"))
+        XCTAssertEqual(ModelMetrics.axisBest("uk"), 24)  // Gemma E4B 8-bit
+        XCTAssertEqual(ModelMetrics.evalLanguages.count, 17)
 
         // A preset lands on the measured protocol its card advertises
         // (Base · Short — NOT the Gemma recommendation, which is Instruct and
@@ -626,14 +694,14 @@ final class PretypeTests: XCTestCase {
         let custom = ProjectionConfig(modelID: ModelCatalog.defaultID, style: .instruct,
                                       length: .long, logprobGate: true,
                                       confidenceGate: false, useRecommended: false)
-        let landed = custom.applying(.preset(ModelPriority.accurate.pick))
-        XCTAssertEqual(landed.modelID, ModelPriority.accurate.pick)
+        let landed = custom.applying(.preset(ModelPriority.accurate.pick(axis: "core")))
+        XCTAssertEqual(landed.modelID, ModelPriority.accurate.pick(axis: "core"))
         XCTAssertEqual(landed.style, .base)
         XCTAssertEqual(landed.length, .short)
         XCTAssertTrue(landed.logprobGate)        // user's gate survives
         XCTAssertFalse(landed.useRecommended)    // recommendation (Instruct) ≠ landing
         // Where the recommendation IS Base · Short, auto mode stays on.
-        XCTAssertTrue(custom.applying(.preset(ModelPriority.balanced.pick)).useRecommended)
+        XCTAssertTrue(custom.applying(.preset(ModelPriority.balanced.pick(axis: "core"))).useRecommended)
 
         // A map settings-dot jumps to its exact configuration, verbatim.
         let dot = ProjectionConfig(modelID: custom.modelID, style: .base, length: .medium,
@@ -644,5 +712,65 @@ final class PretypeTests: XCTestCase {
         var dotAuto = dot; dotAuto.useRecommended = true
         XCTAssertTrue(dot.sameRuntime(as: dotAuto))
         XCTAssertFalse(dot.sameRuntime(as: custom))
+    }
+
+    // Token healing: a mid-word prompt is backed up to the word boundary and
+    // the decode must reproduce the typed fragment (MLXEngine.tokenHealing).
+    func testTokenHealing() {
+        // Space-separated fragment: drop "goi" + the separator; the decode must
+        // open with " goi", the suggestion is the remainder (" going to" → "ng to").
+        let en = MLXEngine.tokenHealing(text: "you're goi")
+        XCTAssertEqual(en?.dropCount, 4)
+        XCTAssertEqual(en?.expected, " goi")
+        // Cyrillic heals the same way.
+        let ru = MLXEngine.tokenHealing(text: "мы пош")
+        XCTAssertEqual(ru?.dropCount, 4)
+        XCTAssertEqual(ru?.expected, " пош")
+        // Fragment right after punctuation: no separator in the expectation.
+        let flush = MLXEngine.tokenHealing(text: "see (fig")
+        XCTAssertEqual(flush?.dropCount, 3)
+        XCTAssertEqual(flush?.expected, "fig")
+        // Word boundary / no head / CJK letter-run → no healing.
+        XCTAssertNil(MLXEngine.tokenHealing(text: "okay."))
+        XCTAssertNil(MLXEngine.tokenHealing(text: "goi"))
+        XCTAssertNil(MLXEngine.tokenHealing(text: "她是个演员"))
+    }
+
+    // The constrained-decoding side of healing: candidate selection must accept
+    // exactly the tokens whose joint decode stays inside/over the typed fragment.
+    func testHealConstrainedChoice() {
+        // Fake vocab: 1=" go" 2="ing" 3=" gone" 4="xx" 5=special (decodes to "").
+        let vocab: [Int: String] = [1: " go", 2: "ing", 3: " gone", 4: "xx", 5: ""]
+        func decode(_ ids: [Int]) -> String { ids.compactMap { vocab[$0] }.joined() }
+        // Start of fragment " goi": " go" ⊂ " goi" is compatible, "xx" isn't.
+        XCTAssertEqual(MLXEngine.healCompatibleToken(
+            expected: " goi", sampled: [], candidates: [4, 1], decode: decode), 1)
+        // Overshoot: " go"+"ing" = " going" ⊇ " goi" is compatible.
+        XCTAssertEqual(MLXEngine.healCompatibleToken(
+            expected: " goi", sampled: [1], candidates: [4, 2], decode: decode), 2)
+        // " gone" diverges from " goi" mid-fragment → not compatible.
+        XCTAssertNil(MLXEngine.healCompatibleToken(
+            expected: " goi", sampled: [], candidates: [3, 4], decode: decode))
+        // A zero-progress decode (stripped special token) must never be chosen —
+        // forcing it would loop the constrained phase forever.
+        XCTAssertNil(MLXEngine.healCompatibleToken(
+            expected: " goi", sampled: [], candidates: [5], decode: decode))
+        // topIndices: indices of the k largest values, descending.
+        XCTAssertEqual(MLXEngine.topIndices([0.1, 3, -1, 2.5], k: 2), [1, 3])
+        XCTAssertEqual(MLXEngine.topIndices([5], k: 3), [0])
+    }
+
+    // Per-model gate τ (split-half Q4 edges, runs-2026-07-16) — pin the values
+    // so a catalog refactor can't silently unify them back to one global τ.
+    func testPerModelGateTau() {
+        func tau(_ id: String) -> Double? { ModelCatalog.recommended(for: id).logprobGateTau }
+        XCTAssertEqual(tau("mlx-community/gemma-4-e4b-8bit"), -0.75)
+        XCTAssertEqual(tau("mlx-community/gemma-4-e4b-6bit"), -0.79)
+        XCTAssertEqual(tau("mlx-community/gemma-4-e2b-8bit"), -0.88)
+        XCTAssertEqual(tau("mlx-community/gemma-4-e2b-4bit"), -0.94)
+        XCTAssertEqual(tau("openbmb/MiniCPM5-1B-Base"), -1.00)
+        XCTAssertEqual(tau("mlx-community/Qwen3.5-2B-4bit"), -1.00)
+        XCTAssertEqual(tau("mlx-community/Qwen2.5-0.5B-bf16"), -1.12)
+        XCTAssertNil(tau(ModelCatalog.appleIntelligenceID))   // no logprob to gate on
     }
 }

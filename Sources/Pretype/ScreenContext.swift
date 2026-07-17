@@ -34,6 +34,10 @@ enum ScreenContext {
     /// bottom of the window — in chats that's where the recent messages are).
     static func capture(pid: pid_t, excluding typedText: String, caretRect: CGRect?, maxChars: Int = 600) async -> String? {
         guard hasPermission else { return nil }
+        // Privacy floor, mirroring the AX text path: while a password field is
+        // engaged anywhere, don't capture the window either — the screenshot
+        // would show the field's surroundings (reveal toggles, account data).
+        guard !AXText.isSecureInputActive() else { return nil }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(
                 true, onScreenWindowsOnly: true

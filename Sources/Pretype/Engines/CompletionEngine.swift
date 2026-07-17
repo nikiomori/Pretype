@@ -10,6 +10,9 @@ struct CompletionRequest {
     /// OCR text from the focused window (opt-in), e.g. the conversation
     /// above a chat input.
     var screenSummary: String?
+    /// Current clipboard text (opt-in, capped) — what's being replied to is
+    /// often just-copied. Prefixed to the prompt like the screen block.
+    var clipboardContext: String?
     /// Retrieval-augmented few-shot: the user's own past accepted phrases most
     /// similar to the current context, injected into the instruct directive as
     /// style/phrasing examples. Refreshed off the typing path (like the screen
@@ -43,11 +46,14 @@ extension CompletionRequest {
     func completionPrompt(maxChars: Int) -> String {
         let text = String(textBeforeCaret.suffix(maxChars))
         guard !text.isEmpty else { return "" }
-        guard let screenSummary, !screenSummary.isEmpty else { return text }
         // Label-free: for a base model the window text reads as the document
         // being continued (a chat log followed by the reply), which couples
         // the reply to the conversation more strongly than a labeled block.
-        return "\(screenSummary)\n\n\(text)"
+        // The screen block stays adjacent to the typed text; the clipboard
+        // reads as an earlier fragment.
+        let blocks = [clipboardContext, screenSummary].compactMap { $0 }.filter { !$0.isEmpty }
+        guard !blocks.isEmpty else { return text }
+        return (blocks + [text]).joined(separator: "\n\n")
     }
 
     /// Retrieved accepted phrases as one label-free block — the base path
@@ -62,6 +68,17 @@ extension CompletionRequest {
     var personalPreambleBlock: String? {
         guard !personalExamples.isEmpty else { return nil }
         return personalExamples.prefix(3).map { $0.ctx + $0.next }.joined(separator: "\n")
+    }
+
+    /// The persona for this request: the global instructions plus the user's
+    /// per-app addition for the app being typed in. Resolved at generation
+    /// time so edits apply live — same discipline as the global instructions.
+    func persona(global: String) -> String {
+        var persona = global.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let extra = Settings.perAppInstructions(for: appBundleID) {
+            persona += (persona.isEmpty ? "" : "\n") + extra
+        }
+        return persona
     }
 
     /// Chat-style apps want short, informal continuations.

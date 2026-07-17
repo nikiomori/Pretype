@@ -255,14 +255,16 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
         container.addSubview(clearButton)
         x += 68
 
-        pauseButton = makeButton(title: "Pause", action: #selector(togglePause))
-        pauseButton?.frame = NSRect(x: x, y: 4, width: 64, height: 26)
-        container.addSubview(pauseButton!)
+        let pause = makeButton(title: "Pause", action: #selector(togglePause))
+        pause.frame = NSRect(x: x, y: 4, width: 64, height: 26)
+        container.addSubview(pause)
+        pauseButton = pause
         x += 72
 
-        detailsButton = makeButton(title: "Details ✓", action: #selector(toggleDetails))
-        detailsButton?.frame = NSRect(x: x, y: 4, width: 76, height: 26)
-        container.addSubview(detailsButton!)
+        let details = makeButton(title: "Details ✓", action: #selector(toggleDetails))
+        details.frame = NSRect(x: x, y: 4, width: 76, height: 26)
+        container.addSubview(details)
+        detailsButton = details
         x += 84
 
         let exportButton = makeButton(title: "Export…", action: #selector(exportLog))
@@ -318,10 +320,8 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     private func reloadAll() {
         guard let textView else { return }
         textView.textStorage?.setAttributedString(NSAttributedString())
-        for entry in DebugLog.shared.snapshot() {
-            if matchesFilters(entry) {
-                append(entry)
-            }
+        for entry in DebugLog.shared.snapshot() where matchesFilters(entry) {
+            append(entry)
         }
         updateMetrics()
         updateCount()
@@ -437,10 +437,9 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
         // that start with a timestamp.
         guard let text = textView?.string else { return 0 }
         var n = 0
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.range(of: #"^\d{2}:\d{2}:\d{2}"#, options: .regularExpression) != nil {
-                n += 1
-            }
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false)
+            where line.range(of: #"^\d{2}:\d{2}:\d{2}"#, options: .regularExpression) != nil {
+            n += 1
         }
         return n
     }

@@ -46,10 +46,27 @@ enum AXText {
     /// somewhere. The native `AXSecureTextField` subrole only flags AppKit secure
     /// fields; web/Electron password inputs (`<input type=password>`) report a
     /// plain `AXTextField`/`AXTextArea` and would otherwise be read via `kAXValue`.
-    /// Most of those still engage system-wide secure input, so this is our reliable
-    /// cross-app password guard: while it's on, we read no field text at all.
+    /// Browsers *often* engage system-wide secure input for those too, but not
+    /// always — so this guard is backed up by the label/mask-glyph heuristics
+    /// below rather than trusted alone. While it's on, we read no field text at all.
     static func isSecureInputActive() -> Bool {
         IsSecureEventInputEnabled()
+    }
+
+    /// Label keywords that mark a password-ish field in web/Electron content,
+    /// where neither the secure subrole nor (sometimes) secure input applies.
+    private static let passwordLabelMarkers =
+        ["password", "passcode", "passphrase", "пароль", "passwort", "contraseña", "mot de passe"]
+
+    private static func looksLikePasswordField(_ element: AXUIElement) -> Bool {
+        guard let label = fieldLabel(for: element)?.lowercased() else { return false }
+        return passwordLabelMarkers.contains { label.contains($0) }
+    }
+
+    /// Web password fields that slip past every other guard still *render* as
+    /// mask glyphs when the AX value is exposed at all. Never treat that as text.
+    static func looksMasked(_ text: String) -> Bool {
+        text.count >= 3 && text.allSatisfy { "•●∙*".contains($0) }
     }
 
     static func isEditableTextElement(_ element: AXUIElement) -> Bool {
@@ -60,6 +77,9 @@ enum AXText {
         if let subrole: String = attribute(element, kAXSubroleAttribute), subrole == "AXSecureTextField" {
             return false
         }
+        // Web/Electron password inputs don't carry the secure subrole; their
+        // label/placeholder is the only tell.
+        if looksLikePasswordField(element) { return false }
         return true
     }
 
@@ -67,7 +87,8 @@ enum AXText {
     static func selectionInfo(for element: AXUIElement) -> SelectionInfo? {
         if isSecureInputActive() { return nil }
         guard let range = selectedRange(of: element), range.length > 0 else { return nil }
-        guard let text: String = attribute(element, kAXSelectedTextAttribute), !text.isEmpty else { return nil }
+        guard let text: String = attribute(element, kAXSelectedTextAttribute), !text.isEmpty,
+              !looksMasked(text) else { return nil }
         return SelectionInfo(text: text, rect: selectionRect(for: range, in: element))
     }
 
@@ -127,7 +148,7 @@ enum AXText {
                     text = ns.substring(with: NSRange(location: from, length: caretLoc - from))
                 }
             }
-            guard let textBeforeCaret = text else { return nil }
+            guard let textBeforeCaret = text, !looksMasked(textBeforeCaret) else { return nil }
             var textAfterCaret = ""
             if let total: Int = attribute(element, kAXNumberOfCharactersAttribute) {
                 let afterLength = min(192, total - caret)
@@ -166,6 +187,7 @@ enum AXText {
             DebugLog.shared.log("AX", "web field shows placeholder \"\(placeholder)\" — no suggestion")
             return nil
         }
+        if looksMasked(value) { return nil }
         let total: Int = attribute(element, kAXNumberOfCharactersAttribute) ?? value.count
         let hostFont = attributedFont(of: element, atIndex: total - 1)
         let marker = webCaretBounds(element)
@@ -225,7 +247,7 @@ enum AXText {
         // only rewrites the genuinely-wrong case.
         if caret > 0, let prev = bounds(forRange: CFRange(location: caret - 1, length: 1), in: element),
            prev != .zero, prev.height >= 4 {
-            if rect == nil || rect == .zero || rect!.minY + 1 < prev.minY {
+            if rect.map({ $0 == .zero || $0.minY + 1 < prev.minY }) ?? true {
                 rect = CGRect(x: prev.maxX, y: prev.minY, width: 1, height: prev.height)
             }
         }
@@ -330,7 +352,7 @@ enum AXText {
         let valueDesc = value.map { "\"\($0.suffix(24))\"(\($0.count))" } ?? "nil"
         // Real geometry candidates: whole-text bounds, marker caret, and the
         // child AX tree (Chromium often keeps real frames on inner text nodes).
-        let wholeBounds = (nChars ?? 0) > 0 ? bounds(forRange: CFRange(location: 0, length: nChars!), in: element) : nil
+        let wholeBounds = (nChars ?? 0) > 0 ? bounds(forRange: CFRange(location: 0, length: nChars ?? 0), in: element) : nil
         let kids = probeChildren(element, prefix: "\n    ", depth: 3)
         return "role=\(role)/\(subrole) frame=\(fmt(elementFrame(element))) "
             + "range=\(range.map { "\($0.location)+\($0.length)" } ?? "nil") "

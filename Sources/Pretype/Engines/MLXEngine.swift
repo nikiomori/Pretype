@@ -136,8 +136,14 @@ final class MLXEngine: CompletionEngine {
         let beam = beamK > 1
             ? "\(beamK)·\(beamScoreByMean ? "mean" : "sum")\(beamNgramWeight > 0 ? "+ngram·\(beamNgramWeight)" : "")"
             : "off"
-        return "logprobGate=\(lp) · trim=\(tr) · selfConsist=\(sc) · beam=\(beam)"
+        return "logprobGate=\(lp) · trim=\(tr) · selfConsist=\(sc) · beam=\(beam) · heal=\(Self.healConstrain ? "constrain" : "match")"
     }
+
+    /// Mid-word healing mode: constrained decoding (force the fragment path,
+    /// recover the coverage match-only healing abstains away) vs plain fragment
+    /// match. `PRETYPE_HEAL_CONSTRAIN=off` pins match-only — the eval A/Bs the
+    /// two on identical rows. Read once, like the prompt variant.
+    static let healConstrain = ProcessInfo.processInfo.environment["PRETYPE_HEAL_CONSTRAIN"] != "off"
 
     var statusLine: String? {
         let model = modelID.split(separator: "/").last.map(String.init) ?? modelID
@@ -168,8 +174,15 @@ final class MLXEngine: CompletionEngine {
             ?? Settings.confidenceGateThreshold
         if let e = env["PRETYPE_LOGPROB_GATE"] {
             self.logprobGateThreshold = Double(e)
+        } else if Settings.logprobGate {
+            // Recommended settings follow the model: τ is calibrated per model
+            // (Q4 edges −0.75…−1.12 — see Recommendation.logprobGateTau); a
+            // hand-tuned threshold (useRecommendedSettings off) applies as-is.
+            self.logprobGateThreshold = Settings.useRecommendedSettings
+                ? ModelCatalog.recommended(for: modelID).logprobGateTau ?? Settings.logprobGateThreshold
+                : Settings.logprobGateThreshold
         } else {
-            self.logprobGateThreshold = Settings.logprobGate ? Settings.logprobGateThreshold : nil
+            self.logprobGateThreshold = nil
         }
         self.trimLogProbEnv = env["PRETYPE_TRIM_LOGPROB"]
         self.beamK = max(1, Int(env["PRETYPE_BEAM"] ?? "") ?? 1)
@@ -615,6 +628,46 @@ final class MLXEngine: CompletionEngine {
         )
     }
 
+    /// Token healing for the mid-word caret state. A prompt that ends inside a
+    /// word usually ends inside a BPE token too, and the model then continues
+    /// as if a fresh word were starting — "goi" + "ing" → "goiing" (measured:
+    /// 5–9% first-word on eval-real-mid vs ~30% at word boundaries, 2026-07-17).
+    /// Back the prompt up to the word boundary so the model regenerates the
+    /// whole word, require the decode to reproduce the fragment the user
+    /// already typed, and emit only the remainder; a decode that contradicts
+    /// the fragment abstains — precision over coverage mid-word. Side effect:
+    /// the healed prompt is stable while a word is being typed, so the KV
+    /// cache holds across those keystrokes. Returns nil at a word boundary,
+    /// when nothing precedes the fragment, or when the fragment isn't
+    /// healable (CJK letter-runs have no word boundary to back up to; the
+    /// length cap rejects pasted letter-runs).
+    static func tokenHealing(text: String) -> (dropCount: Int, expected: String)? {
+        let fragment = String(text.reversed().prefix(while: \.isLetter).reversed())
+        guard !fragment.isEmpty, fragment.count <= 24,
+              !fragment.unicodeScalars.contains(where: isHealBlockedScript)
+        else { return nil }
+        var head = text.dropLast(fragment.count)
+        var separated = false
+        while head.hasSuffix(" ") {
+            head.removeLast()
+            separated = true
+        }
+        guard !head.isEmpty else { return nil }
+        return (dropCount: text.count - head.count,
+                expected: (separated ? " " : "") + fragment)
+    }
+
+    /// Han / kana / Hangul — scripts where a trailing letter-run is not "a word
+    /// being typed", so there is no boundary to heal from.
+    private static func isHealBlockedScript(_ s: Unicode.Scalar) -> Bool {
+        switch s.value {
+        case 0x2E80...0x9FFF, 0xAC00...0xD7AF, 0xF900...0xFAFF, 0xFF65...0xFF9F:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Raw text continuation against a base model: encode the tail, continue it.
     /// A base model given only 3-4 tokens lands in random-language territory
     /// (verified: "а теперь" → Turkish gibberish), so it floors higher than the
@@ -645,6 +698,20 @@ final class MLXEngine: CompletionEngine {
 
         let parameters = completionParameters(for: request)
         let gate = prepared.gate(cleanInstruct: false)
+        // Mid-word: decode from the word boundary and strip the re-generated
+        // fragment (see tokenHealing). Beam keeps the raw prompt — its branches
+        // force first tokens, which healing's fragment match would fight.
+        let heal = beamK == 1 && prepared.endsMidWord
+            ? Self.tokenHealing(text: prepared.text) : nil
+        let healedGate: @Sendable (String) -> String?
+        if let heal {
+            let expected = heal.expected
+            healedGate = { out in
+                out.hasPrefix(expected) ? gate(String(out.dropFirst(expected.count))) : nil
+            }
+        } else {
+            healedGate = gate
+        }
         let output: String
         if beamK > 1 {
             // Beam can't stream — the winner only exists after the last branch
@@ -673,18 +740,28 @@ final class MLXEngine: CompletionEngine {
             )
         } else {
             output = try await Self.generate(
-                in: container, prompt: prepared.generationText, parameters: parameters,
+                in: container,
+                prompt: heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
+                    ?? prepared.generationText,
+                parameters: parameters,
                 extraEOSTokens: extraEOSTokens, promptCache: promptCache,
-                bias: ngramBias(for: prepared),
+                // Under healing the first decoded word is the CURRENT word being
+                // re-generated, not the next one — the next-word bias would
+                // fight the fragment match.
+                bias: heal == nil ? ngramBias(for: prepared) : nil,
                 logProbSink: logProbSink,
                 // The gate's K draws sample at T≈0.6 — their logprobs aren't
                 // comparable to the live path's, so no trim there either.
                 trimLogProb: recording ? trimLogProbThreshold : nil,
-                onPartial: Self.makeStreamHandler(onPartial, gate: gate)
+                healExpected: Self.healConstrain ? heal?.expected : nil,
+                onPartial: Self.makeStreamHandler(onPartial, gate: healedGate)
             )
         }
         try Task.checkCancellation()
-        let result = gate(output)
+        if let heal, !output.hasPrefix(heal.expected) {
+            DebugLog.shared.log("GATE", "token-healing: decode \(output.prefix(24).debugDescription) contradicts typed fragment \(heal.expected.debugDescription) — abstaining")
+        }
+        let result = healedGate(output)
         let lp = recording ? logProbSink?.get() : nil
         // Logprob confidence gate: abstain on a low-confidence first word. 0× extra
         // decode (lp is already captured above). Base only by construction —
@@ -721,7 +798,7 @@ final class MLXEngine: CompletionEngine {
         // model literally continues it; "localized" writes the directive in the
         // text's language.
         let length = lengthBox.get()
-        let persona = instructionsBox.get().trimmingCharacters(in: .whitespacesAndNewlines)
+        let persona = request.persona(global: instructionsBox.get())
         let envVariant = ProcessInfo.processInfo.environment["PRETYPE_PROMPT_VARIANT"]
         let variant = envVariant ?? Self.defaultPromptVariant.get()
         let localized = variant.contains("localized") && Self.isCyrillicHeavy(promptText)

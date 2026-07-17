@@ -55,7 +55,3 @@ Drop additional PNGs here and wire them into the README. On macOS:
 - **A window** — `⌘⇧4` then `Space`, click the window; hold `⌥` while clicking to drop the shadow.
 - **An open menu** — `screencapture -T 5 docs/menu.png` gives a 5 s timer.
 - **A specific window from the terminal** — `screencapture -iW docs/console.png`.
-
-## logo (optional)
-
-`logo.png` (~120 px tall) — uncomment the `<img>` at the top of `../README.md` once added.

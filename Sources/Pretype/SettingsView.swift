@@ -3,6 +3,16 @@ import SwiftUI
 
 // MARK: - Store
 
+/// Hover previews change many times a second as the pointer moves. They live
+/// on their own observable so that hovering re-renders only the surfaces that
+/// draw previews (map, rail, delta strips) — never the scrolling Form around
+/// them: any @Published set on the store invalidates every tab observing it,
+/// which visibly hitches wheel/trackpad scrolling over the model list.
+@MainActor
+final class HoverState: ObservableObject {
+    @Published var preview: ProjectionConfig.Change?
+}
+
 /// Observable bridge between the SwiftUI settings surface and the live
 /// pipeline. Every mutation forwards to the same `SuggestionController` entry
 /// points the old AppKit panel used; `sync()` re-reads Settings after any
@@ -60,19 +70,10 @@ final class SettingsStore: ObservableObject {
             unlockManualTuning()
             controller?.setCompletionLength(length) }
     }
-    @Published var confidenceGate = false {
-        didSet { guard !syncing, oldValue != confidenceGate else { return }
-            controller?.setConfidenceGate(confidenceGate)
-            resync() }
-    }
     @Published var logprobGate = false {
         didSet { guard !syncing, oldValue != logprobGate else { return }
             controller?.setLogprobGate(logprobGate)
             resync() }
-    }
-    @Published var confidenceTrim = true {
-        didSet { guard !syncing else { return }
-            Settings.confidenceTrim = confidenceTrim }
     }
     @Published var personalization = PersonalizationLevel.off {
         didSet { guard !syncing, oldValue != personalization else { return }
@@ -84,35 +85,44 @@ final class SettingsStore: ObservableObject {
     }
     @Published var journalEnabled = true {
         didSet { guard !syncing else { return }
-            Settings.suggestionJournalEnabled = journalEnabled }
-    }
-    @Published var examplesEnabled = true {
-        didSet { guard !syncing else { return }
-            Settings.personalExamplesEnabled = examplesEnabled }
+            Settings.suggestionJournalEnabled = journalEnabled
+            // Off means forget: keeping a file of typed-text snippets around
+            // after the user opted out would betray what the toggle promises.
+            if !journalEnabled { clearJournal() } }
     }
     @Published var instructions = "" {
         didSet { guard !syncing, oldValue != instructions else { return }
             controller?.setCustomInstructions(instructions) }
     }
-    @Published var fmVariant = FMPromptVariant.fewshot {
-        didSet { guard !syncing, oldValue != fmVariant else { return }
-            controller?.setFMPromptVariant(fmVariant) }
+    /// Per-app persona additions (exact lowercased bundle ID → text). Read by
+    /// the engines at generation time, so writes apply live — no rebuild.
+    @Published var perAppInstructions: [String: String] = [:] {
+        didSet { guard !syncing, oldValue != perAppInstructions else { return }
+            Settings.perAppInstructions = perAppInstructions }
     }
     @Published var idleUnloadMinutes = 5 {
         didSet { guard !syncing else { return }
             Settings.idleUnloadMinutes = idleUnloadMinutes }
     }
-    @Published var fimEnabled = true {
-        didSet { guard !syncing else { return }
-            Settings.fimEnabled = fimEnabled }
-    }
     @Published var screenContext = false {
         didSet { guard !syncing, oldValue != screenContext else { return }
             SettingsUI.setScreenContext(screenContext) }
     }
+    @Published var clipboardContext = false {
+        didSet { guard !syncing, oldValue != clipboardContext else { return }
+            Settings.clipboardContextEnabled = clipboardContext }
+    }
 
     /// Selection flows through `selectModel`, not a binding didSet.
     @Published var modelID = ModelCatalog.defaultID
+
+    /// Accuracy axis for the whole Model tab ("*" = all languages, "core" =
+    /// EN+RU, or a language code). Presentation-only — re-renders the tab,
+    /// never touches the pipeline.
+    @Published var accuracyAxis = Settings.accuracyAxis {
+        didSet { guard !syncing, oldValue != accuracyAxis else { return }
+            Settings.accuracyAxis = accuracyAxis }
+    }
 
     /// Pane selected in the sidebar.
     @Published var activeTab = SettingsTab.general {
@@ -121,11 +131,19 @@ final class SettingsStore: ObservableObject {
 
     /// Control being hovered right now — the Live Impact rail, the delta
     /// strips and the model map preview its effect before anything commits.
-    @Published var preview: ProjectionConfig.Change?
+    /// On `HoverState`, not the store, so hovering never re-renders the Form.
+    let hoverState = HoverState()
+    var preview: ProjectionConfig.Change? {
+        get { hoverState.preview }
+        set { hoverState.preview = newValue }
+    }
 
     func setHover(_ change: ProjectionConfig.Change, _ hovering: Bool) {
-        if hovering { preview = change }
-        else if preview == change { preview = nil }
+        if hovering {
+            if preview != change { preview = change }
+        } else if preview == change {
+            preview = nil
+        }
     }
 
     /// Adjusting Style or Length by hand takes the pipeline out of "auto" —
@@ -146,7 +164,6 @@ final class SettingsStore: ObservableObject {
     // MARK: Derived
 
     var recommendation: ModelCatalog.Recommendation { ModelCatalog.recommended(for: modelID) }
-    var confidenceGateUsable: Bool { style == .base && recommendation.gateCapable }
     var logprobGateUsable: Bool { style == .base }
     /// Models whose recommended style is base run instruct as "answer the text"
     /// (~0% first-word measured) — warn if the user forces it.
@@ -165,7 +182,7 @@ final class SettingsStore: ObservableObject {
     /// The committed configuration as a pure value, for `ConfigProjection`.
     var committedConfig: ProjectionConfig {
         ProjectionConfig(modelID: modelID, style: style, length: length,
-                         logprobGate: logprobGate, confidenceGate: confidenceGate,
+                         logprobGate: logprobGate, confidenceGate: false,
                          useRecommended: useRecommended)
     }
     /// What the committed configuration measures to.
@@ -184,13 +201,12 @@ final class SettingsStore: ObservableObject {
         return ConfigProjection.deltas(from: projection, to: target)
     }
 
-    /// "MiniCPM5 1B · Base · Short · Confidence gate" — what is running now.
+    /// "MiniCPM5 1B · Base · Short · Confident-only" — what is running now.
     var setupLine: String {
         var parts = [ModelMetrics.metrics(for: modelID)?.shortName ?? selectedModelName]
         if !isAppleIntelligence { parts.append(style == .instruct ? "Instruct" : "Base") }
         parts.append(length.rawValue.capitalized)
         if logprobGate { parts.append("Confident-only") }
-        if confidenceGate { parts.append("Consensus ×5") }
         return parts.joined(separator: " · ")
     }
 
@@ -212,17 +228,18 @@ final class SettingsStore: ObservableObject {
         resync()
     }
 
-    /// One-click priority preset: the measured-best model for the goal, in
-    /// the exact configuration its card figures come from (Base · Short),
-    /// keeping the precision gates where the model supports them.
+    /// One-click priority preset: the measured-best model for the goal ON
+    /// the selected accuracy axis, in the exact configuration its card
+    /// figures come from (Base · Short), keeping the precision gates where
+    /// the model supports them.
     func applyPriority(_ priority: ModelPriority) {
-        applyConfig(committedConfig.applying(.preset(priority.pick)))
+        applyConfig(committedConfig.applying(.preset(priority.pick(axis: accuracyAxis))))
     }
 
     /// A preset reads as active when the pipeline sits exactly where clicking
     /// it would land (gates are preserved by presets, so they don't count).
     func priorityIsActive(_ priority: ModelPriority) -> Bool {
-        modelID == priority.pick && style == .base && length == .short
+        modelID == priority.pick(axis: accuracyAxis) && style == .base && length == .short
     }
 
     /// Add an app to the blacklist via the standard app-picker panel; stores
@@ -252,6 +269,42 @@ final class SettingsStore: ObservableObject {
 
     func removeBlacklistEntry(_ entry: String) {
         blacklist.removeAll { $0 == entry }
+    }
+
+    /// Add an app for a per-app persona line via the standard app-picker
+    /// panel; keys by exact lowercased bundle ID (the engines match exactly —
+    /// unlike the blacklist's substring markers, instructions shouldn't leak
+    /// into look-alike apps).
+    func addPerAppInstructionApp() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.prompt = "Add Instructions"
+        panel.message = "Choose applications that get their own style instructions."
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            guard let id = Bundle(url: url)?.bundleIdentifier?.lowercased() else { continue }
+            // Prefill with the ready-made template for the app's kind (email /
+            // work chat / casual chat / notes) so the user edits, not writes.
+            if perAppInstructions[id] == nil {
+                perAppInstructions[id] = PerAppPresets.template(for: id) ?? ""
+            }
+        }
+    }
+
+    /// Preset apps installed on this Mac and not configured yet.
+    var perAppSuggestions: [(bundleID: String, text: String)] {
+        PerAppPresets.installedSuggestions(excluding: Set(perAppInstructions.keys))
+    }
+
+    /// One click: add every installed preset app with its ready-made style.
+    func addSuggestedPerAppInstructions() {
+        for suggestion in perAppSuggestions {
+            perAppInstructions[suggestion.bundleID] = suggestion.text
+        }
     }
 
     func chooseFineTunedModel() {
@@ -292,20 +345,18 @@ final class SettingsStore: ObservableObject {
         useRecommended = Settings.useRecommendedSettings
         style = Settings.completionStyle
         length = Settings.completionLength  // .word migrated away in registerDefaults
-        // Mask inapplicable persisted flags (same pattern as fimEnabled): a
-        // gate restored from a state the coordinator's hygiene never saw must
-        // not render as on-but-doing-nothing.
-        confidenceGate = Settings.confidenceGate && style == .base && recommendation.gateCapable
+        // Mask inapplicable persisted flags: a gate restored from a state the
+        // coordinator's hygiene never saw must not render as
+        // on-but-doing-nothing.
         logprobGate = Settings.logprobGate && style == .base
-        confidenceTrim = Settings.confidenceTrim
         personalization = Settings.personalizationLevel
         journalEnabled = Settings.suggestionJournalEnabled
-        examplesEnabled = Settings.personalExamplesEnabled
         instructions = Settings.customInstructions
-        fmVariant = Settings.fmPromptVariant
+        perAppInstructions = Settings.perAppInstructions
         idleUnloadMinutes = Settings.idleUnloadMinutes
-        fimEnabled = Settings.fimEnabled && recommendation.fim
         screenContext = Settings.screenContextEnabled
+        clipboardContext = Settings.clipboardContextEnabled
+        accuracyAxis = Settings.accuracyAxis
         learnedWords = PersonalNgram.shared.wordCount
         journalBytes = SuggestionJournal.shared.fileSize
         syncing = false
@@ -332,21 +383,29 @@ final class SettingsStore: ObservableObject {
     }
 
     private func refreshStatus() {
-        guard let engine = controller?.engine else {
-            statusText = ""
-            return
+        let text: String
+        let color: Color
+        if let engine = controller?.engine {
+            switch engine.state {
+            case .ready:
+                text = "\(engine.name) — ready"
+                color = .green
+            case .preparing(let detail):
+                text = "\(engine.name) — \(detail)"
+                color = .orange
+            case .failed(let detail):
+                text = "\(engine.name) — \(detail)"
+                color = .red
+            }
+        } else {
+            text = ""
+            color = .secondary
         }
-        switch engine.state {
-        case .ready:
-            statusText = "\(engine.name) — ready"
-            statusColor = .green
-        case .preparing(let detail):
-            statusText = "\(engine.name) — \(detail)"
-            statusColor = .orange
-        case .failed(let detail):
-            statusText = "\(engine.name) — \(detail)"
-            statusColor = .red
-        }
+        // Assign only on change: this runs on a 1 s timer, and a no-op
+        // @Published set still invalidates every observing view — enough to
+        // hitch an in-flight scroll.
+        if statusText != text { statusText = text }
+        if statusColor != color { statusColor = color }
     }
 }
 
@@ -474,7 +533,7 @@ struct SettingsRootView: View {
         } detail: {
             detail
                 .inspector(isPresented: .constant(true)) {
-                    ImpactRailView(store: store)
+                    ImpactRailView(store: store, hover: store.hoverState)
                         .inspectorColumnWidth(min: 250, ideal: 280, max: 340)
                 }
         }
@@ -489,6 +548,27 @@ struct SettingsRootView: View {
         }
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 176, ideal: 200, max: 240)
+        .safeAreaInset(edge: .top) {
+            HStack(spacing: 9) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 34, height: 34)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text("Pretype").font(.headline)
+                        if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                            Text("v\(v)").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                    Text("System-wide AI autocomplete")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.tail)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 7) {
                 Circle().fill(store.statusText.isEmpty ? Color.secondary : store.statusColor)
@@ -543,8 +623,8 @@ extension View {
 
 /// Segmented control with per-option hover callbacks (the native Picker
 /// exposes none). The selection thumb is a single view that SLIDES between
-/// segments (matchedGeometryEffect + spring) and renders as Liquid Glass on
-/// macOS 26, with the classic control fill as the fallback.
+/// segments (matchedGeometryEffect + spring), rendered as an elevated control
+/// surface so the selection is unmistakable in both light and dark.
 struct HoverSegments<T: Hashable>: View {
     let options: [(value: T, label: String)]
     let selection: T
@@ -562,7 +642,7 @@ struct HoverSegments<T: Hashable>: View {
                     Text(option.label)
                         .font(.callout.weight(isOn ? .semibold : .regular))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 5)
                         .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
@@ -586,41 +666,20 @@ struct HoverSegments<T: Hashable>: View {
         .animation(.easeOut(duration: 0.12), value: hovered)
     }
 
-    /// The sliding selection thumb.
-    @ViewBuilder private var thumb: some View {
-        if #available(macOS 26.0, *) {
-            Color.clear.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 6))
-        } else {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(nsColor: .controlColor))
-                .shadow(color: .black.opacity(0.15), radius: 1.5, y: 0.5)
-        }
-    }
-}
-
-/// Inline "what would this change do" strip under the section being hovered —
-/// the same deltas the Live Impact rail shows, anchored where the eyes are.
-struct PreviewDeltaStrip: View {
-    @ObservedObject var store: SettingsStore
-    let section: String
-
-    var body: some View {
-        if store.preview?.section == section, !store.previewDeltas.isEmpty {
-            HStack(spacing: 12) {
-                Text("Preview")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                ForEach(store.previewDeltas) { delta in
-                    Text("\(delta.label) \(delta.text)")
-                        .font(.caption.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(delta.improved ? Color.green : Color.orange)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 10)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 7))
-        }
+    /// The sliding selection thumb — an elevated surface that reads clearly in
+    /// both themes. macOS 26's `Color.clear.glassEffect` rendered as frosted-
+    /// clear over the translucent track: on a light form it matched the
+    /// background, so only the bold label marked the selection. A solid control
+    /// surface + soft shadow is the native segmented-picker look and is
+    /// unmistakable in either appearance.
+    private var thumb: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(Color(nsColor: .controlColor))
+            .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            )
     }
 }
 
@@ -710,15 +769,9 @@ private struct BlacklistRow: View {
     let remove: () -> Void
 
     var body: some View {
-        let resolved = Self.resolve(entry)
+        let resolved = resolveApp(entry)
         HStack(spacing: 8) {
-            if let icon = resolved.icon {
-                Image(nsImage: icon).resizable().frame(width: 20, height: 20)
-            } else {
-                Image(systemName: "app.dashed")
-                    .frame(width: 20, height: 20)
-                    .foregroundStyle(.secondary)
-            }
+            AppIcon(icon: resolved.icon)
             Text(resolved.name)
             if resolved.name.lowercased() != entry {
                 Text(entry).font(.caption).foregroundStyle(.tertiary)
@@ -733,15 +786,61 @@ private struct BlacklistRow: View {
             .help("Allow Pretype in this app again")
         }
     }
+}
 
-    /// Exact bundle IDs resolve to the installed app's real icon and name;
-    /// fuzzy fragments ("slack") stay as typed with a generic glyph.
-    private static func resolve(_ entry: String) -> (name: String, icon: NSImage?) {
-        guard entry.contains("."),
-              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: entry)
-        else { return (entry, nil) }
-        return (FileManager.default.displayName(atPath: url.path),
-                NSWorkspace.shared.icon(forFile: url.path))
+/// Exact bundle IDs resolve to the installed app's real icon and name;
+/// fuzzy fragments ("slack") stay as typed with a generic glyph.
+private func resolveApp(_ entry: String) -> (name: String, icon: NSImage?) {
+    guard entry.contains("."),
+          let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: entry)
+    else { return (entry, nil) }
+    return (FileManager.default.displayName(atPath: url.path),
+            NSWorkspace.shared.icon(forFile: url.path))
+}
+
+/// The resolved 20 pt app icon, or the dashed-app placeholder.
+private struct AppIcon: View {
+    let icon: NSImage?
+
+    var body: some View {
+        if let icon {
+            Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+        } else {
+            Image(systemName: "app.dashed")
+                .frame(width: 20, height: 20)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// One per-app persona line: icon + app name + an editable instruction field.
+private struct PerAppInstructionRow: View {
+    let bundleID: String
+    @ObservedObject var store: SettingsStore
+
+    var body: some View {
+        let resolved = resolveApp(bundleID)
+        HStack(spacing: 8) {
+            AppIcon(icon: resolved.icon)
+            Text(resolved.name)
+                .frame(width: 110, alignment: .leading)
+                .lineLimit(1).truncationMode(.tail)
+                .help(bundleID)
+            TextField("", text: Binding(
+                get: { store.perAppInstructions[bundleID] ?? "" },
+                set: { store.perAppInstructions[bundleID] = $0 }
+            ), prompt: Text("e.g. formal tone, no emoji"))
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+            Button {
+                store.perAppInstructions.removeValue(forKey: bundleID)
+            } label: {
+                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Remove this app's instructions")
+        }
     }
 }
 
@@ -806,6 +905,9 @@ private struct PresentationCard: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
+    /// Local hover only — a card highlight, never published to the store the
+    /// Form observes (that path hitches list scrolling).
+    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
@@ -830,17 +932,21 @@ private struct PresentationCard: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
+                    .fill(isSelected ? Color.accentColor.opacity(0.08)
+                          : (hovering ? Color.primary.opacity(0.04) : Color.clear))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
+                    .stroke(isSelected ? Color.accentColor
+                            : (hovering ? Color.primary.opacity(0.22) : Color(nsColor: .separatorColor)),
                             lineWidth: isSelected ? 2 : 1)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
     @ViewBuilder private var previewLine: some View {
@@ -886,7 +992,6 @@ struct SuggestionsTab: View {
                               hover: { style, hovering in
                                   store.setHover(.style(style), hovering)
                               })
-                PreviewDeltaStrip(store: store, section: "style")
                 if store.style == .instruct, store.instructUnusable {
                     RequirementRow(met: false,
                                    text: "Instruct is broken on \(store.selectedModelName) — it answers the text instead of continuing it (~0% first-word measured)",
@@ -915,35 +1020,17 @@ struct SuggestionsTab: View {
                     BadgeRow(badges: [
                         EffectBadge(icon: "scope", text: "62–67% first-word on what it shows", tone: .quality,
                                     source: "Out-of-sample split-half calibration, τ≈−0.9: 62–67% first-word accuracy at ~30% of suggestions offered — eval-real, n=870, 2026-07-15."),
+                        EffectBadge(icon: "hand.raised", text: "offers ~30% of the time (vs 81%)", tone: .caution,
+                                    source: "The other side of the trade: roughly two of three suggestions are withheld as not-confident-enough — coverage ~30% vs 81% ungated on the default model (eval-real, n=870, 2026-07-15)."),
+                    ])
+                    BadgeRow(badges: [
                         EffectBadge(icon: "bolt", text: "no added latency", tone: .speed,
                                     source: "Reads the first-word log-probability the decoder already produced — zero extra generation."),
                         EffectBadge(icon: "keyboard", text: "net keystrokes: −5% → +11%", tone: .quality,
                                     source: "Typing simulation (λ=2, E2B-8bit, verified on the held-out half): ungated suggestions cost −5% net keystrokes; gated save +11% — eval-real, 2026-07-15."),
                     ])
                 }
-                Toggle("Verify by consensus (5 samples)", isOn: $store.confidenceGate)
-                    .disabled(!store.confidenceGateUsable)
-                    .onHover { hovering in
-                        guard store.confidenceGateUsable else { return }
-                        store.setHover(.confidenceGate(!store.confidenceGate), hovering)
-                    }
-                if !store.confidenceGateUsable {
-                    RequirementRow(met: store.style == .base,
-                                   text: "Base style",
-                                   fixTitle: "Switch to Base") { store.style = .base }
-                    RequirementRow(met: store.recommendation.gateCapable,
-                                   text: "E4B model at 6-bit or higher (E4B 8-bit or E4B 6-bit)",
-                                   fixTitle: "Open Model pane") { store.activeTab = .model }
-                } else {
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "scope", text: "19% → 39% first-word", tone: .quality,
-                                    source: "E4B-8bit Base on eval-real (2026-06-26): 19% ungated → 39% first-word at 54% coverage — suggests only when 5 samples agree."),
-                        EffectBadge(icon: "tortoise", text: "~5× generation per keystroke", tone: .caution,
-                                    source: "Samples each completion 5 times to check agreement — roughly 5× the decode work of a single pass."),
-                    ])
-                }
-                PreviewDeltaStrip(store: store, section: "precision")
-                Caption("The two gates are mutually exclusive — the confidence gate gives the same precision trade at no latency cost.")
+                Caption("Trades coverage for precision: far fewer suggestions, far more of them right — read straight off the decoder, so it costs nothing. Off means more (but less certain) suggestions.")
             }
 
             Section("Length") {
@@ -955,20 +1042,8 @@ struct SuggestionsTab: View {
                               hover: { length, hovering in
                                   store.setHover(.length(length), hovering)
                               })
-                PreviewDeltaStrip(store: store, section: "length")
                 BadgeRow(badges: lengthBadges)
-                Caption("Tab still accepts one word at a time; length caps how far a single suggestion runs ahead.")
-            }
-
-            Section("Trimming") {
-                Toggle("Trim low-confidence endings", isOn: $store.confidenceTrim)
-                BadgeRow(badges: [
-                    EffectBadge(icon: "scissors", text: "drops the shaky tail", tone: .quality,
-                                source: "Cuts the suggestion just before the first word the model isn't sure about (log-probability below −3.0, a conservative threshold) — the fixed-budget tail is a completion's weakest part."),
-                    EffectBadge(icon: "bolt", text: "no added latency", tone: .speed,
-                                source: "Uses the per-token log-probabilities the decoder already produced."),
-                ])
-                Caption("Works with every style and model; the Length above becomes a maximum, not a promise.")
+                Caption("Tab still accepts one word at a time; length caps how far a single suggestion runs ahead. Low-confidence endings are trimmed automatically, so this is a maximum, not a promise.")
             }
         }
         .formStyle(.grouped)
@@ -1001,21 +1076,47 @@ struct SuggestionsTab: View {
     }
 
     private var lengthBadges: [EffectBadge] {
-        // Length sweep on the default model (eval-real, 2026-07-13): p50
-        // 157 / 291 / 550 ms; first-word length-independent, word-F1 drops.
+        // Length sweep (eval-real, 2026-07-13): p50 157 / 291 / 550 ms on the
+        // sweep model; first-word length-independent, word-F1 drops. Figures
+        // shown are the sweep's ×1.85/×3.5 ratios applied to the SELECTED
+        // model's measured base latency — quoting the sweep model's absolute
+        // milliseconds next to a rail that shows this model's contradicts it.
+        // The reach badge states what longer BUYS — without it the control
+        // reads as pure degradation on the measured axes.
+        let baseMs = ModelMetrics.metrics(for: store.modelID)?.p50Ms
+        func ms(_ length: CompletionLength) -> String {
+            guard let baseMs else { return "" }
+            let v = Int((Double(baseMs) * ConfigProjection.latencyFactor(length)).rounded())
+            return v >= 1000 ? String(format: "%.1f s", Double(v) / 1000) : "\(v) ms"
+        }
+        let sweepSource = "Measured length sweep (eval-real, 2026-07-13): 157 · 291 · 550 ms p50 on the sweep model — "
+            + (baseMs != nil
+                ? "the ×1.85/×3.5 ratios here are applied to \(store.selectedModelName)'s measured base latency."
+                : "no measured base latency for this model, so only the ratios are shown.")
+        let reach: EffectBadge
         let speed: EffectBadge
         switch store.length {
         case .short, .word:
-            speed = EffectBadge(icon: "bolt", text: "fastest — p50 ~157 ms", tone: .speed,
-                                source: "Length sweep on the default model (eval-real, 2026-07-13): short 157 ms · medium 291 ms · long 550 ms median per suggestion.")
+            reach = EffectBadge(icon: "text.word.spacing", text: "runs 2–3 words ahead", tone: .neutral,
+                                source: "How far one suggestion runs. Short is the sweep's best net-value point for inline ghost text — same accuracy as longer settings at a fraction of the wait.")
+            speed = EffectBadge(icon: "bolt",
+                                text: baseMs != nil ? "fastest — p50 ~\(ms(.short))" : "fastest",
+                                tone: .speed, source: sweepSource)
         case .medium:
-            speed = EffectBadge(icon: "bolt", text: "p50 ~291 ms (≈2× short)", tone: .caution,
-                                source: "Length sweep on the default model (eval-real, 2026-07-13): short 157 ms · medium 291 ms · long 550 ms median per suggestion.")
+            reach = EffectBadge(icon: "text.word.spacing", text: "runs up to ~6 words ahead", tone: .neutral,
+                                source: "What longer buys: more words per suggestion (+1–2 pp completeness in the sweep). Per-word accuracy does not improve — you pay only in wait time.")
+            speed = EffectBadge(icon: "bolt",
+                                text: baseMs != nil ? "p50 ~\(ms(.medium)) (≈2× short)" : "≈2× slower than short",
+                                tone: .caution, source: sweepSource)
         case .long:
-            speed = EffectBadge(icon: "tortoise", text: "p50 ~550 ms (≈3.5× short)", tone: .caution,
-                                source: "Length sweep on the default model (eval-real, 2026-07-13): short 157 ms · medium 291 ms · long 550 ms median per suggestion.")
+            reach = EffectBadge(icon: "text.word.spacing", text: "runs up to a sentence ahead", tone: .neutral,
+                                source: "What longer buys: more words per suggestion (+1–2 pp completeness in the sweep). Per-word accuracy does not improve, and weak tails are trimmed automatically.")
+            speed = EffectBadge(icon: "tortoise",
+                                text: baseMs != nil ? "p50 ~\(ms(.long)) (≈3.5× short)" : "≈3.5× slower than short",
+                                tone: .caution, source: sweepSource)
         }
         return [
+            reach,
             speed,
             EffectBadge(icon: "scope", text: "accuracy unchanged", tone: .quality,
                         source: "First-word accuracy is length-independent in the sweep; longer buys ~1–2 pp completeness but loses word-F1 — speed is the real trade-off."),
@@ -1052,6 +1153,38 @@ struct PersonalTab: View {
                 ])
             }
 
+            Section("Per-app style") {
+                if store.perAppInstructions.isEmpty {
+                    Caption("The persona above applies everywhere. Add an app to append extra style lines only there — formal in Mail, casual and short in Slack.")
+                }
+                ForEach(store.perAppInstructions.keys.sorted(), id: \.self) { bundleID in
+                    PerAppInstructionRow(bundleID: bundleID, store: store)
+                }
+                let suggestions = store.perAppSuggestions
+                HStack(spacing: 10) {
+                    if !suggestions.isEmpty {
+                        Button {
+                            store.addSuggestedPerAppInstructions()
+                        } label: {
+                            Label("Fill In Suggested", systemImage: "sparkles")
+                        }
+                        .controlSize(.small)
+                    }
+                    Button {
+                        store.addPerAppInstructionApp()
+                    } label: {
+                        Label("Add App…", systemImage: "plus")
+                    }
+                    .controlSize(.small)
+                }
+                if !suggestions.isEmpty {
+                    Caption("Suggested fills in ready-made styles for the apps found on this Mac — "
+                        + suggestions.map { resolveApp($0.bundleID).name }.joined(separator: ", ")
+                        + ". Every line stays editable: tweak or remove whatever doesn't fit.")
+                }
+                Caption("Appended to your persona while typing in that app — steers Instruct style only, like the persona itself.")
+            }
+
             Section("Learning") {
                 Picker("Learn my words", selection: $store.personalization) {
                     Text("Off").tag(PersonalizationLevel.off)
@@ -1076,7 +1209,7 @@ struct PersonalTab: View {
             Section("Journal") {
                 Toggle("Keep suggestion journal", isOn: $store.journalEnabled)
                 HStack {
-                    Caption("Records which suggestions you accept, dismiss or type past — the raw data for quality tuning. Stays in Application Support; on-screen OCR text is never written.")
+                    Caption("Records each suggestion with a snippet of the surrounding text you typed — the raw data for personalization and quality tuning. Stays on this Mac in Application Support (capped at 5 MB); on-screen OCR text is never written. Turning this off also deletes the stored journal.")
                     Spacer()
                     Button(store.journalBytes > 0
                         ? "Clear (\(ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)))"
@@ -1086,13 +1219,16 @@ struct PersonalTab: View {
                     .controlSize(.small)
                     .disabled(store.journalBytes == 0)
                 }
-                Toggle("Reuse my accepted phrases as examples", isOn: $store.examplesEnabled)
+                LabeledContent("Accepted phrases") {
+                    Text("reused as prompt examples — automatic")
+                }
                 BadgeRow(badges: [
                     EffectBadge(icon: "checkmark.seal", text: "measured win on Instruct style", tone: .quality,
                                 source: "Few-shot from your own accepted phrases: first-word 4% → 10% on the journal replay, all 7 discordant samples in its favor, exact p=0.016 (Instruct path)."),
                     EffectBadge(icon: "info.circle", text: "now feeds Base style too — unmeasured", tone: .neutral,
                                 source: "Base used to ignore examples (confirmed no-op A/B). Since 2026-07-16 they are prefixed to the Base prompt as a label-free block (the screen-context format) — the instruct win motivated the port; the Base-path effect itself is not measured yet."),
                 ])
+                Caption("A measured win at no latency cost, so there's no switch to lose. Clear the journal above to forget the phrases.")
             }
         }
         .formStyle(.grouped)

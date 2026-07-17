@@ -147,7 +147,7 @@ final class FoundationModelsEngine: CompletionEngine {
         let prompt = userPrompt(variant, text: text, request: request)
 
         // Persona (when set) sharpens voice; length caps the response.
-        let persona = instructionsBox.get().trimmingCharacters(in: .whitespacesAndNewlines)
+        let persona = request.persona(global: instructionsBox.get())
         let base = Self.baseInstructions(variant)
         let instructions = persona.isEmpty
             ? base

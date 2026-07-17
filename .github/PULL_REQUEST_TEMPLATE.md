@@ -11,8 +11,8 @@
 
 - [ ] `swift build` succeeds
 - [ ] Verified against a real text field (TextEdit / Notes)
-<!-- For prompt / model / output-gate changes, paste eval numbers before & after
-     (ask a maintainer for the baseline). -->
+<!-- For prompt / model / output-gate changes, just note it here — a maintainer
+     will run the eval harness and post before/after numbers. -->
 
 ## Notes
 
