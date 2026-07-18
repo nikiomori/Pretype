@@ -11,9 +11,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var diagnosticsMenu: NSMenu!
     private var permissionItem: NSMenuItem!
     private var enabledItem: NSMenuItem!
+    private var hintItem: NSMenuItem!
 
     private var statusTimer: Timer?
     private var iconPhase = 0   // animates the preparing-state typing dots
+    private var lastIconID = ""  // gates the icon redraw (kept off the a11y label)
     private var settingsWindow: SettingsWindowController?
 
     override init() {
@@ -21,7 +23,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         super.init()
         if let button = statusItem.button {
             button.image = BrandMark.statusItemImage(.ready)
-            button.image?.accessibilityDescription = "pretype.ready"
+            button.image?.accessibilityDescription = "Pretype"
         }
         buildMenu()
         menu.delegate = self
@@ -53,15 +55,20 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             }
         }
         iconPhase = state == .preparing ? (iconPhase + 1) % 3 : 0
+        // Rebuild the template image only when the drawn state changes; this token
+        // gates the redraw and must NOT double as the accessible label.
         let id = "pretype.\(state.rawValue).\(iconPhase)"
-        if button.image?.accessibilityDescription != id {
-            let mark = BrandMark.statusItemImage(state, phase: iconPhase)
-            mark.accessibilityDescription = id
-            button.image = mark
+        if id != lastIconID {
+            button.image = BrandMark.statusItemImage(state, phase: iconPhase)
+            lastIconID = id
         }
-        // The last pipeline event explains per-app silence on hover ("off in
-        // terminal apps", "lost text element", "engine returned no suggestion").
-        var tip = "Pretype — \(statusInfo().text)"
+        // VoiceOver reads the image description as the button's name, so it gets
+        // the human status line — the same text the tooltip shows ("Pretype —
+        // MiniCPM ready", "Pretype — downloading 42%"). The last pipeline event
+        // explains per-app silence on hover, so it stays in the tooltip only.
+        let status = "Pretype — \(statusInfo().text)"
+        button.image?.accessibilityDescription = status
+        var tip = status
         if let last = suggestionController?.lastEvent { tip += "\nLast: \(last)" }
         button.toolTip = tip
     }
@@ -101,15 +108,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(diagnosticsItem)
 
         menu.addItem(.separator())
-        // Small two-line hint so it doesn't dictate the menu's width.
-        let hint = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        hint.attributedTitle = NSAttributedString(
-            string: "⇥ accept word · ⇧⇥ accept all\n⌥⇥ fix word/selection · ⏎ apply · ⎋ keep",
-            attributes: [
-                .font: NSFont.menuFont(ofSize: NSFont.smallSystemFontSize),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ])
-        menu.addItem(hint)
+        // Small two-line hint so it doesn't dictate the menu's width. Refreshed
+        // in menuNeedsUpdate so the keycaps track the chosen accept hotkey.
+        hintItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        hintItem.attributedTitle = shortcutHint()
+        menu.addItem(hintItem)
         menu.addItem(NSMenuItem(
             title: "Quit Pretype",
             action: #selector(NSApplication.terminate(_:)),
@@ -157,6 +160,21 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
         permissionItem.isHidden = Permissions.isTrusted
         enabledItem.state = Settings.enabled ? .on : .off
+        hintItem.attributedTitle = shortcutHint()
+    }
+
+    /// The two-line shortcut hint, keyed to the user's accept hotkey so its
+    /// notation matches the overlay and onboarding (Tab / ⇧Tab / ⌥Tab) instead
+    /// of a hardcoded ⇥ that also went stale whenever the hotkey was changed.
+    private func shortcutHint() -> NSAttributedString {
+        let s = Settings.hotkeyStyle
+        return NSAttributedString(
+            string: "\(s.label) accept word · \(s.shiftLabel) accept all\n"
+                + "\(s.correctionLabel) fix word/selection · ⏎ apply · ⎋ keep",
+            attributes: [
+                .font: NSFont.menuFont(ofSize: NSFont.smallSystemFontSize),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ])
     }
 
     private func statusInfo() -> (color: NSColor, text: String) {

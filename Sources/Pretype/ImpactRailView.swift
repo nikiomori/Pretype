@@ -71,11 +71,14 @@ struct ImpactRailView: View {
                 Text("Live Impact")
                     .font(.headline)
                 Spacer()
-                Toggle("Enable suggestions", isOn: $store.enabled)
+                // Labeled, not a bare switch: next to the "Live Impact" title an
+                // unlabeled toggle reads as showing/hiding the inspector, when it
+                // actually enables suggestions system-wide.
+                Toggle("Suggestions", isOn: $store.enabled)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .labelsHidden()
-                    .help(store.enabled ? "Suggestions are on" : "Suggestions are off")
+                    .font(.subheadline)
+                    .help(store.enabled ? "Suggestions are on system-wide" : "Suggestions are off system-wide")
             }
             HStack(spacing: 7) {
                 Circle()
@@ -111,15 +114,27 @@ struct ImpactRailView: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             } else {
-                Text(store.activeTab == .model
-                    ? "Hover a model to preview it. Bigger bubble = more memory."
-                    : "Hover any control to see exactly what it improves or costs — before you commit.")
+                Text(tipText)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.top, 2)
+    }
+
+    /// The idle tip, tab-aware: only Model and Suggestions controls drive a
+    /// hover preview, so General/Personalization describe the rail as a
+    /// read-only readout rather than inviting a hover that does nothing there.
+    private var tipText: String {
+        switch store.activeTab {
+        case .model:
+            return "Hover a model to preview it. Bigger bubble = more memory."
+        case .suggestions:
+            return "Hover any control to see exactly what it improves or costs — before you commit."
+        case .general, .personalization:
+            return "A live readout of your current setup. Hover a control on the Model or Suggestions tab to preview a change before it commits."
+        }
     }
 }
 

@@ -140,6 +140,16 @@ enum ModelCatalog {
             ? "openbmb/MiniCPM5-1B-Base" : "mlx-community/Qwen3.5-2B-4bit"
     }
 
+    /// Why the current `defaultID` was picked — keyed to the resolved default so
+    /// the RECOMMENDED tooltip never tells the wrong model's story (the default
+    /// is keyboard-language-aware, so a hardcoded MiniCPM rationale is false for
+    /// the multilingual Qwen default).
+    static var defaultRationale: String {
+        defaultID != "openbmb/MiniCPM5-1B-Base"
+            ? "Auto-picked for your keyboard languages: the best-measured small multilingual model — it beats every other sub-2 GB model across the evaluated languages (p<0.001) at an even lighter footprint. For English or Russian only, MiniCPM 1B is faster; the Gemma tiers are the most accurate."
+            : "Auto-picked for this Mac: the fastest model in the catalog, within a few points of the much larger Gemma tiers on English and Russian. Typing in other languages? A Gemma tier or the multilingual default is more accurate — see the model's note below."
+    }
+
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):
     /// zero download, zero app memory, runs on the Neural Engine.
     static let appleIntelligenceID = "system.apple-intelligence"

@@ -436,7 +436,7 @@ struct EffectBadge: View {
         switch tone {
         case .quality: return .green
         case .speed: return .blue
-        case .memory: return .purple
+        case .memory: return .teal
         case .caution: return .orange
         case .neutral: return Color.gray
         }
@@ -562,7 +562,7 @@ struct SettingsRootView: View {
                     }
                     Text("System-wide AI autocomplete")
                         .font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.tail)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
@@ -694,40 +694,50 @@ struct GeneralTab: View {
             Section("Suggestion display") {
                 HStack(spacing: 12) {
                     PresentationCard(mode: .inline, title: "Inline",
-                                     isSelected: store.presentation == .inline) {
+                                     isSelected: store.presentation == .inline,
+                                     hotkeyLabel: store.hotkeyStyle.label) {
                         store.presentation = .inline
                     }
                     PresentationCard(mode: .panel, title: "Panel",
-                                     isSelected: store.presentation == .panel) {
+                                     isSelected: store.presentation == .panel,
+                                     hotkeyLabel: store.hotkeyStyle.label) {
                         store.presentation = .panel
                     }
                 }
                 Caption(store.presentation == .inline
-                    ? "Ghost text continues your line right at the cursor — same size and baseline, seamless in native and Chromium/Electron apps. Tab accepts."
-                    : "A small floating box beside the cursor shows the suggestion with a ⇥ hint. Never overlaps your text, and forgiving when the cursor can only be estimated.")
+                    ? "Ghost text continues your line right at the cursor — same size and baseline, seamless in native and Chromium/Electron apps. \(store.hotkeyStyle.label) accepts."
+                    : "A small floating box beside the cursor shows the suggestion with a \(store.hotkeyStyle.label) hint. Never overlaps your text, and forgiving when the cursor can only be estimated.")
             }
 
             Section {
                 Picker("Accept hotkey", selection: $store.hotkeyStyle) {
                     ForEach(HotkeyStyle.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                LabeledContent("Ghost visibility") {
-                    HStack(spacing: 8) {
-                        Text("Faint").font(.caption).foregroundStyle(.tertiary)
-                        Slider(value: $store.ghostOpacity, in: 0.1...1)
-                        Text("Bold").font(.caption).foregroundStyle(.tertiary)
-                        Text("\(Int(store.ghostOpacity * 100))%")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 36, alignment: .trailing)
+                // Ghost opacity dims inline ghost text only; the panel is an
+                // opaque HUD by design (SuggestionWindow), so the slider is
+                // inline-only — a control that moved the preview but never the
+                // real panel pill was misleading.
+                if store.presentation == .inline {
+                    LabeledContent("Ghost visibility") {
+                        HStack(spacing: 8) {
+                            Text("Faint").font(.caption).foregroundStyle(.tertiary)
+                            Slider(value: $store.ghostOpacity, in: 0.1...1)
+                            Text("Bold").font(.caption).foregroundStyle(.tertiary)
+                            Text("\(Int(store.ghostOpacity * 100))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, alignment: .trailing)
+                        }
+                        .frame(width: 320)
+                        .help("How strongly the ghost text stands out from your own. 70% measured most readable over real app backgrounds — 45% was near-invisible.")
                     }
-                    .frame(width: 320)
-                    .help("How strongly the ghost text stands out from your own. 70% measured most readable over real app backgrounds — 45% was near-invisible.")
                 }
                 OverlayPreview(presentation: store.presentation,
                                opacity: store.ghostOpacity,
                                hotkey: store.hotkeyStyle)
-                Caption("Live preview — drag the slider and watch it update. The overlay picks dark or light rendering from the app background under the cursor (with Screen Recording; otherwise it follows the system theme).")
+                Caption(store.presentation == .inline
+                    ? "Live preview — drag the slider and watch it update. The overlay picks dark or light rendering from the app background under the cursor (with Screen Recording; otherwise it follows the system theme)."
+                    : "Live preview — the floating panel is a fully opaque HUD, legible on any background. It picks dark or light rendering from behind the cursor (with Screen Recording; otherwise it follows the system theme).")
             }
 
             Section("Turned off in these apps") {
@@ -872,8 +882,12 @@ private struct OverlayPreview: View {
 
     private func line(light: Bool) -> some View {
         let ink: Color = light ? .black : .white
-        let head = ink.opacity(0.75 * opacity)
-        let tail = ink.opacity(0.5 * opacity)
+        // The slider dims inline ghost text; the panel pill is an opaque HUD and
+        // stays full-strength, so the preview must not move it either — else it
+        // promises an effect the real panel never applies.
+        let effective = presentation == .inline ? opacity : 1.0
+        let head = ink.opacity(0.75 * effective)
+        let tail = ink.opacity(0.5 * effective)
         return HStack(spacing: 5) {
             if presentation == .inline {
                 Text("Write ").foregroundColor(ink)
@@ -904,6 +918,9 @@ private struct PresentationCard: View {
     let mode: SuggestionPresentation
     let title: String
     let isSelected: Bool
+    /// The chosen accept key, shown in the panel mockup's hint pill so it
+    /// matches the live overlay instead of a hardcoded ⇥.
+    var hotkeyLabel: String = "Tab"
     let action: () -> Void
     /// Local hover only — a card highlight, never published to the store the
     /// Form observes (that path hitches list scrolling).
@@ -959,7 +976,7 @@ private struct PresentationCard: View {
                 Text("Write ").font(.system(size: 13))
                 HStack(spacing: 4) {
                     Text("a reply").font(.system(size: 13)).foregroundStyle(.secondary)
-                    Text("⇥").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                    Text(hotkeyLabel).font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
@@ -976,62 +993,73 @@ struct SuggestionsTab: View {
 
     var body: some View {
         Form {
-            Section {
-                Toggle("Use recommended settings", isOn: $store.useRecommended)
-                    .onHover { store.setHover(.useRecommended(!store.useRecommended), $0) }
-                Caption(store.useRecommended
-                    ? "Style and Length follow the measured-best configuration for the selected model — now \(store.recommendation.summary). Adjusting either by hand turns this off."
-                    : "Style and Length are tuned by hand below. Turn on to snap back to the measured-best configuration (\(store.recommendation.summary)).")
-            }
-
-            Section("Style") {
-                HoverSegments(options: [(CompletionStyle.base, "Base"),
-                                        (CompletionStyle.instruct, "Instruct")],
-                              selection: store.style,
-                              select: { store.style = $0 },
-                              hover: { style, hovering in
-                                  store.setHover(.style(style), hovering)
-                              })
-                if store.style == .instruct, store.instructUnusable {
-                    RequirementRow(met: false,
-                                   text: "Instruct is broken on \(store.selectedModelName) — it answers the text instead of continuing it (~0% first-word measured)",
-                                   fixTitle: "Switch to Base") { store.style = .base }
+            // Apple Intelligence runs as the macOS system model on the Neural
+            // Engine: Style and the precision gate never reach it (EngineCoordinator
+            // sends only length + persona), and their badges quote MLX-model figures
+            // that are false for it — so those tuning sections are on-device only.
+            if store.isAppleIntelligence {
+                Section {
+                    Caption("Apple Intelligence runs as the macOS system model on the Neural Engine — Style and the precision gate are on-device-model controls that don't apply here. Length below still shapes each suggestion; teach its voice from the Personalization tab.")
                 }
-                BadgeRow(badges: styleBadges)
-                Caption(store.style == .instruct
-                    ? (store.instructUnusable
-                        ? "Instruct only works on models with a usable instruct sibling (the Gemma tiers) — pick one in the Model pane, or use Base here."
-                        : "Steers an instruct-tuned model with your persona — tone- and length-aware. Strongest on text you compose (email, chat replies).")
-                    : "Plain next-word continuation of the selected model — no persona, but it can abstain instead of forcing a guess, and it unlocks the high-precision gates below.")
             }
+            if !store.isAppleIntelligence {
+                Section {
+                    Toggle("Use recommended settings", isOn: $store.useRecommended)
+                        .onHover { store.setHover(.useRecommended(!store.useRecommended), $0) }
+                    Caption(store.useRecommended
+                        ? "Style and Length follow the measured-best configuration for the selected model — now \(store.recommendation.summary). Adjusting either by hand turns this off."
+                        : "Style and Length are tuned by hand below. Turn on to snap back to the measured-best configuration (\(store.recommendation.summary)).")
+                }
 
-            Section("High precision") {
-                Toggle("Show only confident suggestions", isOn: $store.logprobGate)
-                    .disabled(!store.logprobGateUsable)
-                    .onHover { hovering in
-                        guard store.logprobGateUsable else { return }
-                        store.setHover(.logprobGate(!store.logprobGate), hovering)
+                Section("Style") {
+                    HoverSegments(options: [(CompletionStyle.base, "Base"),
+                                            (CompletionStyle.instruct, "Instruct")],
+                                  selection: store.style,
+                                  select: { store.style = $0 },
+                                  hover: { style, hovering in
+                                      store.setHover(.style(style), hovering)
+                                  })
+                    if store.style == .instruct, store.instructUnusable {
+                        RequirementRow(met: false,
+                                       text: "Instruct is broken on \(store.selectedModelName) — it answers the text instead of continuing it (~0% first-word measured)",
+                                       fixTitle: "Switch to Base") { store.style = .base }
                     }
-                if !store.logprobGateUsable {
-                    RequirementRow(met: false,
-                                   text: "Base style — it thresholds the base model's own confidence",
-                                   fixTitle: "Switch to Base") { store.style = .base }
-                } else {
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "scope", text: "62–67% first-word on what it shows", tone: .quality,
-                                    source: "Out-of-sample split-half calibration, τ≈−0.9: 62–67% first-word accuracy at ~30% of suggestions offered — eval-real, n=870, 2026-07-15."),
-                        EffectBadge(icon: "hand.raised", text: "offers ~30% of the time (vs 81%)", tone: .caution,
-                                    source: "The other side of the trade: roughly two of three suggestions are withheld as not-confident-enough — coverage ~30% vs 81% ungated on the default model (eval-real, n=870, 2026-07-15)."),
-                    ])
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "bolt", text: "no added latency", tone: .speed,
-                                    source: "Reads the first-word log-probability the decoder already produced — zero extra generation."),
-                        EffectBadge(icon: "keyboard", text: "net keystrokes: −5% → +11%", tone: .quality,
-                                    source: "Typing simulation (λ=2, E2B-8bit, verified on the held-out half): ungated suggestions cost −5% net keystrokes; gated save +11% — eval-real, 2026-07-15."),
-                    ])
+                    BadgeRow(badges: styleBadges)
+                    Caption(store.style == .instruct
+                        ? (store.instructUnusable
+                            ? "Instruct only works on models with a usable instruct sibling (the Gemma tiers) — pick one in the Model pane, or use Base here."
+                            : "Steers an instruct-tuned model with your persona — tone- and length-aware. Strongest on text you compose (email, chat replies).")
+                        : "Plain next-word continuation of the selected model — no persona, but it can abstain instead of forcing a guess, and it unlocks the high-precision gates below.")
                 }
-                Caption("Trades coverage for precision: far fewer suggestions, far more of them right — read straight off the decoder, so it costs nothing. Off means more (but less certain) suggestions.")
-            }
+
+                Section("High precision") {
+                    Toggle("Show only confident suggestions", isOn: $store.logprobGate)
+                        .disabled(!store.logprobGateUsable)
+                        .onHover { hovering in
+                            guard store.logprobGateUsable else { return }
+                            store.setHover(.logprobGate(!store.logprobGate), hovering)
+                        }
+                    if !store.logprobGateUsable {
+                        RequirementRow(met: false,
+                                       text: "Base style — it thresholds the base model's own confidence",
+                                       fixTitle: "Switch to Base") { store.style = .base }
+                    } else {
+                        BadgeRow(badges: [
+                            EffectBadge(icon: "scope", text: "62–67% first-word on what it shows", tone: .quality,
+                                        source: "Out-of-sample split-half calibration, τ≈−0.9: 62–67% first-word accuracy at ~30% of suggestions offered — eval-real, n=870, 2026-07-15."),
+                            EffectBadge(icon: "hand.raised", text: "offers ~30% of the time (vs 81%)", tone: .caution,
+                                        source: "The other side of the trade: roughly two of three suggestions are withheld as not-confident-enough — coverage ~30% vs 81% ungated on the default model (eval-real, n=870, 2026-07-15)."),
+                        ])
+                        BadgeRow(badges: [
+                            EffectBadge(icon: "bolt", text: "no added latency", tone: .speed,
+                                        source: "Reads the first-word log-probability the decoder already produced — zero extra generation."),
+                            EffectBadge(icon: "keyboard", text: "net keystrokes: −5% → +11%", tone: .quality,
+                                        source: "Typing simulation (λ=2, E2B-8bit, verified on the held-out half): ungated suggestions cost −5% net keystrokes; gated save +11% — eval-real, 2026-07-15."),
+                        ])
+                    }
+                    Caption("Trades coverage for precision: far fewer suggestions, far more of them right — read straight off the decoder, so it costs nothing. Off means more (but less certain) suggestions.")
+                }
+            }  // end on-device-only tuning sections (hidden for Apple Intelligence)
 
             Section("Length") {
                 HoverSegments(options: [(CompletionLength.short, "Short"),
@@ -1043,7 +1071,7 @@ struct SuggestionsTab: View {
                                   store.setHover(.length(length), hovering)
                               })
                 BadgeRow(badges: lengthBadges)
-                Caption("Tab still accepts one word at a time; length caps how far a single suggestion runs ahead. Low-confidence endings are trimmed automatically, so this is a maximum, not a promise.")
+                Caption("\(store.hotkeyStyle.label) still accepts one word at a time; length caps how far a single suggestion runs ahead. Low-confidence endings are trimmed automatically, so this is a maximum, not a promise.")
             }
         }
         .formStyle(.grouped)
@@ -1142,15 +1170,19 @@ struct PersonalTab: View {
                     .overlay(RoundedRectangle(cornerRadius: 6)
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
                 HStack {
-                    Caption("Auto-filled from your account name and keyboard languages — steers Instruct style only. It stays on your Mac.")
+                    Caption(store.isAppleIntelligence
+                        ? "Auto-filled from your account name and keyboard languages — the primary voice control for Apple Intelligence, passed as its system instructions. It stays on your Mac."
+                        : "Auto-filled from your account name and keyboard languages — steers Instruct style only. It stays on your Mac.")
                     Spacer()
                     Button("Reset to System") { store.resetInstructions() }
                         .controlSize(.small)
                 }
-                BadgeRow(badges: [
-                    EffectBadge(icon: "scope", text: "66% → 85–88% first-word (Instruct)", tone: .quality,
-                                source: "Measured on eval-v2: Instruct without a persona 66% first-word; with the auto-persona 85%; with a hand-tuned one 88%."),
-                ])
+                if !store.isAppleIntelligence {
+                    BadgeRow(badges: [
+                        EffectBadge(icon: "scope", text: "66% → 85–88% first-word (Instruct)", tone: .quality,
+                                    source: "Measured on eval-v2: Instruct without a persona 66% first-word; with the auto-persona 85%; with a hand-tuned one 88%."),
+                    ])
+                }
             }
 
             Section("Per-app style") {
@@ -1182,29 +1214,36 @@ struct PersonalTab: View {
                         + suggestions.map { resolveApp($0.bundleID).name }.joined(separator: ", ")
                         + ". Every line stays editable: tweak or remove whatever doesn't fit.")
                 }
-                Caption("Appended to your persona while typing in that app — steers Instruct style only, like the persona itself.")
+                Caption(store.isAppleIntelligence
+                    ? "Appended to your persona while typing in that app — steers the system model's voice, like the persona itself."
+                    : "Appended to your persona while typing in that app — steers Instruct style only, like the persona itself.")
             }
 
-            Section("Learning") {
-                Picker("Learn my words", selection: $store.personalization) {
-                    Text("Off").tag(PersonalizationLevel.off)
-                    Text("Subtle").tag(PersonalizationLevel.subtle)
-                    Text("Medium").tag(PersonalizationLevel.medium)
-                    Text("Strong").tag(PersonalizationLevel.strong)
+            // The n-gram boost never reaches Apple Intelligence (FoundationModelsEngine
+            // takes the no-op updatePersonalization — it has no logits to boost), so
+            // learning would collect words it can never apply. On-device models only.
+            if !store.isAppleIntelligence {
+                Section("Learning") {
+                    Picker("Learn my words", selection: $store.personalization) {
+                        Text("Off").tag(PersonalizationLevel.off)
+                        Text("Subtle").tag(PersonalizationLevel.subtle)
+                        Text("Medium").tag(PersonalizationLevel.medium)
+                        Text("Strong").tag(PersonalizationLevel.strong)
+                    }
+                    BadgeRow(badges: [
+                        EffectBadge(icon: "flask", text: "directionally positive, needs more data", tone: .neutral,
+                                    source: "Boost = level × ln(1 + times you typed this word after this context, capped), applied to the first token — the n-gram fusion whose time-split replay went 3/0 in its favor (p=0.25, underpowered at n=54; re-measured as your journal grows). The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
+                    ])
+                    HStack {
+                        Caption("Boosts the words you habitually type next — learned from your suggestion journal. Clear the journal to forget them.")
+                        Spacer()
+                        Text(store.learnedWords > 0 ? "\(store.learnedWords) words" : "nothing learned yet")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
                 }
-                BadgeRow(badges: [
-                    EffectBadge(icon: "flask", text: "directionally positive, needs more data", tone: .neutral,
-                                source: "Boost = level × ln(1 + times you typed this word after this context, capped), applied to the first token — the n-gram fusion whose time-split replay went 3/0 in its favor (p=0.25, underpowered at n=54; re-measured as your journal grows). The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
-                ])
-                HStack {
-                    Caption("Boosts the words you habitually type next — learned from your suggestion journal. Clear the journal to forget them.")
-                    Spacer()
-                    Text(store.learnedWords > 0 ? "\(store.learnedWords) words" : "nothing learned yet")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
+            }  // end Learning (hidden for Apple Intelligence)
 
             Section("Journal") {
                 Toggle("Keep suggestion journal", isOn: $store.journalEnabled)
@@ -1219,16 +1258,22 @@ struct PersonalTab: View {
                     .controlSize(.small)
                     .disabled(store.journalBytes == 0)
                 }
-                LabeledContent("Accepted phrases") {
-                    Text("reused as prompt examples — automatic")
-                }
-                BadgeRow(badges: [
-                    EffectBadge(icon: "checkmark.seal", text: "measured win on Instruct style", tone: .quality,
-                                source: "Few-shot from your own accepted phrases: first-word 4% → 10% on the journal replay, all 7 discordant samples in its favor, exact p=0.016 (Instruct path)."),
-                    EffectBadge(icon: "info.circle", text: "now feeds Base style too — unmeasured", tone: .neutral,
-                                source: "Base used to ignore examples (confirmed no-op A/B). Since 2026-07-16 they are prefixed to the Base prompt as a label-free block (the screen-context format) — the instruct win motivated the port; the Base-path effect itself is not measured yet."),
-                ])
-                Caption("A measured win at no latency cost, so there's no switch to lose. Clear the journal above to forget the phrases.")
+                // The journal itself still records (retention is the toggle above),
+                // but its few-shot reuse never reaches Apple Intelligence — FM's
+                // complete() ignores personalExamples — so the "reused as examples"
+                // rows and the measured-win badges are on-device-only.
+                if !store.isAppleIntelligence {
+                    LabeledContent("Accepted phrases") {
+                        Text("reused as prompt examples — automatic")
+                    }
+                    BadgeRow(badges: [
+                        EffectBadge(icon: "checkmark.seal", text: "measured win on Instruct style", tone: .quality,
+                                    source: "Few-shot from your own accepted phrases: first-word 4% → 10% on the journal replay, all 7 discordant samples in its favor, exact p=0.016 (Instruct path)."),
+                        EffectBadge(icon: "info.circle", text: "now feeds Base style too — unmeasured", tone: .neutral,
+                                    source: "Base used to ignore examples (confirmed no-op A/B). Since 2026-07-16 they are prefixed to the Base prompt as a label-free block (the screen-context format) — the instruct win motivated the port; the Base-path effect itself is not measured yet."),
+                    ])
+                    Caption("A measured win at no latency cost, so there's no switch to lose. Clear the journal above to forget the phrases.")
+                }  // end few-shot rows (hidden for Apple Intelligence)
             }
         }
         .formStyle(.grouped)

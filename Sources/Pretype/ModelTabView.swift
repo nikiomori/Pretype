@@ -16,6 +16,15 @@ struct ModelTab: View {
         Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code
     }
 
+    /// Priority cards for the current axis with duplicates collapsed: when two
+    /// goals land on the same model (Balanced == Quick & accurate on EN/RU,
+    /// where the default is picked to be the fastest at parity) the first in
+    /// order wins — so no two cards ever render byte-identical.
+    private var distinctPriorities: [ModelPriority] {
+        var seen = Set<String>()
+        return ModelPriority.allCases.filter { seen.insert($0.pick(axis: axis)).inserted }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -32,7 +41,7 @@ struct ModelTab: View {
 
             Section("What matters most") {
                 HStack(spacing: 10) {
-                    ForEach(ModelPriority.allCases, id: \.self) { priority in
+                    ForEach(distinctPriorities, id: \.self) { priority in
                         let pick = priority.pick(axis: axis)
                         PriorityCard(priority: priority, pick: pick,
                                      acc: ModelMetrics.axisAccuracy(for: pick, axis: axis),
@@ -183,17 +192,27 @@ struct ModelTab: View {
                         Text("\(v)% first word, silence counted as a miss")
                     }
                 }
-                LabeledContent("Best measured config") {
-                    Text(store.recommendation.summary)
+                // Apple Intelligence is the system model: style is moot (setupLine
+                // omits it too) and the "below E4B class" fill-in reasoning is an
+                // on-device-tier concept that doesn't apply — so suppress the
+                // measured-config row and describe how the system model runs.
+                if !store.isAppleIntelligence {
+                    LabeledContent("Best measured config") {
+                        Text(store.recommendation.summary)
+                    }
                 }
                 LabeledContent("Mid-sentence edits") {
-                    Text(store.recommendation.fim
-                        ? "fill-in — also reads the text after the cursor"
-                        : "left context only — fill-in is unreliable below E4B class")
+                    Text(store.isAppleIntelligence
+                        ? "handled by the system model"
+                        : (store.recommendation.fim
+                            ? "fill-in — also reads the text after the cursor"
+                            : "left context only — fill-in is unreliable below E4B class"))
                 }
-                .help(store.recommendation.fim
-                    ? "Mid-line edits condition on what follows the cursor, so the completion meets the existing text instead of re-typing it."
-                    : "Fill-in-the-middle is reliable on E4B-class models only, so it's skipped automatically here — not a setting, just how this model is driven.")
+                .help(store.isAppleIntelligence
+                    ? "Apple Intelligence runs on the Neural Engine as the system model — Pretype doesn't set its style or fill-in; those are on-device-model settings."
+                    : (store.recommendation.fim
+                        ? "Mid-line edits condition on what follows the cursor, so the completion meets the existing text instead of re-typing it."
+                        : "Fill-in-the-middle is reliable on E4B-class models only, so it's skipped automatically here — not a setting, just how this model is driven."))
                 if let note = m.note {
                     Caption(note)
                 }
@@ -238,7 +257,7 @@ private struct ModelRow: View {
                             .padding(.horizontal, 5).padding(.vertical, 1.5)
                             .foregroundStyle(Color.accentColor)
                             .background(Color.accentColor.opacity(0.14), in: Capsule())
-                            .help("Auto-picked for this Mac's memory: the lowest latency in the catalog, within a few points of much larger models on English and Russian. If you type in many languages, prefer a Gemma tier — see the model's note below.")
+                            .help(ModelCatalog.defaultRationale)
                     }
                     Spacer()
                 }
@@ -321,6 +340,7 @@ private struct PriorityCard: View {
                     Text(priority.title)
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
                     if isActive {
                         Image(systemName: "checkmark.circle.fill")
