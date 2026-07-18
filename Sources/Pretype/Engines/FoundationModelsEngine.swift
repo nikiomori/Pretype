@@ -266,11 +266,22 @@ final class FoundationModelsEngine: CompletionEngine {
                     maximumResponseTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count)
                 )
             )
+            // Same as complete(): a cancelled request (focus moved on, overlay
+            // reset) must not surface its late result.
+            try Task.checkCancellation()
             fixed = CorrectionGates.cleanCorrectionOutput(response.content)
         } catch let error as LanguageModelSession.GenerationError {
-            // Same as completion: a declined fix is a no-op, not an error.
-            DebugLog.shared.log("FM", "fix abstain — \(Self.describe(error))")
-            return nil
+            switch error {
+            case .rateLimited, .concurrentRequests:
+                // A transient resource error must not read as "nothing to
+                // fix" — rethrow so the UI shows "fix failed", not "✓ looks
+                // fine", for a selection that may well be broken.
+                throw error
+            default:
+                // A declined fix is a no-op, not an error — same as completion.
+                DebugLog.shared.log("FM", "fix abstain — \(Self.describe(error))")
+                return nil
+            }
         }
         guard !fixed.isEmpty, fixed != trimmed else { return nil }
         guard CorrectionGates.isMinimalCorrection(original: trimmed, fixed: fixed) else {

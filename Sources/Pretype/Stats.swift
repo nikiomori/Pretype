@@ -37,13 +37,15 @@ enum Stats {
     static func recordAccepted(chunk: String, countSuggestion: Bool = true) {
         // A suggestion accepted word-by-word calls this per word: count it as one
         // accepted suggestion (keeps "accepted ≤ shown"), but accrue chars per chunk.
-        if countSuggestion { bump("stats.accepted") }
+        if countSuggestion {
+            bump("stats.accepted")
+            defaults.set(lifetimeAccepted + 1, forKey: "stats.lifetimeAccepted")
+        }
         bump("stats.acceptedChars", by: chunk.count)
         defaults.set(
             defaults.integer(forKey: "stats.lifetimeChars") + chunk.count,
             forKey: "stats.lifetimeChars"
         )
-        defaults.set(lifetimeAccepted + 1, forKey: "stats.lifetimeAccepted")
     }
 
     /// Lifetime accept count — the UI uses it to retire tutoring hints once

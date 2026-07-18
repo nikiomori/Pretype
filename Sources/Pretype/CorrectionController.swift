@@ -50,7 +50,9 @@ final class CorrectionController {
     /// A word whose correction the user dismissed with Escape — suppressed until
     /// the word changes, so it doesn't nag.
     private var dismissedCorrectionWord: String?
-    private var inFlight = false
+    /// Read by the caret indicator's `isQueryRunning` — a fix generation must
+    /// keep the thinking dots alive just like a completion stream does.
+    private(set) var inFlight = false
     private var correctionTask: Task<Void, Never>?
 
     // MARK: - Lifecycle
@@ -273,6 +275,10 @@ final class CorrectionController {
             let elapsed = Date().timeIntervalSince(started)
             await MainActor.run { [weak self] in
                 guard let self, let owner = self.owner else { return }
+                // reset() cancelled this task: its late result must not
+                // resurrect the state reset() just cleared, nor stomp a newer
+                // request's single-flight flag.
+                guard !Task.isCancelled else { return }
                 self.inFlight = false
                 owner.indicator.stop()
                 Stats.recordLatency(elapsed)
@@ -284,7 +290,16 @@ final class CorrectionController {
                 }
                 switch outcome {
                 case .success(let fixed?):
-                    self.pendingFix = makePending(fixed)
+                    let fix = makePending(fixed)
+                    // Nothing cancels the task while the user types on in the
+                    // same field, so a slow result can arrive for text that's
+                    // gone — showing it would swallow the next ⏎ (Enter-to-send)
+                    // for a fix that can never apply. Same check as inject().
+                    guard self.stillValid(fix) else {
+                        DebugLog.shared.log("FIX", "dropped stale fix — text changed while engine ran")
+                        return
+                    }
+                    self.pendingFix = fix
                     owner.lastEvent = proposedEvent
                     DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
                     if let rect = owner.lastCaretRect {
@@ -322,26 +337,31 @@ final class CorrectionController {
     /// confirm key landing in that gap (e.g. Enter-to-send right after a burst
     /// of typing) would otherwise delete and replace the wrong characters.
     private func inject(_ fix: PendingFix, event: String) {
-        guard let owner, let element = owner.currentTextElement() else { return }
-        if fix.deleteCount > 0 {
-            guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars),
-                  ctx.textAfterCaret.first?.isLetter != true,
-                  Self.lastWord(of: ctx.textBeforeCaret) == fix.original else {
-                DebugLog.shared.log("FIX", "dropped stale fix — text changed before apply")
-                return
-            }
-            TextInjector.deleteBackward(fix.deleteCount)
-        } else {
-            guard AXText.selectionInfo(for: element)?.text == fix.original else {
-                DebugLog.shared.log("FIX", "dropped stale fix — selection changed before apply")
-                return
-            }
+        guard let owner else { return }
+        guard stillValid(fix) else {
+            DebugLog.shared.log("FIX", "dropped stale fix — text changed before apply")
+            return
         }
+        if fix.deleteCount > 0 { TextInjector.deleteBackward(fix.deleteCount) }
         TextInjector.insert(fix.replacement)
         Stats.recordCorrection()
         owner.lastEvent = event
         DebugLog.shared.log("FIX", "applied \"\(fix.original)\" → \"\(fix.replacement)\"")
         owner.scheduleKeystrokeRefresh(after: 0.12)
+    }
+
+    /// True while the live text still matches what `fix` was computed against —
+    /// a last-word fix needs its word still just before the caret, a selection
+    /// fix the same selection. Synchronous AX read: never call inside the
+    /// event-tap callback.
+    private func stillValid(_ fix: PendingFix) -> Bool {
+        guard let owner, let element = owner.currentTextElement() else { return false }
+        if fix.deleteCount > 0 {
+            guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) else { return false }
+            return ctx.textAfterCaret.first?.isLetter != true
+                && Self.lastWord(of: ctx.textBeforeCaret) == fix.original
+        }
+        return AXText.selectionInfo(for: element)?.text == fix.original
     }
 
     /// Dismiss the previewed fix and keep the original text untouched.

@@ -90,6 +90,20 @@ final class FocusTracker {
               pid != observedPID else { return }
         detach()
 
+        var created: AXObserver?
+        guard AXObserverCreate(pid, axObserverCallback, &created) == .success, let obs = created else {
+            // Can't track this app, but the delegate must not keep the previous
+            // app's context (blacklist/persona would evaluate the wrong bundle).
+            // Nothing was committed above, so observedPID stays 0 and
+            // re-activating the app retries.
+            typingContext = TypingContext(appName: app.localizedName, bundleID: app.bundleIdentifier,
+                                          windowTitle: nil, fieldLabel: nil)
+            Task { @MainActor in
+                delegate?.focusTrackerDidChangeFocus(self)
+            }
+            return
+        }
+
         observedPID = pid
         observedBundleID = app.bundleIdentifier
         observedAppName = app.localizedName
@@ -101,8 +115,6 @@ final class FocusTracker {
         // Wakes up the accessibility tree in Electron/Chromium apps.
         AXUIElementSetAttributeValue(appEl, "AXManualAccessibility" as CFString, kCFBooleanTrue)
 
-        var created: AXObserver?
-        guard AXObserverCreate(pid, axObserverCallback, &created) == .success, let obs = created else { return }
         observer = obs
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         AXObserverAddNotification(obs, appEl, kAXFocusedUIElementChangedNotification as CFString, refcon)

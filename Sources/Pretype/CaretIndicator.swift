@@ -73,6 +73,10 @@ final class CaretIndicator {
         guard let rect = caretRect() else { return }
         switch engineState() {
         case .preparing(let detail):
+            // Same invariant as .ready: never overdraw a live ghost (the
+            // instant n-gram suggestion can be up while the model loads) —
+            // `active` would stay Tab-acceptable under the status pill.
+            guard !hasActiveSuggestion() else { return }
             window.show(mode: .status(detail), at: rect)
         case .ready:
             // A visible suggestion owns the shared window: never overdraw it
@@ -94,7 +98,12 @@ final class CaretIndicator {
                 if !hasActiveSuggestion() { window.hide() }
             }
         case .failed:
-            window.show(mode: .error("engine not working"), at: rect)
+            // Show once and stop: no downstream path stops the timer in this
+            // state, so a repeating show() would pin the error pill at a stale
+            // caret forever. The transient auto-hides.
+            stop()
+            guard !hasActiveSuggestion() else { return }
+            window.showTransient(.error("engine not working"), at: rect)
         }
     }
 }

@@ -63,9 +63,7 @@ final class EngineCoordinator {
     /// clears the Base-only gates rather than leaving them set-but-inert.
     func setCompletionStyle(_ style: CompletionStyle) { apply(current.applying(.style(style))) }
 
-    /// The gates are read when the engine is built, so toggling rebuilds; the
-    /// cascade keeps the two mutually exclusive.
-    func setConfidenceGate(_ enabled: Bool) { apply(current.applying(.confidenceGate(enabled))) }
+    /// The gate is read when the engine is built, so toggling rebuilds.
     func setLogprobGate(_ enabled: Bool) { apply(current.applying(.logprobGate(enabled))) }
 
     /// Length/persona are live — no reload.

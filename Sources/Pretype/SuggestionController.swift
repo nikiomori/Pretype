@@ -26,7 +26,11 @@ final class SuggestionController: NSObject {
         engineState: { [weak self] in self?.engine.state ?? .ready },
         caretRect: { [weak self] in self?.lastCaretRect },
         hasActiveSuggestion: { [weak self] in self?.active != nil },
-        isQueryRunning: { [weak self] in self?.refreshTask != nil }
+        isQueryRunning: { [weak self] in
+            // The ⌥⇥ fix flows run outside refreshTask; without them the timer
+            // sees .ready + idle at its first tick and kills the thinking dots.
+            self?.refreshTask != nil || self?.correctionController.inFlight == true
+        }
     )
     /// The text-fixing flows (⌥⇥ fix-selection / last word, inline spell-fix),
     /// kept separate from the completion pipeline below.
@@ -80,6 +84,15 @@ final class SuggestionController: NSObject {
     /// partial tell — without a fresh AX read — whether the user has typed since
     /// the completion stream began, so it knows when its cached context is stale.
     private var latestTextBeforeCaret: String?
+    /// While set and in the future, a synthetic injection (accept / ⌘Z undo)
+    /// is still landing in the target app: `textDidChange` treats the cache as
+    /// the authority over a mismatching (trailing) AX read until then.
+    private var injectionSettleDeadline: Date?
+    /// The cache exactly as it read right after the last accept's injection.
+    /// ⌘Z-undo is offered only while the field still reads like this — a
+    /// same-field mouse click can land the caret after identical text, so a
+    /// bare "ends with the chunk" check would delete the wrong occurrence.
+    private var lastAcceptedSnapshot: String?
 
     /// Caret rect of the latest context — shared by the completion overlay, the
     /// indicator and the correction previews.
@@ -163,7 +176,6 @@ final class SuggestionController: NSObject {
     func applyRecommendedSettings() { engineCoordinator.applyRecommendedSettings() }
     func releaseEngineModel() { engineCoordinator.releaseModelNow() }
     func setCompletionStyle(_ style: CompletionStyle) { engineCoordinator.setCompletionStyle(style) }
-    func setConfidenceGate(_ enabled: Bool) { engineCoordinator.setConfidenceGate(enabled) }
     func setLogprobGate(_ enabled: Bool) { engineCoordinator.setLogprobGate(enabled) }
     func setCompletionLength(_ length: CompletionLength) { engineCoordinator.setCompletionLength(length) }
     func setCustomInstructions(_ instructions: String) { engineCoordinator.setCustomInstructions(instructions) }
@@ -174,13 +186,6 @@ final class SuggestionController: NSObject {
     func setSuggestionPresentation(_ presentation: SuggestionPresentation) {
         Settings.suggestionPresentation = presentation
         window.presentation = presentation
-        dismiss()
-    }
-
-    /// Apple Intelligence prompt recipe. The FM engine reads it live per
-    /// request, so just persist and clear the current suggestion.
-    func setFMPromptVariant(_ variant: FMPromptVariant) {
-        Settings.fmPromptVariant = variant
         dismiss()
     }
 
@@ -423,6 +428,18 @@ final class SuggestionController: NSObject {
             return
         }
         let text = ctx.textBeforeCaret
+        // While an injection settles, the synchronously-maintained cache is the
+        // authority: AX reads trail synthetic keystrokes (worst in Electron),
+        // and acting on one would regress the cache, re-query a stale prompt
+        // and re-offer — or resurrect — the just-accepted/undone text. Retry
+        // shortly; the deadline bounds the wait.
+        if let deadline = injectionSettleDeadline {
+            if Date() < deadline, let cached = latestTextBeforeCaret, cached != text {
+                scheduleKeystrokeRefresh(after: 0.09)
+                return
+            }
+            injectionSettleDeadline = nil
+        }
         latestTextBeforeCaret = text
         lastCaretRect = ctx.caretRect
         refreshScreenContextIfNeeded(typed: text)
@@ -620,7 +637,9 @@ final class SuggestionController: NSObject {
     /// `cachedContext` is the `TextContext` captured when the stream began. Streamed
     /// partials pass it so each one doesn't trigger a fresh synchronous AX read on
     /// the main thread (N reads per completion): the caret can't move without a
-    /// keystroke, and a keystroke cancels this task. `nil` ⇒ read AX now.
+    /// keystroke, and every keystroke advances or invalidates
+    /// `latestTextBeforeCaret` synchronously, so the equality gate below
+    /// catches typing mid-stream. `nil` ⇒ read AX now.
     @discardableResult
     private func apply(_ result: String?, requestText: String,
                        cachedContext: TextContext? = nil, countShown: Bool = true,
@@ -637,6 +656,16 @@ final class SuggestionController: NSObject {
             resolveJournal(.abandoned)
             active = nil
             window.hide()
+            return false
+        }
+        // While an injection settles, every anchor in reach (cache or AX read)
+        // either predates or trails the synthetic keystrokes: narrowing a
+        // streamed partial against one resurrects the just-accepted word (and
+        // in a ≥maxContextChars document the window offsets diverge outright).
+        // Drop it — the post-settle refresh re-streams from the true context,
+        // and the ghost the accept advanced stays up meanwhile.
+        if let deadline = injectionSettleDeadline, Date() < deadline {
+            lastEvent = "result during injection settle; dropped"
             return false
         }
         let ctx: TextContext
@@ -791,30 +820,20 @@ final class SuggestionController: NSObject {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let flags = event.flags
 
-        // Check for Cmd + Z (Undo accepted chunk)
-        if keyCode == KeyCode.z, flags.contains(.maskCommand), let accepted = lastAcceptedChunk {
+        // Exact ⌘Z undoes the last accepted chunk. The cached-text check decides
+        // consume vs pass-through synchronously (no AX read inside the tap): a
+        // caret moved since the accept (mouse click) means the app's own undo is
+        // the right handler, not our backspaces. On a miss the key falls through
+        // and the bottom of this function clears `lastAcceptedChunk`.
+        if let accepted = lastAcceptedChunk, let expected = lastAcceptedSnapshot,
+           Self.isPlainCommandZ(keyCode: keyCode,
+                                key: NSEvent(cgEvent: event)?.charactersIgnoringModifiers?.lowercased(),
+                                flags: flags),
+           latestTextBeforeCaret == expected {
             lastAcceptedChunk = nil
-            let count = accepted.count
-            TextInjector.deleteBackward(count)
-            lastEvent = "undid acceptance of \"\(accepted)\""
-            DebugLog.shared.log("UNDO", "\"\(accepted)\"")
-            indicator.flashTransient(.hint("Undone"))
-            // The accept was already journaled; an undo is the strongest reject
-            // signal there is, so it gets its own event.
-            if Settings.suggestionJournalEnabled {
-                SuggestionJournal.shared.append(SuggestionJournal.Entry(
-                    ts: SuggestionJournal.timestamp(),
-                    app: typingContext.bundleID,
-                    engine: engine.name,
-                    ctx: String((latestTextBeforeCaret ?? "").suffix(1000)),
-                    after: "",
-                    suggestion: accepted,
-                    outcome: .undone,
-                    acceptedChars: -count,
-                    typed: nil,
-                    shownForMs: 0,
-                    screen: false))
-            }
+            // Delete off the tap, after a live re-read: the cache trails typing
+            // in Electron, and blind backspaces at a moved caret eat text.
+            DispatchQueue.main.async { [weak self] in self?.undoAccept(accepted, expected: expected) }
             return true
         }
 
@@ -868,16 +887,38 @@ final class SuggestionController: NSObject {
     /// pass-through keystroke, using the characters carried by the event
     /// itself — no AX round-trip, so it can't block on a hung target app.
     private func narrowActive(with event: CGEvent, flags: CGEventFlags) {
-        guard var current = active else { return }
-        // Command/control chords don't type text; leave them to the AX refresh.
-        guard !flags.contains(.maskCommand), !flags.contains(.maskControl) else { return }
+        // Command/control chords carry no typed text but can mutate the field
+        // arbitrarily (⌘V, ⌘X, the app's own ⌘Z): both the synchronous cache
+        // and the ghost stop being trustworthy — invalidate them and let the
+        // scheduled AX refresh re-read the truth, exactly like control input.
+        guard !flags.contains(.maskCommand), !flags.contains(.maskControl) else {
+            latestTextBeforeCaret = nil
+            if active != nil {
+                resolveJournal(.abandoned)
+                active = nil
+                window.hide()
+            }
+            return
+        }
         let typed = Self.typedCharacters(event)
         guard !typed.isEmpty else { return }   // dead keys, bare modifiers
+        let isControl = typed.unicodeScalars.contains {
+            $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
+        }
+        // Keep the cache marker truthful for EVERY pass-through keystroke,
+        // ghost or not: a streamed partial landing inside the ≤60 ms refresh
+        // window anchors on this cache, and pre-keystroke text would make Tab
+        // duplicate the typed character. Control input (backspace, arrows)
+        // can't be replayed onto the cache — nil it so apply() falls back to a
+        // fresh AX read.
+        if isControl {
+            latestTextBeforeCaret = nil
+        } else {
+            advanceCache(typed)
+        }
+        guard var current = active else { return }
         guard let remaining = Self.narrowedSuggestion(current.text, typedCharacters: typed) else {
             // Divergent or control input — the ghost no longer matches the field.
-            let isControl = typed.unicodeScalars.contains {
-                $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
-            }
             if isControl {
                 resolveJournal(.abandoned)
             } else if typed.hasPrefix(current.text) {
@@ -893,10 +934,20 @@ final class SuggestionController: NSObject {
         current.anchor += typed
         current.text = remaining
         active = current
-        // Advance the stale-cache marker too, so a streamed partial arriving
-        // before the AX refresh re-reads instead of trusting pre-keystroke text.
-        latestTextBeforeCaret? += typed
         window.advance(past: typed, remaining: remaining)
+    }
+
+    /// Append injected/typed text to the cache marker, re-capping it to the AX
+    /// read window: fresh reads return at most `maxContextChars` before the
+    /// caret, and an uncapped cache in a longer document would sit at a
+    /// different offset than every fresh read — structurally failing the
+    /// settle/undo equality gates.
+    private func advanceCache(_ s: String) {
+        guard var cached = latestTextBeforeCaret else { return }
+        cached += s
+        let cap = Settings.maxContextChars
+        if cached.count > cap { cached.removeFirst(cached.count - cap) }
+        latestTextBeforeCaret = cached
     }
 
     /// Pure narrowing decision (testable): the suggestion remainder after the
@@ -928,10 +979,89 @@ final class SuggestionController: NSObject {
         }
     }
 
+    /// Exact ⌘Z on the current layout: any extra chord modifier (⇧⌘Z redo,
+    /// ⌥⌘Z, …) is the app's key. Layouts that move Z (QWERTZ, AZERTY) are
+    /// decided by the produced character; layouts with no Latin letters at all
+    /// (ЙЦУКЕН, Greek) fall back to the physical ANSI key — the same
+    /// resolution macOS uses for its own ⌘-shortcuts.
+    nonisolated static func isPlainCommandZ(keyCode: Int64, key: String?, flags: CGEventFlags) -> Bool {
+        guard flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]) == [.maskCommand] else {
+            return false
+        }
+        if let key, key.count == 1, ("a"..."z").contains(key) {
+            return key == "z"
+        }
+        return keyCode == KeyCode.z
+    }
+
+    /// ⌘Z after an accept: remove the injected chunk. Runs off the event-tap
+    /// callback (synchronous AX read) and skips the deletion unless the live
+    /// text still reads exactly like the post-accept snapshot — same
+    /// validate-before-delete rule as `CorrectionController.inject`.
+    private func undoAccept(_ accepted: String, expected: String) {
+        // Fail closed: an unreadable context (active selection, hung app,
+        // secure input) skips the undo rather than deleting blindly — the
+        // first backspace would eat a whole selection. The chunk stays cleared,
+        // so the next ⌘Z reaches the app.
+        guard let element = currentTextElement(),
+              let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) else {
+            DebugLog.shared.log("UNDO", "skipped — context unreadable")
+            return
+        }
+        guard ctx.textBeforeCaret == expected else {
+            // A readable context that doesn't confirm yet usually means AX is
+            // trailing the injected text (Electron): restore the state so the
+            // next ⌘Z retries once AX catches up — any other keystroke still
+            // clears it in handleKeyDown.
+            lastAcceptedChunk = accepted
+            lastAcceptedSnapshot = expected
+            DebugLog.shared.log("UNDO", "skipped — field no longer matches the post-accept snapshot")
+            return
+        }
+        TextInjector.deleteBackward(accepted.count)
+        // Roll the pipeline back with the text: the shrunk ghost, the live
+        // stream and the advanced cache all still assume the chunk is in the
+        // field — a Tab or a streamed partial landing before the 0.09 s AX
+        // refresh would re-accept or resurrect the just-undone word.
+        if latestTextBeforeCaret?.hasSuffix(accepted) == true {
+            latestTextBeforeCaret?.removeLast(accepted.count)
+        }
+        injectionSettleDeadline = Date().addingTimeInterval(0.3)
+        dismiss()
+        lastEvent = "undid acceptance of \"\(accepted)\""
+        DebugLog.shared.log("UNDO", "\"\(accepted)\"")
+        indicator.flashTransient(.hint("Undone"))
+        // The accept was already journaled; an undo is the strongest reject
+        // signal there is, so it gets its own event.
+        if Settings.suggestionJournalEnabled {
+            SuggestionJournal.shared.append(SuggestionJournal.Entry(
+                ts: SuggestionJournal.timestamp(),
+                app: typingContext.bundleID,
+                engine: engine.name,
+                ctx: String((latestTextBeforeCaret ?? "").suffix(1000)),
+                after: "",
+                suggestion: accepted,
+                outcome: .undone,
+                acceptedChars: -accepted.count,
+                typed: nil,
+                shownForMs: 0,
+                screen: false))
+        }
+        scheduleKeystrokeRefresh(after: 0.09)
+    }
+
     private func accept(chunk: String) {
         guard var current = active, !chunk.isEmpty else { return }
         lastAcceptedChunk = chunk
         TextInjector.insert(chunk)
+        // Advance the cached marker in step with the injection (mirrors
+        // narrowActive for user-typed keys). Until the 0.09 s AX refresh lands,
+        // a streamed partial and the ⌘Z gate both read this cache — a stale
+        // marker re-arms the just-accepted word (double insert on a second Tab)
+        // and makes an immediate ⌘Z fall through to the app.
+        advanceCache(chunk)
+        lastAcceptedSnapshot = latestTextBeforeCaret
+        injectionSettleDeadline = Date().addingTimeInterval(0.3)
         // Count the suggestion once even when accepted word-by-word (chars still
         // accrue per chunk), so the menu's "accepted of shown" can't exceed 100%.
         Stats.recordAccepted(chunk: chunk, countSuggestion: !current.accepted)
@@ -1012,6 +1142,12 @@ extension SuggestionController: FocusTrackerDelegate {
         // Stale window text must not leak into the new context.
         screenSummary = nil
         screenCapturedAt = .distantPast
+        // The cache and any live settle window are field-scoped: carried into
+        // the new app they would hold textDidChange hostage to the OLD field's
+        // text (retry loop until the deadline) and advanceCache would glue new
+        // keystrokes onto it.
+        latestTextBeforeCaret = nil
+        injectionSettleDeadline = nil
         // Examples anchored to the previous app's text go stale too; the next
         // keystroke in the new field re-retrieves immediately.
         personalExamples = []

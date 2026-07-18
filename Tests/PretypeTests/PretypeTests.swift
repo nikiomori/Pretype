@@ -71,6 +71,27 @@ final class PretypeTests: XCTestCase {
         XCTAssertTrue(HotkeyStyle.optSpace.matchesCorrection(keyCode: space, flags: [.maskCommand, .maskAlternate]))
     }
 
+    // ⌘Z undo-accept must be an EXACT chord: ⇧⌘Z (redo) and ⌥⌘Z belong to the
+    // app — matching them swallowed the app's redo and deleted text.
+    func testPlainCommandZMatcher() {
+        let z = KeyCode.z
+        // QWERTY: ANSI Z produces "z".
+        XCTAssertTrue(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand]))
+        // ЙЦУКЕН/Greek: no Latin letter produced → the physical ANSI key decides.
+        XCTAssertTrue(SuggestionController.isPlainCommandZ(keyCode: z, key: "я", flags: [.maskCommand]))
+        XCTAssertTrue(SuggestionController.isPlainCommandZ(keyCode: z, key: nil, flags: [.maskCommand]))
+        // QWERTZ/AZERTY: the produced Latin letter decides, wherever Z sits.
+        XCTAssertTrue(SuggestionController.isPlainCommandZ(keyCode: 16, key: "z", flags: [.maskCommand]))
+        XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "y", flags: [.maskCommand]))
+        // Extra chord modifiers belong to the app (⇧⌘Z redo, ⌥⌘Z, ⌃⌘Z).
+        XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand, .maskShift]))
+        XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand, .maskAlternate]))
+        XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand, .maskControl]))
+        XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: []))
+        // Caps Lock is outside the modifier mask, so it doesn't break ⌘Z.
+        XCTAssertTrue(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand, .maskAlphaShift]))
+    }
+
     func testLevenshteinDistance() {
         XCTAssertTrue(CorrectionGates.isMinimalCorrection(original: "teh", fixed: "the"))
         XCTAssertTrue(CorrectionGates.isMinimalCorrection(original: "recei", fixed: "receive"))
