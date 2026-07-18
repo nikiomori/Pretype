@@ -773,4 +773,36 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(tau("mlx-community/Qwen2.5-0.5B-bf16"), -1.12)
         XCTAssertNil(tau(ModelCatalog.appleIntelligenceID))   // no logprob to gate on
     }
+
+    // The injection path chunks UTF-16 at 16 units; a surrogate pair straddling
+    // a boundary must never be split (it would post as a broken glyph).
+    func testInjectorSurrogateSafeChunking() {
+        func chunks(_ s: String, size: Int = 16) -> [[UniChar]] {
+            TextInjector.utf16Chunks(Array(s.utf16), chunkSize: size)
+        }
+        // Every chunk must reassemble to valid UTF-16 (no lone surrogate at an
+        // interior chunk's edges) and the concatenation must be lossless.
+        func assertClean(_ s: String, size: Int = 16) {
+            let cs = chunks(s, size: size)
+            XCTAssertEqual(cs.flatMap { $0 }, Array(s.utf16), "lossless round-trip")
+            for (i, c) in cs.enumerated() {
+                // A non-final chunk must not end on a high surrogate.
+                if i < cs.count - 1, let last = c.last {
+                    XCTAssertFalse((0xD800...0xDBFF).contains(last), "split surrogate at chunk \(i)")
+                }
+            }
+        }
+        // 15 ASCII + one emoji (2 units): the pair would land at units 15–16 and
+        // split under naive fixed chunking. It must move whole into chunk 2.
+        assertClean(String(repeating: "a", count: 15) + "😀")
+        assertClean(String(repeating: "😀", count: 20))          // all astral
+        assertClean("plain ascii text under the limit")
+        assertClean("")                                            // empty → no chunks
+        // Forced tiny size to exercise the boundary densely.
+        assertClean("a😀b😀c😀d😀", size: 2)
+        // Never emits an empty chunk / never loops forever.
+        for c in chunks(String(repeating: "😀", count: 9), size: 2) {
+            XCTAssertFalse(c.isEmpty)
+        }
+    }
 }

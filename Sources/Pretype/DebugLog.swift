@@ -72,6 +72,7 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     private var paused = false
     private var showDetails = true
     private var observer: NSObjectProtocol?
+    private var metricsTimer: Timer?
 
     private var enabledCategories: Set<String> = []      // empty = all
     private var searchText: String = ""
@@ -104,6 +105,12 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
         }
         isVisible = true
         reloadAll()
+        // Refresh metrics only while the window is open (see windowWillClose).
+        if metricsTimer == nil {
+            metricsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                self?.updateMetrics()
+            }
+        }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
@@ -207,11 +214,6 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
                 self.appendIfVisible(entry)
                 self.updateMetrics()
             }
-        }
-
-        // Refresh metrics periodically.
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            DispatchQueue.main.async { self?.updateMetrics() }
         }
     }
 
@@ -538,5 +540,7 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     func windowWillClose(_ notification: Notification) {
         // Keep the controller and buffer alive; reopening reloads history.
         isVisible = false
+        metricsTimer?.invalidate()
+        metricsTimer = nil
     }
 }

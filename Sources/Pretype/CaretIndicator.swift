@@ -16,7 +16,6 @@ final class CaretIndicator {
 
     private var timer: Timer?
     private var thinkingPhase = 0
-    private var transientHideWork: DispatchWorkItem?
 
     init(
         window: SuggestionWindow,
@@ -35,6 +34,11 @@ final class CaretIndicator {
     /// Begin showing state at the caret: "downloading…" immediately while the
     /// model is not ready, animated dots when a query is slower than a blink.
     func start() {
+        // Idempotent: invalidate any live timer first. A start() without a
+        // paired stop() (e.g. ⌥⇥ last-word fix firing mid-completion) would
+        // otherwise orphan the previous run-loop-retained timer, which keeps
+        // firing update() and can hide a live overlay.
+        stop()
         if case .preparing = engineState() {
             update()
         }
@@ -55,14 +59,14 @@ final class CaretIndicator {
     /// Briefly show `mode` at the caret, then hide it (unless a real suggestion
     /// took the window over in the meantime).
     func flashTransient(_ mode: SuggestionDisplayMode) {
-        guard let rect = caretRect() else { return }
-        window.show(mode: mode, at: rect)
-        transientHideWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            if self?.hasActiveSuggestion() == false { self?.window.hide() }
-        }
-        transientHideWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: work)
+        // Never overdraw a live suggestion — same invariant update() enforces.
+        // Stomping it leaves `active` non-nil under the transient pill, so the
+        // suggestion stays Tab-acceptable while invisible. The transient is
+        // purely informational; the real ghost wins.
+        guard let rect = caretRect(), !hasActiveSuggestion() else { return }
+        // The auto-hide is superseded by any later overlay (completion ghost,
+        // correction pill, status) via hideGeneration — see showTransient.
+        window.showTransient(mode, at: rect)
     }
 
     private func update() {

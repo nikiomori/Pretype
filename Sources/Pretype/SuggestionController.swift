@@ -37,6 +37,10 @@ final class SuggestionController: NSObject {
         var anchor: String
         /// Remaining (not yet accepted) suggestion text.
         var text: String
+        /// Already counted as an accepted suggestion, so accepting word-by-word
+        /// counts once (not once per word). Carried across in-place mutations;
+        /// reset only when a fresh suggestion is shown. See accept().
+        var accepted = false
     }
 
     private var active: Active?
@@ -272,6 +276,15 @@ final class SuggestionController: NSObject {
         focusTracker.focusedTextElement ?? AXText.systemFocusedTextElement()
     }
 
+    /// True while one of Pretype's own windows (Settings, Debug console) is
+    /// frontmost. The session-wide key tap still fires for keystrokes into our
+    /// own fields, but `FocusTracker.attach` skips our own pid *without*
+    /// detaching, so `focusedTextElement` stays pinned to the last external
+    /// field. Left ungated, typing in Settings would generate a ghost for that
+    /// stale background field — and Tab would inject its text into our own
+    /// field. Both pipeline entry points go inert while this is true.
+    private var isOwnUIFrontmost: Bool { NSApp.isActive }
+
     func makeRequest(text: String, after: String = "") -> CompletionRequest {
         var request = CompletionRequest(textBeforeCaret: text, textAfterCaret: after, context: typingContext)
         if AppPolicy.allowsScreenContext(typingContext.bundleID) {
@@ -388,6 +401,7 @@ final class SuggestionController: NSObject {
 
     private func textDidChange() {
         guard Settings.enabled else { return }
+        if isOwnUIFrontmost { dismiss(); return }
         if AppPolicy.isBlacklisted(typingContext.bundleID) {
             lastEvent = "suggestions are off in blacklisted apps"
             dismiss()
@@ -577,7 +591,11 @@ final class SuggestionController: NSObject {
             if Task.isCancelled { return }
             let finalShown = shown
             await MainActor.run { [weak self] in
-                guard let self else { return }
+                // Re-check cancellation on the main actor (like the sibling hops):
+                // a newer keystroke can supersede this task between the check above
+                // and this closure running, and the terminal apply(nil) below would
+                // otherwise stomp the newer query's overlay/indicator/journal.
+                guard let self, !Task.isCancelled else { return }
                 if self.refreshSeq == refreshID { self.refreshTask = nil }
                 self.lastPromptDescription = request.completionPrompt(maxChars: 1000)
                 if finalShown {
@@ -674,7 +692,12 @@ final class SuggestionController: NSObject {
             return false
         }
 
-        active = Active(anchor: current, text: suggestion)
+        // Preserve the "already counted as accepted" flag across streamed growth
+        // of the same suggestion (countShown == false, no recordShown); reset it
+        // only for a genuinely fresh suggestion. Keeps accepted ≤ shown even when
+        // the user accepts word-by-word while the model is still streaming.
+        active = Active(anchor: current, text: suggestion,
+                        accepted: countShown ? false : (active?.accepted ?? false))
         activeIsInstant = instant
         if countShown {
             Stats.recordShown()
@@ -761,6 +784,9 @@ final class SuggestionController: NSObject {
     private func handleKeyDown(_ event: CGEvent) -> Bool {
         guard Settings.enabled else { return false }
         if event.getIntegerValueField(.eventSourceUserData) == TextInjector.magicTag { return false }
+        // Our own Settings/Debug field is focused — pass every key through
+        // untouched (never accept a stale background suggestion into it).
+        if isOwnUIFrontmost { return false }
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let flags = event.flags
@@ -906,13 +932,22 @@ final class SuggestionController: NSObject {
         guard var current = active, !chunk.isEmpty else { return }
         lastAcceptedChunk = chunk
         TextInjector.insert(chunk)
-        Stats.recordAccepted(chunk: chunk)
+        // Count the suggestion once even when accepted word-by-word (chars still
+        // accrue per chunk), so the menu's "accepted of shown" can't exceed 100%.
+        Stats.recordAccepted(chunk: chunk, countSuggestion: !current.accepted)
+        current.accepted = true
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
         pendingJournal?.acceptedChars += chunk.count
         if chunk.count >= current.text.count {
             resolveJournal(.accepted)
             active = nil
+            // A fully-accepted suggestion ends its stream. Otherwise a later
+            // partial re-mints `active` (with no recordShown), re-showing and
+            // re-counting a continuation at the stale caret. The 0.09s refresh
+            // below re-queries the extended context and re-streams cleanly.
+            refreshTask?.cancel()
+            refreshTask = nil
             window.hide()
         } else {
             current.anchor += chunk

@@ -10,15 +10,29 @@ enum TextInjector {
     static func insert(_ text: String) {
         guard !text.isEmpty else { return }
         let source = CGEventSource(stateID: .hidSystemState)
-        let utf16 = Array(text.utf16)
-        let chunkSize = 16 // keyboardSetUnicodeString silently truncates long strings
-        var index = 0
-        while index < utf16.count {
-            let chunk = Array(utf16[index..<min(index + chunkSize, utf16.count)])
+        for chunk in utf16Chunks(Array(text.utf16)) {
             post(chunk: chunk, keyDown: true, source: source)
             post(chunk: chunk, keyDown: false, source: source)
-            index += chunkSize
         }
+    }
+
+    /// Split UTF-16 units into chunks of at most `chunkSize` (keyboardSetUnicode
+    /// String silently truncates longer strings), never cutting a surrogate pair
+    /// across a boundary — a chunk ending on a lone high surrogate (emoji, astral
+    /// CJK) would post as a broken glyph. A trailing lone surrogate in malformed
+    /// input stays as-is (nothing better to do with it).
+    static func utf16Chunks(_ utf16: [UniChar], chunkSize: Int = 16) -> [[UniChar]] {
+        var chunks: [[UniChar]] = []
+        var index = 0
+        while index < utf16.count {
+            var end = min(index + chunkSize, utf16.count)
+            if end < utf16.count, (0xD800...0xDBFF).contains(utf16[end - 1]) {
+                end -= 1
+            }
+            chunks.append(Array(utf16[index..<end]))
+            index = end
+        }
+        return chunks
     }
 
     /// Posts `count` Delete (backspace) keypresses — used to remove the

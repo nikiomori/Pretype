@@ -191,6 +191,20 @@ final class SuggestionWindow: NSPanel {
         })
     }
 
+    /// Show `mode` briefly, then fade it — unless any later `show()`/`hide()`
+    /// supersedes it first. Gated on `hideGeneration` (bumped by every `place()`
+    /// and `hide()`), so a completion ghost, correction pill, or status overlay
+    /// that takes the window in the meantime cancels the pending auto-hide: the
+    /// timed hide can never blank a live overlay of any kind.
+    func showTransient(_ mode: SuggestionDisplayMode, at caretRect: CGRect, hideAfter: TimeInterval = 1.8) {
+        show(mode: mode, at: caretRect)   // bumps hideGeneration via place()
+        let gen = hideGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + hideAfter) { [weak self] in
+            guard let self, self.hideGeneration == gen else { return }
+            self.hide()
+        }
+    }
+
     /// After the user accepts `accepted`, slide the ghost forward by that word's
     /// rendered width and show `remaining` in place — no hide, no re-fade. The
     /// next AX refresh corrects any sub-pixel drift, so word-by-word Tab stays

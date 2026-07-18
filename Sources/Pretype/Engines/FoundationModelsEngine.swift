@@ -117,9 +117,12 @@ final class FoundationModelsEngine: CompletionEngine {
 
     func complete(_ request: CompletionRequest) async throws -> String? {
         guard case .ready = stateBox.get() else { return nil }
-        // Atomic single-flight: wait for up to 200ms if a request is already running (e.g. during cancellation cleanup of the previous task).
+        // Atomic single-flight: test-and-set in one locked op so two concurrent
+        // callers can't both acquire. Wait up to 200ms if a request is already
+        // running (e.g. during cancellation cleanup of the previous task).
+        // Re-setting true while the holder still runs is a harmless no-op.
         var limit = 0
-        while inFlight.get() {
+        while inFlight.exchange(true) {
             try Task.checkCancellation()
             try await Task.sleep(for: .milliseconds(10))
             limit += 1
@@ -127,7 +130,6 @@ final class FoundationModelsEngine: CompletionEngine {
                 return nil
             }
         }
-        inFlight.set(true)
         defer { inFlight.set(false) }
 
         var text = String(request.textBeforeCaret.suffix(1200))

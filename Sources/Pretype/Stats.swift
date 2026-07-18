@@ -34,8 +34,10 @@ enum Stats {
         bump("stats.shown")
     }
 
-    static func recordAccepted(chunk: String) {
-        bump("stats.accepted")
+    static func recordAccepted(chunk: String, countSuggestion: Bool = true) {
+        // A suggestion accepted word-by-word calls this per word: count it as one
+        // accepted suggestion (keeps "accepted ≤ shown"), but accrue chars per chunk.
+        if countSuggestion { bump("stats.accepted") }
         bump("stats.acceptedChars", by: chunk.count)
         defaults.set(
             defaults.integer(forKey: "stats.lifetimeChars") + chunk.count,
