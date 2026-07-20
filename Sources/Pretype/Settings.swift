@@ -329,6 +329,7 @@ enum Settings {
             "suggestionPresentation": SuggestionPresentation.inline.rawValue,
             "fmPromptVariant": FMPromptVariant.fewshot.rawValue,
             "useRecommendedSettings": true,
+            "automaticUpdateCheck": true,
             "confidenceGate": false,
             "confidenceGateSamples": 5,
             // 0.6 (≥3/5 draws agree) clears a 35% first-word bar on real text at
@@ -385,6 +386,14 @@ enum Settings {
     static var suggestionJournalEnabled: Bool {
         get { defaults.bool(forKey: "suggestionJournal") }
         set { defaults.set(newValue, forKey: "suggestionJournal") }
+    }
+
+    /// Whether Pretype may ask GitHub once a day whether a newer release exists
+    /// (see `UpdateChecker`). Off means the app makes no outbound request the
+    /// user didn't start. The menu's manual check works either way.
+    static var automaticUpdateCheck: Bool {
+        get { defaults.bool(forKey: "automaticUpdateCheck") }
+        set { defaults.set(newValue, forKey: "automaticUpdateCheck") }
     }
 
     /// Retrieval-augmented few-shot: inject the user's own most-similar past

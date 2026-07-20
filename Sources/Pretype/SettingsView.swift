@@ -112,6 +112,10 @@ final class SettingsStore: ObservableObject {
         didSet { guard !syncing, oldValue != clipboardContext else { return }
             Settings.clipboardContextEnabled = clipboardContext }
     }
+    @Published var automaticUpdateCheck = true {
+        didSet { guard !syncing, oldValue != automaticUpdateCheck else { return }
+            Settings.automaticUpdateCheck = automaticUpdateCheck }
+    }
 
     /// Selection flows through `selectModel`, not a binding didSet.
     @Published var modelID = ModelCatalog.defaultID
@@ -356,6 +360,7 @@ final class SettingsStore: ObservableObject {
         idleUnloadMinutes = Settings.idleUnloadMinutes
         screenContext = Settings.screenContextEnabled
         clipboardContext = Settings.clipboardContextEnabled
+        automaticUpdateCheck = Settings.automaticUpdateCheck
         accuracyAxis = Settings.accuracyAxis
         // Journal stats deliberately NOT read here: sync() runs on every ⌘, and
         // after every model/style/gate change, and `fileSize` is a flush barrier
@@ -821,6 +826,11 @@ struct GeneralTab: View {
                         }
                 }
                 Caption("Matched against the app's bundle ID, so a fragment like “slack” covers Slack everywhere.")
+            }
+
+            Section("Updates") {
+                Toggle("Check for updates automatically", isOn: $store.automaticUpdateCheck)
+                Caption("Asks GitHub once a day whether a newer release exists — the only request Pretype makes on its own, and it sends nothing about you. New versions are announced in the menu bar and installed by you; nothing is downloaded or replaced automatically. Off still leaves “Check for Updates…” in the menu.")
             }
         }
         .formStyle(.grouped)
@@ -1375,8 +1385,7 @@ struct PersonalTab: View {
             Button("Delete", role: .destructive) {
                 // Setting the toggle off clears the journal in the store's didSet;
                 // the button path clears directly and leaves the toggle alone.
-                if clearDisablesJournal { store.journalEnabled = false }
-                else { store.clearJournal() }
+                if clearDisablesJournal { store.journalEnabled = false } else { store.clearJournal() }
             }
             Button("Cancel", role: .cancel) { }
         } message: {

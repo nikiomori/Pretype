@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusMenu = StatusMenuController()
+        UpdateChecker.checkInBackground()
 
         if Permissions.isTrusted {
             start()

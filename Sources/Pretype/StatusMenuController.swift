@@ -12,6 +12,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var permissionItem: NSMenuItem!
     private var enabledItem: NSMenuItem!
     private var hintItem: NSMenuItem!
+    private var updateItem: NSMenuItem!
 
     private var statusTimer: Timer?
     private var iconPhase = 0   // animates the preparing-state typing dots
@@ -102,6 +103,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        // One item, two states: an offer to download when a newer release is
+        // known, a manual check otherwise (title refreshed in menuNeedsUpdate).
+        updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         diagnosticsMenu = NSMenu()
         let diagnosticsItem = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
         diagnosticsItem.submenu = diagnosticsMenu
@@ -160,6 +167,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
         permissionItem.isHidden = Permissions.isTrusted
         enabledItem.state = Settings.enabled ? .on : .off
+        updateItem.title = UpdateChecker.availableVersion.map { "Update to \($0)…" } ?? "Check for Updates…"
         hintItem.attributedTitle = shortcutHint()
     }
 
@@ -262,6 +270,44 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             settingsWindow = SettingsWindowController(controller: controller)
         }
         settingsWindow?.present()
+    }
+
+    /// Known update → straight to the release page. Otherwise check now and
+    /// report either way: a manual check that answers with silence reads as
+    /// broken.
+    @objc private func checkForUpdates() {
+        if UpdateChecker.availableVersion != nil {
+            UpdateChecker.openReleasePage()
+            return
+        }
+        Task { @MainActor in
+            let latest = await UpdateChecker.check()
+            let alert = NSAlert()
+            // Only two of the three outcomes have anywhere to go, so the first
+            // button opens the page except when we're already current.
+            var firstButtonOpensPage = true
+            if let newer = UpdateChecker.availableVersion {
+                alert.messageText = "Pretype \(newer) is available"
+                alert.informativeText = "You're on \(UpdateChecker.currentVersion). "
+                    + "Download it and replace Pretype in Applications — updates are never installed for you."
+                alert.addButton(withTitle: "Download…")
+                alert.addButton(withTitle: "Later")
+            } else if let latest {
+                alert.messageText = "Pretype \(latest) is the latest version"
+                alert.informativeText = "You're up to date."
+                alert.addButton(withTitle: "OK")
+                firstButtonOpensPage = false
+            } else {
+                alert.messageText = "Couldn't check for updates"
+                alert.informativeText = "GitHub was unreachable. Try again later, or open the releases page."
+                alert.addButton(withTitle: "Open Releases…")
+                alert.addButton(withTitle: "Cancel")
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn && firstButtonOpensPage {
+                UpdateChecker.openReleasePage()
+            }
+        }
     }
 
     @objc private func openDebugConsole() {

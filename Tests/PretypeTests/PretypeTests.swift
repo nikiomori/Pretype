@@ -826,4 +826,24 @@ final class PretypeTests: XCTestCase {
             XCTAssertFalse(c.isEmpty)
         }
     }
+
+    // A wrong answer here nags every user toward a downgrade, so pin the compare.
+    @MainActor
+    func testUpdateVersionCompare() {
+        XCTAssertTrue(UpdateChecker.isNewer("0.2.0", than: "0.1.0"))
+        XCTAssertTrue(UpdateChecker.isNewer("1.0.0", than: "0.9.9"))
+        // The reason this isn't a string compare.
+        XCTAssertTrue(UpdateChecker.isNewer("0.10.0", than: "0.9.1"))
+        XCTAssertFalse(UpdateChecker.isNewer("0.9.1", than: "0.10.0"))
+        // Equal, older, and shorter/longer forms of the same version.
+        XCTAssertFalse(UpdateChecker.isNewer("0.1.0", than: "0.1.0"))
+        XCTAssertFalse(UpdateChecker.isNewer("0.1.0", than: "0.2.0"))
+        XCTAssertFalse(UpdateChecker.isNewer("1.0", than: "1.0.0"))
+        XCTAssertTrue(UpdateChecker.isNewer("1.0.1", than: "1.0"))
+        // A pre-release never outranks the final tag of the same version.
+        XCTAssertFalse(UpdateChecker.isNewer("0.2.0-beta", than: "0.2.0"))
+        // Garbage must not read as newer.
+        XCTAssertFalse(UpdateChecker.isNewer("", than: "0.1.0"))
+        XCTAssertFalse(UpdateChecker.isNewer("nightly", than: "0.1.0"))
+    }
 }
