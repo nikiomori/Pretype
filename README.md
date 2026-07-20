@@ -288,7 +288,7 @@ If you don't see any autocomplete suggestions, open **Diagnostics** in the menu 
 
 No. All inference runs on-device — either a local model via Apple MLX, or the Apple Intelligence system model. Pretype has no accounts, no telemetry, and makes exactly one kind of network request: downloading models from Hugging Face (the default model on first launch, plus a small instruct sibling the first time you use `⌥Tab` fix-selection).
 
-To power on-device personalization, Pretype keeps a local journal of suggestions and short snippets of the surrounding text you typed in `~/Library/Application Support/Pretype` (capped at 5 MB, never uploaded anywhere). You can turn it off or clear it in **Settings → Personal** — turning it off also deletes the stored data.
+To power on-device personalization, Pretype keeps a local journal of suggestions and short snippets of the surrounding text you typed in `~/Library/Application Support/Pretype` (capped at 50 MB, never uploaded anywhere). You can turn it off or clear it in **Settings → Personal** — turning it off also deletes the stored data.
 </details>
 
 <details>

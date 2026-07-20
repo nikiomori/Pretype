@@ -98,7 +98,10 @@ final class SuggestionJournal: @unchecked Sendable {
 
     static func timestamp() -> String { iso.string(from: Date()) }
 
-    init(url: URL? = nil, maxBytes: Int = 5_000_000) {
+    // 50 MB ≈ years of real typing at the observed few KB/day. The old 5 MB cap
+    // was about to trim the live journal — and trim() drops the OLDEST half,
+    // which is exactly the accepted-phrase corpus RAG retrieves from.
+    init(url: URL? = nil, maxBytes: Int = 50_000_000) {
         if let url {
             self.url = url
         } else {

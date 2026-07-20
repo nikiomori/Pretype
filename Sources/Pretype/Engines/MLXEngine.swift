@@ -25,9 +25,10 @@ final class MLXEngine: CompletionEngine {
     // thread-safe under the Swift 6 language mode.
     /// Verbose generation logging for the --complete test harness.
     static let debugLogging = LockedValue<Bool>(false)
-    /// Force greedy (argmax) decoding — set by the eval harness so runs are
-    /// deterministic and comparable (no temperature jitter between configs).
-    static let greedy = LockedValue<Bool>(false)
+    /// Greedy (argmax) decoding — now the shipped default, not just an eval pin
+    /// (see `completionParameters`). `PRETYPE_EVAL_SAMPLING=1` clears it and
+    /// restores the pre-2026-07-20 sampled decoder (T=0.1), which is the A/B arm.
+    static let greedy = LockedValue<Bool>(true)
     /// Instruct prompt format, A/B-swept on eval-v2 (PRETYPE_PROMPT_VARIANT
     /// overrides). One of: userturn · prefill · localized · prefill-localized.
     static let defaultPromptVariant = LockedValue<String>("userturn")
@@ -766,7 +767,12 @@ final class MLXEngine: CompletionEngine {
         // Logprob confidence gate: abstain on a low-confidence first word. 0× extra
         // decode (lp is already captured above). Base only by construction —
         // completeBase is never the instruct path, where the calibration doesn't hold.
-        if let thr = logprobGateThreshold, result != nil, let lp, lp < thr {
+        // Healed suggestions bypass the gate: τ is calibrated on word-boundary
+        // next-word logprobs, but under healing lp is the fragment path of the
+        // CURRENT word (forced tokens under constrained decode) — a different
+        // scale that the word-boundary τ mostly rejects, while fragment-match
+        // already holds healed precision at ~77% (mid3, ANALYTICS §6в′).
+        if let thr = logprobGateThreshold, result != nil, heal == nil, let lp, lp < thr {
             DebugLog.shared.log("GATE", "logprob-gate: first-word \(String(format: "%.2f", lp)) < \(thr) — abstaining")
             firstWordLogProbBox.set(nil)
             return nil
@@ -942,25 +948,32 @@ final class MLXEngine: CompletionEngine {
         return request.isChatApp ? min(budget, chatCap) : budget
     }
 
-    /// Sampling parameters shared by both completion paths (base and instruct),
-    /// with values from Cotabby: a touch of temperature with a tight nucleus
-    /// avoids greedy degeneracy, and a gentle (non-destructive) repetition
-    /// penalty keeps it from looping. The eval harness forces greedy for determinism.
+    /// Sampling parameters shared by both completion paths (base and instruct).
+    /// Greedy by default — argmax IS the model's best guess (beam rerank on its
+    /// own posterior scored p=1.0), so every draw below argmax is expected loss,
+    /// and the T=0.1 "touch of temperature" inherited from Cotabby was never
+    /// measured here: the harness always pinned greedy, so no booked number ever
+    /// described the shipped decoder. Repetition penalty off for the same reason
+    /// plus one of its own — in real typing the words most likely to repeat (a
+    /// name, a term, the project you're writing about) are exactly the ones it
+    /// suppresses, and its processor also skews the logprobs the gate reads.
+    /// The old production decoder is the A/B arm, one line of env away:
+    /// `PRETYPE_EVAL_SAMPLING=1 PRETYPE_REP_PENALTY=1.05`.
     private func completionParameters(for request: CompletionRequest) -> GenerateParameters {
-        let envTemp = Float(ProcessInfo.processInfo.environment["PRETYPE_TEMPERATURE"] ?? "")
-        // The confidence gate needs diverse draws, so it samples (default 0.6)
-        // even when greedy is pinned. Otherwise: greedy → 0, else the live touch
-        // of temperature (PRETYPE_TEMPERATURE overrides for dev sweeps).
+        let env = ProcessInfo.processInfo.environment
+        let envTemp = Float(env["PRETYPE_TEMPERATURE"] ?? "")
+        // The confidence gate is the one caller that needs diverse draws — under
+        // greedy all K samples are identical and it would pass everything.
         let temperature: Float = gateForceSample.get()
             ? (envTemp ?? 0.6)
-            : (Self.greedy.get() ? 0.0 : (envTemp ?? 0.1))
+            : (envTemp ?? (Self.greedy.get() ? 0.0 : 0.1))
         return GenerateParameters(
             maxTokens: tokenBudget(for: request),
             temperature: temperature,
             topP: 0.7,
             topK: 20,
             minP: 0.08,
-            repetitionPenalty: 1.05
+            repetitionPenalty: Float(env["PRETYPE_REP_PENALTY"] ?? "")
         )
     }
 

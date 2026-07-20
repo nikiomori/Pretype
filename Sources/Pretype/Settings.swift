@@ -343,10 +343,12 @@ enum Settings {
             // token whose logprob drops below the threshold (never inside the
             // first word) — the fixed-budget tail is a completion's weakest
             // part. Unlike the gates it never abstains, so it's on by default.
-            // ponytail: -3.0 (p≈5% under the sampled distribution) is uncalibrated
-            // — conservative on purpose; sweep via PRETYPE_TRIM_LOGPROB on eval-real.
+            // −1.5 calibrated 2026-07-20 (even-half sweep −4…−1, odd-half
+            // verified, MiniCPM + E2B-8bit): cuts ~8 of ~14 garbage-tail chars
+            // per row at zero correct-char loss; −1.2/−1 add <1 char and start
+            // eating signal. Old −3.0 cut only ~2.7. Eval/runs-2026-07-20.
             "confidenceTrim": true,
-            "confidenceTrimThreshold": -3.0,
+            "confidenceTrimThreshold": -1.5,
             "userBlacklist": [String](),
             "suggestionJournal": true,
             "personalExamples": true,
@@ -484,7 +486,7 @@ enum Settings {
         set { defaults.set(newValue, forKey: "confidenceTrim") }
     }
     static var confidenceTrimThreshold: Double {
-        get { let v = defaults.double(forKey: "confidenceTrimThreshold"); return v != 0 ? v : -3.0 }
+        get { let v = defaults.double(forKey: "confidenceTrimThreshold"); return v != 0 ? v : -1.5 }
         set { defaults.set(newValue, forKey: "confidenceTrimThreshold") }
     }
 

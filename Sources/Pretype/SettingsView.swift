@@ -1248,7 +1248,7 @@ struct PersonalTab: View {
             Section("Journal") {
                 Toggle("Keep suggestion journal", isOn: $store.journalEnabled)
                 HStack {
-                    Caption("Records each suggestion with a snippet of the surrounding text you typed — the raw data for personalization and quality tuning. Stays on this Mac in Application Support (capped at 5 MB); on-screen OCR text is never written. Turning this off also deletes the stored journal.")
+                    Caption("Records each suggestion with a snippet of the surrounding text you typed — the raw data for personalization and quality tuning. Stays on this Mac in Application Support (capped at 50 MB); on-screen OCR text is never written. Turning this off also deletes the stored journal.")
                     Spacer()
                     Button(store.journalBytes > 0
                         ? "Clear (\(ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)))"
