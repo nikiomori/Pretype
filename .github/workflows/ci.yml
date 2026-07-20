@@ -6,6 +6,21 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+# A macOS runner bills at 10× a Linux one, so a superseded push must not keep
+# building — only the newest commit on a ref matters.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Single source for the toolchain pin: the SwiftPM cache key has to move with
+# it, or a .build restored from the previous Xcode fails to import its own
+# modules — a poisoned cache that looks like a source error.
+env:
+  XCODE_VERSION: '26.3'
+
 # Compile-check only. The full .app (and the MLX engine at runtime) needs the
 # Metal toolchain and an xcodebuild build — that's a local step, see
 # Scripts/make-app.sh. `swift build` is enough to catch compile regressions.
@@ -23,8 +38,10 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.3'
+          xcode-version: ${{ env.XCODE_VERSION }}
 
+      # ponytail: swiftlint stays unpinned (brew) — a release that adds rules can
+      # redden an unrelated PR. Pin the formula if that ever bites twice.
       - name: Lint
         run: |
           command -v swiftlint >/dev/null || brew install swiftlint
@@ -36,9 +53,9 @@ jobs:
           path: |
             .build
             ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          key: spm-${{ runner.os }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Package.resolved') }}
           restore-keys: |
-            spm-${{ runner.os }}-
+            spm-${{ runner.os }}-${{ env.XCODE_VERSION }}-
 
       # Metal shader compilation is a separate component on Xcode 26+; a no-op
       # on older Xcodes. Tolerated if it isn't available on the runner.
