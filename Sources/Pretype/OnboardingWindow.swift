@@ -104,23 +104,23 @@ final class OnboardingWindow: NSPanel {
         tutorialStack.translatesAutoresizingMaskIntoConstraints = false
         mainStack.addArrangedSubview(tutorialStack)
         
-        // Row 1: Tab
+        // Keycaps follow the configured hotkey — hardcoding Tab taught the wrong
+        // keys to anyone on ⌘/⌥/⌃Space. Same labels the menu and overlay use.
+        let hotkey = Settings.hotkeyStyle
         let row1 = makeTutorialRow(
-            keys: [makeKeycap("Tab")],
+            key: makeKeycap(hotkey.label),
             description: "Accept next word"
         )
         tutorialStack.addArrangedSubview(row1)
-        
-        // Row 2: Shift + Tab
+
         let row2 = makeTutorialRow(
-            keys: [makeKeycap("Shift"), makeKeycap("Tab")],
+            key: makeKeycap(hotkey.shiftLabel),
             description: "Accept entire suggestion"
         )
         tutorialStack.addArrangedSubview(row2)
-        
-        // Row 3: Option + Tab
+
         let row3 = makeTutorialRow(
-            keys: [makeKeycap("Option"), makeKeycap("Tab")],
+            key: makeKeycap(hotkey.correctionLabel),
             description: "Fix last word / selection"
         )
         tutorialStack.addArrangedSubview(row3)
@@ -164,7 +164,7 @@ final class OnboardingWindow: NSPanel {
         ])
     }
     
-    private func makeTutorialRow(keys: [NSView], description: String) -> NSStackView {
+    private func makeTutorialRow(key: NSView, description: String) -> NSStackView {
         let row = NSStackView()
         row.orientation = .horizontal
         row.spacing = 12
@@ -176,16 +176,8 @@ final class OnboardingWindow: NSPanel {
         keysStack.spacing = 4
         keysStack.alignment = .centerY
         
-        for (index, key) in keys.enumerated() {
-            if index > 0 {
-                let plusLabel = NSTextField(labelWithString: "+")
-                plusLabel.font = .systemFont(ofSize: 11, weight: .bold)
-                plusLabel.textColor = .tertiaryLabelColor
-                keysStack.addArrangedSubview(plusLabel)
-            }
-            keysStack.addArrangedSubview(key)
-        }
-        
+        keysStack.addArrangedSubview(key)
+
         // Wrap keysStack in a fixed-width container so descriptions align nicely
         let keysContainer = NSView()
         keysContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -302,20 +294,28 @@ final class OnboardingWindow: NSPanel {
     }
     
     func updateStatusSuggestionActive(_ active: Bool) {
+        // apply() calls this on every suggestion; without the edge check the title
+        // restarts its blink on each keystroke and refreshEngineStatus() thrashes.
+        guard suggestionActive != active else { return }
         suggestionActive = active
         if active {
             statusLabel.textColor = .controlAccentColor
-            statusLabel.stringValue = "Suggestion ready! Press Tab"
+            statusLabel.stringValue = "Suggestion ready! Press \(Settings.hotkeyStyle.label)"
 
             // Subtle pulse animation on title to draw attention
-            let pulse = CABasicAnimation(keyPath: "opacity")
-            pulse.duration = 0.8
-            pulse.fromValue = 1.0
-            pulse.toValue = 0.5
-            pulse.autoreverses = true
-            pulse.repeatCount = 3
-            titleLabel.layer?.add(pulse, forKey: "pulse")
+            if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                let pulse = CABasicAnimation(keyPath: "opacity")
+                pulse.duration = 0.8
+                pulse.fromValue = 1.0
+                pulse.toValue = 0.5
+                pulse.autoreverses = true
+                pulse.repeatCount = 3
+                titleLabel.layer?.add(pulse, forKey: "pulse")
+            }
         } else {
+            // The pulse runs ~4.8s; without this it keeps blinking after the
+            // suggestion it was pointing at is already gone.
+            titleLabel.layer?.removeAnimation(forKey: "pulse")
             refreshEngineStatus()
         }
     }

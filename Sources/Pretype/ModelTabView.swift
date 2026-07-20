@@ -296,6 +296,7 @@ private struct ModelRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .onHover { hovering = $0; hover?($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
     }
@@ -360,7 +361,10 @@ private struct PriorityCard: View {
                         + Text("\(m.p50Ms) ms").foregroundStyle(.blue)
                         + Text(" · ").foregroundStyle(.tertiary)
                         + Text(String(format: "%.1f GB", m.ramGB)).foregroundStyle(.teal))
-                        .font(.system(size: 10).monospacedDigit())
+                        // Semibold, not a color change: tone-colored ink at 10pt
+                        // is thin on a light form, but the metric color coding is
+                        // deliberate and shared with the rail and ranked bars.
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
                 }
             }
             .padding(8)
@@ -377,6 +381,7 @@ private struct PriorityCard: View {
             .contentShape(RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .help(priority.goal)
         .onHover { hovering = $0; hover?($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
@@ -395,6 +400,12 @@ private struct ModelMapView: View {
     /// Hover previews live on their own observable so pointer movement
     /// re-renders the map and rail — never the scrolling Form around them.
     @ObservedObject var hover: HoverState
+
+    /// Bubbles, envelope and ring translate across ~300pt when the axis or the
+    /// model changes — exactly the travel Reduce Motion exists to suppress. A
+    /// short curve keeps the change legible without moving anything far.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var mapCurve: Animation? { reduceMotion ? nil : .easeOut(duration: 0.3) }
 
     /// The tab's accuracy axis. Off the "core" axis the settings machinery
     /// (dots, envelope, config-projected ring) hides: config effects are
@@ -466,8 +477,18 @@ private struct ModelMapView: View {
                     .padding(.leading, plot.minX + 6)
                     .padding(.top, 2)
             }
+            // Markers and the envelope already glided; the bubbles, labels and
+            // gridlines jump-cut around them when the axis rescales. Move the
+            // whole chart as one system, on the curve the parts already use.
+            .animation(mapCurve, value: store.accuracyAxis)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: store.modelID)
         }
         .frame(height: Self.height)
+        // Every element here is a bare Circle with .onTapGesture — no button, no
+        // focus, nothing to announce. The ranked list below is the accessible
+        // equivalent, so describe the chart and point VoiceOver at the list.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Model map — accuracy, speed and memory of every model. Use the ranked list below to choose a model, and the Suggestions tab for the style, length and confidence settings the map previews.")
     }
 
     /// Chart coordinates: x = log-speed (faster → right), y = accuracy on the
@@ -601,7 +622,7 @@ private struct ModelMapView: View {
                             in: RoundedRectangle(cornerRadius: 18))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
-                .animation(.easeOut(duration: 0.3), value: rect)
+                .animation(mapCurve, value: rect)
                 .allowsHitTesting(false)
             Text("reachable with settings")
                 .font(.system(size: 8.5).weight(.bold))
@@ -653,6 +674,10 @@ private struct ModelMapView: View {
             .shadow(color: .black.opacity(selected ? 0.35 : 0.12),
                     radius: selected ? 5 : 2, y: 1)
             .contentShape(Circle())
+            // Hovering fed the info card and the rail 500pt away but left the
+            // bubble itself unchanged — same 0.12s curve as the rows and cards.
+            .scaleEffect(previewedModelID == m.id ? 1.12 : 1)
+            .animation(.easeOut(duration: 0.12), value: previewedModelID)
             .onTapGesture { store.selectModel(m.id) }
             .onHover { store.setHover(.model(m.id), $0) }
             .position(center)
@@ -727,7 +752,7 @@ private struct ModelMapView: View {
         .shadow(color: Color.accentColor.opacity(0.55), radius: 5)
         .position(committed)
         .zIndex(7)
-        .animation(.easeOut(duration: 0.3), value: committed)
+        .animation(mapCurve, value: committed)
         .allowsHitTesting(false)
         if let previewed = store.previewedConfig {
             let ghost = axis == "core"

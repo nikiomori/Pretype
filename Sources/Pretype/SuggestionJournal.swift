@@ -260,6 +260,9 @@ final class SuggestionJournal: @unchecked Sendable {
             .split { !$0.isLetter }.map(String.init).filter { $0.count >= 3 }
     }
 
+    /// `queue.sync` is not guarding the stat — it is a FLUSH BARRIER. Appends are
+    /// async on this queue, so reading the size off-queue reports a stale count
+    /// before pending writes land (four journal tests catch exactly that).
     var fileSize: Int {
         queue.sync {
             let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)

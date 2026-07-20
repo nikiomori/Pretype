@@ -387,7 +387,7 @@ final class CorrectionController {
         wordRect.origin.x = caret.maxX - wordWidth
         wordRect.size.width = wordWidth
         owner.lastCaretRect = caret
-        owner.lastEvent = "typo \"\(word)\" → \"\(fix)\" (⇥ to fix)"
+        owner.lastEvent = "typo \"\(word)\" → \"\(fix)\" (\(Settings.hotkeyStyle.label) to fix)"
         owner.window.show(mode: .correction(original: word, fix: fix), at: wordRect, fontSize: fontSize)
     }
 

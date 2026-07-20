@@ -175,8 +175,7 @@ final class SuggestionWindow: NSPanel {
     private var hideGeneration = 0
 
     func hide() {
-        setHighlight(false)
-        guard isVisible else { return }
+        guard isVisible else { setHighlight(false); return }
         hideGeneration += 1
         let gen = hideGeneration
         // Symmetric to the 0.09 s fade-in: dismissal melts instead of popping.
@@ -186,6 +185,10 @@ final class SuggestionWindow: NSPanel {
             animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             guard let self, self.hideGeneration == gen else { return }
+            // Drop the accent glow WITH the fade, not a frame before it — any
+            // show() landing mid-fade fails the generation check and sets its
+            // own highlight, so this can't clear a live one.
+            self.setHighlight(false)
             self.orderOut(nil)
             self.alphaValue = 1
         })
@@ -509,15 +512,19 @@ final class SuggestionWindow: NSPanel {
                 layer.shadowRadius = 8.0
                 layer.shadowOpacity = 0.8
                 
-                // Add pulse animation
-                let anim = CABasicAnimation(keyPath: "shadowOpacity")
-                anim.fromValue = 0.4
-                anim.toValue = 0.9
-                anim.duration = 1.0
-                anim.autoreverses = true
-                anim.repeatCount = .infinity
-                layer.add(anim, forKey: "pulse")
-                
+                // Pulse draws the eye to the caret, but an infinite autoreversing
+                // glow is exactly what Reduce Motion exists to suppress. The static
+                // border + glow already carries the meaning on its own.
+                if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                    let anim = CABasicAnimation(keyPath: "shadowOpacity")
+                    anim.fromValue = 0.4
+                    anim.toValue = 0.9
+                    anim.duration = 1.0
+                    anim.autoreverses = true
+                    anim.repeatCount = .infinity
+                    layer.add(anim, forKey: "pulse")
+                }
+
                 self.highlightLayer = layer
                 container.layer?.addSublayer(layer)
             }

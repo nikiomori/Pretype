@@ -357,8 +357,10 @@ final class SettingsStore: ObservableObject {
         screenContext = Settings.screenContextEnabled
         clipboardContext = Settings.clipboardContextEnabled
         accuracyAxis = Settings.accuracyAxis
-        learnedWords = PersonalNgram.shared.wordCount
-        journalBytes = SuggestionJournal.shared.fileSize
+        // Journal stats deliberately NOT read here: sync() runs on every ⌘, and
+        // after every model/style/gate change, and `fileSize` is a flush barrier
+        // that can queue behind a whole-file n-gram replay. PersonalTab refreshes
+        // them itself; anything destructive re-reads live via `journalHasData`.
         syncing = false
         preview = nil  // committed state changed — it is the new baseline
         refreshStatus()
@@ -407,6 +409,31 @@ final class SettingsStore: ObservableObject {
         if statusText != text { statusText = text }
         if statusColor != color { statusColor = color }
     }
+
+    /// Journal stats are display-only and grow slowly, so they refresh when the
+    /// Personalization tab appears rather than on the 1 s status timer:
+    /// `fileSize` is a flush barrier on the journal queue, and a per-second hop
+    /// can land behind a whole-file n-gram replay and stall the main actor.
+    /// Anything destructive re-reads them live — see `journalHasData`.
+    func refreshJournalStats() {
+        // Off the main actor: `fileSize` is a queue.sync flush barrier and can
+        // land behind a whole-file replay. Neither read touches the main actor,
+        // so there is no re-entrancy risk in hopping off and back.
+        Task.detached {
+            let bytes = SuggestionJournal.shared.fileSize
+            let words = PersonalNgram.shared.wordCount
+            await MainActor.run {
+                if self.journalBytes != bytes { self.journalBytes = bytes }
+                if self.learnedWords != words { self.learnedWords = words }
+            }
+        }
+    }
+
+    /// Live read: the clear-confirmation guard asks "is there anything to lose",
+    /// and a stale zero would delete the journal without ever asking.
+    var journalHasData: Bool {
+        SuggestionJournal.shared.fileSize > 0 || PersonalNgram.shared.wordCount > 0
+    }
 }
 
 // MARK: - Effect badges
@@ -422,13 +449,21 @@ struct EffectBadge: View {
     var source: String?
 
     var body: some View {
-        Label(text, systemImage: icon)
+        // The capsule and the symbol carry the tone; 11pt text in the tone color
+        // sits at 1.8–2.3:1 on a light form. Primary ink keeps it readable in
+        // both appearances without losing the color language.
+        Label { Text(text) } icon: {
+            // Tone stays on the symbol (the leaf modifier wins over the outer
+            // .primary), so the badge keeps the shared metric color language
+            // while the 11pt text gets readable contrast.
+            Image(systemName: icon).foregroundStyle(color)
+        }
             .font(.caption2.weight(.medium))
             .lineLimit(1)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .foregroundStyle(color)
-            .background(color.opacity(0.13), in: Capsule())
+            .foregroundStyle(.primary)
+            .background(color.opacity(0.18), in: Capsule())
             .help(source ?? text)
     }
 
@@ -472,8 +507,10 @@ struct RequirementRow: View {
                 .font(.caption)
                 .foregroundStyle(met ? Color.secondary : Color.primary)
             if !met, let fixTitle, let fix {
+                // .mini is a ~14pt target on the one button whose job is
+                // rescuing a blocked state — .small is the smallest honest size.
                 Button(fixTitle, action: fix)
-                    .controlSize(.mini)
+                    .controlSize(.small)
             }
             Spacer(minLength: 0)
         }
@@ -570,12 +607,23 @@ struct SettingsRootView: View {
             .padding(.vertical, 10)
         }
         .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 7) {
-                Circle().fill(store.statusText.isEmpty ? Color.secondary : store.statusColor)
-                    .frame(width: 8, height: 8)
+            HStack(alignment: .top, spacing: 7) {
+                // Orange == .preparing: a download, a model load or a warm-up.
+                // An indeterminate spinner is honest for all three, and the
+                // detail wraps instead of truncating away in a 176pt column.
+                Group {
+                    if store.statusColor == .orange && !store.statusText.isEmpty {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                    } else {
+                        Circle().fill(store.statusText.isEmpty ? Color.secondary : store.statusColor)
+                    }
+                }
+                .frame(width: 8, height: 8)
+                .padding(.top, 3)   // align with the caption's first baseline
                 Text(store.statusText.isEmpty ? "Engine idle" : store.statusText)
                     .font(.caption).foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.tail)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    .help(store.statusText)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 14)
@@ -633,6 +681,7 @@ struct HoverSegments<T: Hashable>: View {
 
     @Namespace private var thumbSpace
     @State private var hovered: T?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 2) {
@@ -646,6 +695,9 @@ struct HoverSegments<T: Hashable>: View {
                         .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
+                // Selection is conveyed only by weight + thumb; without the trait
+                // VoiceOver reads every segment identically.
+                .accessibilityAddTraits(isOn ? [.isSelected] : [])
                 .background {
                     if isOn {
                         thumb.matchedGeometryEffect(id: "thumb", in: thumbSpace)
@@ -662,7 +714,7 @@ struct HoverSegments<T: Hashable>: View {
         }
         .padding(2)
         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: selection)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: selection)
         .animation(.easeOut(duration: 0.12), value: hovered)
     }
 
@@ -696,12 +748,15 @@ struct GeneralTab: View {
                     PresentationCard(mode: .inline, title: "Inline",
                                      isSelected: store.presentation == .inline,
                                      hotkeyLabel: store.hotkeyStyle.label) {
-                        store.presentation = .inline
+                        // Animate at the mutation site: the Ghost-visibility row
+                        // below inserts/removes on this change, and a row cannot
+                        // animate its own insertion from a Section modifier.
+                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
                     }
                     PresentationCard(mode: .panel, title: "Panel",
                                      isSelected: store.presentation == .panel,
                                      hotkeyLabel: store.hotkeyStyle.label) {
-                        store.presentation = .panel
+                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
                     }
                 }
                 Caption(store.presentation == .inline
@@ -722,6 +777,7 @@ struct GeneralTab: View {
                         HStack(spacing: 8) {
                             Text("Faint").font(.caption).foregroundStyle(.tertiary)
                             Slider(value: $store.ghostOpacity, in: 0.1...1)
+                                .accessibilityLabel("Ghost visibility")
                             Text("Bold").font(.caption).foregroundStyle(.tertiary)
                             Text("\(Int(store.ghostOpacity * 100))%")
                                 .font(.caption.monospacedDigit())
@@ -791,8 +847,13 @@ private struct BlacklistRow: View {
                 remove()
             } label: {
                 Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // .help is a hint, not a name — without this every row's remove
+            // button announces identically.
+            .accessibilityLabel("Stop excluding \(resolved.name)")
             .help("Allow Pretype in this app again")
         }
     }
@@ -847,8 +908,11 @@ private struct PerAppInstructionRow: View {
                 store.perAppInstructions.removeValue(forKey: bundleID)
             } label: {
                 Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove instructions for \(resolved.name)")
             .help("Remove this app's instructions")
         }
     }
@@ -961,6 +1025,7 @@ private struct PresentationCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .frame(maxWidth: .infinity)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
@@ -1015,14 +1080,18 @@ struct SuggestionsTab: View {
                     HoverSegments(options: [(CompletionStyle.base, "Base"),
                                             (CompletionStyle.instruct, "Instruct")],
                                   selection: store.style,
-                                  select: { store.style = $0 },
+                                  select: { style in
+                                      // Base↔Instruct inserts/removes requirement
+                                      // rows and swaps badge blocks in two sections.
+                                      withAnimation(.easeInOut(duration: 0.18)) { store.style = style }
+                                  },
                                   hover: { style, hovering in
                                       store.setHover(.style(style), hovering)
                                   })
                     if store.style == .instruct, store.instructUnusable {
                         RequirementRow(met: false,
                                        text: "Instruct is broken on \(store.selectedModelName) — it answers the text instead of continuing it (~0% first-word measured)",
-                                       fixTitle: "Switch to Base") { store.style = .base }
+                                       fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
                     }
                     BadgeRow(badges: styleBadges)
                     Caption(store.style == .instruct
@@ -1042,7 +1111,7 @@ struct SuggestionsTab: View {
                     if !store.logprobGateUsable {
                         RequirementRow(met: false,
                                        text: "Base style — it thresholds the base model's own confidence",
-                                       fixTitle: "Switch to Base") { store.style = .base }
+                                       fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
                     } else {
                         BadgeRow(badges: [
                             EffectBadge(icon: "scope", text: "62–67% first-word on what it shows", tone: .quality,
@@ -1157,6 +1226,10 @@ struct SuggestionsTab: View {
 
 struct PersonalTab: View {
     @ObservedObject var store: SettingsStore
+    /// Both journal paths destroy the learned n-gram model irreversibly, so
+    /// they route through one confirmation instead of firing on a single click.
+    @State private var confirmingClear = false
+    @State private var clearDisablesJournal = false
 
     var body: some View {
         Form {
@@ -1246,14 +1319,27 @@ struct PersonalTab: View {
             }  // end Learning (hidden for Apple Intelligence)
 
             Section("Journal") {
-                Toggle("Keep suggestion journal", isOn: $store.journalEnabled)
+                Toggle("Keep suggestion journal", isOn: Binding(
+                    get: { store.journalEnabled },
+                    set: { on in
+                        // Turning off deletes the journal via the store's didSet;
+                        // only ask when there is actually something to lose.
+                        if !on && store.journalHasData {
+                            clearDisablesJournal = true
+                            confirmingClear = true
+                        } else {
+                            store.journalEnabled = on
+                        }
+                    }
+                ))
                 HStack {
                     Caption("Records each suggestion with a snippet of the surrounding text you typed — the raw data for personalization and quality tuning. Stays on this Mac in Application Support (capped at 50 MB); on-screen OCR text is never written. Turning this off also deletes the stored journal.")
                     Spacer()
                     Button(store.journalBytes > 0
                         ? "Clear (\(ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)))"
                         : "Empty") {
-                        store.clearJournal()
+                        clearDisablesJournal = false
+                        confirmingClear = true
                     }
                     .controlSize(.small)
                     .disabled(store.journalBytes == 0)
@@ -1277,5 +1363,26 @@ struct PersonalTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { store.refreshJournalStats() }
+        // The journal grows while the user is off in another app; without this
+        // the Clear button can sit disabled on a journal that has real data.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            store.refreshJournalStats()
+        }
+        .confirmationDialog("Delete the suggestion journal?",
+                            isPresented: $confirmingClear) {
+            Button("Delete", role: .destructive) {
+                // Setting the toggle off clears the journal in the store's didSet;
+                // the button path clears directly and leaves the toggle alone.
+                if clearDisablesJournal { store.journalEnabled = false }
+                else { store.clearJournal() }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(store.learnedWords > 0
+                 ? "This also forgets the \(store.learnedWords) words Pretype learned from you. It can't be undone."
+                 : "This can't be undone.")
+        }
     }
 }

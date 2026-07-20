@@ -121,6 +121,9 @@ struct ImpactRailView: View {
             }
         }
         .padding(.top, 2)
+        // A 1-line tip swapping for a 3-line preview block snapped the rail on
+        // every hover enter/exit.
+        .animation(.easeOut(duration: 0.2), value: target != nil)
     }
 
     /// The idle tip, tab-aware: only Model and Suggestions controls drive a
@@ -156,6 +159,8 @@ private struct MeterView: View {
     let delta: ConfigProjection.MetricDelta?
 
     var body: some View {
+        // One stop per meter: label, delta, value and sub are fragments on their
+        // own ("Accuracy", "62%", "first word of shown suggestions…").
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -179,12 +184,14 @@ private struct MeterView: View {
                         .font(.callout.monospacedDigit().weight(.bold))
                 }
             }
+            .animation(.easeOut(duration: 0.15), value: previewValue)
             bar
             Text(sub)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var bar: some View {
@@ -207,6 +214,9 @@ private struct MeterView: View {
                         .offset(x: width * lo)
                 }
             }
+            // The committed fill glided while the preview band popped in beside
+            // it. Faster than the fill — this tracks the pointer, not a commit.
+            .animation(.easeOut(duration: 0.15), value: previewFraction)
         }
         .frame(height: 8)
     }
