@@ -1,57 +1,71 @@
 # docs / assets
 
-The README's visual assets live here.
+The README's visual assets, plus the GitHub social preview. Three kinds live
+here, and each refreshes differently.
 
-## Screenshots — real captures
+## Rendered art — `demo*.gif`, `hero.png`, `shot-modes.png`
 
-`hero.png`, `shot-typo.png`, `shot-fix.png` and `shot-modes.png` are **live captures**
-of Pretype running in TextEdit. The overlay is a borderless agent (`LSUIElement`)
-window, so the `⌘⇧4` shortcut and most capture apps filter it out — the system
-`screencapture` tool with an explicit region grabs it:
+Drawn programmatically by the `PretypeHeroArt` generator in the git-ignored
+`dev-tools/` tree. Core Graphics only, no app code, deterministic 2×, so a
+fresh clone always produces byte-identical output. Regenerate everything:
+
+```sh
+cd dev-tools/HeroArt
+swift run PretypeHeroArt --all ../../docs
+```
+
+Individual pieces (`--gif` takes a storyboard name — `demo`, `typo` or `fix`):
+
+```sh
+swift run PretypeHeroArt --hero ../../docs/hero.png
+swift run PretypeHeroArt --shot-modes ../../docs/shot-modes.png
+swift run PretypeHeroArt --gif typo ../../docs/demo-typo.gif   # needs `magick`
+swift run PretypeHeroArt --gif-frames fix /tmp/frames          # PNG storyboard only
+```
+
+| File | What |
+|---|---|
+| `demo.gif` | Typing → the model answers → `Tab` per word, `⇧Tab` for the rest |
+| `demo-typo.gif` | Inline typo fix: the diff pill appears, `Tab` applies it |
+| `demo-fix.gif` | Fix selection: `⌥Tab` → decode beat → rewrite → `⏎` |
+| `shot-modes.png` | Inline ghost text vs the floating panel, side by side |
+| `hero.png` | A single completion line — the GitHub **Social preview**, not used in the README |
+| `pretype-logo.png`, `pretype-logo-dark.png` | The mark in the README header; hand-authored, not generated |
+
+GIFs are assembled with ImageMagick using one undithered 128-colour palette and
+a 3% frame-diff tolerance — dithering sprays noise that defeats the frame diff
+and costs ~5× the file size on flat dark UI for no visible gain.
+
+## Real captures — `shot-settings.png`, `shot-models.png`, `shot-personal.png`
+
+Live screenshots of the app's Settings window. **These need a GUI and cannot be
+regenerated headlessly** — re-shoot them by hand whenever the settings UI
+changes, or the README ships a picture of an app that no longer exists.
+
+The suggestion overlay is a borderless agent (`LSUIElement`) window, so `⌘⇧4`
+and most capture apps filter it out. The system tool with an explicit region
+gets it:
 
 ```bash
 # x,y,w,h in points (top-left origin); outputs 2× on Retina
 screencapture -x -R 95,170,1400,200 /tmp/shot.png
 ```
 
-To refresh one: trigger the overlay in a text field (type for a completion, mistype a
-word for the typo fix, or select a line and press ⌥Tab for the rewrite), capture its
-region, then crop with `sips --cropOffset <top> <left> -c <h> <w>`.
+Then crop with `sips --cropOffset <top> <left> -c <h> <w>`. Other handy forms:
+`screencapture -T 5 docs/menu.png` (5 s timer, for open menus) and
+`screencapture -iW docs/console.png` (pick a window).
 
-| File | What |
-|---|---|
-| `hero.png` | A completion in the floating panel (also the GitHub **Social preview**) |
-| `shot-typo.png` | Inline typo fix — the diff pill above a misspelled word |
-| `shot-fix.png` | Fix selection (`⌥Tab`) — a line rewritten in place |
-| `shot-modes.png` | A completion shown as a floating panel above the line |
+## `chart-models.svg` — the model chart
 
-The git-ignored `dev-tools/HeroArt` package can still render clean *mockups* of these
-(`--hero` / `--shot-typo` / `--shot-fix` / `--shot-modes`) if you ever want a synthetic
-stand-in.
+Generated from the shipping catalog, so it can't drift from the app:
 
-## demo.gif — rendered animation
-
-`demo.gif` is drawn programmatically by the `PretypeHeroArt` generator in the
-git-ignored `dev-tools/` tree — a clean illustration of the inline ghost-text flow.
-The generator emits the frames; `ffmpeg` assembles them:
-
-```bash
-cd dev-tools/HeroArt
-mkdir -p /tmp/f && swift run PretypeHeroArt --gif-frames /tmp/f
-ffmpeg -y -framerate 12.5 -i /tmp/f/frame-%03d.png \
-  -vf "scale=860:-1:flags=lanczos,palettegen=max_colors=200:stats_mode=full" /tmp/pal.png
-ffmpeg -y -framerate 12.5 -i /tmp/f/frame-%03d.png -i /tmp/pal.png \
-  -lavfi "scale=860:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4" -loop 0 ../../docs/demo.gif
+```sh
+python3 dev-tools/gen-readme-chart.py
 ```
 
-A real ~10 s screen recording of typing → ghost text → `Tab` is the single most
-convincing asset if you can grab one (QuickTime → `.mov`); convert it with the `ffmpeg`
-recipe above (or [Gifski](https://gif.ski)).
-
-## More captures (menu bar, console, model picker)
-
-Drop additional PNGs here and wire them into the README. On macOS:
-
-- **A window** — `⌘⇧4` then `Space`, click the window; hold `⌥` while clicking to drop the shadow.
-- **An open menu** — `screencapture -T 5 docs/menu.png` gives a 5 s timer.
-- **A specific window from the terminal** — `screencapture -iW docs/console.png`.
+It reads `Sources/Pretype/Engines/ModelMetrics.swift` directly — both
+`ModelMetrics.all` (latency, RAM) and `perLangOfAll` (the per-language cells it
+averages). Re-run it after any metrics rebooking. The script asserts its own
+premise — that English is a tie and the multilingual column is not — so a
+rebooking that inverts the finding fails the run instead of shipping a chart
+whose headline no longer matches its data.

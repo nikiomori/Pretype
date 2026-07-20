@@ -13,11 +13,13 @@ engines, prompt/quality work, and documentation.
 
 ## Development setup
 
-Requirements (same as the README's *Build & run*): macOS 14+, **full Xcode
-16.3+** (Swift 6.1 — older toolchains fail compiling the MLX dependencies, and
-the MLX engine needs the Metal shader compiler; Command Line Tools alone are
-not enough), and Apple Silicon for the MLX engine. On Xcode 26+ install the
-Metal toolchain once:
+Requirements (same as the README's *Build from source*): a Mac that can run
+**full Xcode 26+** (the macOS 26 SDK — `FoundationModelsEngine` imports the
+`FoundationModels` framework, which is absent from Xcode 16.x; older toolchains
+also fail compiling the MLX dependencies, and the MLX engine needs the Metal
+shader compiler; Command Line Tools alone are not enough), and Apple Silicon.
+macOS 14+ is the app's *runtime* floor, not the toolchain floor — CI builds on
+macOS 15. Install the Metal toolchain once:
 
 ```bash
 xcodebuild -downloadComponent MetalToolchain
