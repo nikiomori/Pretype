@@ -393,10 +393,13 @@ final class SuggestionController: NSObject {
                 }
                 self.screenCapturedAt = Date()
                 self.screenSummary = summary
+                // Count only, never the text: the log is exportable and this is
+                // OTHER people's on-screen text. Passing it as `detail` here
+                // leaked it straight past the redaction the prompt log does
+                // below, and past the export warning's "text you typed" framing.
                 DebugLog.shared.log(
                     "OCR",
-                    summary.map { "captured \($0.count) chars (\(appName))" } ?? "nothing usable captured (\(appName))",
-                    detail: summary
+                    summary.map { "captured \($0.count) chars (\(appName))" } ?? "nothing usable captured (\(appName))"
                 )
             }
         }
