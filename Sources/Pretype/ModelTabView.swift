@@ -7,6 +7,9 @@ import SwiftUI
 /// (see `ModelMetrics`); no axes to decode, no spec-sheet estimates.
 struct ModelTab: View {
     @ObservedObject var store: SettingsStore
+    /// Catalog id awaiting delete confirmation. Local @State: it changes on a
+    /// click, not on pointer movement, but it still has no business on the store.
+    @State private var confirmingDelete: String?
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
@@ -72,7 +75,19 @@ struct ModelTab: View {
                              isSelected: store.modelID == entry.id,
                              select: { store.selectModel(entry.id) },
                              hover: { store.setHover(.model(entry.id), $0) },
-                             langAccuracy: langAccuracy(for: entry.id))
+                             langAccuracy: langAccuracy(for: entry.id),
+                             // Only deletable weights get a figure (the selected
+                             // model and its rewrite siblings are excluded at the
+                             // source), so the trash can't appear on the row a
+                             // click just made undeletable.
+                             diskBytes: store.modelDiskBytes[entry.id],
+                             delete: { confirmingDelete = entry.id },
+                             deleteDisabled: store.engineBusy)
+                }
+                if !store.modelDiskBytes.isEmpty {
+                    Caption("A size on a row = that model's weights sit in the local Hugging Face cache, "
+                        + "including the separate instruct sibling the ⌥⇥ rewrite loads. Deleting frees the space now; "
+                        + "picking the model again re-downloads it. The model you're using is never offered.")
                 }
                 HStack {
                     Spacer()
@@ -118,8 +133,32 @@ struct ModelTab: View {
                                 source: "Honest status: no eval isolates the clipboard context's effect on suggestion accuracy yet."),
                 ])
             }
+
         }
         .formStyle(.grouped)
+        .onAppear { store.refreshModelDiskUsage() }
+        // A download can finish while the window sits in the background; without
+        // this the figures read stale the moment the user comes back to them.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            store.refreshModelDiskUsage()
+        }
+        .confirmationDialog("Delete the downloaded files for this model?",
+                            isPresented: Binding(get: { confirmingDelete != nil },
+                                                 set: { if !$0 { confirmingDelete = nil } })) {
+            Button("Delete", role: .destructive) {
+                if let id = confirmingDelete { store.deleteDownload(id) }
+                confirmingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { confirmingDelete = nil }
+        } message: {
+            Text("Frees \(formattedSize(store.modelDiskBytes[confirmingDelete ?? ""] ?? 0)). "
+                + "Picking this model again downloads it over the network.")
+        }
+    }
+
+    private func formattedSize(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     /// The axis caption: what the numbers on this tab mean and where they
@@ -237,6 +276,11 @@ private struct ModelRow: View {
     /// When the list is ranked for one language: that language's "of all"
     /// accuracy and the best catalog value in it (for bar normalization).
     var langAccuracy: (pct: Int, max: Int)?
+    /// Deletable bytes this model's weights hold in the local cache; nil (the
+    /// selected model, its siblings, nothing downloaded) hides the affordance.
+    var diskBytes: Int64?
+    var delete: (() -> Void)?
+    var deleteDisabled = false
     /// Local hover for the row highlight — the rail preview (`hover`) lands
     /// 500 px away in the inspector, so a highlight at the pointer confirms
     /// the row is live. Kept off the observed store.
@@ -260,6 +304,34 @@ private struct ModelRow: View {
                             .help(ModelCatalog.defaultRationale)
                     }
                     Spacer()
+                    if let diskBytes, let delete {
+                        let size = ByteCountFormatter.string(fromByteCount: diskBytes, countStyle: .file)
+                        Text("\(size) on disk")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                        // Borderless, so the click stays on the trash instead of
+                        // also selecting the row (the classic nested-Button fix).
+                        // Busy is handled in the action, NOT via .disabled: a
+                        // disabled button drops out of hit-testing, so the click
+                        // would fall through to the row and *select* the model —
+                        // the exact load the gate exists to avoid racing.
+                        Button {
+                            if !deleteDisabled { delete() }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.caption)
+                                .foregroundStyle(hovering && !deleteDisabled
+                                    ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
+                                .opacity(deleteDisabled ? 0.5 : 1)
+                        }
+                        .buttonStyle(.borderless)
+                        .help(deleteDisabled
+                            ? "The model is loading — deleting is available once it finishes."
+                            : "Delete the downloaded weights (\(size), incl. any ⌥⇥ rewrite sibling) — picking this model again re-downloads them.")
+                        .accessibilityLabel(deleteDisabled
+                            ? "Delete downloaded \(title) — unavailable while a model loads"
+                            : "Delete downloaded \(title), frees \(size)")
+                    }
                 }
                 if let m = ModelMetrics.metrics(for: id) {
                     HStack(spacing: 16) {

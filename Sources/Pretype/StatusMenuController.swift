@@ -11,6 +11,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var diagnosticsMenu: NSMenu!
     private var permissionItem: NSMenuItem!
     private var enabledItem: NSMenuItem!
+    private var appBlacklistItem: NSMenuItem!
     private var hintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
 
@@ -99,6 +100,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         enabledItem.target = self
         menu.addItem(enabledItem)
 
+        // Title filled in menuNeedsUpdate — it names the app the user was last
+        // typing in, which isn't known until the menu opens.
+        appBlacklistItem = NSMenuItem(title: "", action: #selector(toggleFrontmostAppBlacklist), keyEquivalent: "")
+        appBlacklistItem.target = self
+        menu.addItem(appBlacklistItem)
+
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -167,8 +174,40 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
         permissionItem.isHidden = Permissions.isTrusted
         enabledItem.state = Settings.enabled ? .on : .off
+        refreshAppBlacklistItem()
         updateItem.title = UpdateChecker.availableVersion.map { "Update to \($0)…" } ?? "Check for Updates…"
         hintItem.attributedTitle = shortcutHint()
+    }
+
+    /// "Disable in Mail" / "Enable in Mail", named from the context the user was
+    /// last typing in. Opening the menu makes Pretype frontmost, but
+    /// FocusTracker.attach bails on our own PID *before* it detaches, so
+    /// typingContext still names the app behind the menu.
+    private func refreshAppBlacklistItem() {
+        let context = suggestionController?.typingContext ?? TypingContext()
+        guard let bundleID = context.bundleID else {
+            // Cold start, or an app with no bundle ID — nothing to toggle.
+            appBlacklistItem.isHidden = true
+            return
+        }
+        appBlacklistItem.isHidden = false
+        // Same clamp as the diagnostics lines: one long app name must not set
+        // the menu's width.
+        let name = String((context.appName ?? bundleID).prefix(40))
+        if AppPolicy.isTerminal(bundleID) || AppPolicy.isCredentialApp(bundleID) {
+            // Built-in blocks can't be lifted, so the item states the fact and
+            // greys itself out (nil action + NSMenu autoenabling) rather than
+            // offering a toggle that would silently do nothing. Code editors are
+            // deliberately not here: they only lose screen OCR, and stay
+            // toggleable.
+            appBlacklistItem.title = "Always off in \(name)"
+            appBlacklistItem.action = nil
+        } else {
+            let off = !AppPolicy.userBlacklistEntries(for: bundleID).isEmpty
+            // No .state checkmark: a ✓ next to "Disable in Mail" reads either way.
+            appBlacklistItem.title = off ? "Enable in \(name)" : "Disable in \(name)"
+            appBlacklistItem.action = #selector(toggleFrontmostAppBlacklist)
+        }
     }
 
     /// The two-line shortcut hint, keyed to the user's accept hotkey so its
@@ -241,6 +280,18 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         if !Settings.enabled {
             suggestionController?.dismiss()
         }
+    }
+
+    /// No propagation needed: AppPolicy.isBlacklisted reads UserDefaults on the
+    /// keystroke path, so the next keypress already obeys the new list.
+    /// ponytail: an already-open Settings window keeps showing the stale
+    /// blacklist until its next sync() (⌘, again) — an observer for that one
+    /// window isn't worth the wiring.
+    @objc private func toggleFrontmostAppBlacklist() {
+        guard let bundleID = suggestionController?.typingContext.bundleID else { return }
+        AppPolicy.toggleUserBlacklist(bundleID)
+        // A ghost already on screen for the app we just silenced has to go.
+        suggestionController?.dismiss()
     }
 
     @objc private func showLastPrompt() {

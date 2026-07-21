@@ -1,4 +1,5 @@
 import XCTest
+import Carbon
 import CoreGraphics
 @testable import Pretype
 
@@ -845,5 +846,217 @@ final class PretypeTests: XCTestCase {
         // Garbage must not read as newer.
         XCTAssertFalse(UpdateChecker.isNewer("", than: "0.1.0"))
         XCTAssertFalse(UpdateChecker.isNewer("nightly", than: "0.1.0"))
+    }
+
+    // The user blacklist holds lowercased *substring markers*, not exact bundle
+    // IDs, so "enable here again" has to remove whichever entry matched — an
+    // exact-ID remove would leave the menu item visibly stuck on "Enable in …".
+    func testToggleUserBlacklist() {
+        let original = Settings.userBlacklist   // shared with the developer's real app
+        defer { Settings.userBlacklist = original }
+
+        // Off → on stores the exact ID, lowercased.
+        Settings.userBlacklist = []
+        AppPolicy.toggleUserBlacklist("com.apple.Mail")
+        XCTAssertEqual(Settings.userBlacklist, ["com.apple.mail"])
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.apple.Mail"))
+
+        // On → off removes it again.
+        AppPolicy.toggleUserBlacklist("com.apple.Mail")
+        XCTAssertEqual(Settings.userBlacklist, [])
+        XCTAssertFalse(AppPolicy.isBlacklisted("com.apple.Mail"))
+
+        // A hand-typed fragment must be removed by the toggle, not shadowed by
+        // an exact ID appended beside it (which would leave the app silenced).
+        Settings.userBlacklist = ["mail", "slack"]
+        XCTAssertEqual(AppPolicy.userBlacklistEntries(for: "com.apple.Mail"), ["mail"])
+        AppPolicy.toggleUserBlacklist("com.apple.Mail")
+        XCTAssertEqual(Settings.userBlacklist, ["slack"])
+        XCTAssertFalse(AppPolicy.isBlacklisted("com.apple.Mail"))
+
+        // Built-in blocks are not user entries: nothing to toggle, still blocked.
+        Settings.userBlacklist = []
+        XCTAssertTrue(AppPolicy.userBlacklistEntries(for: "com.apple.Terminal").isEmpty)
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.apple.Terminal"))
+    }
+
+    // Deleting model weights points `removeItem` at a cache shared with every
+    // other Hugging Face tool on the Mac — pin what may and may not be a target,
+    // and the symlink trap that would otherwise double every reported size.
+    func testModelStorage() throws {
+        // A local fine-tune folder is the user's OWN directory: never a cache repo.
+        XCTAssertNil(ModelStorage.directory(for: "/Users/someone/models/my-finetune"))
+        // The system model downloads nothing.
+        XCTAssertNil(ModelStorage.directory(for: ModelCatalog.appleIntelligenceID))
+
+        let repoDir = try XCTUnwrap(ModelStorage.directory(for: "mlx-community/gemma-4-e2b-4bit"))
+        XCTAssertEqual(repoDir.lastPathComponent, "models--mlx-community--gemma-4-e2b-4bit")
+
+        // Nothing is deletable when the entry being inspected is the selected one.
+        XCTAssertTrue(ModelStorage.deletableRepos(
+            for: "mlx-community/gemma-4-e2b-4bit",
+            selected: "mlx-community/gemma-4-e2b-4bit"
+        ).isEmpty)
+
+        // The symlink trap: snapshots/ points into blobs/, and resourceValues
+        // stats THROUGH symlinks, so a naive recursive walk reports double.
+        let manager = FileManager.default
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ModelStorageTests-\(UUID().uuidString)")
+        defer { try? manager.removeItem(at: root) }
+
+        let fakeRepo = root.appendingPathComponent("models--acme--tiny")
+        let blobs = fakeRepo.appendingPathComponent("blobs")
+        let snapshot = fakeRepo.appendingPathComponent("snapshots/deadbeef")
+        try manager.createDirectory(at: blobs, withIntermediateDirectories: true)
+        try manager.createDirectory(at: snapshot, withIntermediateDirectories: true)
+        for name in ["aaaa1111", "bbbb2222"] {
+            let blob = blobs.appendingPathComponent(name)
+            try Data(repeating: 0x41, count: 8 * 1024).write(to: blob)
+            try manager.createSymbolicLink(
+                at: snapshot.appendingPathComponent("\(name).safetensors"),
+                withDestinationURL: blob
+            )
+        }
+
+        let measured = ModelStorage.bytes(at: fakeRepo)
+        XCTAssertGreaterThanOrEqual(measured, 16 * 1024)
+        XCTAssertLessThan(measured, 24 * 1024, "snapshot symlinks are being counted as real bytes")
+    }
+
+    // Suppressing suggestions while an IME composes is all-or-nothing per input
+    // source in the apps that don't expose a marked range, so the classification
+    // decides whether a Japanese user keeps Tab for the English half of their day.
+    func testCompositionInputModeClassification() {
+        let mode = kTISTypeKeyboardInputMode as String
+        let layout = kTISTypeKeyboardLayout as String
+
+        // Every real IME input mode composes: half-typed romanisation in the
+        // field, candidate window owning Tab.
+        for modeID in ["com.apple.inputmethod.SCIM.ITABC",           // Pinyin – Simplified
+                       "com.apple.inputmethod.Japanese",             // Kotoeri, kana
+                       "com.apple.inputmethod.Korean.2SetKorean",    // Hangul
+                       "com.apple.inputmethod.VietnameseTelex",      // Telex
+                       "com.apple.inputmethod.TransliterationIM.hi"] // Hindi transliteration
+        {
+            XCTAssertTrue(AXText.isCompositionInputMode(type: mode, modeID: modeID), modeID)
+        }
+
+        // The one input mode that does not compose: a Japanese IME's
+        // alphanumeric sub-mode reports exactly this for both Romaji and Kana
+        // typing — the carve-out that keeps Tab alive for English.
+        XCTAssertFalse(AXText.isCompositionInputMode(type: mode, modeID: "com.apple.inputmethod.Roman"))
+
+        // A plain keyboard layout (ABC, "Russian – PC") never composes.
+        XCTAssertFalse(AXText.isCompositionInputMode(type: layout, modeID: nil))
+        XCTAssertFalse(AXText.isCompositionInputMode(type: layout, modeID: "com.apple.keylayout.ABC"))
+    }
+
+    // A shortcode fires an in-place replacement, so the scanner's guards are the
+    // whole safety story: everything that merely ends in a colon must stay quiet.
+    @MainActor
+    func testEmojiShortcodeDetection() {
+        // A closed shortcode is detected and resolves.
+        XCTAssertEqual(EmojiShortcodes.trailingShortcode(in: "shrug :shrug:"), ":shrug:")
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":shrug:"), "🤷")
+
+        // Only through the system Unicode-name table (no alias entry for these).
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":rocket:"), "🚀")
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":pile_of_poo:"), "💩")
+        // Text-presentation legacy dingbat gets VS16 so it renders as emoji.
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":gear:"), "⚙\u{FE0F}")
+
+        // Only through the alias table — Gemoji nicknames are not Unicode names.
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":joy:"), "😂")
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":tada:"), "🎉")
+
+        // "+1"/"-1" are the two letterless bodies that ARE names — the reason
+        // +/- are in the scanner's charset at all.
+        XCTAssertEqual(EmojiShortcodes.trailingShortcode(in: "nice :+1:"), ":+1:")
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":+1:"), "👍")
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":-1:"), "👎")
+        // …while a +1 glued to a number is still arithmetic, not a shortcode.
+        XCTAssertNil(EmojiShortcodes.trailingShortcode(in: "3:+1:"))
+
+        // Mid-typing must stay silent: nothing fires until the closing colon.
+        XCTAssertNil(EmojiShortcodes.trailingShortcode(in: ":shru"))
+        XCTAssertNil(EmojiShortcodes.trailingShortcode(in: "type :roc"))
+
+        // Detected but unknown body → no emoji, so no pill.
+        XCTAssertEqual(EmojiShortcodes.trailingShortcode(in: ":asdfqwer:"), ":asdfqwer:")
+        XCTAssertNil(EmojiShortcodes.emoji(for: ":asdfqwer:"))
+
+        // Every quiet case: times, ratios, URLs, code, bare colons.
+        for quiet in ["10:30", "meet at 10:30:", "http://", "http:", ":", "::",
+                      "foo:bar:", "ratio3:4:", "x :100:", ":a:", "ns::member:"] {
+            XCTAssertNil(EmojiShortcodes.trailingShortcode(in: quiet), "should stay quiet: \(quiet)")
+        }
+
+        // lastToken is what every revalidation path uses: the shortcode when one
+        // is closed at the caret, the plain word otherwise. lastWord alone stops
+        // at ':' and would read the shortcode back as "".
+        XCTAssertEqual(CorrectionController.lastToken(of: "hey :shrug:"), ":shrug:")
+        XCTAssertEqual(CorrectionController.lastToken(of: "hey teh"), "teh")
+        XCTAssertEqual(CorrectionController.lastWord(of: "hey :shrug:"), "")
+    }
+
+    // Imported text must feed BOTH consumers off the one file: the n-gram's ctx
+    // chain (deltas must reconstruct the text exactly once, in order) and the
+    // RAG corpus (phrase(from:) only accepts .accepted/.typedThrough rows with
+    // non-empty ctx+suggestion).
+    func testJournalImport() throws {
+        // `ingest` re-checks the kill switch on the journal queue (the race-free
+        // "off means forget" guard); registerDefaults() only runs in the app, so
+        // the test must turn the switch on itself — and restore it.
+        let journalWasOn = Settings.suggestionJournalEnabled
+        Settings.suggestionJournalEnabled = true
+        defer { Settings.suggestionJournalEnabled = journalWasOn }
+
+        let s1 = "Никита пишет диссертацию про кварковые глюоны."
+        let s2 = "Кварковые глюоны ведут себя странно при нагреве."
+        let s3 = "Никита проверяет гипотезу на симуляции."
+        let text = s1 + " " + s2 + " " + s3
+
+        // phraseLimit is a hard cap — the importer passes the REMAINING budget
+        // per file, so a limit of 1 must yield exactly 1 row, not limit+1.
+        XCTAssertEqual(SuggestionJournal.importEntries(from: text, source: "t", phraseLimit: 1).count, 1)
+
+        // Three sentences, two rows: the first is ctx-seed only.
+        let entries = SuggestionJournal.importEntries(from: text, source: "thesis.txt")
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(entries.map(\.suggestion), [s2, s3])
+        XCTAssertEqual(entries[0].app, "import:thesis.txt")
+        XCTAssertEqual(entries[0].engine, "import")
+        XCTAssertEqual(entries[0].outcome, .typedThrough)
+        XCTAssertEqual(entries[0].ctx, s1 + " ")
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("journal-import-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let journal = SuggestionJournal(url: url)
+        journal.ingest(entries)
+        XCTAssertGreaterThan(journal.fileSize, 0)   // flush barrier
+
+        // The ctx chain deltas out to every sentence but the last, exactly once
+        // and in order — this is what breaks if the snapshots double-count.
+        XCTAssertEqual(journal.typedStreamChunks().joined(), s1 + " " + s2 + " ")
+
+        // A fresh instance loads the imported rows into the retrieval corpus —
+        // this is what breaks if outcome/ctx make phrase(from:) reject them.
+        let fresh = SuggestionJournal(url: url)
+        let found = fresh.similarAcceptedPhrases(to: "кварковые глюоны разогрели")
+        XCTAssertTrue(found.contains { $0.next == s2 }, "imported phrase not retrieved: \(found.map(\.next))")
+    }
+
+    // The login item's truth lives in launchd, so the only thing to pin is the
+    // mapping: only .enabled is "on" — .requiresApproval is registered but held
+    // by macOS, and a switch that shows it as on would be lying.
+    func testLoginItemStatusMapping() {
+        XCTAssertTrue(LoginItem.isOn(.enabled))
+        XCTAssertFalse(LoginItem.isOn(.requiresApproval))
+        XCTAssertFalse(LoginItem.isOn(.notRegistered))
+        XCTAssertFalse(LoginItem.isOn(.notFound))
+        // Held-by-macOS is the one state that needs its own explanation.
+        XCTAssertNotNil(LoginItem.note(.requiresApproval))
     }
 }

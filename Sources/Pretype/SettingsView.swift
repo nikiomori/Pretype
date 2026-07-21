@@ -116,6 +116,10 @@ final class SettingsStore: ObservableObject {
         didSet { guard !syncing, oldValue != automaticUpdateCheck else { return }
             Settings.automaticUpdateCheck = automaticUpdateCheck }
     }
+    /// Login-item state, re-read from launchd on every `sync()` — there is no
+    /// stored mirror to keep in step (see `LoginItem`). Writes go through
+    /// `setOpenAtLogin`, so no didSet here.
+    @Published var loginStatus = LoginItem.status
 
     /// Selection flows through `selectModel`, not a binding didSet.
     @Published var modelID = ModelCatalog.defaultID
@@ -164,6 +168,16 @@ final class SettingsStore: ObservableObject {
     @Published var statusColor = Color.secondary
     @Published var learnedWords = 0
     @Published var journalBytes = 0
+    /// Bytes on disk per catalog id — what deleting that entry would free.
+    /// Refreshed when the Model tab appears, never on the 1 s timer: it is a
+    /// few hundred `stat`s against a possibly-cold cache.
+    @Published var modelDiskBytes: [String: Int64] = [:]
+    /// One-line result of the last journal import, shown under the Journal
+    /// section. nil until the user imports something.
+    @Published var importStatus: String?
+    /// An import is running — disables the button so a double-click can't run
+    /// two concurrent imports, each with its own 500-row budget.
+    @Published var importing = false
 
     // MARK: Derived
 
@@ -221,6 +235,9 @@ final class SettingsStore: ObservableObject {
         modelID = id
         controller?.setModel(id)
         resync()
+        // The protected repo set moves with the selection: the model just left
+        // becomes deletable, the one just picked stops being.
+        refreshModelDiskUsage()
     }
 
     /// Commit an exact configuration in one shot (presets and map dots land
@@ -265,14 +282,21 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// Both editors re-seed from the live defaults first: the menu bar's
+    /// "Disable in <app>" writes `Settings.userBlacklist` directly, so a Settings
+    /// window that has been open since before that click holds a stale mirror —
+    /// and mutating the stale array writes it straight back, silently undoing
+    /// the menu toggle for an app that isn't even on screen.
     func addBlacklistEntry(_ raw: String) {
         let entry = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !entry.isEmpty, !blacklist.contains(entry) else { return }
-        blacklist.append(entry)
+        var live = Settings.userBlacklist
+        guard !entry.isEmpty, !live.contains(entry) else { return }
+        live.append(entry)
+        blacklist = live
     }
 
     func removeBlacklistEntry(_ entry: String) {
-        blacklist.removeAll { $0 == entry }
+        blacklist = Settings.userBlacklist.filter { $0 != entry }
     }
 
     /// Add an app for a per-app persona line via the standard app-picker
@@ -329,6 +353,147 @@ final class SettingsStore: ObservableObject {
         PersonalNgram.shared.reset()
         journalBytes = 0
         learnedWords = 0
+        importStatus = nil
+    }
+
+    /// Seed the journal from the user's own writing. Personalization measured
+    /// underpowered (n=54) for one reason: the journal only ever grew from live
+    /// typing. Imported rows are ordinary journal rows — retrieval and the
+    /// n-gram read them like typed ones, and Clear forgets them like typed ones.
+    /// Nothing is copied anywhere but the journal; the picked files are only read.
+    func importTextFiles() {
+        guard !importing else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        // .md and .txt both conform to public.plain-text.
+        panel.allowedContentTypes = [.plainText]
+        panel.prompt = "Import"
+        panel.message = "Choose plain-text or Markdown files you wrote — Pretype learns your phrasing from them."
+        guard panel.runModal() == .OK else { return }
+        let urls = panel.urls
+        importing = true
+        importStatus = "Importing…"
+        Task.detached {
+            var rows = 0
+            var files = 0
+            for url in urls {
+                // Re-checked per file, not just on the button: the window stays
+                // live during the import, and "off means forget" has to hold
+                // even if the user changes their mind halfway through.
+                guard Settings.suggestionJournalEnabled else { break }
+                // ONE 500-row budget across the whole import, not per file:
+                // `loadPhrasesLocked` keeps the LAST 2000 phrases, so four
+                // uncapped files would evict every live accepted phrase from
+                // the retrieval corpus — the exact failure the cap exists for.
+                guard rows < 500 else { break }
+                guard let text = Self.readCapped(url) else { continue }
+                let entries = SuggestionJournal.importEntries(
+                    from: Self.stripMarkdown(text), source: url.lastPathComponent,
+                    phraseLimit: 500 - rows)
+                guard !entries.isEmpty else { continue }
+                SuggestionJournal.shared.ingest(entries)
+                rows += entries.count
+                files += 1
+            }
+            // The n-gram can't fold a bulk import in incrementally — `observe` is
+            // a per-app delta cursor gated on a finished build. Rebuild from the
+            // file, exactly as a fresh launch would.
+            PersonalNgram.shared.reset()
+            PersonalNgram.shared.prepareIfNeeded()
+            // prepareIfNeeded only *dispatches* the replay, and reset() has
+            // already zeroed the tables — refreshing now would tell the user the
+            // import wiped their learned words. Wait for the rebuild instead.
+            // ponytail: bounded poll (5 s) rather than a completion handler on
+            // PersonalNgram; the stats also re-read on the next window activation.
+            for _ in 0..<100 where !PersonalNgram.shared.isPrepared {
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+            let summary = rows == 0
+                ? "Nothing to import — the files were empty, or not UTF-8 text."
+                : "Imported \(rows) passages from \(files) file\(files == 1 ? "" : "s")."
+            await MainActor.run {
+                self.importing = false
+                self.importStatus = summary
+                self.refreshJournalStats()
+            }
+        }
+    }
+
+    /// The head of a picked file, decoded as UTF-8. Bounded on purpose: the
+    /// picker accepts any .txt, including a multi-GB export, and materialising
+    /// that as a String next to a loaded MLX model is how a Mac jetsams the app
+    /// mid-import. 4 MB of bytes covers the 2 MB of characters the importer
+    /// looks at. nil for anything that isn't UTF-8 text — a renamed binary.
+    nonisolated private static func readCapped(_ url: URL, bytes: Int = 4 << 20) -> String? {
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
+        let head = data.prefix(bytes)
+        // Cutting at a byte offset can split a multi-byte character, which fails
+        // the strict decode; back off up to three bytes to a character boundary.
+        for drop in 0...3 {
+            if let text = String(data: head.dropLast(drop), encoding: .utf8) { return text }
+        }
+        return nil
+    }
+
+    /// Markdown scaffolding the model must never learn to imitate: fenced code
+    /// blocks, and the leading heading/list/quote markers. Everything else is
+    /// the user's prose and stays exactly as written.
+    /// ponytail: line-level only — tables and inline `code` still get through.
+    /// `nonisolated` so the import's detached task can call it: everything else
+    /// on this store is main-actor bound.
+    nonisolated private static func stripMarkdown(_ text: String) -> String {
+        var inFence = false
+        return text.split(separator: "\n", omittingEmptySubsequences: false).filter { line in
+            if line.hasPrefix("```") {
+                inFence.toggle()
+                return false
+            }
+            return !inFence
+        }
+        .map { $0.drop { "#>*-+ ".contains($0) } }
+        .joined(separator: "\n")
+    }
+
+    /// Bytes on disk for every catalog model the user could delete. Off the main
+    /// actor: it stats a few hundred blobs in a cache that may be cold.
+    func refreshModelDiskUsage() {
+        let selected = modelID
+        let ids = ModelCatalog.options.map(\.id)
+        Task.detached {
+            var sizes: [String: Int64] = [:]
+            for id in ids {
+                let bytes = ModelStorage.deletableRepos(for: id, selected: selected)
+                    .compactMap(ModelStorage.directory(for:))
+                    .reduce(Int64(0)) { $0 + ModelStorage.bytes(at: $1) }
+                if bytes > 0 { sizes[id] = bytes }
+            }
+            let measured = sizes
+            await MainActor.run {
+                if self.modelDiskBytes != measured { self.modelDiskBytes = measured }
+            }
+        }
+    }
+
+    func deleteDownload(_ id: String) {
+        for repo in ModelStorage.deletableRepos(for: id, selected: modelID) {
+            try? ModelStorage.delete(repo)
+        }
+        refreshModelDiskUsage()
+    }
+
+    /// A load or download is in flight — deleting now would race the writer.
+    /// Keyed on `isLoading`, not `state`: the idle-unloaded resting state also
+    /// reports `.preparing`, and gating on that would disable deletion exactly
+    /// when it is safest (nothing loaded, nothing writing).
+    var engineBusy: Bool { controller?.engine.isLoading ?? false }
+
+    func setOpenAtLogin(_ on: Bool) {
+        LoginItem.set(on)
+        // launchd is the truth, not the click: a refused or held registration
+        // snaps the switch back instead of showing a state that isn't real.
+        loginStatus = LoginItem.status
     }
 
     func resetInstructions() {
@@ -361,6 +526,7 @@ final class SettingsStore: ObservableObject {
         screenContext = Settings.screenContextEnabled
         clipboardContext = Settings.clipboardContextEnabled
         automaticUpdateCheck = Settings.automaticUpdateCheck
+        loginStatus = LoginItem.status  // the user may have flipped it in System Settings
         accuracyAxis = Settings.accuracyAxis
         // Journal stats deliberately NOT read here: sync() runs on every ⌘, and
         // after every model/style/gate change, and `fileSize` is a flush barrier
@@ -826,6 +992,31 @@ struct GeneralTab: View {
                         }
                 }
                 Caption("Matched against the app's bundle ID, so a fragment like “slack” covers Slack everywhere.")
+            }
+
+            Section("Startup") {
+                // Bound to launchd, not to a stored bool: the same switch lives
+                // in System Settings → Login Items, and mirroring it in
+                // UserDefaults would eventually show a state that isn't real.
+                Toggle("Open at login", isOn: Binding(
+                    get: { LoginItem.isOn(store.loginStatus) },
+                    set: { store.setOpenAtLogin($0) }
+                ))
+                .disabled(!LoginItem.isSupported)
+                // The same switch lives in System Settings, and `sync()` only
+                // runs when the window is (re)presented — catch the user coming
+                // back from flipping it there, or the caption's "flipping it
+                // there flips it here" only holds across window reopens.
+                .onReceive(NotificationCenter.default.publisher(
+                    for: NSApplication.didBecomeActiveNotification)) { _ in
+                    store.loginStatus = LoginItem.status
+                }
+                Caption("Pretype starts with your Mac and waits in the menu bar — no Dock icon, no window. "
+                    + "macOS owns this switch: it also lives in System Settings → General → Login Items, "
+                    + "and flipping it there flips it here.")
+                if let note = LoginItem.note(store.loginStatus) {
+                    Caption(note)
+                }
             }
 
             Section("Updates") {
@@ -1353,6 +1544,22 @@ struct PersonalTab: View {
                     }
                     .controlSize(.small)
                     .disabled(store.journalBytes == 0)
+                }
+                HStack {
+                    Caption(store.journalEnabled
+                        ? "The journal only grows while you type, which is why personalization is still thin. Import .txt or .md files you wrote and Pretype learns your words and reuses your own sentences as prompt examples — the files are only read, and Clear above forgets imported text too."
+                        : "Importing writes into the journal — turn “Keep suggestion journal” on first.")
+                    Spacer()
+                    Button {
+                        store.importTextFiles()
+                    } label: {
+                        Label("Import Text…", systemImage: "text.book.closed")
+                    }
+                    .controlSize(.small)
+                    .disabled(!store.journalEnabled || store.importing)
+                }
+                if let status = store.importStatus {
+                    Caption(status)
                 }
                 // The journal itself still records (retention is the toggle above),
                 // but its few-shot reuse never reaches Apple Intelligence — FM's

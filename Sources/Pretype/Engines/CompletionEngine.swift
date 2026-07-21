@@ -174,6 +174,14 @@ protocol CompletionEngine: AnyObject {
     /// Readiness, surfaced as an indicator at the caret.
     var state: EngineState { get }
 
+    /// A model load or download is actually in flight. NOT derivable from
+    /// `state` alone: MLXEngine's idle-unloaded resting state also reports
+    /// `.preparing`, with no task behind it and nothing touching the disk
+    /// cache — and that is the one state where deleting cached weights is
+    /// safest, so a gate keyed on `.preparing` would disable it exactly when
+    /// it should be allowed.
+    var isLoading: Bool { get }
+
     /// Returns the text that should appear after the caret, or nil.
     /// If the context ends mid-word, the result must start with the remainder
     /// of that word; if it ends with a space, with the next word.
@@ -216,6 +224,11 @@ extension CompletionEngine {
     var lastFirstWordLogProb: Double? { nil }
     var statusLine: String? { nil }
     var state: EngineState { .ready }
+    /// For engines without an idle-unload cycle, `.preparing` IS active work.
+    var isLoading: Bool {
+        if case .preparing = state { return true }
+        return false
+    }
     var supportsCorrection: Bool { false }
     func correct(selection: String, request: CompletionRequest) async throws -> String? { nil }
     func updateCompletion(length: CompletionLength, instructions: String) {}

@@ -53,6 +53,67 @@ enum AXText {
         IsSecureEventInputEnabled()
     }
 
+    /// True while an input method is mid-composition (Pinyin, kana, Telex,
+    /// Hangul, dictation). AX reports the *uncommitted* composition as field
+    /// text, so the ghost would predict off a half-typed romanisation — and Tab,
+    /// our accept key, is the IME's own candidate key. So we read nothing at all.
+    ///
+    /// `AXTextInputMarkedRange` is a real AppKit attribute (10.6+) but isn't
+    /// bridged into Swift, hence the string literal — same as
+    /// "AXSelectedTextMarkerRange" below. Three answers, three meanings:
+    /// implemented-and-marked, implemented-and-clear, and not implemented at all
+    /// (Chromium/Electron/Java, or a timeout on a hung app) — only the last one
+    /// pays for the input-source fallback.
+    static func isComposing(_ element: AXUIElement) -> Bool {
+        var ref: CFTypeRef?
+        switch AXUIElementCopyAttributeValue(element, "AXTextInputMarkedRange" as CFString, &ref) {
+        case .success:
+            guard let ref, CFGetTypeID(ref) == AXValueGetTypeID() else { return false }
+            var range = CFRange()
+            guard AXValueGetValue(ref as! AXValue, .cfRange, &range) else { return false }
+            return range.length > 0
+        case .noValue:
+            return false  // attribute implemented, nothing marked
+        default:
+            return isComposingInputSourceActive()
+        }
+    }
+
+    /// Fallback when the element can't tell us: is a *composing* input source
+    /// selected at all? Coarse by construction — where the marked-range
+    /// attribute is unsupported this suppresses suggestions for the whole time
+    /// such a source is selected, not just between the first and last keystroke
+    /// of a composition. Vietnamese Telex and Korean have no Roman sub-mode, so
+    /// those users get no ghost in Electron/Chromium apps while that source is
+    /// picked. That is the price of not fighting the candidate window.
+    ///
+    /// ponytail: deliberately not the Chromium "AXTextInputMarkedTextMarkerRange"
+    /// opaque-marker round-trip — twenty lines to recover what one line covers;
+    /// upgrade path if the Telex/Korean cost is ever reported as real. Also no
+    /// kTISNotifySelectedKeyboardInputSourceChanged observer: the TIS pair
+    /// benchmarks at ~13 ns and is only reached from the already-throttled AX
+    /// read path. And no Settings toggle — this is correctness, not taste.
+    private static func isComposingInputSourceActive() -> Bool {
+        // TISCopy* is a Copy (retained); TISGetInputSourceProperty is a Get.
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let typePtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceType) else { return false }
+        let type = Unmanaged<CFString>.fromOpaque(typePtr).takeUnretainedValue() as String
+        let modeID = TISGetInputSourceProperty(source, kTISPropertyInputModeID).map {
+            Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String
+        }
+        return isCompositionInputMode(type: type, modeID: modeID)
+    }
+
+    /// The rule, kept pure so it can be pinned by a test. Only input *modes*
+    /// compose; a plain keyboard layout (ABC, "Russian – PC") never does. The one
+    /// input mode that doesn't compose is a Japanese IME's alphanumeric sub-mode,
+    /// which reports exactly "com.apple.inputmethod.Roman" for both Romaji and
+    /// Kana typing — that carve-out is what keeps Tab and the ghost alive for the
+    /// English half of a Japanese user's day.
+    nonisolated static func isCompositionInputMode(type: String, modeID: String?) -> Bool {
+        type == kTISTypeKeyboardInputMode as String && modeID != "com.apple.inputmethod.Roman"
+    }
+
     /// Label keywords that mark a password-ish field in web/Electron content,
     /// where neither the secure subrole nor (sometimes) secure input applies.
     private static let passwordLabelMarkers =
@@ -86,6 +147,9 @@ enum AXText {
     /// Non-empty selection in the element, if any.
     static func selectionInfo(for element: AXUIElement) -> SelectionInfo? {
         if isSecureInputActive() { return nil }
+        // Several IMEs expose marked text as `AXSelectedText` with length > 0,
+        // which would pop the ⌥⇥ fix hint on top of the candidate window.
+        if isComposing(element) { return nil }
         guard let range = selectedRange(of: element), range.length > 0 else { return nil }
         guard let text: String = attribute(element, kAXSelectedTextAttribute), !text.isEmpty,
               !looksMasked(text) else { return nil }
@@ -128,6 +192,12 @@ enum AXText {
         // Privacy floor: never read field text while a password field is active
         // anywhere (covers web/Electron password inputs the subrole check misses).
         if isSecureInputActive() { return nil }
+        // The chokepoint: six call sites route through here, and
+        // `SuggestionController.textDidChange` already turns a nil into a
+        // dismiss, so one guard both stops the read and kills a live ghost.
+        // Secure input goes first — while it's on the element may be unreadable
+        // anyway and the extra AX round-trip buys nothing.
+        if isComposing(element) { return nil }
         guard let selection = selectedRange(of: element),
               selection.length == 0, selection.location >= 0 else { return nil }
         let caret = selection.location
@@ -328,6 +398,25 @@ enum AXText {
             guard let r else { return "nil" }
             return "(\(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))×\(Int(r.height)))"
         }
+        // The three marked-range states are the whole design, and this is the
+        // only place they're visible: there is deliberately no per-keystroke
+        // logging (`isComposing` runs up to ~16×/s). "unsupported" means the
+        // coarse input-source fallback is what's deciding in this app; a stuck
+        // "loc+len" that never clears is the field bug worth reporting.
+        var markedRef: CFTypeRef?
+        let markedDesc: String
+        switch AXUIElementCopyAttributeValue(element, "AXTextInputMarkedRange" as CFString, &markedRef) {
+        case .success:
+            var marked = CFRange()
+            if let markedRef, CFGetTypeID(markedRef) == AXValueGetTypeID(),
+               AXValueGetValue(markedRef as! AXValue, .cfRange, &marked) {
+                markedDesc = "\(marked.location)+\(marked.length)"
+            } else {
+                markedDesc = "unreadable"
+            }
+        case .noValue: markedDesc = "none"
+        default: markedDesc = "unsupported"
+        }
         var extra = ""
         if role == "AXWebArea" {
             // Chromium exposes caret position via private text-marker attributes.
@@ -359,7 +448,7 @@ enum AXText {
             + "value=\(valueDesc) nChars=\(nChars.map(String.init) ?? "nil") "
             + "caret=\(fmt(caretBounds)) prevChar=\(fmt(prevBounds)) "
             + "attrFont=\(fontDesc) lastChar=\(fmt(lastCharBounds)) whole=\(fmt(wholeBounds)) "
-            + "marker=\(fmt(webCaretBounds(element)))\(extra)\(kids)"
+            + "marker=\(fmt(webCaretBounds(element))) markedRange=\(markedDesc)\(extra)\(kids)"
     }
 
     /// What `context(for:)` actually computes for the focused element — verifies

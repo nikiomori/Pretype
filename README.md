@@ -57,6 +57,7 @@ It's a free, MIT-licensed alternative to [Cotypist](https://cotypist.app) — a 
 * **Ghost text at the caret** — baseline-matched and sized to the field's own font, or a floating panel if you prefer that.
 * **<kbd>Tab</kbd> to accept** — one word at a time, <kbd>⇧Tab</kbd> for the rest, or just keep typing to reject. The part one <kbd>Tab</kbd> will take renders a step brighter. Switchable to <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd> or <kbd>⌃Space</kbd> in Settings.
 * **Inline typo fixes** — a correction pill above the misspelled word, <kbd>Tab</kbd> to apply. Uses the macOS spell-checker in whichever language it detects from the surrounding text.
+* **Emoji shortcodes** — type `:shrug:` and 🤷 is offered in the same pill, <kbd>Tab</kbd> to take it. A handful of Gemoji nicknames plus every Unicode character name macOS already knows, so `:rocket:` and `:thinking_face:` work without shipping a table.
 * **Rewrites (<kbd>⌥Tab</kbd>)** — select clumsy text and the local model fixes grammar, typos and phrasing in place, keeping your tone. With nothing selected it fixes the word you just typed. On some models this needs a separate instruct sibling, downloaded once on first use (≈2.2 GB on the English/Russian default, up to ≈5 GB on Gemma; the menu bar shows *preparing…*).
 * **Fast** — 49–145 ms warm completions across the local models, by prefilling only the newly typed tokens and reusing the KV cache.
 * **Knows where it is** — adapts per app, stays out of terminals and password managers, and stops reading entirely while macOS reports secure input. Optional on-screen OCR pulls in surrounding context.
@@ -180,8 +181,8 @@ Engines, the model catalog, quantization tiers, and the KV-cache and gating deta
 | **Network** | Two things only: model weights from Hugging Face (on first launch, plus a small instruct sibling the first time you use <kbd>⌥Tab</kbd>), and a once-a-day GitHub Releases version check that sends nothing about you. Turn the latter off in **Settings → General**. |
 | **Accessibility** *(required)* | How Pretype reads the focused field, catches the accept key, and types text back. There is no way to do this without it. |
 | **Screen Recording** *(optional, off)* | Only for on-screen OCR context, and only for the focused window. OCR'd text and clipboard contents are redacted from the debug log — an exported log carries a character count in their place, never the text. |
-| **Stored locally** | A journal of suggestions and short snippets of surrounding text in `~/Library/Application Support/Pretype`, capped at 50 MB, used for on-device personalization. Turning it off in **Settings → Personalization** deletes it. |
-| **Never runs** | In terminals and password managers, and while macOS reports secure input. Add your own apps to the blacklist in **Settings → General**. |
+| **Stored locally** | A journal of suggestions and short snippets of surrounding text in `~/Library/Application Support/Pretype`, capped at 50 MB, used for on-device personalization — plus any text you import yourself via **Settings → Personalization → Import Text…**. Turning the journal off deletes all of it, imported passages included. |
+| **Never runs** | In terminals and password managers, while macOS reports secure input, and while an input method is mid-composition (Pinyin, kana, Telex, Hangul). Add your own apps to the blacklist in **Settings → General**, or silence the app you're in straight from the menu bar. |
 
 ---
 
@@ -243,13 +244,18 @@ Completions are evaluated across 17 languages — see [Choosing a Model](#choosi
 Pretype keeps everything in four places — remove them all and no trace remains:
 
 ```bash
-# 1. The app
+# 1. The app. If you turned on "Open at login", switch it off FIRST (Settings →
+#    General, or System Settings → General → Login Items) — that registration
+#    lives in macOS, not in the app, and deleting the bundle leaves it behind.
 rm -rf /Applications/Pretype.app
 
-# 2. Downloaded models (several GB).
-#    WARNING: these globs match the WHOLE mlx-community / openbmb / prism-ml
-#    orgs in the shared Hugging Face cache — not just Pretype's models. Skip
-#    this step if any other MLX tool (LM Studio, mlx_lm, …) uses that cache.
+# 2. Downloaded models (several GB). Settings → Model lists each one with its
+#    size and a Delete button, which only ever touches Pretype's own catalog —
+#    but it never offers the model you're currently using, so for a FULL wipe
+#    when uninstalling, use the globs. They are the blunt version: they match
+#    the WHOLE mlx-community / openbmb / prism-ml orgs in the shared Hugging
+#    Face cache. Skip this step if any other MLX tool (LM Studio, mlx_lm, …)
+#    uses it.
 rm -rf ~/.cache/huggingface/hub/models--openbmb--* \
        ~/.cache/huggingface/hub/models--mlx-community--* \
        ~/.cache/huggingface/hub/models--prism-ml--*

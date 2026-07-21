@@ -1,6 +1,7 @@
 import Carbon
 import CoreGraphics
 import Foundation
+import ServiceManagement
 
 /// How the MLX engine turns context into a completion.
 /// - `base`: raw text continuation against a *base* model (no template, no
@@ -574,5 +575,49 @@ enum Settings {
     static var hotkeyStyle: HotkeyStyle {
         get { HotkeyStyle(rawValue: defaults.string(forKey: "hotkeyStyle") ?? "") ?? .tab }
         set { defaults.set(newValue.rawValue, forKey: "hotkeyStyle") }
+    }
+}
+
+/// Start Pretype with the Mac. Deliberately NOT a `Settings` key: the truth
+/// lives in launchd, and the user can flip the same switch in System Settings →
+/// General → Login Items. A mirrored bool would drift into a switch that lies,
+/// so every read goes back to `SMAppService.mainApp.status`.
+enum LoginItem {
+    /// SMAppService registers a login item *by bundle*. A bare `swift build`
+    /// binary has no .app around it, so `register()` could only ever throw —
+    /// the toggle says so instead of failing silently.
+    static var isSupported: Bool { Bundle.main.bundleURL.pathExtension == "app" }
+
+    static var status: SMAppService.Status { SMAppService.mainApp.status }
+
+    /// Registered *and* allowed to run. `.requiresApproval` means the job exists
+    /// but macOS is holding it — on, yet doing nothing, which is exactly the
+    /// state a switch must not show as on.
+    static func isOn(_ status: SMAppService.Status) -> Bool { status == .enabled }
+
+    /// Extra line under the toggle when the plain caption isn't the whole story.
+    static func note(_ status: SMAppService.Status) -> String? {
+        guard isSupported else {
+            return "Available in the built app only — this binary is running outside a .app bundle, "
+                + "and macOS registers login items by bundle."
+        }
+        return status == .requiresApproval
+            ? "macOS is holding this one: allow Pretype in System Settings → General → Login Items."
+            : nil
+    }
+
+    static func set(_ on: Bool) {
+        do {
+            if on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            // Recoverable, and already visible to the user: the caller re-reads
+            // `status`, so a refused registration snaps the switch back.
+            DebugLog.shared.log("ERROR", "login item \(on ? "register" : "unregister") failed: "
+                + error.localizedDescription)
+        }
     }
 }

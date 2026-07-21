@@ -137,11 +137,36 @@ final class CorrectionController {
             owner.window.hide()
         }
 
+        // Escape suppresses a fix until the token under the caret changes.
+        // lastToken, not lastWord: lastWord stops at ':', so a dismissed
+        // ":shrug:" would read as "" and never un-suppress.
+        let tokenAtCaret = Self.lastToken(of: text)
+        if tokenAtCaret != dismissedCorrectionWord { dismissedCorrectionWord = nil }
+
+        // Emoji shortcode: a closed ":shrug:" at the caret previews 🤷 on the
+        // exact same rails as the spell-fix. Ordering is load-bearing — a live
+        // ⌥⇥ preview outranks this, and this outranks the spell-fix, or ":asdf:"
+        // would put a typo pill on "asdf". Nothing downstream needs a special
+        // case: deleteCount counts BACKSPACE presses over the ASCII shortcode, so
+        // the Character-vs-UTF-16 mismatch that bites elsewhere can't bite here,
+        // and the emoji is only ever inserted (TextInjector.insert is
+        // surrogate-safe).
+        if pendingFix == nil, ctx.textAfterCaret.first?.isLetter != true,
+           let code = EmojiShortcodes.trailingShortcode(in: text),
+           code != dismissedCorrectionWord,
+           let emoji = EmojiShortcodes.emoji(for: code),
+           let caret = ctx.caretRect {
+            owner.clearActiveCompletion()
+            owner.indicator.stop()
+            activeCorrection = (word: code, fix: emoji)
+            showCorrection(emoji, word: code, caret: caret, fontSize: ctx.fontSize)
+            return true
+        }
+
         // Inline spell-fix: a misspelled word at the caret shows its correction
         // over the word (⇥ applies). Takes priority over a completion — fixing
         // what's written matters more than predicting ahead.
         let wordAtCaret = Self.lastWord(of: text)
-        if wordAtCaret != dismissedCorrectionWord { dismissedCorrectionWord = nil }
         if pendingFix == nil, ctx.textAfterCaret.first?.isLetter != true,
            wordAtCaret.count >= 3, wordAtCaret != dismissedCorrectionWord,
            let caret = ctx.caretRect,
@@ -359,7 +384,7 @@ final class CorrectionController {
         if fix.deleteCount > 0 {
             guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) else { return false }
             return ctx.textAfterCaret.first?.isLetter != true
-                && Self.lastWord(of: ctx.textBeforeCaret) == fix.original
+                && Self.lastToken(of: ctx.textBeforeCaret) == fix.original
         }
         return AXText.selectionInfo(for: element)?.text == fix.original
     }
@@ -415,5 +440,13 @@ final class CorrectionController {
             }
         }
         return String(chars.reversed())
+    }
+
+    /// The fixable token just before the caret: an emoji shortcode if one is
+    /// closed there, else the plain word. Every revalidation path must go
+    /// through this — `lastWord` stops at ':', so a shortcode fix would read its
+    /// original back as "" and fail to apply, silently.
+    static func lastToken(of text: String) -> String {
+        EmojiShortcodes.trailingShortcode(in: text) ?? lastWord(of: text)
     }
 }

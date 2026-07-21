@@ -853,6 +853,16 @@ final class SuggestionController: NSObject {
             break
         }
 
+        // ponytail: no IME/marked-text check on the tap. The tap only swallows
+        // while a ghost is up, and a composition kills the ghost first: the
+        // keystroke that starts it doesn't match the ghost, so `narrowActive()`
+        // drops it, and the ≤60 ms AX refresh then reads a nil context
+        // (`AXText.isComposing`) and dismisses. Ceiling: a ghost whose first
+        // character equals the keystroke that starts a composition — narrowActive
+        // keeps it — with Tab landing inside that same ≤60 ms window, where Tab
+        // accepts instead of picking a candidate.
+        // Upgrade path if that's ever seen in the wild: query
+        // `AXText.isComposing` on the focused element here too.
         if let current = active, window.isVisible {
             let style = Settings.hotkeyStyle
             if style.matchesAcceptAll(keyCode: keyCode, flags: flags) {

@@ -132,6 +132,100 @@ final class SuggestionJournal: @unchecked Sendable {
         }
     }
 
+    // MARK: - Import (turn text the user already wrote into journal rows)
+
+    /// Journal rows from a text the user wrote elsewhere, so personalization has
+    /// material on day one instead of the n=54 the live journal alone produced.
+    /// Pure — no I/O — so the caller owns the file read and the test drives it
+    /// directly. Both consumers are fed by the SAME rows: RAG reads
+    /// ctx+suggestion (hence one sentence per row — a paragraph rendered
+    /// verbatim into the few-shot block would drown it), and the personal
+    /// n-gram reads ONLY `ctx`, whose successive 400-char snapshots delta out to
+    /// each sentence exactly once, like a real per-app typing stream.
+    ///
+    /// Privacy: these are ordinary rows in the ordinary journal file, so the
+    /// kill switch and Clear (`reset()`) delete them exactly like typed ones,
+    /// and nothing is copied anywhere else — no second store, no side file.
+    static func importEntries(from text: String, source: String,
+                              phraseLimit: Int = 500, maxChars: Int = 2_000_000) -> [Entry] {
+        let text = String(text.prefix(maxChars))
+        let ts = timestamp()
+        // `engine: "import"` is how the offline replay bench excludes these rows
+        // from live-accuracy numbers — cheaper than a new Entry field that every
+        // legacy line would decode as nil anyway.
+        let app = "import:\(source)"
+        let engine = "import"
+        var entries: [Entry] = []
+        var isFirst = true
+        // Foundation's sentence breaker, not a `.` regex: it gets "т.е." and
+        // CJK (no spaces, 。) right, which is the whole reason this isn't split().
+        text.enumerateSubstrings(in: text.startIndex..., options: [.bySentences, .localized]) { substring, range, _, stop in
+            guard let substring else { return }
+            // The first sentence only seeds ctx, and the last sentence's text
+            // never lands in any ctx, so it never reaches the n-gram stream.
+            // One sentence lost at each end of the file; not worth machinery.
+            if isFirst { isFirst = false; return }
+            let sentence = substring.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard sentence.count >= 8 else { return }   // "Ok." teaches nothing
+            entries.append(Entry(
+                ts: ts, app: app, engine: engine,
+                // 400 chars, so past that the window slides and `newText` falls
+                // to its find-the-previous-tail branch — exact for prose, but
+                // boilerplate repeated verbatim every ~10 sentences (templates,
+                // letterheads) matches an earlier tail and re-emits a window.
+                // ponytail: duplicates only inflate n-gram counts, they never
+                // corrupt them (same ceiling the live path already carries).
+                ctx: String(text[..<range.lowerBound].suffix(400)),
+                after: "", suggestion: sentence, outcome: .typedThrough,
+                acceptedChars: 0, typed: nil, shownForMs: 0, screen: false))
+            // 500 is load-bearing, not a round number: `loadPhrasesLocked` keeps
+            // `loaded.suffix(maxPhrases)` = the LAST 2000 phrases, and imported
+            // rows are appended last — so an uncapped import would evict every
+            // live accepted phrase from the retrieval corpus and make
+            // personalization WORSE. 500 leaves 1500 slots for real accepts.
+            // ponytail: first 500 sentences per file, then stop. The corpus caps
+            // at 2000 regardless and the n-gram's own measured effect is still
+            // null (p=0.25), so buying more n-gram material with a second bulk
+            // row-chain isn't worth it. Raise the cap if the n-gram earns it.
+            if entries.count >= phraseLimit { stop = true }
+        }
+        return entries
+    }
+
+    /// Append a whole import in one shot. NOT a loop over `append()`: that
+    /// reopens the file per entry and calls `trim()` — a whole-file rewrite —
+    /// every 200 entries, which is O(n²) on a multi-MB journal.
+    func ingest(_ entries: [Entry]) {
+        queue.sync {
+            // The kill switch can flip (and `reset()` run) between the caller's
+            // per-file check and this block landing. Both serialize on this
+            // queue, so re-checking HERE is what makes "off means forget" hold:
+            // without it, a write racing the toggle recreates the journal file
+            // after reset() deleted it — imported text persisting on disk that
+            // the setting claims is gone.
+            guard Settings.suggestionJournalEnabled else { return }
+            var data = Data()
+            for entry in entries {
+                guard var line = try? encoder.encode(entry) else { continue }
+                line.append(0x0A)
+                data.append(line)
+            }
+            guard !data.isEmpty else { return }
+            if let handle = FileHandle(forWritingAtPath: url.path) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            } else {
+                try? data.write(to: url)
+            }
+            // Drop the corpus rather than index each row: the next query reloads
+            // it from the file, which also re-applies the maxPhrases cap.
+            phrases = nil
+            wordDocFreq = [:]
+            trim()
+        }
+    }
+
     func reset() {
         queue.sync {
             try? FileManager.default.removeItem(at: url)

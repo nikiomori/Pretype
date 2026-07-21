@@ -113,6 +113,17 @@ final class MLXEngine: CompletionEngine {
 
     var state: EngineState { stateBox.get() }
 
+    /// `.preparing` with a live task = loading or downloading; `.preparing`
+    /// with no task = the idle-unloaded resting state, where nothing runs and
+    /// nothing writes — the protocol's default (any `.preparing` is busy)
+    /// would report the app's most common state as busy forever.
+    var isLoading: Bool {
+        guard case .preparing = stateBox.get() else { return false }
+        modelLock.lock()
+        defer { modelLock.unlock() }
+        return loadTask != nil || correctionLoadTask != nil
+    }
+
     /// The RESOLVED primary model (instruct sibling in instruct style, local
     /// fine-tune directory name) — what the journal must stamp. `modelID` is
     /// already post-resolution here (see `init`), unlike `Settings.mlxModelID`.
