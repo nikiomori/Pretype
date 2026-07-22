@@ -545,6 +545,21 @@ final class PretypeTests: XCTestCase {
         XCTAssertGreaterThan(light, 0.9)
     }
 
+    // The ghost takes dark-vs-light from the field's OWN text color, which is
+    // what keeps it readable on a white page under a dark system (no screen
+    // capture involved). Pin the polarity: a field's dark text must stay a dark
+    // ghost, its light text a light one, whatever the hue.
+    func testGhostNeutralGrayPolarity() {
+        func gray(_ c: NSColor) -> CGFloat { SuggestionWindow.neutralGray(c)!.redComponent }
+        XCTAssertLessThan(gray(.black), 0.1)
+        XCTAssertGreaterThan(gray(.white), 0.9)
+        // Hue drops out; only lightness survives, so a syntax-colored field
+        // can't tint the ghost.
+        XCTAssertEqual(gray(NSColor(srgbRed: 0.2, green: 0.2, blue: 0.2, alpha: 1)), 0.2, accuracy: 0.01)
+        XCTAssertLessThan(gray(NSColor(srgbRed: 0.6, green: 0, blue: 0, alpha: 1)), 0.5)   // dark red text
+        XCTAssertGreaterThan(gray(NSColor(srgbRed: 0.8, green: 1, blue: 0.8, alpha: 1)), 0.5) // pale green
+    }
+
     // ConfigProjection powers everything the settings UI claims a setting will
     // do — pin the cascade rules and the eval-backed figures it projects.
     func testConfigProjectionCascades() {

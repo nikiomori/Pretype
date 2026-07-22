@@ -788,7 +788,7 @@ final class SuggestionController: NSObject {
             lastLoggedSuggestion = text
             DebugLog.shared.log("SHOW", "\"\(text)\"")
         }
-        window.show(mode: .suggestion(text), at: rect, fontSize: ctx.fontSize)
+        window.show(mode: .suggestion(text), at: rect, host: ctx.host)
         if !Settings.onboardingCompleted {
             onboardingWindow?.updateStatusSuggestionActive(true)
         }

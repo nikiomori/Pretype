@@ -963,7 +963,7 @@ struct GeneralTab: View {
                                opacity: store.ghostOpacity,
                                hotkey: store.hotkeyStyle)
                 Caption(store.presentation == .inline
-                    ? "Live preview — drag the slider and watch it update. The overlay picks dark or light rendering from the app background under the cursor (with Screen Recording; otherwise it follows the system theme)."
+                    ? "Live preview — drag the slider and watch it update. Ghost text takes its font and its dark-or-light rendering from the field's own text, so it stays readable on a white page under a dark system, and never runs past the end of the input (it moves above the line when there's no room)."
                     : "Live preview — the floating panel is a fully opaque HUD, legible on any background. It picks dark or light rendering from behind the cursor (with Screen Recording; otherwise it follows the system theme).")
             }
 
@@ -1151,8 +1151,11 @@ private struct OverlayPreview: View {
         // stays full-strength, so the preview must not move it either — else it
         // promises an effect the real panel never applies.
         let effective = presentation == .inline ? opacity : 1.0
-        let head = ink.opacity(0.75 * effective)
-        let tail = ink.opacity(0.5 * effective)
+        // Same split the real ghost draws with (SuggestionWindow.suggestionGhost):
+        // the ⇥ chunk at full strength, the tail at 0.72 — a preview that dimmed
+        // differently promised a look the caret never delivered.
+        let head = ink.opacity(1.0 * effective)
+        let tail = ink.opacity(0.72 * effective)
         return HStack(spacing: 5) {
             if presentation == .inline {
                 Text("Write ").foregroundColor(ink)

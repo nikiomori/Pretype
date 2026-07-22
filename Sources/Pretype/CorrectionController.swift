@@ -159,7 +159,7 @@ final class CorrectionController {
             owner.clearActiveCompletion()
             owner.indicator.stop()
             activeCorrection = (word: code, fix: emoji)
-            showCorrection(emoji, word: code, caret: caret, fontSize: ctx.fontSize)
+            showCorrection(emoji, word: code, caret: caret, host: ctx.host)
             return true
         }
 
@@ -174,7 +174,7 @@ final class CorrectionController {
             owner.clearActiveCompletion()
             owner.indicator.stop()
             activeCorrection = (word: wordAtCaret, fix: fix)
-            showCorrection(fix, word: wordAtCaret, caret: caret, fontSize: ctx.fontSize)
+            showCorrection(fix, word: wordAtCaret, caret: caret, host: ctx.host)
             return true
         }
         if activeCorrection != nil {
@@ -403,17 +403,18 @@ final class CorrectionController {
     /// Places the inline spell-fix diff in a pill ABOVE the mistyped word. The
     /// word ends at the caret, so it starts one word-width to the left; anchoring
     /// the pill there lands it above the word it's correcting, not the caret.
-    private func showCorrection(_ fix: String, word: String, caret: CGRect, fontSize: CGFloat?) {
+    private func showCorrection(_ fix: String, word: String, caret: CGRect, host: HostTextStyle) {
         guard let owner else { return }
-        let size = fontSize ?? caret.height / 1.30
-        let font = NSFont.systemFont(ofSize: size)
+        // Measure the word in the HOST's font — a system-font measurement put the
+        // pill a word-width off in any field that doesn't use it.
+        let font = host.font ?? .systemFont(ofSize: caret.height / 1.30)
         let wordWidth = ceil((word as NSString).size(withAttributes: [.font: font]).width)
         var wordRect = caret
         wordRect.origin.x = caret.maxX - wordWidth
         wordRect.size.width = wordWidth
         owner.lastCaretRect = caret
         owner.lastEvent = "typo \"\(word)\" → \"\(fix)\" (\(Settings.hotkeyStyle.label) to fix)"
-        owner.window.show(mode: .correction(original: word, fix: fix), at: wordRect, fontSize: fontSize)
+        owner.window.show(mode: .correction(original: word, fix: fix), at: wordRect, host: host)
     }
 
     /// ⇥ on an inline spell-fix: replace the mistyped word with the correction.

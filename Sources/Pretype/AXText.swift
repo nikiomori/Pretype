@@ -2,6 +2,26 @@ import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 
+/// How the field under the caret renders its own text — what the inline ghost
+/// has to match instead of guessing. All three are optional; each one that is
+/// missing falls back to the caret-box estimate it replaced.
+struct HostTextStyle {
+    /// The host font, family included — a monospace or serif field used to get a
+    /// system-font ghost that lined up with nothing.
+    var font: NSFont?
+    /// The field's own text color. Tells dark-on-light from light-on-dark with
+    /// no screen capture at all, which is what the appearance probe needs
+    /// Screen Recording for (and gets wrong when it isn't granted).
+    var color: NSColor?
+    /// Field bounds in Cocoa (bottom-left origin) screen coordinates. The ghost
+    /// must never draw past this — beyond it sits the send button, the page, or
+    /// nothing at all.
+    var fieldRect: CGRect?
+
+    /// Nothing resolved: the caller had no field to describe (engine notices).
+    var isEmpty: Bool { font == nil && color == nil && fieldRect == nil }
+}
+
 struct TextContext {
     /// Text immediately before the caret, capped at `maxChars`.
     let textBeforeCaret: String
@@ -9,10 +29,8 @@ struct TextContext {
     let textAfterCaret: String
     /// Caret rectangle in Cocoa (bottom-left origin) screen coordinates.
     let caretRect: CGRect?
-    /// Host font point size, when we could measure it (web fallback). The ghost
-    /// overlay matches it so the suggestion reads as inline text; `nil` → derive
-    /// from the caret height.
-    let fontSize: CGFloat?
+    /// Font/color/box of the field, so the overlay renders like the host text.
+    let host: HostTextStyle
 }
 
 struct SelectionInfo {
@@ -226,13 +244,15 @@ enum AXText {
                     textAfterCaret = string(forRange: CFRange(location: caret, length: afterLength), in: element) ?? ""
                 }
             }
-            // Measure the real host font (NSTextView-backed fields expose it via
-            // AXAttributedStringForRange) so the ghost matches its size exactly
+            // Measure the real host style (NSTextView-backed fields expose it via
+            // AXAttributedStringForRange) so the ghost matches the font exactly
             // and the overlay anchors to a true line height — not an estimate from
             // the caret box, which varies per app. nil → the window falls back.
-            let hostFont = attributedFont(of: element, atIndex: max(0, caret - 1))?.pointSize
+            let style = attributedStyle(of: element, atIndex: max(0, caret - 1))
             return TextContext(textBeforeCaret: textBeforeCaret, textAfterCaret: textAfterCaret,
-                               caretRect: caretRect, fontSize: hostFont)
+                               caretRect: caretRect,
+                               host: HostTextStyle(font: style.font, color: style.color,
+                                                   fieldRect: cocoaFieldRect(frame)))
         }
 
         // Electron/web fallback: AX exposes the field box but a broken caret
@@ -259,7 +279,9 @@ enum AXText {
         }
         if looksMasked(value) { return nil }
         let total: Int = attribute(element, kAXNumberOfCharactersAttribute) ?? value.count
-        let hostFont = attributedFont(of: element, atIndex: total - 1)
+        let style = attributedStyle(of: element, atIndex: total - 1)
+        let hostFont = style.font
+        let box = cocoaFieldRect(frame)
         let marker = webCaretBounds(element)
 
         // Best case: Chromium's text-marker API returns the REAL caret rect even
@@ -274,7 +296,9 @@ enum AXText {
             let size = hostFont?.pointSize ?? caret.height / 1.18
             DebugLog.shared.log("AX", "web/Electron: real caret via text-marker at x=\(Int(caret.minX)), \(Int(size))pt")
             return TextContext(textBeforeCaret: String(value.suffix(maxChars)), textAfterCaret: "",
-                               caretRect: anchor, fontSize: size)
+                               caretRect: anchor,
+                               host: HostTextStyle(font: hostFont ?? .systemFont(ofSize: size),
+                                                   color: style.color, fieldRect: box))
         }
         // A marker that is NOT a collapsed caret spans the whole run — that's a
         // selection or the placeholder/idle state (e.g. Claude's "Describe a
@@ -299,7 +323,16 @@ enum AXText {
         DebugLog.shared.log("AX", "web/Electron fallback: \(value.count) chars, "
             + "font \(hostFont != nil ? "real " : "guessed ")\(Int(fontSize))pt, caret≈end-of-text")
         return TextContext(textBeforeCaret: String(value.suffix(maxChars)), textAfterCaret: "",
-                           caretRect: anchor, fontSize: fontSize)
+                           caretRect: anchor,
+                           host: HostTextStyle(font: font, color: style.color, fieldRect: box))
+    }
+
+    /// The field's own box in Cocoa coordinates, when AX reports a usable one.
+    /// A degenerate box (Electron sometimes reports 0×0) is worse than none: it
+    /// would clamp the ghost to nothing.
+    private static func cocoaFieldRect(_ frame: CGRect?) -> CGRect? {
+        guard let frame, frame.width > 20, frame.height > 4 else { return nil }
+        return cocoaRect(frame)
     }
 
     // MARK: - Caret geometry
@@ -435,9 +468,13 @@ enum AXText {
         // The two things that could fix the Electron estimate: the real font, and
         // real bounds for an actual character range (not the broken caret range).
         let lastIdx = (nChars ?? value?.count ?? 0) - 1
-        let attrFont = lastIdx >= 0 ? attributedFont(of: element, atIndex: lastIdx) : nil
+        let attrStyle = lastIdx >= 0 ? attributedStyle(of: element, atIndex: lastIdx) : (font: nil, color: nil)
         let lastCharBounds = lastIdx >= 0 ? bounds(forRange: CFRange(location: lastIdx, length: 1), in: element) : nil
-        let fontDesc = attrFont.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
+        let fontDesc = attrStyle.font.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
+        // The ghost picks dark-vs-light from this color; "nil" here is why an app
+        // still falls back to the screen probe / system theme.
+        let colorDesc = attrStyle.color.flatMap { SuggestionWindow.neutralGray($0) }
+            .map { "gray \(String(format: "%.2f", $0.redComponent))" } ?? "nil"
         let valueDesc = value.map { "\"\($0.suffix(24))\"(\($0.count))" } ?? "nil"
         // Real geometry candidates: whole-text bounds, marker caret, and the
         // child AX tree (Chromium often keeps real frames on inner text nodes).
@@ -447,7 +484,7 @@ enum AXText {
             + "range=\(range.map { "\($0.location)+\($0.length)" } ?? "nil") "
             + "value=\(valueDesc) nChars=\(nChars.map(String.init) ?? "nil") "
             + "caret=\(fmt(caretBounds)) prevChar=\(fmt(prevBounds)) "
-            + "attrFont=\(fontDesc) lastChar=\(fmt(lastCharBounds)) whole=\(fmt(wholeBounds)) "
+            + "attrFont=\(fontDesc) attrColor=\(colorDesc) lastChar=\(fmt(lastCharBounds)) whole=\(fmt(wholeBounds)) "
             + "marker=\(fmt(webCaretBounds(element))) markedRange=\(markedDesc)\(extra)\(kids)"
     }
 
@@ -465,8 +502,12 @@ enum AXText {
         }
         guard isEditableTextElement(element) else { return "ctx: focus not editable" }
         guard let ctx = context(for: element, maxChars: 200) else { return "ctx: nil" }
-        let r = ctx.caretRect.map { "(\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))×\(Int($0.height)))" } ?? "nil"
-        return "ctx: text=\"…\(ctx.textBeforeCaret.suffix(16))\" caret=\(r) font=\(ctx.fontSize.map { String(Int($0)) } ?? "nil")"
+        func fmt(_ rect: CGRect?) -> String {
+            rect.map { "(\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))×\(Int($0.height)))" } ?? "nil"
+        }
+        let font = ctx.host.font.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
+        return "ctx: text=\"…\(ctx.textBeforeCaret.suffix(16))\" caret=\(fmt(ctx.caretRect)) "
+            + "font=\(font) field=\(fmt(ctx.host.fieldRect))"
     }
 
     /// Recursively dumps the child AX tree (role/frame/value) — to find inner
@@ -506,26 +547,37 @@ enum AXText {
         return rect == .zero ? nil : rect
     }
 
-    /// The font of the character at `index`, via `AXAttributedStringForRange`.
-    /// Chromium/WebKit expose it here even though caret bounds are broken; some
-    /// providers store an `NSFont` directly, others an "AXFont" descriptor dict.
-    static func attributedFont(of element: AXUIElement, atIndex index: Int) -> NSFont? {
-        guard index >= 0 else { return nil }
+    /// The font AND text color of the character at `index`, via
+    /// `AXAttributedStringForRange` — one round trip for both, since the ghost
+    /// needs both to look like the text it continues. Chromium/WebKit expose
+    /// them here even though caret bounds are broken; some providers store real
+    /// `NSFont`/`NSColor` objects, others an "AXFont" descriptor dict and a
+    /// `CGColor`.
+    static func attributedStyle(of element: AXUIElement, atIndex index: Int) -> (font: NSFont?, color: NSColor?) {
+        guard index >= 0 else { return (nil, nil) }
         var range = CFRange(location: index, length: 1)
-        guard let rangeValue = AXValueCreate(.cfRange, &range) else { return nil }
+        guard let rangeValue = AXValueCreate(.cfRange, &range) else { return (nil, nil) }
         var ref: CFTypeRef?
         guard AXUIElementCopyParameterizedAttributeValue(
             element, kAXAttributedStringForRangeParameterizedAttribute as CFString, rangeValue, &ref
-        ) == .success, let attributed = ref as? NSAttributedString, attributed.length > 0 else { return nil }
-        if let font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont {
-            return font
-        }
-        if let dict = attributed.attribute(NSAttributedString.Key("AXFont"), at: 0, effectiveRange: nil) as? [String: Any],
+        ) == .success, let attributed = ref as? NSAttributedString, attributed.length > 0 else { return (nil, nil) }
+        var font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        if font == nil,
+           let dict = attributed.attribute(NSAttributedString.Key("AXFont"), at: 0, effectiveRange: nil) as? [String: Any],
            let size = (dict["AXFontSize"] as? NSNumber)?.doubleValue, size > 0 {
             let name = dict["AXFontName"] as? String
-            return name.flatMap { NSFont(name: $0, size: size) } ?? .systemFont(ofSize: size)
+            font = name.flatMap { NSFont(name: $0, size: size) } ?? .systemFont(ofSize: size)
         }
-        return nil
+        // WebKit/Chromium hand back a CGColor under either key; AppKit fields an NSColor.
+        var color: NSColor?
+        for key in [NSAttributedString.Key.foregroundColor, NSAttributedString.Key("AXForegroundColor")] {
+            guard let value = attributed.attribute(key, at: 0, effectiveRange: nil) else { continue }
+            if let ns = value as? NSColor { color = ns; break }
+            // `as? CGColor` always succeeds on an Any (CF bridging) — check the type.
+            if CFGetTypeID(value as CFTypeRef) == CGColor.typeID,
+               let ns = NSColor(cgColor: value as! CGColor) { color = ns; break }
+        }
+        return (font, color)
     }
 
     // MARK: - Low-level helpers
