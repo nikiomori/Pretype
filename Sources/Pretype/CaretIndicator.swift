@@ -11,6 +11,7 @@ final class CaretIndicator {
     private let window: SuggestionWindow
     private let engineState: () -> EngineState
     private let caretRect: () -> CGRect?
+    private let hostStyle: () -> HostTextStyle
     private let hasActiveSuggestion: () -> Bool
     private let isQueryRunning: () -> Bool
 
@@ -21,12 +22,14 @@ final class CaretIndicator {
         window: SuggestionWindow,
         engineState: @escaping () -> EngineState,
         caretRect: @escaping () -> CGRect?,
+        hostStyle: @escaping () -> HostTextStyle,
         hasActiveSuggestion: @escaping () -> Bool,
         isQueryRunning: @escaping () -> Bool
     ) {
         self.window = window
         self.engineState = engineState
         self.caretRect = caretRect
+        self.hostStyle = hostStyle
         self.hasActiveSuggestion = hasActiveSuggestion
         self.isQueryRunning = isQueryRunning
     }
@@ -66,7 +69,7 @@ final class CaretIndicator {
         guard let rect = caretRect(), !hasActiveSuggestion() else { return }
         // The auto-hide is superseded by any later overlay (completion ghost,
         // correction pill, status) via hideGeneration — see showTransient.
-        window.showTransient(mode, at: rect)
+        window.showTransient(mode, at: rect, host: hostStyle())
     }
 
     private func update() {
@@ -77,7 +80,7 @@ final class CaretIndicator {
             // instant n-gram suggestion can be up while the model loads) —
             // `active` would stay Tab-acceptable under the status pill.
             guard !hasActiveSuggestion() else { return }
-            window.show(mode: .status(detail), at: rect)
+            window.show(mode: .status(detail), at: rect, host: hostStyle())
         case .ready:
             // A visible suggestion owns the shared window: never overdraw it
             // with thinking dots, and never hide it when the query ends — the
@@ -91,7 +94,10 @@ final class CaretIndicator {
                 // than ~0.45 s earn dots, so mid-speed answers don't flash
                 // them for a few frames right before the suggestion lands.
                 if thinkingPhase > 1 {
-                    window.show(mode: .thinking(thinkingPhase), at: rect)
+                    // The host from the same keystroke that started this query:
+                    // the dots decide ghost-vs-pill on its `textFollowsCaret`,
+                    // and a stale one painted them over the user's own words.
+                    window.show(mode: .thinking(thinkingPhase), at: rect, host: hostStyle())
                 }
             } else {
                 stop()
@@ -103,7 +109,7 @@ final class CaretIndicator {
             // caret forever. The transient auto-hides.
             stop()
             guard !hasActiveSuggestion() else { return }
-            window.showTransient(.error("engine not working"), at: rect)
+            window.showTransient(.error("engine not working"), at: rect, host: hostStyle())
         }
     }
 }

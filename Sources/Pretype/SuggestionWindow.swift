@@ -163,13 +163,10 @@ final class SuggestionWindow: NSPanel {
         // field, so a focus change can't carry a stale box forward.
         let sameField = lastHost.fieldRect?.contains(CGPoint(x: caretRect.midX, y: caretRect.midY)) ?? false
         if !host.isEmpty || !sameField { lastHost = host }
-        backgroundProbe.refresh(near: caretRect) { [weak self] resolved in
-            guard let self, self.appearance?.name != resolved?.name else { return }
-            self.appearance = resolved
-            // Custom-drawn text caches nothing appearance-aware — repaint.
-            self.container.needsDisplay = true
-            self.ghost.needsDisplay = true
-        }
+        // The probe's verdict is the top rung of one shared resolver — it must
+        // not assign `appearance` itself, or a nil cache (no Screen Recording)
+        // would clobber the AX-derived verdict on every keystroke.
+        backgroundProbe.refresh(near: caretRect) { [weak self] _ in self?.resolveAppearance() }
         // The host's own font, family included, when we have it: the ghost then
         // reads as the field's next word instead of a system-font impostor
         // pasted over a monospace editor, and its metrics land the baseline
@@ -186,9 +183,10 @@ final class SuggestionWindow: NSPanel {
         }
 
         // Inline vs pill is decided per placement, not per setting: the ghost
-        // needs room to the right of the caret INSIDE the field, and at the end
-        // of a full input there is none.
-        var ghostMode = presentation == .inline && isGhostable(mode)
+        // needs room to the right of the caret INSIDE the field, and that room
+        // has to be empty — mid-line it would be painted over the user's own
+        // words, and at the end of a full input there is none at all.
+        var ghostMode = presentation == .inline && isGhostable(mode) && !lastHost.textFollowsCaret
         applyContent(mode, ghost: ghostMode)
         if ghostMode, !inlineHasRoom(at: caretRect) {
             ghostMode = false
@@ -201,6 +199,17 @@ final class SuggestionWindow: NSPanel {
         } else {
             setHighlight(false)
         }
+    }
+
+    /// The focus moved to a different field: everything remembered about the
+    /// old one — its style and box, and the probe's pixel verdict — is evidence
+    /// about the wrong place, and each would outrank what the new field reports
+    /// (the probe by rank, the box via the same-field retention in `show`).
+    /// Called on focus changes, not from `hide()`: dismissals within one field
+    /// must keep their measured style.
+    func fieldChanged() {
+        lastHost = HostTextStyle()
+        backgroundProbe.invalidate()
     }
 
     /// Monotonic token: a `show` between fade-out start and completion cancels
@@ -232,8 +241,9 @@ final class SuggestionWindow: NSPanel {
     /// and `hide()`), so a completion ghost, correction pill, or status overlay
     /// that takes the window in the meantime cancels the pending auto-hide: the
     /// timed hide can never blank a live overlay of any kind.
-    func showTransient(_ mode: SuggestionDisplayMode, at caretRect: CGRect, hideAfter: TimeInterval = 1.8) {
-        show(mode: mode, at: caretRect)   // bumps hideGeneration via place()
+    func showTransient(_ mode: SuggestionDisplayMode, at caretRect: CGRect,
+                       host: HostTextStyle = HostTextStyle(), hideAfter: TimeInterval = 1.8) {
+        show(mode: mode, at: caretRect, host: host)   // bumps hideGeneration via place()
         let gen = hideGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + hideAfter) { [weak self] in
             guard let self, self.hideGeneration == gen else { return }
@@ -312,7 +322,7 @@ final class SuggestionWindow: NSPanel {
 
     private static func keycap(_ text: String) -> NSAttributedString {
         let font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-        let bgColor = NSColor.labelColor.withAlphaComponent(0.08)
+        let bgColor = dynamicAlpha(.labelColor, 0.08)
         let fgColor = NSColor.secondaryLabelColor
 
         let attr = NSMutableAttributedString(string: "\u{00A0}\(text)\u{00A0}", attributes: [
@@ -406,37 +416,114 @@ final class SuggestionWindow: NSPanel {
         return result
     }
 
-    /// The tone the ghost draws in, and whether it is light-on-dark. Taken from
-    /// the field's OWN text color reduced to a neutral gray — that is the one
-    /// signal that is always right and always free: it says light-on-dark vs
-    /// dark-on-light for the exact pixels the ghost lands on, needs no Screen
-    /// Recording, and can't be fooled by a light page under a dark system (the
-    /// case that drew white ghost text on white). Falls back to `labelColor`
-    /// against the probe's appearance where AX exposes no color.
-    private func ghostTone() -> (color: NSColor, isLight: Bool) {
-        if let gray = lastHost.color.flatMap(Self.neutralGray) {
-            return (gray, gray.redComponent > 0.5)
+    /// Point the whole overlay at the appearance of what the caret actually sits
+    /// on, not at the system theme. ONE channel for every mode: the ghost's ink
+    /// and halo, the pill's label, the correction diff, and the backdrop
+    /// materials are all semantic colors, so they resolve against this together
+    /// and cannot contradict each other. (On macOS 26 the pill's glass is clear
+    /// — it takes the backdrop's tone, so a black label on a dark app was as
+    /// unreadable as an invisible ghost.)
+    ///
+    /// Four sources, strictly in this order, because each later one is weaker
+    /// evidence:
+    ///   1. the probe *looked* at the pixels under the caret (Screen Recording);
+    ///      nothing an app reports about itself outranks having looked,
+    ///   2. the field's own background, when AX reports a concrete one — the
+    ///      same question answered directly, free, no permission,
+    ///   3. the field's ink, which answers it by implication,
+    ///   4. nil: follow the system theme, which knows nothing about a themed app.
+    private func resolveAppearance() {
+        func adopt(_ surface: CGFloat, _ source: String) {
+            let name: NSAppearance.Name = surface < 0.5 ? .darkAqua : .aqua
+            logTone("\(source) → \(name == .darkAqua ? "dark" : "light")")
+            if appearance?.name != name { appearance = NSAppearance(named: name); repaint() }
         }
-        return (.labelColor, effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
+        if let probed = backgroundProbe.appearance {
+            logTone("probe → \(probed.name == .darkAqua ? "dark" : "light")")
+            if appearance?.name != probed.name { appearance = probed; repaint() }
+            return
+        }
+        if let bg = lastHost.background.flatMap(Self.staticLuminance) {
+            return adopt(bg, "field bg \(String(format: "%.2f", bg))")
+        }
+        // Only an ink at the extremes is evidence: a mid-gray (a placeholder, a
+        // secondary label) is legible on either surface and would flip the whole
+        // overlay on a coin toss. Dark ink ⇒ light surface, and vice versa.
+        if let ink = lastHost.color.flatMap(Self.staticLuminance), ink < 0.25 || ink > 0.75 {
+            return adopt(1 - ink, "field ink \(String(format: "%.2f", ink))")
+        }
+        logTone("system")
+        if appearance != nil { appearance = nil; repaint() }
     }
 
-    /// A color reduced to its sRGB luminance, as an opaque gray. Internal so the
-    /// dark/light polarity the ghost depends on has a test.
-    static func neutralGray(_ color: NSColor) -> NSColor? {
-        guard let c = color.usingColorSpace(.sRGB) else { return nil }
-        let l = 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent
-        return NSColor(srgbRed: l, green: l, blue: l, alpha: 1)
+    /// Nothing here caches an appearance-aware color, so a flip just repaints.
+    private func repaint() {
+        container.needsDisplay = true
+        ghost.needsDisplay = true
+    }
+
+    /// One line in the Debug Console whenever that decision changes: which of
+    /// the four sources answered, and what it said. This is the only way to tell
+    /// from the outside why an overlay came out unreadable in some app.
+    private var lastToneLog = ""
+    private func logTone(_ verdict: String) {
+        guard verdict != lastToneLog else { return }
+        lastToneLog = verdict
+        DebugLog.shared.log("SHOW", "overlay tone: \(verdict)")
+    }
+
+    /// A color's sRGB luminance — but only when it means the same thing under
+    /// both appearances. AppKit archives *semantic* colors across the AX
+    /// boundary intact, and an unarchived dynamic color resolves against OUR
+    /// process's appearance, not the host's: a dark-themed field under a light
+    /// system then reports black ink for text it draws white, which painted a
+    /// black ghost on black. Such a color describes our theme, not the field —
+    /// discard it and let the appearance path answer. Internal: the polarity and
+    /// this discard are what the ghost's readability turns on, so both are pinned
+    /// by a test.
+    static func staticLuminance(_ color: NSColor) -> CGFloat? {
+        var resolved: [CGFloat] = []
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            guard let appearance = NSAppearance(named: name) else { return nil }
+            appearance.performAsCurrentDrawingAppearance {
+                guard let c = color.usingColorSpace(.sRGB) else { return }
+                resolved.append(0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent)
+            }
+        }
+        guard resolved.count == 2, abs(resolved[0] - resolved[1]) < 0.02 else { return nil }
+        return resolved[0]
+    }
+
+    /// A semantic color with alpha that STAYS semantic. `withAlphaComponent`
+    /// on a catalog color resolves it against the calling context's appearance
+    /// and returns a frozen component color — the ghost built its ink that
+    /// way, so it wore the SYSTEM tone no matter what the resolver set the
+    /// window to: white-on-white on a light page under a dark system, with
+    /// the halo frozen dark to match. A dynamic-provider color defers both
+    /// the resolution and the alpha to draw time, against the window's
+    /// appearance — back in the same tone channel as everything else, async
+    /// probe flips included (repaint re-resolves, no string rebuild). Pinned
+    /// by a test.
+    static func dynamicAlpha(_ base: NSColor, _ alpha: CGFloat) -> NSColor {
+        NSColor(name: nil) { appearance in
+            var resolved = base
+            appearance.performAsCurrentDrawingAppearance {
+                resolved = base.usingColorSpace(.sRGB) ?? base
+            }
+            return resolved.withAlphaComponent(alpha)
+        }
     }
 
     /// `dim` scales the opacity setting: 1 for the ⇥ chunk, less for the tail.
     private func ghostString(_ string: String, dim: CGFloat) -> NSAttributedString {
-        let tone = ghostTone()
-        // The ghost has no backdrop, so a soft halo in the OPPOSITE tone
-        // separates it from whatever the host draws underneath — an outline,
-        // not a smudge. (Was the window-background tone, which on a white page
-        // was a gray haze over the glyph edges, and inverted with the theme.)
+        // Both semantic, so they resolve together at draw time against the
+        // window's appearance (see resolveAppearance) and can never disagree:
+        // the paper tone is by definition the label tone's opposite. The ghost
+        // has no backdrop, so that opposite becomes a soft halo — an outline
+        // separating it from whatever the host draws underneath, where the old
+        // window-background tone was a gray smudge over the glyph edges.
         let halo = NSShadow()
-        halo.shadowColor = (tone.isLight ? NSColor.black : NSColor.white).withAlphaComponent(0.4)
+        halo.shadowColor = Self.dynamicAlpha(.textBackgroundColor, 0.4)
         halo.shadowBlurRadius = 2.5
         halo.shadowOffset = .zero
         // Single line, ellipsized when the window can't fit the tail.
@@ -444,7 +531,7 @@ final class SuggestionWindow: NSPanel {
         paragraph.lineBreakMode = .byTruncatingTail
         return NSAttributedString(string: string, attributes: [
             .font: ghostFont,
-            .foregroundColor: tone.color.withAlphaComponent(CGFloat(Settings.ghostOpacity) * dim),
+            .foregroundColor: Self.dynamicAlpha(.labelColor, CGFloat(Settings.ghostOpacity) * dim),
             .shadow: halo,
             .paragraphStyle: paragraph,
         ])
@@ -509,13 +596,7 @@ final class SuggestionWindow: NSPanel {
             let size = ghost.measuredSize
             let limit = inlineLimitX(at: caretRect) ?? visible.maxX - 2
             let x = min(max(visible.minX, caretRect.maxX), limit)
-            // Vertically: centre the text's line box in the caret box. Identical
-            // to the old bottom-pin when the caret box IS the text's line box
-            // (native fields); where the host uses a taller line height (web,
-            // Electron) the bottom-pin dropped the ghost below its own line. The
-            // cap keeps a caret box that spans a whole text view — some Electron
-            // builds report one — from floating the ghost into the middle of it.
-            let lift = min(max(0, (caretRect.height - size.height) / 2), size.height * 0.4)
+            let lift = Self.ghostLift(caretHeight: caretRect.height, lineHeight: size.height)
             var origin = CGPoint(x: x, y: caretRect.minY + lift)
             origin.y = min(max(visible.minY, origin.y), visible.maxY - size.height)
             target = NSRect(x: origin.x, y: origin.y,
@@ -561,6 +642,22 @@ final class SuggestionWindow: NSPanel {
                 animator().alphaValue = 1
             }
         }
+    }
+
+    /// How far above the caret box's bottom the ghost's line box sits.
+    /// TRUE centring, negative included: identical to the bottom-pin when the
+    /// caret box IS the line box (native fields, glyph-anchored); a taller
+    /// caret (padded single-line inputs, web line-height) lifts by the real
+    /// half-leading — the old 0.4-line cap under-lifted the generous ones and
+    /// sat the ghost low; a SHORTER caret (a cap-height sliver whose bottom is
+    /// the baseline) drops the ghost by about the descender, which is where
+    /// that baseline actually is. Past a couple of line-heights the box is the
+    /// degenerate whole-view span some Electron builds report — assume typing
+    /// at its bottom line and keep the old capped nudge. Pinned by a test.
+    nonisolated static func ghostLift(caretHeight: CGFloat, lineHeight: CGFloat) -> CGFloat {
+        caretHeight <= lineHeight * 2.2
+            ? (caretHeight - lineHeight) / 2
+            : lineHeight * 0.4
     }
 
     private func layoutSubviews(ghost ghostMode: Bool) {

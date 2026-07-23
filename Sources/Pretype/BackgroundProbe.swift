@@ -17,6 +17,16 @@ final class BackgroundProbe {
     /// Latest verdict; nil = unknown → follow the system appearance.
     private(set) var appearance: NSAppearance?
 
+    /// Forget the verdict: it described the pixels under another field's caret.
+    /// Without this, a dark verdict cached in the previous app outranks the new
+    /// field's own AX-reported background (the probe is deliberately the top
+    /// rung of the tone resolver) until the next async sample lands.
+    func invalidate() {
+        appearance = nil
+        lastRect = .null
+        lastAt = 0
+    }
+
     private var lastRect = CGRect.null
     private var lastAt: CFAbsoluteTime = 0
     private var inFlight = false

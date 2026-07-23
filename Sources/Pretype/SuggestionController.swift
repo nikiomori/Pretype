@@ -25,6 +25,7 @@ final class SuggestionController: NSObject {
         window: window,
         engineState: { [weak self] in self?.engine.state ?? .ready },
         caretRect: { [weak self] in self?.lastCaretRect },
+        hostStyle: { [weak self] in self?.lastHostStyle ?? HostTextStyle() },
         hasActiveSuggestion: { [weak self] in self?.active != nil },
         isQueryRunning: { [weak self] in
             // The ⌥⇥ fix flows run outside refreshTask; without them the timer
@@ -97,6 +98,12 @@ final class SuggestionController: NSObject {
     /// Caret rect of the latest context — shared by the completion overlay, the
     /// indicator and the correction previews.
     var lastCaretRect: CGRect?
+    /// Host style of the latest context, refreshed with `lastCaretRect` on every
+    /// keystroke. The indicator's shows (thinking dots, status, transients) pass
+    /// it so they carry measured, current evidence — the dots decide ghost-vs-
+    /// pill on `textFollowsCaret`, and the window's own remembered style can be
+    /// many keystrokes stale while no suggestion is live.
+    private(set) var lastHostStyle = HostTextStyle()
 
     // Opt-in OCR context of the focused window.
     private var screenSummary: String?
@@ -445,6 +452,7 @@ final class SuggestionController: NSObject {
         }
         latestTextBeforeCaret = text
         lastCaretRect = ctx.caretRect
+        lastHostStyle = ctx.host
         refreshScreenContextIfNeeded(typed: text)
         refreshPersonalExamplesIfNeeded(typed: text)
 
@@ -452,6 +460,23 @@ final class SuggestionController: NSObject {
         // the caret, preempts a completion — fixing what's written matters more
         // than predicting ahead.
         if correctionController.handleCaret(ctx) { return }
+
+        // A letter or digit right after the caret: the caret splits a word, and
+        // any completion accepted there fuses into its remainder ("hel|lo" +
+        // "p there" → "help therelo"). The gates' after-caret duplication check
+        // only catches the model re-typing that exact remainder — the general
+        // case is unsalvageable, so offer nothing at all while the user edits
+        // inside a word. (The correction flows carry this same guard.)
+        if let next = ctx.textAfterCaret.first, next.isLetter || next.isNumber {
+            if active != nil { lastEvent = "caret splits a word — no suggestion" }
+            // Not dismiss(): that resets the correction controller, and a
+            // last-word ⌥⇥ fix may legitimately be computing at a caret that
+            // sits before a DIGIT (its own guard only excludes letters).
+            clearActiveCompletion()
+            indicator.stop()
+            window.hide()
+            return
+        }
 
         if var current = active {
             if text.hasPrefix(current.anchor) {
@@ -710,6 +735,7 @@ final class SuggestionController: NSObject {
         // "вет" → "привет"), then lower a wrongly capitalized mid-sentence
         // continuation ("я хочу " + "Поехать" → "поехать").
         suggestion = SpellChecker.strippingStraySeparator(suggestion: suggestion, before: current)
+        suggestion = Self.deduplicatingSeamSpace(suggestion, after: current)
         suggestion = SpellChecker.decapitalizeContinuation(suggestion, before: current)
 
         if Self.wouldGlueMidWord(current: current, suggestion: suggestion) {
@@ -1109,6 +1135,20 @@ final class SuggestionController: NSObject {
         scheduleKeystrokeRefresh(after: 0.09)
     }
 
+    /// Drop a leading space the context already supplies. You type "спасибо за "
+    /// and the model predicts a fresh word as " ответ" — the space is right
+    /// after a word, wrong after a space. Shown, it is a stray gap between the
+    /// caret and the ghost that looks like the suggestion is mispositioned;
+    /// typed, it is a real double space in the sentence.
+    ///
+    /// `strippingStraySeparator` is the mirror case (a separator prepended to a
+    /// *word continuation*) and deliberately only fires after a letter, so it
+    /// never saw this one.
+    nonisolated static func deduplicatingSeamSpace(_ suggestion: String, after context: String) -> String {
+        guard context.hasSuffix(" "), suggestion.hasPrefix(" ") else { return suggestion }
+        return String(suggestion.drop { $0 == " " })
+    }
+
     /// Leading spaces plus the first run of non-space characters.
     nonisolated static func firstWordChunk(of text: String) -> String {
         var chunk = ""
@@ -1142,6 +1182,13 @@ extension SuggestionController: FocusTrackerDelegate {
         focusGeneration += 1
         lastFocusedElement = tracker.focusedTextElement
         lastCaretRect = nil
+        lastHostStyle = HostTextStyle()
+        // The overlay's remembered field style and the probe's pixel verdict
+        // describe the field we just left; carried across they outrank what the
+        // new field reports about itself (dark verdict from the previous app on
+        // a white page — the same unreadable pill the tone resolver exists to
+        // prevent).
+        window.fieldChanged()
         correctionController.focusChanged()
         typingContext = newContext
         let policy = AppPolicy.isBlacklisted(typingContext.bundleID)
@@ -1176,6 +1223,7 @@ extension SuggestionController: FocusTrackerDelegate {
             if case .preparing = engine.state {
                 if let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) {
                     lastCaretRect = ctx.caretRect
+                    lastHostStyle = ctx.host
                     indicator.start()
                 }
             }

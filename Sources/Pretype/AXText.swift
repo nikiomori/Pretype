@@ -2,6 +2,13 @@ import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 
+/// What one AX attributed-string read tells us about how a character is drawn.
+struct AXTextStyle {
+    var font: NSFont?
+    var color: NSColor?
+    var background: NSColor?
+}
+
 /// How the field under the caret renders its own text — what the inline ghost
 /// has to match instead of guessing. All three are optional; each one that is
 /// missing falls back to the caret-box estimate it replaced.
@@ -13,13 +20,26 @@ struct HostTextStyle {
     /// no screen capture at all, which is what the appearance probe needs
     /// Screen Recording for (and gets wrong when it isn't granted).
     var color: NSColor?
+    /// The field's background, where AX reports one — the same question
+    /// answered directly instead of by implication from the ink.
+    var background: NSColor?
     /// Field bounds in Cocoa (bottom-left origin) screen coordinates. The ghost
     /// must never draw past this — beyond it sits the send button, the page, or
     /// nothing at all.
     var fieldRect: CGRect?
 
-    /// Nothing resolved: the caller had no field to describe (engine notices).
-    var isEmpty: Bool { font == nil && color == nil && fieldRect == nil }
+    /// The line continues past the caret: inline ghost text would be drawn
+    /// straight over the user's own words, so the overlay goes to the pill
+    /// above the line instead. Whitespace up to the next line break doesn't
+    /// count — there is nothing there to collide with.
+    var textFollowsCaret = false
+
+    /// Nothing resolved at all: the caller had no field to describe (engine
+    /// notices). `textFollowsCaret` counts — a read that resolved only that
+    /// still knows something the previous field's style would override.
+    var isEmpty: Bool {
+        font == nil && color == nil && background == nil && fieldRect == nil && !textFollowsCaret
+    }
 }
 
 struct TextContext {
@@ -252,7 +272,9 @@ enum AXText {
             return TextContext(textBeforeCaret: textBeforeCaret, textAfterCaret: textAfterCaret,
                                caretRect: caretRect,
                                host: HostTextStyle(font: style.font, color: style.color,
-                                                   fieldRect: cocoaFieldRect(frame)))
+                                                   background: style.background,
+                                                   fieldRect: cocoaFieldRect(frame),
+                                                   textFollowsCaret: linePopulatedAfterCaret(textAfterCaret)))
         }
 
         // Electron/web fallback: AX exposes the field box but a broken caret
@@ -278,8 +300,21 @@ enum AXText {
             return nil
         }
         if looksMasked(value) { return nil }
-        let total: Int = attribute(element, kAXNumberOfCharactersAttribute) ?? value.count
-        let style = attributedStyle(of: element, atIndex: total - 1)
+        // Chromium often reports a real selectedRange even where caret GEOMETRY
+        // is garbage (which is why this fallback runs at all). When it's
+        // plausible, split the value there instead of assuming end-of-field:
+        // with the caret mid-text the whole-value context asked the model to
+        // continue text the caret isn't at, and an empty `textAfterCaret`
+        // defeated every mid-line guard downstream (`textFollowsCaret`, the
+        // gates' duplication check, the caret-splits-a-word rule) — so the
+        // ghost drew over the words after the caret. A location of 0 in a
+        // non-empty field is indistinguishable from the stuck-at-0 breakage,
+        // so it keeps the end-of-field assumption.
+        let ns = value as NSString
+        let caretLoc = (caret > 0 && caret < ns.length) ? caret : ns.length
+        let beforeCaret = ns.substring(to: caretLoc)
+        let afterCaret = String(ns.substring(from: caretLoc).prefix(192))
+        let style = attributedStyle(of: element, atIndex: max(0, caretLoc - 1))
         let hostFont = style.font
         let box = cocoaFieldRect(frame)
         let marker = webCaretBounds(element)
@@ -295,10 +330,12 @@ enum AXText {
            let anchor = onScreen(cocoaRect(CGRect(x: caret.minX, y: caret.minY, width: 1, height: caret.height))) {
             let size = hostFont?.pointSize ?? caret.height / 1.18
             DebugLog.shared.log("AX", "web/Electron: real caret via text-marker at x=\(Int(caret.minX)), \(Int(size))pt")
-            return TextContext(textBeforeCaret: String(value.suffix(maxChars)), textAfterCaret: "",
+            return TextContext(textBeforeCaret: String(beforeCaret.suffix(maxChars)), textAfterCaret: afterCaret,
                                caretRect: anchor,
                                host: HostTextStyle(font: hostFont ?? .systemFont(ofSize: size),
-                                                   color: style.color, fieldRect: box))
+                                                   color: style.color, background: style.background,
+                                                   fieldRect: box,
+                                                   textFollowsCaret: linePopulatedAfterCaret(afterCaret)))
         }
         // A marker that is NOT a collapsed caret spans the whole run — that's a
         // selection or the placeholder/idle state (e.g. Claude's "Describe a
@@ -309,22 +346,46 @@ enum AXText {
             return nil
         }
 
-        // No marker at all (older Electron / non-Chromium web view): estimate the
-        // caret at the end of the last line by measuring the text width. The
-        // biggest source of drift is a wrong font, so use the real one if exposed.
+        // No marker at all (older Electron / non-Chromium web view): estimate
+        // the caret at the end of the text BEFORE it by measuring that text's
+        // last line — the whole value put the estimate at the end of the field
+        // even when the caret (per selectedRange) sat mid-text. The biggest
+        // source of drift is a wrong font, so use the real one if exposed.
         let font = hostFont ?? NSFont.systemFont(ofSize: max(12, min(17, frame.height * 0.36)))
         let fontSize = font.pointSize
-        let lastLine = value.components(separatedBy: "\n").last ?? value
+        let lastLine = beforeCaret.components(separatedBy: "\n").last ?? beforeCaret
         let textWidth = (lastLine as NSString).size(withAttributes: [.font: font]).width
         let lineHeight = ceil(fontSize * 1.35)
         let caretX = min(frame.minX + 8 + textWidth, frame.maxX - 24)
-        let caretBox = CGRect(x: caretX, y: frame.maxY - lineHeight - 4, width: 1, height: lineHeight)
+        // Anchor the line from the BOTTOM by the hard lines still after the
+        // caret — mid-text on an earlier line, the bottom-line assumption put
+        // the overlay a field-height off. Soft wraps stay invisible to this
+        // estimate (as everywhere in it), and an undercount from the 192-char
+        // cap just degrades toward the old bottom-line guess.
+        let linesAfter = CGFloat(afterCaret.filter(\.isNewline).count)
+        let caretBox = CGRect(x: caretX,
+                              y: max(frame.minY + 2, frame.maxY - (linesAfter + 1) * lineHeight - 4),
+                              width: 1, height: lineHeight)
         guard let anchor = onScreen(cocoaRect(caretBox)) else { return nil }
         DebugLog.shared.log("AX", "web/Electron fallback: \(value.count) chars, "
-            + "font \(hostFont != nil ? "real " : "guessed ")\(Int(fontSize))pt, caret≈end-of-text")
-        return TextContext(textBeforeCaret: String(value.suffix(maxChars)), textAfterCaret: "",
+            + "font \(hostFont != nil ? "real " : "guessed ")\(Int(fontSize))pt, caret≈\(caretLoc == ns.length ? "end-of-text" : "mid-text \(caretLoc)")")
+        return TextContext(textBeforeCaret: String(beforeCaret.suffix(maxChars)), textAfterCaret: afterCaret,
                            caretRect: anchor,
-                           host: HostTextStyle(font: font, color: style.color, fieldRect: box))
+                           host: HostTextStyle(font: font, color: style.color,
+                                               background: style.background, fieldRect: box,
+                                               textFollowsCaret: linePopulatedAfterCaret(afterCaret)))
+    }
+
+    /// Is there anything but whitespace between the caret and the end of its
+    /// line? That is what inline ghost text would be painted on top of. Trailing
+    /// spaces and the following lines don't collide with it, so they don't count.
+    ///
+    /// ponytail: only the native path can answer this — the web/Electron
+    /// fallback reads no text after the caret at all (it assumes end-of-field,
+    /// which is the case it exists for). Upgrade path if a mid-line caret in
+    /// Electron ever overlaps: read the trailing run via the text-marker API.
+    nonisolated static func linePopulatedAfterCaret(_ textAfterCaret: String) -> Bool {
+        textAfterCaret.prefix { !$0.isNewline }.contains { !$0.isWhitespace }
     }
 
     /// The field's own box in Cocoa coordinates, when AX reports a usable one.
@@ -342,17 +403,10 @@ enum AXText {
     /// the caller can fall back to anchoring on the field box.
     private static func validCaretRect(in element: AXUIElement, caret: Int, frame: CGRect?) -> CGRect? {
         var rect = bounds(forRange: CFRange(location: caret, length: 0), in: element)
-        // The previous character's bounds track the real glyph line. Anchor the
-        // caret to them when the zero-length caret rect is missing OR sits ABOVE
-        // them — TextEdit reports the empty-range caret a whole line too high
-        // (AX-y above the glyphs), which floated every overlay up off the text.
-        // A legitimate line start puts the caret BELOW the prev char, so this
-        // only rewrites the genuinely-wrong case.
-        if caret > 0, let prev = bounds(forRange: CFRange(location: caret - 1, length: 1), in: element),
-           prev != .zero, prev.height >= 4 {
-            if rect.map({ $0 == .zero || $0.minY + 1 < prev.minY }) ?? true {
-                rect = CGRect(x: prev.maxX, y: prev.minY, width: 1, height: prev.height)
-            }
+        if caret > 0 {
+            rect = glyphAnchoredCaret(
+                reported: rect,
+                prevChar: bounds(forRange: CFRange(location: caret - 1, length: 1), in: element))
         }
         guard let r = rect, r != .zero, r.height >= 4, r.height <= 200 else { return nil }
         if let frame, frame != .zero,
@@ -360,6 +414,28 @@ enum AXText {
             return nil  // caret reported outside its own field → garbage
         }
         return onScreen(cocoaRect(r))
+    }
+
+    /// The caret rect to trust vertically, in AX (top-left origin) coordinates.
+    /// The zero-length caret rect is app lore — TextEdit reports it a whole line
+    /// too high, others report a cap-height sliver whose bottom is the baseline
+    /// — while the previous character's box is measured glyph truth, and the
+    /// ghost's baseline is only right when the caret box vertically IS the glyph
+    /// line box. Missing or floating above the glyphs → derive from the glyph
+    /// box; overlapping it (same visual line) with a different span → keep the
+    /// caret's x, adopt the glyph box's vertical span; strictly below (a
+    /// legitimate line start) → keep as reported.
+    nonisolated static func glyphAnchoredCaret(reported: CGRect?, prevChar: CGRect?) -> CGRect? {
+        guard let prev = prevChar, prev != .zero, prev.height >= 4 else { return reported }
+        guard var rect = reported, rect != .zero, rect.minY + 1 >= prev.minY else {
+            return CGRect(x: prev.maxX, y: prev.minY, width: 1, height: prev.height)
+        }
+        if rect.minY < prev.maxY - 1, rect.maxY > prev.minY + 1,
+           abs(rect.minY - prev.minY) + abs(rect.height - prev.height) > 1 {
+            rect.origin.y = prev.minY
+            rect.size.height = prev.height
+        }
+        return rect
     }
 
     /// Returns the rect only when its center lies on (or within 50 pt of)
@@ -468,13 +544,18 @@ enum AXText {
         // The two things that could fix the Electron estimate: the real font, and
         // real bounds for an actual character range (not the broken caret range).
         let lastIdx = (nChars ?? value?.count ?? 0) - 1
-        let attrStyle = lastIdx >= 0 ? attributedStyle(of: element, atIndex: lastIdx) : (font: nil, color: nil)
+        let attrStyle = lastIdx >= 0 ? attributedStyle(of: element, atIndex: lastIdx) : AXTextStyle()
         let lastCharBounds = lastIdx >= 0 ? bounds(forRange: CFRange(location: lastIdx, length: 1), in: element) : nil
         let fontDesc = attrStyle.font.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
-        // The ghost picks dark-vs-light from this color; "nil" here is why an app
-        // still falls back to the screen probe / system theme.
-        let colorDesc = attrStyle.color.flatMap { SuggestionWindow.neutralGray($0) }
-            .map { "gray \(String(format: "%.2f", $0.redComponent))" } ?? "nil"
+        // The ghost picks dark-vs-light from this color — but only a concrete one.
+        // "none"/"dynamic" here is why an app falls back to the probe/system theme.
+        func toneDesc(_ c: NSColor?) -> String {
+            guard let c else { return "none" }
+            return SuggestionWindow.staticLuminance(c)
+                .map { "gray \(String(format: "%.2f", $0))" } ?? "dynamic(ignored)"
+        }
+        let colorDesc = toneDesc(attrStyle.color)
+        let bgDesc = toneDesc(attrStyle.background)
         let valueDesc = value.map { "\"\($0.suffix(24))\"(\($0.count))" } ?? "nil"
         // Real geometry candidates: whole-text bounds, marker caret, and the
         // child AX tree (Chromium often keeps real frames on inner text nodes).
@@ -484,7 +565,7 @@ enum AXText {
             + "range=\(range.map { "\($0.location)+\($0.length)" } ?? "nil") "
             + "value=\(valueDesc) nChars=\(nChars.map(String.init) ?? "nil") "
             + "caret=\(fmt(caretBounds)) prevChar=\(fmt(prevBounds)) "
-            + "attrFont=\(fontDesc) attrColor=\(colorDesc) lastChar=\(fmt(lastCharBounds)) whole=\(fmt(wholeBounds)) "
+            + "attrFont=\(fontDesc) attrColor=\(colorDesc) attrBg=\(bgDesc) lastChar=\(fmt(lastCharBounds)) whole=\(fmt(wholeBounds)) "
             + "marker=\(fmt(webCaretBounds(element))) markedRange=\(markedDesc)\(extra)\(kids)"
     }
 
@@ -553,14 +634,14 @@ enum AXText {
     /// them here even though caret bounds are broken; some providers store real
     /// `NSFont`/`NSColor` objects, others an "AXFont" descriptor dict and a
     /// `CGColor`.
-    static func attributedStyle(of element: AXUIElement, atIndex index: Int) -> (font: NSFont?, color: NSColor?) {
-        guard index >= 0 else { return (nil, nil) }
+    static func attributedStyle(of element: AXUIElement, atIndex index: Int) -> AXTextStyle {
+        guard index >= 0 else { return AXTextStyle() }
         var range = CFRange(location: index, length: 1)
-        guard let rangeValue = AXValueCreate(.cfRange, &range) else { return (nil, nil) }
+        guard let rangeValue = AXValueCreate(.cfRange, &range) else { return AXTextStyle() }
         var ref: CFTypeRef?
         guard AXUIElementCopyParameterizedAttributeValue(
             element, kAXAttributedStringForRangeParameterizedAttribute as CFString, rangeValue, &ref
-        ) == .success, let attributed = ref as? NSAttributedString, attributed.length > 0 else { return (nil, nil) }
+        ) == .success, let attributed = ref as? NSAttributedString, attributed.length > 0 else { return AXTextStyle() }
         var font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
         if font == nil,
            let dict = attributed.attribute(NSAttributedString.Key("AXFont"), at: 0, effectiveRange: nil) as? [String: Any],
@@ -568,16 +649,23 @@ enum AXText {
             let name = dict["AXFontName"] as? String
             font = name.flatMap { NSFont(name: $0, size: size) } ?? .systemFont(ofSize: size)
         }
-        // WebKit/Chromium hand back a CGColor under either key; AppKit fields an NSColor.
-        var color: NSColor?
-        for key in [NSAttributedString.Key.foregroundColor, NSAttributedString.Key("AXForegroundColor")] {
-            guard let value = attributed.attribute(key, at: 0, effectiveRange: nil) else { continue }
-            if let ns = value as? NSColor { color = ns; break }
-            // `as? CGColor` always succeeds on an Any (CF bridging) — check the type.
-            if CFGetTypeID(value as CFTypeRef) == CGColor.typeID,
-               let ns = NSColor(cgColor: value as! CGColor) { color = ns; break }
+        // WebKit/Chromium hand back a CGColor under the AX-prefixed key; AppKit
+        // fields an NSColor under the standard one.
+        func color(_ keys: [NSAttributedString.Key]) -> NSColor? {
+            for key in keys {
+                guard let value = attributed.attribute(key, at: 0, effectiveRange: nil) else { continue }
+                if let ns = value as? NSColor { return ns }
+                // `as? CGColor` always succeeds on an Any (CF bridging) — check the type.
+                if CFGetTypeID(value as CFTypeRef) == CGColor.typeID,
+                   let ns = NSColor(cgColor: value as! CGColor) { return ns }
+            }
+            return nil
         }
-        return (font, color)
+        return AXTextStyle(
+            font: font,
+            color: color([.foregroundColor, NSAttributedString.Key("AXForegroundColor")]),
+            background: color([.backgroundColor, NSAttributedString.Key("AXBackgroundColor")])
+        )
     }
 
     // MARK: - Low-level helpers

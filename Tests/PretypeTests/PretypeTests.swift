@@ -549,8 +549,8 @@ final class PretypeTests: XCTestCase {
     // what keeps it readable on a white page under a dark system (no screen
     // capture involved). Pin the polarity: a field's dark text must stay a dark
     // ghost, its light text a light one, whatever the hue.
-    func testGhostNeutralGrayPolarity() {
-        func gray(_ c: NSColor) -> CGFloat { SuggestionWindow.neutralGray(c)!.redComponent }
+    @MainActor func testGhostTonePolarity() {
+        func gray(_ c: NSColor) -> CGFloat { SuggestionWindow.staticLuminance(c)! }
         XCTAssertLessThan(gray(.black), 0.1)
         XCTAssertGreaterThan(gray(.white), 0.9)
         // Hue drops out; only lightness survives, so a syntax-colored field
@@ -558,6 +558,92 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(gray(NSColor(srgbRed: 0.2, green: 0.2, blue: 0.2, alpha: 1)), 0.2, accuracy: 0.01)
         XCTAssertLessThan(gray(NSColor(srgbRed: 0.6, green: 0, blue: 0, alpha: 1)), 0.5)   // dark red text
         XCTAssertGreaterThan(gray(NSColor(srgbRed: 0.8, green: 1, blue: 0.8, alpha: 1)), 0.5) // pale green
+
+        // A SEMANTIC color survives the AX boundary dynamic and resolves against
+        // our own theme, not the host's — it reported black ink for a dark app's
+        // white text and painted a black ghost on black. Must be discarded.
+        XCTAssertNil(SuggestionWindow.staticLuminance(.textColor))
+        XCTAssertNil(SuggestionWindow.staticLuminance(.labelColor))
+        XCTAssertNil(SuggestionWindow.staticLuminance(.controlTextColor))
+
+        // `withAlphaComponent` freezes a catalog color against the CALLING
+        // context's appearance — this exact bug shipped: the ghost's ink froze
+        // to the system tone and ignored the window's, white-on-white on a
+        // light page under a dark system. The alpha'd ink and halo must stay
+        // dynamic (staticLuminance returns nil only when the two appearances
+        // resolve differently).
+        XCTAssertNil(SuggestionWindow.staticLuminance(SuggestionWindow.dynamicAlpha(.labelColor, 0.7)))
+        XCTAssertNil(SuggestionWindow.staticLuminance(SuggestionWindow.dynamicAlpha(.textBackgroundColor, 0.4)))
+        // And the polarity survives the alpha: dark appearance → light ink.
+        var darkInk: CGFloat = -1
+        NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+            let c = SuggestionWindow.dynamicAlpha(.labelColor, 0.7).usingColorSpace(.sRGB)!
+            darkInk = 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent
+        }
+        XCTAssertGreaterThan(darkInk, 0.75)
+    }
+
+    // A space the context already ends with must not be shown or typed twice.
+    func testSeamSpaceDedup() {
+        let f = SuggestionController.deduplicatingSeamSpace
+        XCTAssertEqual(f(" ответ", "Спасибо за "), "ответ")
+        XCTAssertEqual(f("  ответ", "Спасибо за "), "ответ")
+        // No space before the caret: the suggestion's own space is the separator.
+        XCTAssertEqual(f(" ответ", "Спасибо за"), " ответ")
+        XCTAssertEqual(f("вет", "при"), "вет")
+        XCTAssertEqual(f(" ", "за "), "")
+    }
+
+    // Inline ghost text may only draw where the line is empty; mid-line it lands
+    // on top of the user's own words.
+    func testLinePopulatedAfterCaret() {
+        XCTAssertFalse(AXText.linePopulatedAfterCaret(""))
+        XCTAssertFalse(AXText.linePopulatedAfterCaret("   "))          // trailing spaces
+        XCTAssertFalse(AXText.linePopulatedAfterCaret("\nnext line"))  // end of THIS line
+        XCTAssertFalse(AXText.linePopulatedAfterCaret("  \n more"))
+        XCTAssertTrue(AXText.linePopulatedAfterCaret(" ответ"))
+        XCTAssertTrue(AXText.linePopulatedAfterCaret("rest of the line\nmore"))
+    }
+
+    // The caret box AX reports is app lore; the previous glyph's box is
+    // measured truth. This anchoring is what the ghost's baseline stands on.
+    // AX coordinates: top-left origin, y grows downward.
+    func testGlyphAnchoredCaret() {
+        let prev = CGRect(x: 100, y: 50, width: 8, height: 16)
+        // Missing caret rect → derived from the glyph box.
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: nil, prevChar: prev),
+                       CGRect(x: 108, y: 50, width: 1, height: 16))
+        // Reported a line ABOVE the glyphs (TextEdit) → rewritten onto them.
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 30, width: 1, height: 16),
+                                                 prevChar: prev),
+                       CGRect(x: 108, y: 50, width: 1, height: 16))
+        // BELOW the glyphs is a legitimate line start — kept as reported.
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 10, y: 66, width: 1, height: 16),
+                                                 prevChar: prev),
+                       CGRect(x: 10, y: 66, width: 1, height: 16))
+        // Same line, cap-height sliver (bottom = baseline): keep x, adopt the
+        // glyph box's vertical span.
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 54, width: 1, height: 9),
+                                                 prevChar: prev),
+                       CGRect(x: 108, y: 50, width: 1, height: 16))
+        // Identical span → untouched; no glyph info → reported wins.
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 50, width: 1, height: 16),
+                                                 prevChar: prev),
+                       CGRect(x: 108, y: 50, width: 1, height: 16))
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 5, y: 5, width: 1, height: 12),
+                                                 prevChar: nil),
+                       CGRect(x: 5, y: 5, width: 1, height: 12))
+        XCTAssertNil(AXText.glyphAnchoredCaret(reported: nil, prevChar: .zero))
+    }
+
+    // The ghost's vertical seat in the caret box: true centring both ways,
+    // bottom-line nudge only for the degenerate whole-view caret span.
+    func testGhostLift() {
+        XCTAssertEqual(SuggestionWindow.ghostLift(caretHeight: 16, lineHeight: 16), 0)    // tight box
+        XCTAssertEqual(SuggestionWindow.ghostLift(caretHeight: 24, lineHeight: 16), 4)    // padded line
+        XCTAssertEqual(SuggestionWindow.ghostLift(caretHeight: 32, lineHeight: 16), 8)    // generous line-height, uncapped
+        XCTAssertEqual(SuggestionWindow.ghostLift(caretHeight: 10, lineHeight: 16), -3)   // cap-height caret: drop to its baseline
+        XCTAssertEqual(SuggestionWindow.ghostLift(caretHeight: 200, lineHeight: 16), 6.4, accuracy: 0.001) // whole-view span
     }
 
     // ConfigProjection powers everything the settings UI claims a setting will

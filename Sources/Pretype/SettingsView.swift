@@ -963,7 +963,7 @@ struct GeneralTab: View {
                                opacity: store.ghostOpacity,
                                hotkey: store.hotkeyStyle)
                 Caption(store.presentation == .inline
-                    ? "Live preview — drag the slider and watch it update. Ghost text takes its font and its dark-or-light rendering from the field's own text, so it stays readable on a white page under a dark system, and never runs past the end of the input (it moves above the line when there's no room)."
+                    ? "Live preview — drag the slider and watch it update. Ghost text takes its font and its dark-or-light rendering from the field's own text, so it stays readable on a white page under a dark system. It never runs past the end of the input or over words you've already typed — with the cursor mid-line, or too near the edge, it moves above the line instead."
                     : "Live preview — the floating panel is a fully opaque HUD, legible on any background. It picks dark or light rendering from behind the cursor (with Screen Recording; otherwise it follows the system theme).")
             }
 
