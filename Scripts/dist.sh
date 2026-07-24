@@ -1,15 +1,17 @@
 #!/bin/bash
-# Package Pretype.app for testers who DON'T have a paid Apple Developer account.
+# Package Pretype.app for distribution.
 #
-# make-app.sh signs with your "Apple Development" certificate, which is locked to
-# your own devices — on someone else's Mac that fails with
-#   "…can't be opened because this application is not supported on this Mac".
-# This re-signs a COPY ad-hoc (your local build/Pretype.app keeps its dev
-# signature, so your own Accessibility / Screen-Recording grants survive) and
-# zips it for sharing.
+# Two modes, picked by what's in the keychain:
+#   - "Developer ID Application" certificate present -> hardened-runtime sign,
+#     notarize, staple. Recipients just open the app. Notary credentials come
+#     from the keychain profile "pretype" (one-time local setup:
+#       xcrun notarytool store-credentials pretype
+#     ) or, in CI, from an App Store Connect API key via
+#     APPLE_API_KEY_PATH / APPLE_API_KEY_ID / APPLE_API_ISSUER.
+#   - no such certificate -> ad-hoc signature; recipients clear Gatekeeper
+#     once (see the printed steps).
 #
-# Recipients clear Gatekeeper once (see the printed steps). Intel Macs are not
-# supported — Pretype needs Apple Silicon (MLX).
+# Intel Macs are not supported — Pretype needs Apple Silicon (MLX).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -18,12 +20,39 @@ test -d build/Pretype.app || { echo "build/Pretype.app not found — run ./Scrip
 DIST=build/dist
 rm -rf "$DIST"; mkdir -p "$DIST"
 cp -R build/Pretype.app "$DIST/Pretype.app"
+rm -f build/Pretype.app.zip
 
-# Strip the device-locked dev signature, re-sign ad-hoc (runs on any Apple Silicon Mac).
+IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+if [ -n "$IDENTITY" ]; then
+    # Hardened runtime + secure timestamp are notarization requirements.
+    # Single binary + resource-only bundles, so there is no nested code to sign.
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$DIST/Pretype.app"
+    codesign --verify --strict "$DIST/Pretype.app"
+
+    ditto -c -k --keepParent "$DIST/Pretype.app" build/Pretype.app.zip
+    # On a rejected submission --wait exits non-zero; the printed id feeds
+    # `xcrun notarytool log <id>` for the reason.
+    if [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+        xcrun notarytool submit build/Pretype.app.zip --wait \
+            --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER"
+    else
+        xcrun notarytool submit build/Pretype.app.zip --wait --keychain-profile pretype
+    fi
+
+    # Staple the ticket so Gatekeeper passes offline, then re-zip the stapled app.
+    xcrun stapler staple "$DIST/Pretype.app"
+    rm build/Pretype.app.zip
+    ditto -c -k --keepParent "$DIST/Pretype.app" build/Pretype.app.zip
+    spctl -a -t exec -vv "$DIST/Pretype.app"
+    echo "Built build/Pretype.app.zip ($(du -h build/Pretype.app.zip | cut -f1), notarized + stapled)."
+    exit 0
+fi
+
+# No Developer ID certificate: strip the device-locked dev signature, re-sign
+# ad-hoc (runs on any Apple Silicon Mac).
 codesign --force --deep --sign - "$DIST/Pretype.app"
 codesign --verify --deep --strict "$DIST/Pretype.app"
 
-rm -f build/Pretype.app.zip
 ditto -c -k --keepParent "$DIST/Pretype.app" build/Pretype.app.zip
 echo "Built build/Pretype.app.zip ($(du -h build/Pretype.app.zip | cut -f1), ad-hoc signed)."
 
@@ -37,7 +66,7 @@ Send build/Pretype.app.zip to testers (Apple Silicon, macOS 14+). To open it onc
   Privacy & Security -> scroll down -> "Open Anyway".
 
 Then grant Accessibility (and optionally Screen Recording) when prompted. The app
-is not notarized (that needs a paid Apple Developer account), so this one-time
-override is expected. For public distribution later, switch to a Developer ID
-certificate + notarytool.
+is not notarized (that needs a paid Apple Developer account); with a
+"Developer ID Application" certificate in the keychain this script notarizes
+automatically instead.
 EOF

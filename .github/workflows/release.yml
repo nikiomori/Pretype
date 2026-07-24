@@ -48,8 +48,34 @@ jobs:
       - name: Build App Bundle
         run: PRETYPE_VERSION="${GITHUB_REF_NAME#v}" PRETYPE_BUILD="${GITHUB_RUN_NUMBER}" ./Scripts/make-app.sh
 
+      # Optional Developer ID signing + notarization: both steps are no-ops
+      # until the repo has the secrets (see Scripts/dist.sh header).
+      - name: Import Developer ID certificate
+        env:
+          P12_BASE64: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          if [ -z "$P12_BASE64" ]; then echo "No DEVELOPER_ID_P12 secret — release will be ad-hoc signed."; exit 0; fi
+          KC="$RUNNER_TEMP/build.keychain"
+          security create-keychain -p ci "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p ci "$KC"
+          echo "$P12_BASE64" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" login.keychain-db
+
       - name: Package App Bundle for Distribution
-        run: ./Scripts/dist.sh
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          if [ -n "$APPLE_API_KEY" ]; then
+            export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+            printf '%s' "$APPLE_API_KEY" > "$APPLE_API_KEY_PATH"
+          fi
+          ./Scripts/dist.sh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -60,3 +86,20 @@ jobs:
           fail_on_unmatched_files: true
           draft: true
           generate_release_notes: true
+
+      # Bump nikiomori/homebrew-tap to this release. No-op until the repo has
+      # a TAP_GITHUB_TOKEN secret (fine-grained PAT, contents:write on the tap
+      # repo). The cask URL 404s until the draft release above is published —
+      # publish it promptly after the workflow finishes.
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then echo "No TAP_GITHUB_TOKEN secret — skipping tap update."; exit 0; fi
+          V="${GITHUB_REF_NAME#v}"
+          SHA=$(shasum -a 256 build/Pretype.app.zip | awk '{print $1}')
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/nikiomori/homebrew-tap.git" "$RUNNER_TEMP/tap"
+          sed -i '' -e "s|^  version .*|  version \"$V\"|" -e "s|^  sha256 .*|  sha256 \"$SHA\"|" "$RUNNER_TEMP/tap/Casks/pretype.rb"
+          cd "$RUNNER_TEMP/tap"
+          git -c user.name=github-actions -c user.email=github-actions@github.com commit -am "pretype $V"
+          git push

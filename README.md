@@ -67,9 +67,17 @@ It's a free, MIT-licensed alternative to [Cotypist](https://cotypist.app) — a 
 
 ## Quick Start
 
-### Download the app *(recommended)*
+### Homebrew *(recommended)*
 
-1. **Apple Silicon only** (M1 or newer) — MLX does not run on Intel Macs. Grab [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip) from [Releases](https://github.com/nikiomori/Pretype/releases), unzip, and move `Pretype.app` to `/Applications`.
+```bash
+brew install --no-quarantine nikiomori/tap/pretype
+```
+
+**Apple Silicon only** (M1 or newer) — MLX does not run on Intel Macs. `--no-quarantine` skips the Gatekeeper "Open Anyway" dance (releases are ad-hoc signed, not notarized — see step 2 below); to keep skipping it on every `brew upgrade`, put `export HOMEBREW_CASK_OPTS="--no-quarantine"` in your shell profile. Then continue from step 3.
+
+### Download the app
+
+1. **Apple Silicon only** (M1 or newer). Grab [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip) from [Releases](https://github.com/nikiomori/Pretype/releases), unzip, and move `Pretype.app` to `/Applications`.
 2. Clear the quarantine flag. Releases are ad-hoc signed and not notarized, so Gatekeeper blocks the first launch — expected, not a warning sign:
    ```bash
    xattr -dr com.apple.quarantine /Applications/Pretype.app
