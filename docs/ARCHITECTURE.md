@@ -21,7 +21,7 @@ want to add a third.
 ## Model catalog
 
 The out-of-the-box pick is resolved once from your enabled keyboard layouts
-([why](../README.md#choosing-a-model)); both defaults fit an 8 GB Mac.
+([why](models.md)); both defaults fit an 8 GB Mac.
 Everything else is a manual pick in **Settings → Model**:
 
 | Model | Size | Why you'd pick it |

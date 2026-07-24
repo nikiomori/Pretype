@@ -1,7 +1,22 @@
-# docs / assets
+# docs
 
-The README's visual assets, plus the GitHub social preview. Three kinds live
-here, and each refreshes differently.
+## Pages
+
+[Architecture](ARCHITECTURE.md) · [Choosing a model](models.md) ·
+[Privacy & permissions](privacy.md) · [Troubleshooting & FAQ](troubleshooting.md) ·
+[Fine-tuning](finetuning.md)
+
+Every `.md` here except this file is published at
+[pretype.app/docs](https://pretype.app/docs) — the landing repo pulls this
+folder at build time and renders it. Write for both: keep links relative
+(a sibling `.md` becomes a docs route, `../` becomes a GitHub link), and use
+markdown or a plain `<img src="…">` for figures so the image gets published
+alongside the page.
+
+## Assets
+
+The rest is the README's visual assets, plus the GitHub social preview. Three
+kinds live here, and each refreshes differently.
 
 ## Rendered art — `demo*.gif`, `hero.png`, `shot-modes.png`
 
