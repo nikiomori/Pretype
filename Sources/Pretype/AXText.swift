@@ -431,11 +431,22 @@ enum AXText {
                 reported: rect,
                 prevChar: bounds(forRange: CFRange(location: caret - 1, length: 1), in: element))
         }
-        guard let r = rect, r != .zero, r.height >= 4, r.height <= 200 else { return nil }
+        guard var r = rect, r != .zero, r.height >= 4, r.height <= 200 else { return nil }
         if let frame, frame != .zero,
            !frame.insetBy(dx: -24, dy: -24).contains(CGPoint(x: r.midX, y: r.midY)) {
             return nil  // caret reported outside its own field → garbage
         }
+        // A caret is a hairline. Apps that answer a zero-length range with the
+        // next character's full advance width report one many points wide, and
+        // the inline ghost starts at the caret's RIGHT edge — so it would sit a
+        // whole character clear of the caret it's supposed to continue. The
+        // Chromium marker path already demands `width < 4`; this is the same
+        // rule for the native one, applied instead of rejecting. Keeping the
+        // LEFT edge assumes the phantom advance ran rightward (LTR); an RTL
+        // misreport would leave the caret at the right edge instead — but the
+        // ghost only draws with nothing after the caret, where there is no
+        // next character to mis-measure.
+        r.size.width = min(r.width, 2)
         return onScreen(cocoaRect(r))
     }
 

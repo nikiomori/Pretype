@@ -99,6 +99,13 @@ final class SuggestionWindow: NSPanel {
     private var lastCaret = CGRect.zero
     /// Font/color/box of the field under that caret.
     private var lastHost = HostTextStyle()
+    /// Writing direction of the ghost currently drawn: an Arabic or Hebrew
+    /// completion grows LEFT from the caret, not right.
+    private var ghostRTL = false
+    /// The caret edge the ghost hangs off (its right edge in LTR, left in RTL),
+    /// advanced in place by `advance` so a word-by-word accept doesn't wait for
+    /// the next AX read to know where the caret got to.
+    private var ghostAnchorX: CGFloat = 0
 
     init() {
         super.init(
@@ -154,7 +161,12 @@ final class SuggestionWindow: NSPanel {
     /// `caretRect` is in Cocoa (bottom-left origin) screen coordinates; `host`
     /// describes the field it sits in (font, text color, box) when AX exposed
     /// it — each field missing falls back to an estimate from the caret box.
-    func show(mode: SuggestionDisplayMode, at caretRect: CGRect, host: HostTextStyle = HostTextStyle()) {
+    /// Returns the suggestion text actually rendered — an inline ghost trims it
+    /// to what fits on the line (see `fittingPrefix`), and the caller must trim
+    /// what ⇧⇥ accepts to match. nil for every other mode, and for a pill: that
+    /// one floats free of the field and shows the suggestion whole.
+    @discardableResult
+    func show(mode: SuggestionDisplayMode, at caretRect: CGRect, host: HostTextStyle = HostTextStyle()) -> String? {
         lastCaret = caretRect
         // Engine notices (CaretIndicator) carry no host info, and the thinking
         // dots are inline ghost text too — keep the style already resolved for
@@ -183,13 +195,36 @@ final class SuggestionWindow: NSPanel {
         }
 
         // Inline vs pill is decided per placement, not per setting: the ghost
-        // needs room to the right of the caret INSIDE the field, and that room
-        // has to be empty — mid-line it would be painted over the user's own
-        // words, and at the end of a full input there is none at all.
+        // needs room beside the caret INSIDE the field, and that room has to be
+        // empty — mid-line it would be painted over the user's own words, and at
+        // the end of a full input there is none at all.
         var ghostMode = presentation == .inline && isGhostable(mode) && !lastHost.textFollowsCaret
-        applyContent(mode, ghost: ghostMode)
+        var rendered = mode
+        var shown: String?
+        if case .suggestion(let s) = mode {
+            ghostRTL = Self.isRightToLeft(s)
+            if ghostMode {
+                // Show only what fits, and tell the caller — offering more than
+                // the line can draw is how ⇧⇥ ends up inserting text unseen.
+                // Two points short of the real room: the window is sized from
+                // `measuredSize`, which rounds the text width up and adds a
+                // pixel of slack, so text that "fits" to the point would come
+                // back a pixel too wide for its own window and be ellipsized —
+                // which is the exact thing this trim exists to prevent.
+                let room = max(0, (inlineRoom(at: caretRect, rtl: ghostRTL) ?? 0) - 2)
+                let fitted = Self.fittingPrefix(of: s, font: ghostFont, width: room)
+                if fitted.isEmpty {
+                    ghostMode = false   // not even one word — the pill says it in full
+                } else {
+                    rendered = .suggestion(fitted)
+                    shown = fitted
+                }
+            }
+        }
+        applyContent(rendered, ghost: ghostMode)
         if ghostMode, !inlineHasRoom(at: caretRect) {
             ghostMode = false
+            shown = nil
             applyContent(mode, ghost: false)
         }
         place(ghost: ghostMode, at: caretRect)
@@ -199,6 +234,7 @@ final class SuggestionWindow: NSPanel {
         } else {
             setHighlight(false)
         }
+        return shown
     }
 
     /// The focus moved to a different field: everything remembered about the
@@ -209,6 +245,10 @@ final class SuggestionWindow: NSPanel {
     /// must keep their measured style.
     func fieldChanged() {
         lastHost = HostTextStyle()
+        // The thinking dots inherit the direction of the last suggestion (they
+        // have no letters of their own); across a field change that is the wrong
+        // field's direction, and they'd open on the wrong side of the caret.
+        ghostRTL = false
         backgroundProbe.invalidate()
     }
 
@@ -255,28 +295,40 @@ final class SuggestionWindow: NSPanel {
     /// rendered width and show `remaining` in place — no hide, no re-fade. The
     /// next AX refresh corrects any sub-pixel drift, so word-by-word Tab stays
     /// smooth instead of blinking.
-    func advance(past accepted: String, remaining: String) {
-        guard isVisible, !remaining.isEmpty else { return }
+    /// Returns what was rendered when the pill re-render flips back into a
+    /// ghost — accepting the first word can free exactly the room its remainder
+    /// needs, and that flip trims like any `show` — so the caller must narrow
+    /// what ⇧⇥ accepts to match. nil from the slide path: it draws `remaining`
+    /// whole in the room the accepted word vacated.
+    func advance(past accepted: String, remaining: String) -> String? {
+        guard isVisible, !remaining.isEmpty else { return nil }
         // `!ghost.isHidden`, not the setting: inline that fell back to the pill
         // for lack of room must re-render as a pill, not slide a hidden ghost.
         guard !ghost.isHidden else {
-            // Panel: re-render the box with the remaining text where it sits.
-            show(mode: .suggestion(remaining), at: lastCaret, host: lastHost)
-            return
+            // Panel: re-render the box with the remaining text where it sits —
+            // and forward the verdict: this is the one path where a pill can
+            // become a (trimmed) ghost without the controller calling show.
+            return show(mode: .suggestion(remaining), at: lastCaret, host: lastHost)
         }
+        // The caret moved by the accepted word's width — forward in the ghost's
+        // own writing direction, which is leftward for Arabic or Hebrew.
         let dx = ceil((accepted as NSString).size(withAttributes: [.font: ghostFont]).width)
+        ghostAnchorX += ghostRTL ? -dx : dx
         ghost.attributed = suggestionGhost(remaining)
-        var f = frame
-        f.origin.x += dx
         // Cap to the field (then the screen) so the remainder doesn't overhang for
         // a frame before the next AX refresh re-places it.
-        let limit = inlineLimitX(at: CGRect(x: f.origin.x, y: lastCaret.minY,
-                                            width: 1, height: lastCaret.height))
-            ?? f.origin.x + ghost.measuredSize.width
-        f.size.width = max(1, min(ghost.measuredSize.width, limit - f.origin.x))
+        let size = ghost.measuredSize
+        let bound = inlineBound(at: lastCaret, rtl: ghostRTL)
+            ?? (ghostRTL ? ghostAnchorX - size.width : ghostAnchorX + size.width)
+        let span = Self.ghostSpan(anchorX: ghostAnchorX, textWidth: size.width,
+                                  bound: bound, rtl: ghostRTL)
+        var f = frame
+        f.origin.x = span.x
+        f.size.width = max(1, span.width)
         setFrame(f, display: false)
         layoutSubviews(ghost: true)
         displayIfNeeded()
+        return nil
     }
 
     /// Modes that *can* draw as chromeless inline ghost text; engine notices and
@@ -526,9 +578,16 @@ final class SuggestionWindow: NSPanel {
         halo.shadowColor = Self.dynamicAlpha(.textBackgroundColor, 0.4)
         halo.shadowBlurRadius = 2.5
         halo.shadowOffset = .zero
-        // Single line, ellipsized when the window can't fit the tail.
+        // Single line, ellipsized when the window can't fit the tail. An RTL
+        // ghost hangs off the caret on its right edge, so it has to be laid out
+        // right-aligned in its own writing direction — left-aligned it would
+        // start at the far end of the window with a gap at the caret.
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
+        if ghostRTL {
+            paragraph.baseWritingDirection = .rightToLeft
+            paragraph.alignment = .right
+        }
         // "Increase contrast" exists to stop exactly this: text you have to
         // squint at. Floor the opacity SETTING, not the finished ink: `dim`
         // still scales it, so the head-vs-tail split survives (it's what shows
@@ -553,29 +612,90 @@ final class SuggestionWindow: NSPanel {
         ])
     }
 
-    /// How far right inline ghost text may draw: the end of the field it belongs
-    /// to, else the screen. Without the field bound the ghost ran past the input
-    /// over the send button beside it — and with a caret near the screen edge the
-    /// old `max(40, …)` floor pushed a sliver of window clean off the display.
-    private func inlineLimitX(at caretRect: CGRect) -> CGFloat? {
+    /// How far the inline ghost may draw *in its writing direction*: the far
+    /// edge of the field it belongs to, else the screen's. Without the field
+    /// bound the ghost ran past the input over the send button beside it — and
+    /// with a caret near the screen edge the old `max(40, …)` floor pushed a
+    /// sliver of window clean off the display.
+    private func inlineBound(at caretRect: CGRect, rtl: Bool) -> CGFloat? {
         guard let screen = screenContaining(CGPoint(x: caretRect.midX, y: caretRect.midY)) else { return nil }
-        var limit = screen.visibleFrame.maxX - 2
+        let visible = screen.visibleFrame
+        var bound = rtl ? visible.minX + 2 : visible.maxX - 2
         // Only trust the box when the caret really sits in it — a stale or
         // mis-reported frame must not clamp the ghost to nothing.
         if let field = lastHost.fieldRect, field.width > 20,
            field.insetBy(dx: -8, dy: -8).contains(CGPoint(x: caretRect.midX, y: caretRect.midY)) {
-            limit = min(limit, field.maxX - 2)
+            bound = rtl ? max(bound, field.minX + 2) : min(bound, field.maxX - 2)
         }
-        return limit
+        return bound
     }
 
-    /// Inline needs room for at least the chunk one ⇥ takes; the tail may
-    /// ellipsize. Less than that and the ghost is a sliver hanging off the end
-    /// of the input, so the pill above the line takes over — it says the same
-    /// thing, in full, and is clamped on-screen.
+    /// Space between the caret and that bound — what the ghost has to live in.
+    private func inlineRoom(at caretRect: CGRect, rtl: Bool) -> CGFloat? {
+        guard let bound = inlineBound(at: caretRect, rtl: rtl) else { return nil }
+        return max(0, rtl ? caretRect.minX - bound : bound - caretRect.maxX)
+    }
+
+    /// Inline needs room for at least the chunk one ⇥ takes. Less than that and
+    /// the ghost is a sliver hanging off the end of the input, so the pill above
+    /// the line takes over — it says the same thing, in full, and is clamped
+    /// on-screen. (A suggestion is trimmed to the room in `show`, so this only
+    /// still decides for the thinking dots and as a backstop.)
     private func inlineHasRoom(at caretRect: CGRect) -> Bool {
-        guard let limit = inlineLimitX(at: caretRect) else { return false }
-        return limit - caretRect.maxX >= min(ghostHeadWidth + 4, ghost.measuredSize.width)
+        guard let room = inlineRoom(at: caretRect, rtl: ghostRTL) else { return false }
+        return room >= min(ghostHeadWidth + 4, ghost.measuredSize.width)
+    }
+
+    /// Where the ghost's window sits for a caret anchor and a rendered text
+    /// width. LTR grows right from the caret's right edge, RTL grows LEFT from
+    /// its left edge, and neither crosses `bound` (the field's far edge, else
+    /// the screen's). Both the first placement and the post-accept slide go
+    /// through this, so they cannot drift apart. Pinned by a test.
+    nonisolated static func ghostSpan(anchorX: CGFloat, textWidth: CGFloat,
+                                      bound: CGFloat, rtl: Bool) -> (x: CGFloat, width: CGFloat) {
+        let width = min(textWidth, max(0, rtl ? anchorX - bound : bound - anchorX))
+        return (rtl ? anchorX - width : anchorX, width)
+    }
+
+    /// True when the text's first *letter* is right-to-left — Hebrew through
+    /// Arabic Extended-A is one contiguous block, plus the Arabic presentation
+    /// forms. Digits, punctuation and spaces are direction-neutral and keep the
+    /// search going, so "50 ₪ שלום" still reads as RTL. Pinned by a test.
+    nonisolated static func isRightToLeft(_ text: String) -> Bool {
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            return (0x0590...0x08FF).contains(scalar.value)
+                || (0xFB1D...0xFDFF).contains(scalar.value)
+                || (0xFE70...0xFEFF).contains(scalar.value)
+        }
+        return false
+    }
+
+    /// The longest prefix of `text` that renders inside `width`, cut where the
+    /// line would break (a word boundary in prose, a cluster in Chinese) and
+    /// with the trailing space dropped. "" when not even the first word fits —
+    /// the caller then falls back to the pill, which draws it whole.
+    ///
+    /// This is what keeps ⇧⇥ honest: it accepts the WHOLE suggestion, so a tail
+    /// that only ellipsized into "…" was text the user took unseen. Past the end
+    /// of the line the host would have wrapped that tail anyway, so the
+    /// single-line ghost was never a truthful preview of it either.
+    nonisolated static func fittingPrefix(of text: String, font: NSFont, width: CGFloat) -> String {
+        guard width > 0, !text.isEmpty else { return "" }
+        let attributed = NSAttributedString(string: text, attributes: [.font: font])
+        guard attributed.size().width > width else { return text }
+        let ns = text as NSString
+        // CoreText's own line-breaker: one call, and it knows where every
+        // script may break (walking word boundaries would cost a measurement
+        // per word on the keystroke path).
+        let count = CTTypesetterSuggestLineBreak(
+            CTTypesetterCreateWithAttributedString(attributed), 0, Double(width))
+        guard count > 0, count < ns.length else { return "" }
+        var cut = ns.substring(to: count)
+        while cut.hasSuffix(" ") { cut.removeLast() }
+        // A first word longer than the room comes back whole regardless (there
+        // is always at least one break candidate) — that one doesn't fit.
+        guard (cut as NSString).size(withAttributes: [.font: font]).width <= width else { return "" }
+        return cut
     }
 
     private func place(ghost ghostMode: Bool, at caretRect: CGRect) {
@@ -599,17 +719,20 @@ final class SuggestionWindow: NSPanel {
 
         let target: NSRect
         if ghostMode {
-            // Inline ghost text: left edge at the caret, right edge hard-stopped
-            // at the field (see inlineLimitX) so it never leaves the input, and
-            // the text ellipsizes rather than being sliced.
+            // Inline ghost text: it starts at the caret and runs in the writing
+            // direction, hard-stopped at the field (see inlineBound) so it never
+            // leaves the input, and the text ellipsizes rather than being sliced.
             let size = ghost.measuredSize
-            let limit = inlineLimitX(at: caretRect) ?? visible.maxX - 2
-            let x = min(max(visible.minX, caretRect.maxX), limit)
+            ghostAnchorX = ghostRTL ? caretRect.minX : caretRect.maxX
+            let bound = inlineBound(at: caretRect, rtl: ghostRTL)
+                ?? (ghostRTL ? visible.minX + 2 : visible.maxX - 2)
+            let span = Self.ghostSpan(anchorX: ghostAnchorX, textWidth: size.width,
+                                      bound: bound, rtl: ghostRTL)
             let lift = Self.ghostLift(caretHeight: caretRect.height, lineHeight: size.height)
-            var origin = CGPoint(x: x, y: caretRect.minY + lift)
+            var origin = CGPoint(x: span.x, y: caretRect.minY + lift)
             origin.y = min(max(visible.minY, origin.y), visible.maxY - size.height)
             target = NSRect(x: origin.x, y: origin.y,
-                            width: max(1, min(size.width, limit - x)), height: size.height)
+                            width: max(1, span.width), height: size.height)
         } else {
             // HUD pill — the floating panel suggestion AND the inline spell-fix
             // diff. Lifted just ABOVE the line so it never covers the text you're

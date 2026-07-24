@@ -841,12 +841,21 @@ final class SuggestionController: NSObject {
             return
         }
         lastCaretRect = rect
-        lastEvent = "suggesting \"\(text.prefix(40))\""
-        if text != lastLoggedSuggestion {
-            lastLoggedSuggestion = text
-            DebugLog.shared.log("SHOW", "\"\(text)\"")
+        // The inline ghost trims the suggestion to what fits on the line, and
+        // what ⇧⇥ accepts has to be exactly what the user was shown — offering
+        // an ellipsized tail is offering text sight unseen. Only ever a prefix,
+        // so narrowing, accepting and the journal all still line up.
+        let shown = window.show(mode: .suggestion(text), at: rect, host: ctx.host) ?? text
+        if shown != text {
+            active?.text = shown
+            pendingJournal?.suggestion = shown
         }
-        window.show(mode: .suggestion(text), at: rect, host: ctx.host)
+        lastEvent = "suggesting \"\(shown.prefix(40))\""
+        if shown != lastLoggedSuggestion {
+            lastLoggedSuggestion = shown
+            DebugLog.shared.log("SHOW", "\"\(shown)\""
+                + (shown != text ? " (trimmed to the line from \(text.count) chars)" : ""))
+        }
         if !Settings.onboardingCompleted {
             onboardingWindow?.updateStatusSuggestionActive(true)
         }
@@ -1135,7 +1144,11 @@ final class SuggestionController: NSObject {
         current.anchor += typed
         current.text = remaining
         active = current
-        window.advance(past: typed, remaining: remaining)
+        // The pill re-render inside advance can flip back into a trimmed ghost
+        // — same contract as show: never accept more than is on screen.
+        if let shown = window.advance(past: typed, remaining: remaining), shown != remaining {
+            active?.text = shown
+        }
     }
 
     /// Append injected/typed text to the cache marker, re-capping it to the AX
@@ -1285,9 +1298,13 @@ final class SuggestionController: NSObject {
             current.text = String(current.text.dropFirst(chunk.count))
             active = current
             // Slide the remaining ghost forward in place so accepting word by
-            // word stays smooth; the keystroke refresh then re-anchors it on the
-            // real caret.
-            window.advance(past: chunk, remaining: current.text)
+            // word stays smooth; the keystroke refresh then re-anchors it on
+            // the real caret. Its pill path can flip back into a trimmed ghost
+            // — narrow what ⇧⇥ accepts to what it actually rendered.
+            if let shown = window.advance(past: chunk, remaining: current.text),
+               shown != current.text {
+                active?.text = shown
+            }
         }
         if !Settings.onboardingCompleted {
             Settings.onboardingCompleted = true
@@ -1406,5 +1423,9 @@ extension SuggestionController: FocusTrackerDelegate {
         // caret. A returning keystroke re-queries from the live context, so this
         // can't strand a still-wanted suggestion.
         dropOverlay(why: "left the app")
+    }
+
+    func focusTrackerViewportDidChange(_ tracker: FocusTracker) {
+        dropOverlay(why: "the window moved or resized")
     }
 }

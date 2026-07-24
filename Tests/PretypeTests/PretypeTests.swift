@@ -646,6 +646,67 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(SuggestionWindow.ghostLift(caretHeight: 200, lineHeight: 16), 6.4, accuracy: 0.001) // whole-view span
     }
 
+    // The ghost hangs off the caret and runs in the writing direction, stopping
+    // at the field's far edge. Same rule for the first placement and every
+    // post-accept slide, so they cannot drift apart.
+    func testGhostSpan() {
+        // LTR: starts at the caret's right edge, full width when the field allows.
+        var span = SuggestionWindow.ghostSpan(anchorX: 100, textWidth: 60, bound: 400, rtl: false)
+        XCTAssertEqual(span.x, 100)
+        XCTAssertEqual(span.width, 60)
+        // Clipped by the field's right edge.
+        span = SuggestionWindow.ghostSpan(anchorX: 380, textWidth: 60, bound: 400, rtl: false)
+        XCTAssertEqual(span.x, 380)
+        XCTAssertEqual(span.width, 20)
+        // RTL: the caret is the ghost's RIGHT edge and it grows leftward.
+        span = SuggestionWindow.ghostSpan(anchorX: 300, textWidth: 60, bound: 100, rtl: true)
+        XCTAssertEqual(span.x, 240)
+        XCTAssertEqual(span.width, 60)
+        span = SuggestionWindow.ghostSpan(anchorX: 130, textWidth: 60, bound: 100, rtl: true)
+        XCTAssertEqual(span.x, 100)
+        XCTAssertEqual(span.width, 30)
+        // No room at all in the direction of growth — never a negative width.
+        span = SuggestionWindow.ghostSpan(anchorX: 420, textWidth: 60, bound: 400, rtl: false)
+        XCTAssertEqual(span.width, 0)
+        span = SuggestionWindow.ghostSpan(anchorX: 90, textWidth: 60, bound: 100, rtl: true)
+        XCTAssertEqual(span.width, 0)
+    }
+
+    // Which side of the caret the ghost belongs on. Decided by the first LETTER:
+    // digits, punctuation and currency are direction-neutral.
+    func testGhostWritingDirection() {
+        XCTAssertFalse(SuggestionWindow.isRightToLeft("hello there"))
+        XCTAssertFalse(SuggestionWindow.isRightToLeft(" привет"))
+        XCTAssertFalse(SuggestionWindow.isRightToLeft("你好"))
+        XCTAssertTrue(SuggestionWindow.isRightToLeft("שלום"))
+        XCTAssertTrue(SuggestionWindow.isRightToLeft(" مرحبا"))
+        // Neutral run first, then the letter that decides.
+        XCTAssertTrue(SuggestionWindow.isRightToLeft("50 ₪ שלום"))
+        XCTAssertFalse(SuggestionWindow.isRightToLeft("50 ₪ shekel"))
+        // Nothing to go on → the LTR default, which is where the ghost already sat.
+        XCTAssertFalse(SuggestionWindow.isRightToLeft("123 …"))
+        XCTAssertFalse(SuggestionWindow.isRightToLeft(""))
+    }
+
+    // ⇧⇥ accepts the WHOLE suggestion, so the ghost must never show less than it
+    // offers: what doesn't fit on the line is cut off the offer too.
+    func testFittingPrefix() {
+        let font = NSFont.systemFont(ofSize: 13)
+        let text = "не забудь взять зонт"
+        func width(_ s: String) -> CGFloat { (s as NSString).size(withAttributes: [.font: font]).width }
+        // Room for everything → untouched (and no measurement rounding drift).
+        XCTAssertEqual(SuggestionWindow.fittingPrefix(of: text, font: font, width: width(text) + 10), text)
+        // Cut at a word boundary, trailing space dropped.
+        let cut = SuggestionWindow.fittingPrefix(of: text, font: font, width: width("не забудь взять"))
+        XCTAssertEqual(cut, "не забудь взять")
+        XCTAssertTrue(text.hasPrefix(cut))   // only ever a prefix: narrowing still lines up
+        // Not even the first word fits → "" so the caller falls back to the pill,
+        // which draws the suggestion whole above the line.
+        XCTAssertEqual(SuggestionWindow.fittingPrefix(of: text, font: font, width: width("не") / 2), "")
+        XCTAssertEqual(SuggestionWindow.fittingPrefix(of: text, font: font, width: 0), "")
+        XCTAssertEqual(SuggestionWindow.fittingPrefix(of: "", font: font, width: 100), "")
+    }
+
     // ConfigProjection powers everything the settings UI claims a setting will
     // do — pin the cascade rules and the eval-backed figures it projects.
     func testConfigProjectionCascades() {
