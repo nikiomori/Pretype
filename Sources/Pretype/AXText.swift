@@ -226,7 +226,13 @@ enum AXText {
         return nil
     }
 
-    static func context(for element: AXUIElement, maxChars: Int) -> TextContext? {
+    /// `allowEmpty` keeps an EMPTY field readable: the completion pipeline has
+    /// nothing to continue there and treats it as no context at all, but the
+    /// reply flow's whole case is an empty chat box with a conversation above it.
+    /// Only the web/Electron fallback is affected — it is the path that refuses
+    /// an empty (or placeholder-showing) value.
+    static func context(for element: AXUIElement, maxChars: Int,
+                        allowEmpty: Bool = false) -> TextContext? {
         // Privacy floor: never read field text while a password field is active
         // anywhere (covers web/Electron password inputs the subrole check misses).
         if isSecureInputActive() { return nil }
@@ -282,21 +288,26 @@ enum AXText {
         // with the caret assumed at the end and float the overlay just above the
         // field — right for typing at the end of a chat input (the common case).
         guard let frame, frame.width > 20, frame.height > 0 else { return nil }
-        var value: String? = attribute(element, kAXValueAttribute)
-        if value?.isEmpty ?? true, let total: Int = attribute(element, kAXNumberOfCharactersAttribute), total > 0 {
-            value = string(forRange: CFRange(location: 0, length: min(total, maxChars)), in: element)
+        var read: String? = attribute(element, kAXValueAttribute)
+        if read?.isEmpty ?? true, let total: Int = attribute(element, kAXNumberOfCharactersAttribute), total > 0 {
+            read = string(forRange: CFRange(location: 0, length: min(total, maxChars)), in: element)
         }
-        guard let value, !value.isEmpty else {
-            DebugLog.shared.log("AX", "web field with no readable text — no suggestion")
-            return nil
-        }
+        var value = read ?? ""
         // Some Electron inputs (Claude Desktop) expose their placeholder as the AX
-        // value when empty — don't autocomplete "Type / for commands".
+        // value when empty — don't autocomplete "Type / for commands". For the
+        // reply flow the placeholder is proof the box is empty, not a reason to
+        // stop: read it as "".
         if let placeholder: String = attribute(element, kAXPlaceholderValueAttribute),
            !placeholder.isEmpty,
            value.trimmingCharacters(in: .whitespacesAndNewlines)
                == placeholder.trimmingCharacters(in: .whitespacesAndNewlines) {
-            DebugLog.shared.log("AX", "web field shows placeholder \"\(placeholder)\" — no suggestion")
+            DebugLog.shared.log("AX", "web field shows placeholder \"\(placeholder)\""
+                + (allowEmpty ? " — reading it as an empty field" : " — no suggestion"))
+            if !allowEmpty { return nil }
+            value = ""
+        }
+        if value.isEmpty, !allowEmpty {
+            DebugLog.shared.log("AX", "web field with no readable text — no suggestion")
             return nil
         }
         if looksMasked(value) { return nil }
@@ -341,7 +352,10 @@ enum AXText {
         // selection or the placeholder/idle state (e.g. Claude's "Describe a
         // task…"). Don't fabricate a completion there: this is the robust
         // placeholder guard, since Electron doesn't expose AXPlaceholderValue.
-        if marker != nil {
+        // The exception is an empty field asked for by the reply flow: an idle
+        // box IS the placeholder state, and that flow continues nothing — the
+        // estimate below only has to place the ghost.
+        if marker != nil, !(allowEmpty && value.isEmpty) {
             DebugLog.shared.log("AX", "web/Electron: marker spans the run (selection/placeholder) — no suggestion")
             return nil
         }

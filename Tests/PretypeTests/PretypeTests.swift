@@ -1160,4 +1160,108 @@ final class PretypeTests: XCTestCase {
         // Held-by-macOS is the one state that needs its own explanation.
         XCTAssertNotNil(LoginItem.note(.requiresApproval))
     }
+
+    // The double-tap gesture fires an LLM run on whatever is on screen, so it must
+    // fire on exactly the gesture and on nothing else the hand does routinely.
+    func testModifierDoubleTap() {
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        func at(_ dt: TimeInterval) -> Date { t0.addingTimeInterval(dt) }
+        var gesture = ModifierDoubleTap()
+        func down(_ dt: TimeInterval, _ flags: CGEventFlags = [.maskAlternate]) -> Bool {
+            gesture.modifierChanged(keyCode: KeyCode.leftOption, flags: flags,
+                                    gesture: .option, now: at(dt))
+        }
+        func up(_ dt: TimeInterval) -> Bool {
+            gesture.modifierChanged(keyCode: KeyCode.leftOption, flags: [],
+                                    gesture: .option, now: at(dt))
+        }
+
+        // Two clean taps in quick succession — the gesture.
+        XCTAssertFalse(down(0))
+        XCTAssertFalse(up(0.08))
+        XCTAssertFalse(down(0.2))
+        XCTAssertTrue(up(0.28))
+        // …and it does not re-fire on the next release without a fresh pair.
+        XCTAssertFalse(down(0.4))
+        XCTAssertFalse(up(0.45))
+
+        // A ⌥-chord (⌥E for an accent, ⌥← to jump a word) is not a tap.
+        gesture = ModifierDoubleTap()
+        XCTAssertFalse(down(0))
+        gesture.keyPressed()
+        XCTAssertFalse(up(0.08))
+        XCTAssertFalse(down(0.2))
+        XCTAssertFalse(up(0.28))
+
+        // Held ⌥ (menu alternates) is not a tap either.
+        gesture = ModifierDoubleTap()
+        XCTAssertFalse(down(0))
+        XCTAssertFalse(up(0.9))
+        XCTAssertFalse(down(1.0))
+        XCTAssertFalse(up(1.05))
+
+        // Two taps too far apart, and ⌥ pressed as part of ⌘⌥.
+        gesture = ModifierDoubleTap()
+        XCTAssertFalse(down(0))
+        XCTAssertFalse(up(0.08))
+        XCTAssertFalse(down(1.0))
+        XCTAssertFalse(up(1.05))
+        gesture = ModifierDoubleTap()
+        XCTAssertFalse(down(0, [.maskAlternate, .maskCommand]))
+        XCTAssertFalse(up(0.08))
+        XCTAssertFalse(down(0.2, [.maskAlternate, .maskCommand]))
+        XCTAssertFalse(up(0.28))
+
+        // The user's choice is honoured: the same clean double tap fires for the
+        // selected modifier only, and never when the gesture is off.
+        for (selected, code, mask) in [
+            (ReplyGesture.shift, KeyCode.leftShift, CGEventFlags.maskShift),
+            (.control, KeyCode.rightControl, .maskControl),
+            (.command, KeyCode.leftCommand, .maskCommand),
+        ] {
+            var picked = ModifierDoubleTap()
+            var wrong = ModifierDoubleTap()
+            var off = ModifierDoubleTap()
+            for (dt, flags) in [(0.0, mask), (0.08, []), (0.2, mask), (0.28, [])] {
+                let fire = picked.modifierChanged(keyCode: code, flags: flags,
+                                                  gesture: selected, now: at(dt))
+                XCTAssertEqual(fire, dt == 0.28, "\(selected.label) at \(dt)")
+                XCTAssertFalse(wrong.modifierChanged(keyCode: code, flags: flags,
+                                                     gesture: .option, now: at(dt)))
+                XCTAssertFalse(off.modifierChanged(keyCode: code, flags: flags,
+                                                   gesture: .off, now: at(dt)))
+            }
+        }
+    }
+
+    // The reply chord must never be mistaken for the fix chord (which would
+    // rewrite the user's word instead of composing a message), and a reply that
+    // parrots the draft back must not double it in the field.
+    func testReplyChordAndDraftEcho() {
+        for style in HotkeyStyle.allCases {
+            let key = style.keyCode
+            let fix: CGEventFlags = {
+                switch style {
+                case .tab: return [.maskAlternate]
+                case .cmdSpace, .optSpace: return [.maskCommand, .maskAlternate]
+                case .ctrlSpace: return [.maskControl, .maskAlternate]
+                }
+            }()
+            XCTAssertTrue(style.matchesReply(keyCode: key, flags: fix.union(.maskShift)))
+            XCTAssertFalse(style.matchesReply(keyCode: key, flags: fix))
+            XCTAssertFalse(style.matchesCorrection(keyCode: key, flags: fix.union(.maskShift)))
+            XCTAssertFalse(style.matchesAcceptAll(keyCode: key, flags: fix.union(.maskShift)))
+        }
+
+        // Draft echoed back: only the continuation is offered, re-joined with a
+        // space (apply() drops it when the draft already ends in one).
+        let drafted = CompletionRequest(textBeforeCaret: "Привет, ")
+        XCTAssertEqual(drafted.cleanReply("Привет, как дела?"), " как дела?")
+        // No draft, quoted answer: unwrapped, first line only.
+        let empty = CompletionRequest(textBeforeCaret: "")
+        XCTAssertEqual(empty.cleanReply("\"Sure, tomorrow works.\"\nExplanation: …"),
+                       "Sure, tomorrow works.")
+        // An answer that IS just the draft leaves nothing to show.
+        XCTAssertNil(drafted.cleanReply("привет,"))
+    }
 }

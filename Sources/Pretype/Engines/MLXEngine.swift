@@ -1095,6 +1095,42 @@ final class MLXEngine: CompletionEngine {
         return fixed
     }
 
+    // MARK: - Reply
+
+    /// Writes the user's next message from the conversation on screen, through
+    /// the same instruct sibling (and the same lazy load) as the ⌥⇥ fix — a base
+    /// model can't follow "answer this". One shot, no prompt cache: the prompt is
+    /// a fresh screenful every time, so a cache would only ever miss.
+    func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
+        guard let task = beginRequest() else { return nil }
+        defer { endRequest() }
+        let container = style == .instruct
+            ? try await task.value
+            : try await correctionContainer()
+        try Task.checkCancellation()
+
+        let instruction = request.replyPrompt(
+            conversation: conversation, instructions: instructionsBox.get())
+        let messages: [[String: any Sendable]] = [["role": "user", "content": instruction]]
+        // ponytail: flat 200-token budget — a few sentences, doubled for the
+        // Cyrillic case rather than measured per script. Tighten if replies ever
+        // read as clipped.
+        let parameters = GenerateParameters(maxTokens: 200, temperature: 0.0)
+        let output = try await Self.generate(
+            in: container,
+            makeTokens: { context in
+                try context.tokenizer.applyChatTemplate(
+                    messages: messages, tools: nil,
+                    additionalContext: ["enable_thinking": false])
+            },
+            parameters: parameters,
+            extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
+            promptCache: nil
+        )
+        try Task.checkCancellation()
+        return request.cleanReply(output)
+    }
+
     /// FIM emulation is only reliable on E4B-class instruct models; on the smaller
     /// E2B it echoes the suffix / misfires (measured). Fine-tunes & unknown ids are
     /// treated as not capable, so auto-FIM stays conservative.

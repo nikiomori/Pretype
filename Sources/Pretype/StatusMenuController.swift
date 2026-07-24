@@ -217,7 +217,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let s = Settings.hotkeyStyle
         return NSAttributedString(
             string: "\(s.label) accept word · \(s.shiftLabel) accept all\n"
-                + "\(s.correctionLabel) fix word/selection · ⏎ apply · ⎋ keep",
+                + "\(s.correctionLabel) fix word/selection · ⏎ apply · ⎋ keep\n"
+                + (Settings.replyGesture == .off
+                    ? "\(s.replyLabel) write a reply to what's on screen"
+                    : "\(Settings.replyGesture.label) or \(s.replyLabel) — write a reply to what's on screen"),
             attributes: [
                 .font: NSFont.menuFont(ofSize: NSFont.smallSystemFontSize),
                 .foregroundColor: NSColor.secondaryLabelColor,

@@ -88,6 +88,40 @@ enum SuggestionPresentation: String, CaseIterable {
     case panel
 }
 
+/// One-finger trigger for the composed reply: double-tap a bare modifier. The
+/// chord (see `HotkeyStyle.replyLabel`) always works too — this is the reachable
+/// twin, and it is a *choice* because every modifier is already somebody's
+/// global hotkey (launchers, dictation, window managers).
+enum ReplyGesture: String, CaseIterable {
+    case option
+    case shift
+    case control
+    case command
+    case off
+
+    var label: String {
+        switch self {
+        case .option: return "Double ⌥"
+        case .shift: return "Double ⇧"
+        case .control: return "Double ⌃"
+        case .command: return "Double ⌘"
+        case .off: return "Off"
+        }
+    }
+
+    /// The two physical keys to watch and the flag the modifier raises — enough
+    /// to tell a press from a release, and to ignore every other modifier.
+    var keys: (codes: [Int64], mask: CGEventFlags)? {
+        switch self {
+        case .option: return ([KeyCode.leftOption, KeyCode.rightOption], .maskAlternate)
+        case .shift: return ([KeyCode.leftShift, KeyCode.rightShift], .maskShift)
+        case .control: return ([KeyCode.leftControl, KeyCode.rightControl], .maskControl)
+        case .command: return ([KeyCode.leftCommand, KeyCode.rightCommand], .maskCommand)
+        case .off: return nil
+        }
+    }
+}
+
 enum HotkeyStyle: String, CaseIterable {
     case tab
     case cmdSpace
@@ -118,6 +152,16 @@ enum HotkeyStyle: String, CaseIterable {
         case .cmdSpace: return "⌥⌘Space"
         case .optSpace: return "⌥⌘Space"
         case .ctrlSpace: return "⌥⌃Space"
+        }
+    }
+
+    /// Compose-a-reply chord: the fix chord plus ⇧.
+    var replyLabel: String {
+        switch self {
+        case .tab: return "⌥⇧Tab"
+        case .cmdSpace: return "⌥⇧⌘Space"
+        case .optSpace: return "⌥⇧⌘Space"
+        case .ctrlSpace: return "⌃⌥⇧Space"
         }
     }
 
@@ -156,6 +200,13 @@ enum HotkeyStyle: String, CaseIterable {
         case .ctrlSpace:
             return actualFlags == [.maskControl, .maskShift]
         }
+    }
+
+    /// The fix chord with ⇧ added — derived, so the two can never drift apart
+    /// (and can never collide: the correction matcher demands exact flags).
+    func matchesReply(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        flags.contains(.maskShift)
+            && matchesCorrection(keyCode: keyCode, flags: flags.subtracting(.maskShift))
     }
 
     func matchesCorrection(keyCode: Int64, flags: CGEventFlags) -> Bool {
@@ -358,6 +409,7 @@ enum Settings {
             // still clearly "ghost" next to the host text but survives noise.
             "ghostOpacity": 0.7,
             "hotkeyStyle": HotkeyStyle.tab.rawValue,
+            "replyGesture": ReplyGesture.option.rawValue,
             "onboardingCompleted": false,
         ])
         // The catalog changes over time; clear stale model picks every launch.
@@ -575,6 +627,13 @@ enum Settings {
     static var hotkeyStyle: HotkeyStyle {
         get { HotkeyStyle(rawValue: defaults.string(forKey: "hotkeyStyle") ?? "") ?? .tab }
         set { defaults.set(newValue.rawValue, forKey: "hotkeyStyle") }
+    }
+
+    /// Read on every modifier event, so a change applies to the next keypress —
+    /// no relaunch, no event-tap rebuild.
+    static var replyGesture: ReplyGesture {
+        get { ReplyGesture(rawValue: defaults.string(forKey: "replyGesture") ?? "") ?? .option }
+        set { defaults.set(newValue.rawValue, forKey: "replyGesture") }
     }
 }
 

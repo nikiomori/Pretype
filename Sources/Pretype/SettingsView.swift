@@ -44,6 +44,10 @@ final class SettingsStore: ObservableObject {
             Settings.hotkeyStyle = hotkeyStyle
             controller?.dismiss() }
     }
+    @Published var replyGesture = ReplyGesture.option {
+        didSet { guard !syncing, oldValue != replyGesture else { return }
+            Settings.replyGesture = replyGesture }
+    }
     @Published var ghostOpacity = 0.7 {
         didSet { guard !syncing else { return }
             Settings.ghostOpacity = ghostOpacity }
@@ -509,6 +513,7 @@ final class SettingsStore: ObservableObject {
         enabled = Settings.enabled
         presentation = Settings.suggestionPresentation
         hotkeyStyle = Settings.hotkeyStyle
+        replyGesture = Settings.replyGesture
         ghostOpacity = Settings.ghostOpacity
         blacklist = Settings.userBlacklist
         useRecommended = Settings.useRecommendedSettings
@@ -939,6 +944,10 @@ struct GeneralTab: View {
                 Picker("Accept hotkey", selection: $store.hotkeyStyle) {
                     ForEach(HotkeyStyle.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
+                Picker("Write a reply", selection: $store.replyGesture) {
+                    ForEach(ReplyGesture.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                Caption("Reads the conversation on screen (needs Screen Context) and drafts your next message as ghost text — \(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) takes all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel); pick the one that doesn't clash with your launcher.")
                 // Ghost opacity dims inline ghost text only; the panel is an
                 // opaque HUD by design (SuggestionWindow), so the slider is
                 // inline-only — a control that moved the preview but never the

@@ -79,6 +79,9 @@ final class SuggestionController: NSObject {
     /// hide it though — a confident personal phrase beats showing nothing.
     private var activeIsInstant = false
 
+    /// Double-tap-a-modifier state — the easy-to-reach twin of the reply chord.
+    private var replyTap = ModifierDoubleTap()
+
     private var keyRefreshScheduled = false
     private var lastAcceptedChunk: String?
     /// The most recent `textBeforeCaret` seen by `textDidChange`. Lets a streamed
@@ -145,6 +148,13 @@ final class SuggestionController: NSObject {
         focusTracker.delegate = self
         keyTap.handler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
+        }
+        keyTap.flagsHandler = { [weak self] event in
+            guard let self, self.replyTap.modifierChanged(
+                keyCode: event.getIntegerValueField(.keyboardEventKeycode),
+                flags: event.flags, gesture: Settings.replyGesture, now: Date()) else { return }
+            // Off the tap callback before any AX read — same rule as the chord.
+            DispatchQueue.main.async { [weak self] in self?.composeReply() }
         }
     }
 
@@ -671,10 +681,11 @@ final class SuggestionController: NSObject {
     @discardableResult
     private func apply(_ result: String?, requestText: String,
                        cachedContext: TextContext? = nil, countShown: Bool = true,
-                       instant: Bool = false) -> Bool {
+                       instant: Bool = false, maxChars: Int = 120,
+                       allowEmpty: Bool = false) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
-        var suggestion = result.map(sanitize) ?? ""
+        var suggestion = result.map { sanitize($0, maxChars: maxChars) } ?? ""
         guard !suggestion.isEmpty else {
             // nil/empty is an abstain — or a mid-stream RETRACT ("" from the
             // engine when its final gate rejected what the partials already
@@ -704,10 +715,15 @@ final class SuggestionController: NSObject {
         if let cachedContext, cachedContext.textBeforeCaret == latestTextBeforeCaret {
             ctx = cachedContext
         } else if let element = currentTextElement(),
-                  let fresh = AXText.context(for: element, maxChars: Settings.maxContextChars) {
+                  let fresh = AXText.context(for: element, maxChars: Settings.maxContextChars,
+                                             allowEmpty: allowEmpty) {
             ctx = fresh
         } else {
+            // The reply path lands here whenever the field is empty and this read
+            // refuses it — which was every composed reply in a web/Electron chat
+            // box: generated, then dropped one line before the ghost.
             lastEvent = "lost text element"
+            DebugLog.shared.log("SHOW", "dropped a result — field unreadable at apply time")
             window.hide()
             return false
         }
@@ -820,7 +836,9 @@ final class SuggestionController: NSObject {
         }
     }
 
-    private func sanitize(_ raw: String) -> String {
+    /// `maxChars` is the hard backstop on what can reach the field: a keystroke
+    /// completion is a few words, a composed reply a few sentences.
+    private func sanitize(_ raw: String, maxChars: Int = 120) -> String {
         var out = raw.replacingOccurrences(of: "\t", with: " ")
         if let newline = out.firstIndex(where: { $0.isNewline }) {
             out = String(out[..<newline])
@@ -828,8 +846,8 @@ final class SuggestionController: NSObject {
         while out.contains("  ") {
             out = out.replacingOccurrences(of: "  ", with: " ")
         }
-        if out.count > 120 {
-            out = String(out.prefix(120))
+        if out.count > maxChars {
+            out = String(out.prefix(maxChars))
         }
         while out.hasSuffix(" ") {
             out.removeLast()
@@ -837,11 +855,129 @@ final class SuggestionController: NSObject {
         return out
     }
 
+    // MARK: - Reply
+
+    /// Write the user's next message for them: OCR the conversation in front of
+    /// them, ask the engine to answer it, and offer the whole thing as one ghost
+    /// the normal accept keys take (⇥ word by word, ⇧⇥ all of it, ⎋ to drop it).
+    /// Explicit chord only — nothing is generated, and nothing typed, unasked.
+    ///
+    /// It borrows `refreshTask` for the duration, so the thinking dots run, a
+    /// keystroke or a focus change cancels it, and it can't race a completion.
+    /// Never call inside the event-tap callback: it does synchronous AX reads.
+    private func composeReply() {
+        // Every stop below says why, in the console and in the menu's "Last:"
+        // line: an explicitly-pressed chord that does nothing, silently, is
+        // indistinguishable from a broken build.
+        DebugLog.shared.log(
+            "REPLY", "requested (\(Settings.replyGesture.label) / \(Settings.hotkeyStyle.replyLabel))")
+        func stop(_ why: String) {
+            lastEvent = "reply: \(why)"
+            DebugLog.shared.log("REPLY", "not composing — \(why)")
+        }
+        guard Settings.enabled else { return stop("Pretype is paused") }
+        guard !isOwnUIFrontmost else { return stop("our own window is frontmost") }
+        guard !AppPolicy.isBlacklisted(typingContext.bundleID) else {
+            return stop("off in \(typingContext.appName ?? "this app")")
+        }
+        guard let element = currentTextElement() else {
+            return stop("no text field in focus")
+        }
+        // allowEmpty: an empty chat box is the case this feature exists for —
+        // the completion pipeline's "nothing to continue" is not a refusal here.
+        guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars,
+                                       allowEmpty: true),
+              let rect = ctx.caretRect else {
+            return stop("cannot read the field or place the ghost")
+        }
+        lastCaretRect = rect
+        lastHostStyle = ctx.host
+        // We just read the field — make that the cache marker, so the result
+        // lands on the cached context instead of paying for another AX read
+        // (and so an accept advances from the right place).
+        latestTextBeforeCaret = ctx.textBeforeCaret
+        // Without the screen there is nothing to reply *to*: say so at the caret
+        // instead of answering from the empty field.
+        guard Settings.screenContextEnabled, ScreenContext.hasPermission,
+              AppPolicy.allowsScreenContext(typingContext.bundleID) else {
+            stop("needs screen context — \(screenContextStatus)")
+            indicator.flashTransient(.error("reply needs screen context"))
+            return
+        }
+        clearActiveCompletion()
+        window.hide()
+        indicator.start()
+        lastEvent = "composing a reply…"
+
+        let request = makeRequest(text: ctx.textBeforeCaret, after: ctx.textAfterCaret)
+        let engine = engine
+        let pid = focusTracker.observedPID
+        let generation = focusGeneration
+        refreshSeq += 1
+        let refreshID = refreshSeq
+        refreshTask = Task { [weak self] in
+            // A fresh, wider capture — not the 25 s-cached completion context:
+            // the message being answered may have landed a second ago. No caret
+            // ROI either: that band is ±250 pt of the input box, while a reply
+            // needs the exchange above it — the whole window, capped from the
+            // bottom, which is where the recent messages are.
+            let conversation = await ScreenContext.capture(
+                pid: pid, excluding: ctx.textBeforeCaret, caretRect: nil, maxChars: 1200)
+            if Task.isCancelled { return }
+            let outcome: Result<String?, Error>
+            if let conversation {
+                do {
+                    outcome = .success(try await engine.reply(to: conversation, request: request))
+                } catch is CancellationError {
+                    return
+                } catch {
+                    outcome = .failure(error)
+                }
+            } else {
+                outcome = .success(nil)
+            }
+            await MainActor.run { [weak self] in
+                guard let self, !Task.isCancelled else { return }
+                if self.refreshSeq == refreshID { self.refreshTask = nil }
+                self.indicator.stop()
+                guard self.focusGeneration == generation else {
+                    DebugLog.shared.log("REPLY", "dropped — focus changed")
+                    return
+                }
+                // Count only, never the text: this is OTHER people's on-screen
+                // text and the log is exportable (same rule as the OCR log).
+                DebugLog.shared.log(
+                    "REPLY", "\(conversation?.count ?? 0) chars of screen context")
+                switch outcome {
+                case .success(let reply?):
+                    // Through the normal apply path: same anchoring, settle and
+                    // journal rules as a completion — only longer, and reading an
+                    // empty field as a real (empty) context.
+                    let shown = self.apply(reply, requestText: ctx.textBeforeCaret,
+                                           cachedContext: ctx, maxChars: 400, allowEmpty: true)
+                    DebugLog.shared.log("REPLY", shown ? "shown" : "dropped — \(self.lastEvent)")
+                case .success(nil):
+                    // Two different silences: nothing readable on screen, or the
+                    // model had nothing to say about it.
+                    let why = conversation == nil ? "nothing to reply to" : "no answer from the model"
+                    self.lastEvent = "reply: \(why)"
+                    self.indicator.flashTransient(.hint(why))
+                case .failure(let error):
+                    self.lastEvent = "reply failed: \(error.localizedDescription)"
+                    DebugLog.shared.log("ERROR", "reply failed: \(error.localizedDescription)")
+                    self.indicator.flashTransient(.error("reply failed"))
+                }
+            }
+        }
+    }
+
     // MARK: - Key handling
 
     private func handleKeyDown(_ event: CGEvent) -> Bool {
         guard Settings.enabled else { return false }
         if event.getIntegerValueField(.eventSourceUserData) == TextInjector.magicTag { return false }
+        // A real keystroke means a held modifier is part of a chord, not a tap.
+        replyTap.keyPressed()
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
@@ -863,6 +999,16 @@ final class SuggestionController: NSObject {
             // Delete off the tap, after a live re-read: the cache trails typing
             // in Electron, and blind backspaces at a moved caret eat text.
             DispatchQueue.main.async { [weak self] in self?.undoAccept(accepted, expected: expected) }
+            return true
+        }
+
+        // Compose a reply from what's on screen (⌥⇧⇥). Checked before the fix
+        // flows only for symmetry — the two chords differ by ⇧ and the fix
+        // matcher demands exact flags, so neither can swallow the other. Hops
+        // off the tap: the flow does synchronous AX reads.
+        if Settings.hotkeyStyle.matchesReply(keyCode: keyCode, flags: flags) {
+            lastAcceptedChunk = nil
+            DispatchQueue.main.async { [weak self] in self?.composeReply() }
             return true
         }
 

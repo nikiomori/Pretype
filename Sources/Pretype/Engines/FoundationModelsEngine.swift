@@ -292,6 +292,31 @@ final class FoundationModelsEngine: CompletionEngine {
         return fixed
     }
 
+    func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
+        guard case .ready = stateBox.get() else { return nil }
+        let session = LanguageModelSession()
+        let prompt = request.replyPrompt(
+            conversation: conversation, instructions: instructionsBox.get())
+        do {
+            let response = try await session.respond(
+                to: prompt,
+                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 200)
+            )
+            try Task.checkCancellation()
+            return request.cleanReply(response.content)
+        } catch let error as LanguageModelSession.GenerationError {
+            switch error {
+            // Same split as correct(): a resource error is a failure the user
+            // should see, anything else is a decline.
+            case .rateLimited, .concurrentRequests:
+                throw error
+            default:
+                DebugLog.shared.log("FM", "reply abstain — \(Self.describe(error))")
+                return nil
+            }
+        }
+    }
+
     /// Short, log-friendly reason for an Apple Intelligence abstain.
     private static func describe(_ error: LanguageModelSession.GenerationError) -> String {
         switch error {

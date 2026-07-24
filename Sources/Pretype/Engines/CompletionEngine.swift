@@ -70,6 +70,52 @@ extension CompletionRequest {
         return personalExamples.prefix(3).map { $0.ctx + $0.next }.joined(separator: "\n")
     }
 
+    /// Prompt for the reply hotkey: the model writes the user's next message
+    /// itself from the conversation OCR'd off the screen. Written as an
+    /// instruction (not as text to continue) — it rides the engines' chat
+    /// templates, the same path the ⌥⇥ fix uses.
+    func replyPrompt(conversation: String, instructions: String) -> String {
+        var prompt = "You are writing the next message the user will send"
+        if let appName, !appName.isEmpty { prompt += " in \(appName)" }
+        prompt += """
+        . Answer the conversation below as the user, in ITS language — 1–3 \
+        sentences, plain text only. No quotes, no salutation, no explanation, \
+        no translation, and never restate the conversation.
+        """
+        let persona = persona(global: instructions)
+        if !persona.isEmpty {
+            prompt += "\n\nAbout the user (voice only, never quote it):\n\(persona)"
+        }
+        prompt += "\n\nConversation on screen:\n\(conversation)"
+        let draft = textBeforeCaret.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !draft.isEmpty {
+            prompt += """
+
+
+            The user has already started the message: "\(String(draft.suffix(200)))"
+            Continue it — reply with ONLY the words that come after it.
+            """
+        }
+        return prompt
+    }
+
+    /// Normalize a raw reply generation: one clean line (the fix path's cleanup,
+    /// shared so it can't drift), minus an echo of the draft the user already
+    /// typed — instruct models like to restate it before continuing. The
+    /// re-joining space is dropped downstream when the draft already ends in one.
+    /// nil when nothing usable is left.
+    func cleanReply(_ raw: String) -> String? {
+        var text = CorrectionGates.cleanCorrectionOutput(raw)
+        let draft = textBeforeCaret.trimmingCharacters(in: .whitespacesAndNewlines)
+        // No length guard: a reply that IS the draft leaves nothing to offer
+        // (the alternative is a ghost that types the draft a second time).
+        if !draft.isEmpty, text.prefix(draft.count).lowercased() == draft.lowercased() {
+            text = String(text.dropFirst(draft.count)).trimmingCharacters(in: .whitespaces)
+            if !text.isEmpty { text = " " + text }
+        }
+        return text.isEmpty ? nil : text
+    }
+
     /// The persona for this request: the global instructions plus the user's
     /// per-app addition for the app being typed in. Resolved at generation
     /// time so edits apply live — same discipline as the global instructions.
@@ -201,6 +247,11 @@ protocol CompletionEngine: AnyObject {
     /// when there is nothing to fix.
     func correct(selection: String, request: CompletionRequest) async throws -> String?
 
+    /// Composes the user's whole next message from the conversation on screen
+    /// (the reply hotkey), instead of continuing what they typed. nil when the
+    /// engine declines — or can't do it at all.
+    func reply(to conversation: String, request: CompletionRequest) async throws -> String?
+
     /// Live update of the user-tunable completion knobs (length, persona).
     /// Style/model changes rebuild the engine instead; these don't.
     func updateCompletion(length: CompletionLength, instructions: String)
@@ -231,6 +282,7 @@ extension CompletionEngine {
     }
     var supportsCorrection: Bool { false }
     func correct(selection: String, request: CompletionRequest) async throws -> String? { nil }
+    func reply(to conversation: String, request: CompletionRequest) async throws -> String? { nil }
     func updateCompletion(length: CompletionLength, instructions: String) {}
     func updatePersonalization(_ level: PersonalizationLevel) {}
     func shutdown() {}
