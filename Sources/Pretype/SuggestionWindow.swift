@@ -529,9 +529,18 @@ final class SuggestionWindow: NSPanel {
         // Single line, ellipsized when the window can't fit the tail.
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
+        // "Increase contrast" exists to stop exactly this: text you have to
+        // squint at. Floor the opacity SETTING, not the finished ink: `dim`
+        // still scales it, so the head-vs-tail split survives (it's what shows
+        // how far one ⇥ reaches) and the ⇥ chunk stays visibly lighter than the
+        // words the user actually typed — at full label alpha the ghost reads
+        // as already committed text.
+        var opacity = CGFloat(Settings.ghostOpacity)
+        if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast { opacity = max(0.85, opacity) }
+        let strength = opacity * dim
         return NSAttributedString(string: string, attributes: [
             .font: ghostFont,
-            .foregroundColor: Self.dynamicAlpha(.labelColor, CGFloat(Settings.ghostOpacity) * dim),
+            .foregroundColor: Self.dynamicAlpha(.labelColor, strength),
             .shadow: halo,
             .paragraphStyle: paragraph,
         ])

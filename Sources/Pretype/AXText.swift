@@ -264,7 +264,16 @@ enum AXText {
             }
             guard let textBeforeCaret = text, !looksMasked(textBeforeCaret) else { return nil }
             var textAfterCaret = ""
-            if let total: Int = attribute(element, kAXNumberOfCharactersAttribute) {
+            // A field that doesn't publish `AXNumberOfCharacters` used to yield
+            // an EMPTY after-text — indistinguishable from "the caret is at the
+            // end", which is what `textFollowsCaret`, the caret-splits-a-word
+            // guard and the gates' duplication check all read. All three then go
+            // quiet at once and the ghost paints over the user's own words. The
+            // value's own length answers the same question; `??` keeps that read
+            // off the path of every field that does publish the count.
+            let total: Int? = attribute(element, kAXNumberOfCharactersAttribute)
+                ?? (attribute(element, kAXValueAttribute) as String?).map { ($0 as NSString).length }
+            if let total {
                 let afterLength = min(192, total - caret)
                 if afterLength > 0 {
                     textAfterCaret = string(forRange: CFRange(location: caret, length: afterLength), in: element) ?? ""

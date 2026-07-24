@@ -149,6 +149,9 @@ final class SuggestionController: NSObject {
         keyTap.handler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
         }
+        keyTap.scrollHandler = { [weak self] in
+            self?.dropOverlay(why: "the view scrolled")
+        }
         keyTap.flagsHandler = { [weak self] event in
             guard let self, self.replyTap.modifierChanged(
                 keyCode: event.getIntegerValueField(.keyboardEventKeycode),
@@ -259,6 +262,19 @@ final class SuggestionController: NSObject {
         if !Settings.onboardingCompleted {
             onboardingWindow?.updateStatusSuggestionActive(false)
         }
+    }
+
+    /// The overlay is placed in screen coordinates, and nothing re-places it
+    /// when the host view moves under it: AX posts no scroll notification, and
+    /// the caret rect it would report after one can sit outside the visible clip
+    /// (a scrolled-away caret in an NSTextView is still inside the text view's
+    /// own frame). So a viewport change drops the overlay instead of chasing it
+    /// — the next keystroke re-queries from the live caret. Cheap enough to sit
+    /// on the scroll-event path: three flags before anything else runs.
+    private func dropOverlay(why: String) {
+        guard active != nil || refreshTask != nil || window.isVisible else { return }
+        lastEvent = "dismissed — \(why)"
+        dismiss()
     }
 
     /// Drop any live completion without touching the overlay — used when a
@@ -1389,8 +1405,6 @@ extension SuggestionController: FocusTrackerDelegate {
         // Left the app we were typing in — drop any ghost/indicator left at its
         // caret. A returning keystroke re-queries from the live context, so this
         // can't strand a still-wanted suggestion.
-        guard active != nil || refreshTask != nil || window.isVisible else { return }
-        lastEvent = "dismissed — left the app"
-        dismiss()
+        dropOverlay(why: "left the app")
     }
 }

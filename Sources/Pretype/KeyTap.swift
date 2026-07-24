@@ -8,13 +8,32 @@ final class KeyTap {
     /// Modifier presses/releases, observed only — never swallowed. Feeds the
     /// double-⌥ gesture; a modifier the user pressed must always reach the app.
     var flagsHandler: ((CGEvent) -> Void)?
+    /// Scroll events, observed only. The overlay is placed in SCREEN coordinates
+    /// and AX posts no notification for a scroll, so the line slides out from
+    /// under a live ghost and leaves it sitting over unrelated text.
+    ///
+    /// Delivered by a global NSEvent monitor, NOT by the tap: the tap is a
+    /// filtering one, so every scroll event on the session — momentum frames
+    /// included — would have to round-trip through this process's main run loop
+    /// before any app saw it, and a main thread busy with an AX read would show
+    /// up as system-wide scroll jank (and a tap disabled by timeout). A monitor
+    /// gets a copy and gates nothing.
+    var scrollHandler: (() -> Void)?
 
     private var tapPort: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var scrollMonitor: Any?
 
     var isActive: Bool { tapPort != nil }
 
     func start() {
+        // Before the tap guard: `start()` is retried every 3 s until the tap
+        // comes up, and the monitor needs installing exactly once either way.
+        if scrollMonitor == nil {
+            scrollMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] _ in
+                self?.scrollHandler?()
+            }
+        }
         guard tapPort == nil else { return }
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue
             | 1 << CGEventType.flagsChanged.rawValue)
@@ -70,6 +89,10 @@ final class KeyTap {
         if let tapPort {
             CFMachPortInvalidate(tapPort)
         }
+        if let scrollMonitor {
+            NSEvent.removeMonitor(scrollMonitor)
+        }
+        scrollMonitor = nil
         runLoopSource = nil
         tapPort = nil
     }
