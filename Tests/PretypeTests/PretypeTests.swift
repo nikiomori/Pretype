@@ -1346,6 +1346,44 @@ final class PretypeTests: XCTestCase {
         XCTAssertFalse(Stats.isUnproductive(app))
     }
 
+    // The denominator behind BOTH the acceptance figure and the go-quiet verdict.
+    // Booking every ghost at draw time counted offers the typing itself outran —
+    // a week of real journal read 1.7% taken in every app, which is under the
+    // quiet floor, i.e. the app was on course to silence itself everywhere.
+    @MainActor
+    func testOfferCountsOnlyRealChances() {
+        func chance(_ outcome: SuggestionJournal.Outcome, _ ms: Int, took: Bool = false) -> Bool {
+            Stats.isChance(outcome: outcome, shownForMs: ms, tookAny: took)
+        }
+        // Replaced by the next generation, or typed out by the user unaided:
+        // never a rejection, however long it stood.
+        XCTAssertFalse(chance(.superseded, 5_000))
+        XCTAssertFalse(chance(.typedThrough, 5_000))
+        // Gone before it could be read vs. stood long enough to ignore.
+        XCTAssertFalse(chance(.diverged, Stats.offerNoticeMs - 1))
+        XCTAssertTrue(chance(.diverged, Stats.offerNoticeMs))
+        XCTAssertFalse(chance(.abandoned, 0))
+        XCTAssertTrue(chance(.abandoned, 1_200))
+        // ⎋ is a deliberate no, however fast it lands.
+        XCTAssertTrue(chance(.dismissed, 10))
+        // Anything taken always counts, whole or word-by-word — otherwise a
+        // partial accept could book `accepted` with no `shown` behind it, and
+        // the menu would show more than 100% taken.
+        XCTAssertTrue(chance(.accepted, 10))
+        XCTAssertTrue(chance(.diverged, 10, took: true))
+        XCTAssertTrue(chance(.superseded, 10, took: true))
+
+        // And the booking itself follows the rule, per app.
+        let app = "test.pretype.chances"
+        defer { Stats.clearRecord(for: app) }
+        Stats.clearRecord(for: app)
+        Stats.recordOffer(outcome: .superseded, shownForMs: 220, tookAny: false, app: app)
+        Stats.recordOffer(outcome: .diverged, shownForMs: 100, tookAny: false, app: app)
+        XCTAssertNil(Stats.record(for: app))
+        Stats.recordOffer(outcome: .diverged, shownForMs: 900, tookAny: false, app: app)
+        XCTAssertEqual(Stats.record(for: app)?.shown, 1)
+    }
+
     // The menu now sells a time figure, so the keystrokes behind it have to be
     // net of the accept press — counting that press as a saving would inflate
     // every number the user is shown.

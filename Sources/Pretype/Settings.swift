@@ -338,6 +338,8 @@ enum Settings {
     }
 
     static func registerDefaults() {
+        // Per-app "this is useless here" verdicts predate the fair denominator.
+        Stats.migrateAppRecordsIfNeeded()
         // Migrate the retired `.word` length (pre-redesign UI offered it) to
         // its successor, so the stored value always matches what the settings
         // surface can display and the projection describes.

@@ -28,9 +28,11 @@ It passes straight through. The event tap only swallows the key while a suggesti
 
 ### Suggestions stopped appearing in one app
 
-Deliberate. Once Pretype has offered a few dozen completions in an app and under 5% of them were taken, it stops offering there — a model that is wrong in a particular field is pure interruption, and generating them costs battery. Everything else keeps working: inline typo fixes, emoji shortcodes and <kbd>⌥Tab</kbd> rewrites are unaffected.
+Deliberate. Once Pretype has offered a few dozen completions in an app and under 2% of them were taken, it stops offering there — a model that is wrong in a particular field is pure interruption, and generating them costs battery. Everything else keeps working: inline typo fixes, emoji shortcodes and <kbd>⌥Tab</kbd> rewrites are unaffected.
 
-It isn't silent about it. The menu-bar item that normally offers *Disable in …* names the app and the numbers behind the decision instead — **Quiet in Slack — 2% of 74 taken · Resume** — and one click clears the record and starts offering again from scratch.
+Only offers you could actually have taken count toward that. The pipeline re-offers after every keystroke, so a ghost that was replaced by the next one, or that vanished in under 0.4 s, was never a suggestion you declined — and one you typed out yourself, word for word, means the model was right. None of those reach the tally, and neither do they reach the acceptance figure in **Diagnostics**.
+
+It isn't silent about it. The menu-bar item that normally offers *Disable in …* becomes **Resume in Slack** instead, hovering the numbers behind the decision (*"Pretype went quiet here: 2% of 74 suggestions taken."*), and one click clears the record and starts offering again from scratch.
 
 ### What does it cost in battery and memory?
 

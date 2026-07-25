@@ -62,6 +62,48 @@ enum Stats {
         bumpApp(app, shown: 1)
     }
 
+    /// How long a ghost must survive before ignoring it counts as ignoring it.
+    ///
+    /// Calibrated against this Mac's own journal: the 10th percentile of
+    /// ACCEPTED offers is ~680 ms and their median ~980 ms, while the median
+    /// offer overall dies at ~230 ms — one keystroke, before a reader could
+    /// finish looking at it.
+    static let offerNoticeMs = 400
+
+    /// True when the user had a real chance to take this offer. Booking every
+    /// ghost the instant it was drawn made a denominator mostly of offers
+    /// nobody could act on: the completion pipeline re-offers after each
+    /// keystroke, so fast typing manufactures "shown" faster than a human can
+    /// read. On a week of this Mac's journal that read 1.7% taken in every app
+    /// the user actually types in — which is below the go-quiet floor, i.e. the
+    /// app was on course to silence itself everywhere.
+    ///
+    /// Excluded, and why:
+    /// * `superseded` — a newer generation replaced it; it was never an offer.
+    /// * `typedThrough` — the user typed exactly what was suggested. The model
+    ///   was right, so counting it as a rejection punishes it for being right.
+    /// * anything gone in under `offerNoticeMs` — read before it could be read.
+    ///
+    /// Always counted: anything taken, whole or word-by-word (so `accepted`
+    /// can never exceed `shown`), and an explicit ⎋, which is a real rejection
+    /// however fast it lands.
+    static func isChance(outcome: SuggestionJournal.Outcome, shownForMs: Int, tookAny: Bool) -> Bool {
+        if tookAny { return true }
+        switch outcome {
+        case .accepted, .undone, .dismissed: return true
+        case .superseded, .typedThrough: return false
+        case .diverged, .abandoned: return shownForMs >= offerNoticeMs
+        }
+    }
+
+    /// Book a resolved offer — see `isChance` for what makes one countable.
+    static func recordOffer(
+        outcome: SuggestionJournal.Outcome, shownForMs: Int, tookAny: Bool, app: String?
+    ) {
+        guard isChance(outcome: outcome, shownForMs: shownForMs, tookAny: tookAny) else { return }
+        recordShown(app: app)
+    }
+
     static func recordAccepted(chunk: String, countSuggestion: Bool = true, app: String? = nil) {
         // A suggestion accepted word-by-word calls this per word: count it as one
         // accepted suggestion (keeps "accepted ≤ shown"), but accrue chars per chunk.
@@ -199,16 +241,38 @@ enum Stats {
     /// each suggestion. At typing rates that is nothing, and it needs no schema,
     /// no store and no migration.
     private static let appKey = "stats.byApp"
-    /// Suggestions needed before the record says anything at all.
+    /// Chances (see `isChance`) needed before the record says anything at all.
     static let appVerdictMinShown = 60
     /// Below this share taken, the app is one Pretype is only interrupting.
     /// Deliberately brutal: the point is to stop being useless somewhere, not to
     /// prune every app that is merely below average.
-    static let appQuietRate = 0.05
+    ///
+    /// 2%, not the 5% this shipped with, because the denominator changed under
+    /// it: counting only offers the user could act on, the apps on this Mac's
+    /// journal where completions clearly do work sit at 4.5–6.4% taken, so a 5%
+    /// floor would still have silenced them. Apps where the ghost is genuinely
+    /// useless read a flat 0%, and that is what this is for.
+    static let appQuietRate = 0.02
     /// Halve both counts past this many shown, so a new model — or a change of
     /// habit — is felt within a few hundred suggestions instead of being
     /// outvoted by last month's.
     static let appDecayAt = 400
+
+    /// Drop track records collected under the old counting rule, once.
+    ///
+    /// They were built from a denominator that counted every ghost the typing
+    /// outran (see `isChance`), which read ~1.7% taken everywhere and silenced
+    /// the first app to reach the sample bar. Keeping those numbers would leave
+    /// the user quietly muted in apps that were never judged fairly, with only a
+    /// menu item they'd have to find to undo it — so the verdicts start over.
+    /// Nonisolated: `Settings.registerDefaults` runs before the main actor.
+    nonisolated static func migrateAppRecordsIfNeeded() {
+        let defaults = UserDefaults.standard
+        let key = "stats.byAppRule"
+        guard defaults.integer(forKey: key) < 2 else { return }
+        defaults.removeObject(forKey: appKey)
+        defaults.set(2, forKey: key)
+    }
 
     static func record(for app: String?) -> (shown: Int, accepted: Int)? {
         guard let app, let pair = records()[app], pair.count == 2, pair[0] > 0 else { return nil }

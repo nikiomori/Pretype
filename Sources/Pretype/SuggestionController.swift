@@ -59,6 +59,11 @@ final class SuggestionController: NSObject {
         var suggestion: String
         var acceptedChars = 0
         var hadScreen: Bool
+        /// The app this was offered in, captured at show time. Resolution can
+        /// arrive after focus has already moved (a `.abandoned` on app switch),
+        /// and `typingContext` names the NEW app by then — booking the offer, or
+        /// journaling it, against that one blames the wrong app.
+        var app: String?
         /// "ngram" for the fast-path, else the engine's name — so the journal
         /// can compare their acceptance rates.
         var engine: String
@@ -215,6 +220,12 @@ final class SuggestionController: NSObject {
     private func resolveJournal(_ outcome: SuggestionJournal.Outcome, typed: String? = nil) {
         guard let pending = pendingJournal else { return }
         pendingJournal = nil
+        // The counters are booked HERE, not where the ghost was drawn: what makes
+        // a ghost an offer the user could take is how long it survived and what
+        // ended it, and neither is known until now. See `Stats.isChance`.
+        let shownForMs = Int(Date().timeIntervalSince(pending.shownAt) * 1000)
+        Stats.recordOffer(outcome: outcome, shownForMs: shownForMs,
+                          tookAny: pending.acceptedChars > 0, app: pending.app)
         guard Settings.suggestionJournalEnabled else { return }
         // ONE snapshot for both consumers: observe's delta cursor must see
         // exactly the ctx window the journal stores, or the next launch's
@@ -223,11 +234,11 @@ final class SuggestionController: NSObject {
         // Live n-gram learning from the same ctx snapshots the startup build
         // replays — so today's typing predicts today, not from the next launch.
         if Settings.personalizationLevel != .off {
-            PersonalNgram.shared.observe(ctx: ctx, app: typingContext.bundleID)
+            PersonalNgram.shared.observe(ctx: ctx, app: pending.app)
         }
         SuggestionJournal.shared.append(SuggestionJournal.Entry(
             ts: SuggestionJournal.timestamp(),
-            app: typingContext.bundleID,
+            app: pending.app,
             engine: pending.engine,
             model: pending.model,
             style: pending.style,
@@ -245,7 +256,7 @@ final class SuggestionController: NSObject {
             outcome: outcome,
             acceptedChars: pending.acceptedChars,
             typed: typed.map { String($0.prefix(20)) },
-            shownForMs: Int(Date().timeIntervalSince(pending.shownAt) * 1000),
+            shownForMs: shownForMs,
             screen: pending.hadScreen))
     }
 
@@ -803,14 +814,15 @@ final class SuggestionController: NSObject {
                         accepted: countShown ? false : (active?.accepted ?? false))
         activeIsInstant = instant
         if countShown {
-            Stats.recordShown(app: typingContext.bundleID)
             // A fresh suggestion opens a journal record; an unresolved one at
-            // this point was replaced before the user reacted to it.
+            // this point was replaced before the user reacted to it. The offer
+            // itself is booked when this record resolves — resolveJournal.
             resolveJournal(.superseded)
             pendingJournal = PendingJournal(
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 hadScreen: screenSummary != nil
                     && AppPolicy.allowsScreenContext(typingContext.bundleID),
+                app: typingContext.bundleID,
                 engine: instant ? "ngram" : engine.name,
                 // The engine's OWN resolved model — not Settings.mlxModelID,
                 // which diverges from what actually generated (instruct loads
