@@ -533,6 +533,19 @@ final class SuggestionController: NSObject {
             window.hide()
         }
 
+        // Suggestions have been offered here dozens of times and essentially
+        // never taken: go quiet rather than keep interrupting (and stop spending
+        // the battery generating them). Deliberately after the correction pass
+        // above — the record counts completions, so a typo fix or an emoji
+        // shortcode still works in an app that is bad for completions. A ghost
+        // that is already up keeps shrinking as the user types: it was offered
+        // before the verdict landed, and yanking it mid-word helps nobody.
+        // Reversible from the status menu, which is where the numbers are shown.
+        if Stats.isUnproductive(typingContext.bundleID) {
+            lastEvent = "quiet in this app — suggestions here are almost never taken"
+            return
+        }
+
         // Personal n-gram fast-path: a confident hit from the user's own
         // recurring phrases shows at ~0 ms, before the debounce even starts;
         // the LLM stream below then supersedes it through the same apply path.
@@ -790,7 +803,7 @@ final class SuggestionController: NSObject {
                         accepted: countShown ? false : (active?.accepted ?? false))
         activeIsInstant = instant
         if countShown {
-            Stats.recordShown()
+            Stats.recordShown(app: typingContext.bundleID)
             // A fresh suggestion opens a journal record; an unresolved one at
             // this point was replaced before the user reacted to it.
             resolveJournal(.superseded)
@@ -1278,7 +1291,8 @@ final class SuggestionController: NSObject {
         injectionSettleDeadline = Date().addingTimeInterval(0.3)
         // Count the suggestion once even when accepted word-by-word (chars still
         // accrue per chunk), so the menu's "accepted of shown" can't exceed 100%.
-        Stats.recordAccepted(chunk: chunk, countSuggestion: !current.accepted)
+        Stats.recordAccepted(chunk: chunk, countSuggestion: !current.accepted,
+                             app: typingContext.bundleID)
         current.accepted = true
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")

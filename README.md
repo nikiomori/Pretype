@@ -60,7 +60,7 @@ It's a free, MIT-licensed alternative to [Cotypist](https://cotypist.app) — a 
 * **Emoji shortcodes** — type `:shrug:` and 🤷 is offered in the same pill, <kbd>Tab</kbd> to take it. A handful of Gemoji nicknames plus every Unicode character name macOS already knows, so `:rocket:` and `:thinking_face:` work without shipping a table.
 * **Rewrites (<kbd>⌥Tab</kbd>)** — select clumsy text and the local model fixes grammar, typos and phrasing in place, keeping your tone. With nothing selected it fixes the word you just typed. On some models this needs a separate instruct sibling, downloaded once on first use (≈2.2 GB on the English/Russian default, up to ≈5 GB on Gemma; the menu bar shows *preparing…*).
 * **Fast** — 49–145 ms warm completions across the local models, by prefilling only the newly typed tokens and reusing the KV cache.
-* **Knows where it is** — adapts per app, stays out of terminals and password managers, and stops reading entirely while macOS reports secure input. Optional on-screen OCR pulls in surrounding context.
+* **Knows where it is** — adapts per app, stays out of terminals and password managers, and stops reading entirely while macOS reports secure input. Where you almost never take its suggestions it goes quiet by itself, and says so in the menu with the numbers and a one-click *Resume*. Optional on-screen OCR pulls in surrounding context.
 * **Sounds like you** — one persona plus per-app style instructions, learned from a local journal you can clear or switch off at any time.
 
 ---

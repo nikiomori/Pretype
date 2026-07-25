@@ -2,14 +2,17 @@ import AppKit
 
 /// Notify-only update check against the GitHub Releases API.
 ///
-/// It deliberately does NOT install anything. Release builds are ad-hoc signed
-/// (`Scripts/dist.sh` — no paid Developer ID), and replacing the bundle in place
-/// changes its code signature, which makes macOS revoke the Accessibility grant
-/// the whole app runs on. Telling the user to download beats silently breaking
-/// their permissions. Swap this for Sparkle once releases are Developer
-/// ID-signed and notarized — then the signature is stable across updates.
+/// It deliberately does NOT install anything. Published releases are still
+/// ad-hoc signed — `Scripts/dist.sh` and the release workflow grew a Developer
+/// ID path, but no certificate has been used for a tag yet — and replacing the
+/// bundle in place changes its code signature, which makes macOS revoke the
+/// Accessibility grant the whole app runs on. Telling the user to update
+/// themselves beats silently breaking their permissions. Swap this for Sparkle
+/// once releases actually ship Developer ID-signed and notarized: only then is
+/// the signature stable across updates.
 ///
-/// ponytail: no appcast, no downloader, no delta — one JSON GET and a link.
+/// ponytail: no appcast, no downloader, no delta — one JSON GET, and either a
+/// link or the one-line Homebrew command, depending on how this copy arrived.
 @MainActor
 enum UpdateChecker {
     private static let api = URL(string: "https://api.github.com/repos/nikiomori/Pretype/releases/latest")!
@@ -22,6 +25,22 @@ enum UpdateChecker {
 
     static var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    }
+
+    /// What to tell a Homebrew user to run. `brew` has to move the cask's own
+    /// metadata forward, so downloading over /Applications behind its back
+    /// leaves the two disagreeing about what is installed.
+    static let upgradeCommand = "brew upgrade --cask pretype"
+
+    /// True when this copy came from the tap. The cask's metadata directory
+    /// stays in the Caskroom even though the app itself is installed into
+    /// /Applications, so its presence names the install channel.
+    ///
+    /// ponytail: one `fileExists` — asking `brew` itself means spawning a
+    /// process from a menu item to learn something a directory already says.
+    /// Apple Silicon only, so `/opt/homebrew` is the only prefix that can apply.
+    static var isHomebrewInstall: Bool {
+        FileManager.default.fileExists(atPath: "/opt/homebrew/Caskroom/pretype")
     }
 
     /// Fire-and-forget check at launch, at most once a day, and only if the user

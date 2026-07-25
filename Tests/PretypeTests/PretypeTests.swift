@@ -1178,6 +1178,51 @@ final class PretypeTests: XCTestCase {
         XCTAssertFalse(UpdateChecker.isNewer("nightly", than: "0.1.0"))
     }
 
+    // Going quiet in an app is self-inflicted and one-way (it stops the very
+    // counter that could lift it), so the threshold, the decay and the Resume
+    // path all have to behave exactly as the menu claims they do.
+    @MainActor
+    func testUnproductiveAppRecord() {
+        let app = "test.pretype.unproductive"     // shared defaults with the real app
+        defer { Stats.clearRecord(for: app) }
+        Stats.clearRecord(for: app)
+
+        // No record, and a thin one, say nothing: a handful of ignored
+        // suggestions is not a verdict.
+        XCTAssertNil(Stats.record(for: app))
+        XCTAssertFalse(Stats.isUnproductive(app))
+        for _ in 0 ..< (Stats.appVerdictMinShown - 1) { Stats.recordShown(app: app) }
+        XCTAssertFalse(Stats.isUnproductive(app))
+
+        // One more crosses the sample bar with nothing taken.
+        Stats.recordShown(app: app)
+        XCTAssertEqual(Stats.record(for: app)?.shown, Stats.appVerdictMinShown)
+        XCTAssertTrue(Stats.isUnproductive(app))
+
+        // Accepts pull it back over the rate floor — and a word-by-word accept
+        // counts once, like the daily counters.
+        for _ in 0 ..< 5 {
+            Stats.recordAccepted(chunk: "hello", app: app)
+            Stats.recordAccepted(chunk: " there", countSuggestion: false, app: app)
+        }
+        XCTAssertEqual(Stats.record(for: app)?.accepted, 5)
+        XCTAssertFalse(Stats.isUnproductive(app))
+
+        // Both counts halve at the decay point, so the rate survives but the
+        // sample stays bounded.
+        while (Stats.record(for: app)?.shown ?? 0) < Stats.appDecayAt - 1 { Stats.recordShown(app: app) }
+        let before = Stats.record(for: app)!
+        Stats.recordShown(app: app)
+        let after = Stats.record(for: app)!
+        XCTAssertEqual(after.shown, Stats.appDecayAt / 2)
+        XCTAssertEqual(after.accepted, before.accepted / 2)
+
+        // Resume wipes it: the app starts earning its verdict again from zero.
+        Stats.clearRecord(for: app)
+        XCTAssertNil(Stats.record(for: app))
+        XCTAssertFalse(Stats.isUnproductive(app))
+    }
+
     // The user blacklist holds lowercased *substring markers*, not exact bundle
     // IDs, so "enable here again" has to remove whichever entry matched — an
     // exact-ID remove would leave the menu item visibly stuck on "Enable in …".

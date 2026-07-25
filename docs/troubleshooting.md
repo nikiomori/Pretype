@@ -26,6 +26,12 @@ then re-grant.
 
 It passes straight through. The event tap only swallows the key while a suggestion is on screen; with nothing showing, <kbd>Tab</kbd> indents and moves between fields as usual. If that still collides with your habits, switch the chord to <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd> or <kbd>⌃Space</kbd> in **Settings → General**.
 
+### Suggestions stopped appearing in one app
+
+Deliberate. Once Pretype has offered a few dozen completions in an app and under 5% of them were taken, it stops offering there — a model that is wrong in a particular field is pure interruption, and generating them costs battery. Everything else keeps working: inline typo fixes, emoji shortcodes and <kbd>⌥Tab</kbd> rewrites are unaffected.
+
+It isn't silent about it. The menu-bar item that normally offers *Disable in …* names the app and the numbers behind the decision instead — **Quiet in Slack — 2% of 74 taken · Resume** — and one click clears the record and starts offering again from scratch.
+
 ### What does it cost in battery and memory?
 
 The model stays resident while you're typing — that's what makes warm completions fast — holding ≈1.6–2.2 GB for the defaults. After **five idle minutes it unloads itself** and frees that memory, reloading on your next keystroke; it also unloads early if macOS reports memory pressure. It only computes while you're typing in a field it's allowed to read, and suggestions are debounced and cancellable, so fast typing supersedes in-flight work instead of queueing it.

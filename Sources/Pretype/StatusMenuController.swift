@@ -210,6 +210,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             // toggleable.
             appBlacklistItem.title = "Always off in \(name)"
             appBlacklistItem.action = nil
+        } else if AppPolicy.userBlacklistEntries(for: bundleID).isEmpty,
+                  Stats.isUnproductive(bundleID), let record = Stats.record(for: bundleID) {
+            // Pretype silenced itself here. The block is ours, not the user's, so
+            // the item that would offer "Disable" states the reason with its own
+            // evidence and becomes the way back instead.
+            appBlacklistItem.title = "Quiet in \(name) — \(record.accepted * 100 / record.shown)% "
+                + "of \(record.shown) taken · Resume"
+            appBlacklistItem.action = #selector(resumeInFrontmostApp)
         } else {
             let off = !AppPolicy.userBlacklistEntries(for: bundleID).isEmpty
             // No .state checkmark: a ✓ next to "Disable in Mail" reads either way.
@@ -352,6 +360,15 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         suggestionController?.dismiss()
     }
 
+    /// Wipe the app's track record, which is the only thing keeping Pretype
+    /// quiet there — the next keystroke offers again, and the app has to earn
+    /// its way back to `isUnproductive` from zero.
+    @objc private func resumeInFrontmostApp() {
+        guard let bundleID = suggestionController?.typingContext.bundleID else { return }
+        Stats.clearRecord(for: bundleID)
+        DebugLog.shared.log("STATS", "resumed suggestions in \(bundleID)")
+    }
+
     @objc private func showLastPrompt() {
         let prompt = suggestionController?.lastPromptDescription ?? "No prompt has been sent yet."
         let result = suggestionController?.lastResultDescription
@@ -381,41 +398,62 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         settingsWindow?.present()
     }
 
-    /// Known update → straight to the release page. Otherwise check now and
-    /// report either way: a manual check that answers with silence reads as
-    /// broken.
+    /// Known update → offer it straight away. Otherwise check now and report
+    /// either way: a manual check that answers with silence reads as broken.
     @objc private func checkForUpdates() {
-        if UpdateChecker.availableVersion != nil {
-            UpdateChecker.openReleasePage()
+        if let newer = UpdateChecker.availableVersion {
+            presentUpdate(newer)
             return
         }
         Task { @MainActor in
             let latest = await UpdateChecker.check()
-            let alert = NSAlert()
-            // Only two of the three outcomes have anywhere to go, so the first
-            // button opens the page except when we're already current.
-            var firstButtonOpensPage = true
             if let newer = UpdateChecker.availableVersion {
-                alert.messageText = "Pretype \(newer) is available"
-                alert.informativeText = "You're on \(UpdateChecker.currentVersion). "
-                    + "Download it and replace Pretype in Applications — updates are never installed for you."
-                alert.addButton(withTitle: "Download…")
-                alert.addButton(withTitle: "Later")
-            } else if let latest {
+                presentUpdate(newer)
+                return
+            }
+            let alert = NSAlert()
+            if let latest {
                 alert.messageText = "Pretype \(latest) is the latest version"
                 alert.informativeText = "You're up to date."
                 alert.addButton(withTitle: "OK")
-                firstButtonOpensPage = false
-            } else {
-                alert.messageText = "Couldn't check for updates"
-                alert.informativeText = "GitHub was unreachable. Try again later, or open the releases page."
-                alert.addButton(withTitle: "Open Releases…")
-                alert.addButton(withTitle: "Cancel")
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+                return
             }
+            alert.messageText = "Couldn't check for updates"
+            alert.informativeText = "GitHub was unreachable. Try again later, or open the releases page."
+            alert.addButton(withTitle: "Open Releases…")
+            alert.addButton(withTitle: "Cancel")
             NSApp.activate(ignoringOtherApps: true)
-            if alert.runModal() == .alertFirstButtonReturn && firstButtonOpensPage {
+            if alert.runModal() == .alertFirstButtonReturn {
                 UpdateChecker.openReleasePage()
             }
+        }
+    }
+
+    /// How the update is taken depends on how the app arrived: a Homebrew copy
+    /// upgrades with one command (and only `brew` keeps the cask's own record of
+    /// what is installed straight), everything else downloads from the release
+    /// page. Either way macOS may ask for Accessibility again afterwards —
+    /// updates change the code signature of an ad-hoc signed build.
+    private func presentUpdate(_ version: String) {
+        let alert = NSAlert()
+        alert.messageText = "Pretype \(version) is available"
+        let brew = UpdateChecker.isHomebrewInstall
+        alert.informativeText = "You're on \(UpdateChecker.currentVersion). "
+            + (brew
+                ? "Installed with Homebrew — upgrade with:\n\n    \(UpdateChecker.upgradeCommand)"
+                : "Download it and replace Pretype in Applications — updates are never installed for you.")
+            + "\n\nmacOS may ask you to grant Accessibility again afterwards."
+        alert.addButton(withTitle: brew ? "Copy Command" : "Download…")
+        alert.addButton(withTitle: "Later")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        if brew {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(UpdateChecker.upgradeCommand, forType: .string)
+        } else {
+            UpdateChecker.openReleasePage()
         }
     }
 
