@@ -320,6 +320,28 @@ enum AXText {
             return nil
         }
         if looksMasked(value) { return nil }
+        let marker = webCaretBounds(element)
+        // A marker that is NOT a collapsed caret spans a whole run, and that has
+        // two meanings needing opposite answers: the user has text selected
+        // (never suggest into that), or the box is idle and what AX calls its
+        // value is the placeholder being drawn. The second is the exact case the
+        // reply flow exists for — and Electron publishes such a placeholder as
+        // `AXValue` and NOT as `AXPlaceholderValue` (Claude Desktop's "Describe
+        // what you want to create…"), so the check above cannot see it and
+        // `value` still holds decoration. Zero it, or the model would be handed
+        // the placeholder as the user's own draft.
+        var idleRun: CGRect?
+        if let run = marker, !isCollapsedCaret(run, in: frame) {
+            let selected: String? = attribute(element, kAXSelectedTextAttribute)
+            guard markerMeansIdleBox(allowEmpty: allowEmpty, selectedText: selected, caret: caret) else {
+                DebugLog.shared.log("AX", "web/Electron: marker spans the run (selection/placeholder) — no suggestion")
+                return nil
+            }
+            DebugLog.shared.log(
+                "AX", "web/Electron: idle box, \(value.count)-char placeholder as value — reading it as an empty field")
+            idleRun = run
+            value = ""
+        }
         // Chromium often reports a real selectedRange even where caret GEOMETRY
         // is garbage (which is why this fallback runs at all). When it's
         // plausible, split the value there instead of assuming end-of-field:
@@ -337,16 +359,12 @@ enum AXText {
         let style = attributedStyle(of: element, atIndex: max(0, caretLoc - 1))
         let hostFont = style.font
         let box = cocoaFieldRect(frame)
-        let marker = webCaretBounds(element)
 
         // Best case: Chromium's text-marker API returns the REAL caret rect even
         // though the range/caret APIs return garbage (x=0). A collapsed caret
         // inside the field is the genuine cursor — pixel-accurate, like a native
         // caret, no width estimate needed.
-        if let caret = marker, caret.width < 4,
-           caret.height >= 6, caret.height <= frame.height + 4,
-           caret.midX >= frame.minX - 4, caret.midX <= frame.maxX + 12,
-           caret.midY >= frame.minY - 4, caret.midY <= frame.maxY + 4,
+        if let caret = marker, isCollapsedCaret(caret, in: frame),
            let anchor = onScreen(cocoaRect(CGRect(x: caret.minX, y: caret.minY, width: 1, height: caret.height))) {
             let size = hostFont?.pointSize ?? caret.height / 1.18
             DebugLog.shared.log("AX", "web/Electron: real caret via text-marker at x=\(Int(caret.minX)), \(Int(size))pt")
@@ -357,16 +375,21 @@ enum AXText {
                                                    fieldRect: box,
                                                    textFollowsCaret: linePopulatedAfterCaret(afterCaret)))
         }
-        // A marker that is NOT a collapsed caret spans the whole run — that's a
-        // selection or the placeholder/idle state (e.g. Claude's "Describe a
-        // task…"). Don't fabricate a completion there: this is the robust
-        // placeholder guard, since Electron doesn't expose AXPlaceholderValue.
-        // The exception is an empty field asked for by the reply flow: an idle
-        // box IS the placeholder state, and that flow continues nothing — the
-        // estimate below only has to place the ghost.
-        if marker != nil, !(allowEmpty && value.isEmpty) {
-            DebugLog.shared.log("AX", "web/Electron: marker spans the run (selection/placeholder) — no suggestion")
-            return nil
+        // The idle box (decided above): its run rect is exactly where the
+        // placeholder is drawn, which is where the user's own first character
+        // would land — a better anchor than the estimate below, which would put
+        // the ghost on the box's LAST line from a value that was decoration.
+        // An unusable rect falls through to that estimate rather than refusing.
+        if let run = idleRun,
+           let anchor = onScreen(cocoaRect(CGRect(x: run.minX, y: run.minY, width: 1, height: run.height))) {
+            let size = hostFont?.pointSize ?? run.height / 1.18
+            DebugLog.shared.log(
+                "AX", "web/Electron: ghost anchored to the placeholder run at x=\(Int(run.minX)), \(Int(size))pt")
+            return TextContext(textBeforeCaret: "", textAfterCaret: "",
+                               caretRect: anchor,
+                               host: HostTextStyle(font: hostFont ?? .systemFont(ofSize: size),
+                                                   color: style.color, background: style.background,
+                                                   fieldRect: box, textFollowsCaret: false))
         }
 
         // No marker at all (older Electron / non-Chromium web view): estimate
@@ -397,6 +420,27 @@ enum AXText {
                            host: HostTextStyle(font: font, color: style.color,
                                                background: style.background, fieldRect: box,
                                                textFollowsCaret: linePopulatedAfterCaret(afterCaret)))
+    }
+
+    /// Is this text-marker rect the genuine cursor? A caret is a hairline of
+    /// roughly text height sitting inside its own field; anything wider spans a
+    /// whole run (a selection, or the placeholder line of an idle box) and
+    /// anything outside the field is the garbage geometry this path exists for.
+    nonisolated static func isCollapsedCaret(_ rect: CGRect, in frame: CGRect) -> Bool {
+        rect.width < 4 && rect.height >= 6 && rect.height <= frame.height + 4
+            && rect.midX >= frame.minX - 4 && rect.midX <= frame.maxX + 12
+            && rect.midY >= frame.minY - 4 && rect.midY <= frame.maxY + 4
+    }
+
+    /// Given a run-spanning marker, is this an IDLE box (placeholder drawn, no
+    /// text) rather than a selection? Only the reply flow asks — a completion
+    /// has nothing to continue either way — and only when nothing contradicts
+    /// it: a real selection publishes `AXSelectedText` and a caret past 0, an
+    /// idle box publishes neither. Wrong in one direction it costs a ghost drawn
+    /// at the start of a draft the model then writes around; wrong in the other
+    /// it costs the whole feature in every Electron box with a placeholder.
+    nonisolated static func markerMeansIdleBox(allowEmpty: Bool, selectedText: String?, caret: Int) -> Bool {
+        allowEmpty && (selectedText?.isEmpty ?? true) && caret == 0
     }
 
     /// Is there anything but whitespace between the caret and the end of its

@@ -1759,4 +1759,27 @@ final class PretypeTests: XCTestCase {
         // An answer that IS just the draft leaves nothing to show.
         XCTAssertNil(drafted.cleanReply("привет,"))
     }
+
+    // Chromium's text-marker rect is the only caret Electron gives us, and the
+    // reply flow's whole case — an empty chat box — is the one state where that
+    // rect spans a run instead of collapsing. Measured off Claude Desktop:
+    // field (21,1181 276×63), marker (21,1181 276×21), value = the placeholder.
+    func testElectronMarkerCaretVersusIdleBox() {
+        let field = CGRect(x: 21, y: 1181, width: 276, height: 63)
+        // A hairline of text height inside the field is the real cursor.
+        XCTAssertTrue(AXText.isCollapsedCaret(CGRect(x: 40, y: 1183, width: 1, height: 17), in: field))
+        // The placeholder's whole run is not — nor is a rect off in a corner,
+        // nor a full-height "caret" taller than the field.
+        XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 21, y: 1181, width: 276, height: 21), in: field))
+        XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 0, y: 39, width: 0, height: 0), in: field))
+        XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 40, y: 1183, width: 1, height: 200), in: field))
+
+        // Idle box vs selection, given such a run: only the reply flow asks, and
+        // only an untouched caret with no selected text answers yes.
+        XCTAssertTrue(AXText.markerMeansIdleBox(allowEmpty: true, selectedText: nil, caret: 0))
+        XCTAssertTrue(AXText.markerMeansIdleBox(allowEmpty: true, selectedText: "", caret: 0))
+        XCTAssertFalse(AXText.markerMeansIdleBox(allowEmpty: true, selectedText: "picked", caret: 0))
+        XCTAssertFalse(AXText.markerMeansIdleBox(allowEmpty: true, selectedText: nil, caret: 12))
+        XCTAssertFalse(AXText.markerMeansIdleBox(allowEmpty: false, selectedText: nil, caret: 0))
+    }
 }
