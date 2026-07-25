@@ -1,6 +1,7 @@
 import XCTest
 import Carbon
 import CoreGraphics
+import SwiftUI
 @testable import Pretype
 
 final class PretypeTests: XCTestCase {
@@ -1221,6 +1222,66 @@ final class PretypeTests: XCTestCase {
         Stats.clearRecord(for: app)
         XCTAssertNil(Stats.record(for: app))
         XCTAssertFalse(Stats.isUnproductive(app))
+    }
+
+    // The menu now sells a time figure, so the keystrokes behind it have to be
+    // net of the accept press — counting that press as a saving would inflate
+    // every number the user is shown.
+    @MainActor
+    func testNetKeystrokesSaved() {
+        let todayBefore = Stats.netSavedToday, totalBefore = Stats.netSavedTotal
+
+        // A one-shot accept costs one key: 5 chars in, 4 net.
+        Stats.recordAccepted(chunk: "hello")
+        XCTAssertEqual(Stats.netSavedToday, todayBefore + 4)
+        XCTAssertEqual(Stats.netSavedTotal, totalBefore + 4)
+
+        // Continuing the same suggestion word-by-word is another press, so the
+        // second chunk pays for itself too.
+        Stats.recordAccepted(chunk: " there", countSuggestion: false)
+        XCTAssertEqual(Stats.netSavedToday, todayBefore + 10)
+
+        // And the header reads time, over a week that ends with today.
+        let savings = Stats.savings
+        XCTAssertFalse(savings.isEmpty)
+        XCTAssertEqual(savings.week.count, 7)
+        XCTAssertEqual(savings.week.last, Stats.netSavedToday)
+        XCTAssertTrue(["min", "h"].contains(savings.todayFigure.unit), savings.todayFigure.unit)
+    }
+
+    // NSMenu lays a custom-view item out at the view's own frame, so a hosting
+    // view left at its zero starting frame renders as a blank sliver — which is
+    // exactly how the drawn header and footer first shipped. Pin both the
+    // fitting size and the menu height that depends on it.
+    @MainActor
+    func testMenuHostingViewsReportTheirSize() {
+        let savings = Stats.Savings(
+            todayKeystrokes: 1900, totalKeystrokes: 164_000,
+            week: [1200, 2400, 800, 1500, 3100, 2600, 1900],
+            todayFigure: ("10", "min"), todayText: "10 min", totalText: "13 h 40 min"
+        )
+        let header = NSHostingView(rootView: MenuHeaderView(
+            statusColor: .green, statusText: "MiniCPM5-1B-Base: ready",
+            statusOK: true, savings: savings, acceptLabel: "Tab"
+        ))
+        let hints = NSHostingView(rootView: MenuHintsView(hints: [
+            (keys: "Tab", action: "accept a word — ⇧Tab for all"),
+            (keys: "⌥Tab", action: "fix the word or selection"),
+        ]))
+
+        let menu = NSMenu()
+        for host in [header as NSView, hints as NSView] {
+            (host as? NSHostingView<MenuHeaderView>)?.sizingOptions = .intrinsicContentSize
+            (host as? NSHostingView<MenuHintsView>)?.sizingOptions = .intrinsicContentSize
+            host.layoutSubtreeIfNeeded()
+            host.frame = NSRect(origin: .zero, size: host.fittingSize)
+            XCTAssertEqual(host.frame.width, MenuHeaderView.width, accuracy: 0.5)
+            XCTAssertGreaterThan(host.frame.height, 20, "\(type(of: host)) collapsed")
+            let item = NSMenuItem()
+            item.view = host
+            menu.addItem(item)
+        }
+        XCTAssertGreaterThanOrEqual(menu.size.height, header.frame.height + hints.frame.height)
     }
 
     // The user blacklist holds lowercased *substring markers*, not exact bundle

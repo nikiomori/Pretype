@@ -17,12 +17,39 @@ enum Stats {
 
     private static var today: String { dayFormatter.string(from: Date()) }
 
+    /// Net keystrokes per finished day, so the menu can draw a week instead of a
+    /// single number. ponytail: one day→count dictionary in UserDefaults, written
+    /// once per day rollover and trimmed to the week the sparkline draws.
+    private static let historyKey = "stats.savedByDay"
+
     private static func rollDayIfNeeded() {
-        guard defaults.string(forKey: "stats.day") != today else { return }
+        let previous = defaults.string(forKey: "stats.day")
+        guard previous != today else { return }
+        // Archive the day that just ended before its counters are cleared.
+        if let previous {
+            var history = savedByDay
+            history[previous] = max(
+                0,
+                defaults.integer(forKey: "stats.acceptedChars") - defaults.integer(forKey: "stats.accepted")
+            )
+            let cutoff = day(-7)
+            defaults.set(history.filter { $0.key >= cutoff }, forKey: historyKey)
+        }
         defaults.set(today, forKey: "stats.day")
         for key in dailyKeys {
             defaults.removeObject(forKey: key)
         }
+    }
+
+    private static var savedByDay: [String: Int] {
+        defaults.dictionary(forKey: historyKey) as? [String: Int] ?? [:]
+    }
+
+    /// `offset` days from today, as a "yyyy-MM-dd" key — Calendar rather than
+    /// 86 400-second arithmetic, which skips or repeats a day across a DST shift.
+    private static func day(_ offset: Int) -> String {
+        guard let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) else { return today }
+        return dayFormatter.string(from: date)
     }
 
     private static func bump(_ key: String, by amount: Int = 1) {
@@ -65,26 +92,98 @@ enum Stats {
         bump("stats.latencyCount")
     }
 
-    static var lines: [String] {
+    // MARK: - What the user got out of it
+
+    /// Keystrokes saved, net of the key it cost to accept them. The gross
+    /// character count treats the accept press itself as a saving, which it
+    /// isn't — and this is the number the menu turns into minutes.
+    static var netSavedToday: Int {
+        rollDayIfNeeded()
+        return max(0, defaults.integer(forKey: "stats.acceptedChars") - defaults.integer(forKey: "stats.accepted"))
+    }
+
+    static var netSavedTotal: Int {
+        max(0, defaults.integer(forKey: "stats.lifetimeChars") - lifetimeAccepted)
+    }
+
+    /// ponytail: 200 chars/min ≈ 40 WPM, an average touch-typist. Measuring the
+    /// user's own rate means keeping a keystroke-timing histogram for a figure
+    /// that is only ever read as "roughly" — do it if anyone asks for exact.
+    private static let charsPerMinute = 200.0
+
+    private static let durationFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter
+    }()
+
+    private static func duration(_ keystrokes: Int) -> String {
+        let seconds = Double(keystrokes) / charsPerMinute * 60
+        guard seconds >= 60, let text = durationFormatter.string(from: seconds) else { return "under a minute" }
+        return text
+    }
+
+    /// A value and its unit, kept apart so the header can set them at different
+    /// sizes — and so no wording ("under a minute") can overflow the big figure.
+    private static func figure(_ keystrokes: Int) -> (value: String, unit: String) {
+        let minutes = Double(keystrokes) / charsPerMinute
+        if minutes < 1 { return ("<1", "min") }
+        if minutes < 60 { return ("\(Int(minutes.rounded()))", "min") }
+        let hours = minutes / 60
+        return (hours < 10 ? String(format: "%.1f", hours) : "\(Int(hours.rounded()))", "h")
+    }
+
+    /// What the menu header leads with: time bought, not counts. An acceptance
+    /// rate up front reads as a grade the user is failing — it belongs in
+    /// Diagnostics, next to the latency it explains.
+    /// Plain formatted data — the header reads it off the main actor without
+    /// reaching back into UserDefaults or the shared formatter.
+    struct Savings {
+        let todayKeystrokes: Int
+        let totalKeystrokes: Int
+        /// Net keystrokes saved per day, oldest first, seven entries.
+        let week: [Int]
+        let todayFigure: (value: String, unit: String)
+        let todayText: String
+        let totalText: String
+
+        /// Nothing has ever been accepted — the header shows the invitation.
+        var isEmpty: Bool { totalKeystrokes == 0 }
+    }
+
+    static var savings: Savings {
+        rollDayIfNeeded()
+        let history = savedByDay
+        let today = netSavedToday, total = netSavedTotal
+        return Savings(
+            todayKeystrokes: today,
+            totalKeystrokes: total,
+            week: (0 ..< 7).reversed().map { back in
+                let key = day(-back)
+                return key == Self.today ? today : (history[key] ?? 0)
+            },
+            todayFigure: figure(today),
+            todayText: duration(today),
+            totalText: duration(total)
+        )
+    }
+
+    /// The raw counters, for the Diagnostics submenu.
+    static var diagnosticLines: [String] {
         rollDayIfNeeded()
         let shown = defaults.integer(forKey: "stats.shown")
         let accepted = defaults.integer(forKey: "stats.accepted")
-        let chars = defaults.integer(forKey: "stats.acceptedChars")
-        let fixes = defaults.integer(forKey: "stats.corrections")
-        let lifetime = defaults.integer(forKey: "stats.lifetimeChars")
         let latencyCount = defaults.integer(forKey: "stats.latencyCount")
 
         let rate = shown > 0 ? " (\(accepted * 100 / shown)%)" : ""
         var lines = [
-            "Today: \(accepted) accepted of \(shown) shown\(rate)",
-            "Keystrokes saved: \(chars) today · \(lifetime) total",
+            "Suggestions: \(accepted) accepted of \(shown) shown\(rate)",
+            "Fixes applied: \(defaults.integer(forKey: "stats.corrections"))",
         ]
-        if fixes > 0 {
-            lines.append("Fixes applied today: \(fixes)")
-        }
         if latencyCount > 0 {
-            let avg = defaults.integer(forKey: "stats.latencySumMs") / latencyCount
-            lines.append("Engine latency: ~\(avg) ms")
+            lines.append("Engine latency: ~\(defaults.integer(forKey: "stats.latencySumMs") / latencyCount) ms")
         }
         return lines
     }

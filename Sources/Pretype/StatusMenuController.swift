@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
@@ -6,14 +7,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private weak var suggestionController: SuggestionController?
 
-    private var statusLineItem: NSMenuItem!
-    private var statsItem: NSMenuItem!
+    private var headerHost: NSHostingView<MenuHeaderView>!
+    private var hintsHost: NSHostingView<MenuHintsView>!
     private var diagnosticsMenu: NSMenu!
     private var permissionItem: NSMenuItem!
     private var enabledItem: NSMenuItem!
     private var appBlacklistItem: NSMenuItem!
     private var languageHintItem: NSMenuItem!
-    private var hintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
 
     private var statusTimer: Timer?
@@ -83,10 +83,15 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// Status + a single diagnostics submenu; every setting lives in the
     /// Settings window (⌘,).
     private func buildMenu() {
-        statusLineItem = NSMenuItem(title: "Starting…", action: nil, keyEquivalent: "")
-        menu.addItem(statusLineItem)
-        statsItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        menu.addItem(statsItem)
+        // Status + savings as one drawn block. `sizingOptions` lets the hosting
+        // view report its own height, so the item grows with the two- or
+        // three-line status text instead of clipping it.
+        headerHost = NSHostingView(rootView: headerView())
+        headerHost.sizingOptions = .intrinsicContentSize
+        resize(headerHost)
+        let headerItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        headerItem.view = headerHost
+        menu.addItem(headerItem)
         menu.addItem(.separator())
 
         permissionItem = NSMenuItem(
@@ -95,6 +100,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             keyEquivalent: ""
         )
         permissionItem.target = self
+        permissionItem.image = symbol("exclamationmark.triangle.fill")
         menu.addItem(permissionItem)
 
         enabledItem = NSMenuItem(title: "Enabled", action: #selector(toggleEnabled), keyEquivalent: "")
@@ -111,10 +117,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // see refreshLanguageHintItem.
         languageHintItem = NSMenuItem(title: "", action: #selector(showModelsForTypedLanguage), keyEquivalent: "")
         languageHintItem.target = self
+        languageHintItem.image = symbol("globe")
         menu.addItem(languageHintItem)
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
+        settingsItem.image = symbol("gearshape")
         menu.addItem(settingsItem)
 
         // One item, two states: an offer to download when a newer release is
@@ -126,13 +134,17 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         diagnosticsMenu = NSMenu()
         let diagnosticsItem = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
         diagnosticsItem.submenu = diagnosticsMenu
+        diagnosticsItem.image = symbol("waveform.path.ecg")
         menu.addItem(diagnosticsItem)
 
         menu.addItem(.separator())
-        // Small two-line hint so it doesn't dictate the menu's width. Refreshed
-        // in menuNeedsUpdate so the keycaps track the chosen accept hotkey.
-        hintItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        hintItem.attributedTitle = shortcutHint()
+        // Drawn keycaps rather than a paragraph of grey text, and refreshed in
+        // menuNeedsUpdate so they track the chosen accept hotkey.
+        hintsHost = NSHostingView(rootView: MenuHintsView(hints: shortcutHints()))
+        hintsHost.sizingOptions = .intrinsicContentSize
+        resize(hintsHost)
+        let hintItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        hintItem.view = hintsHost
         menu.addItem(hintItem)
         menu.addItem(NSMenuItem(
             title: "Quit Pretype",
@@ -141,50 +153,54 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         ))
     }
 
+    /// NSMenu lays a custom-view item out at the view's own `frame`, and an
+    /// `NSHostingView` starts at zero — `sizingOptions` alone reports an
+    /// intrinsic size nothing asks for, and the item renders as a blank sliver.
+    /// So the frame is set from the SwiftUI fitting size here, and again after
+    /// every `rootView` swap: the header's height changes with the status text.
+    private func resize(_ view: NSView) {
+        view.layoutSubtreeIfNeeded()
+        view.frame = NSRect(origin: .zero, size: view.fittingSize)
+    }
+
+    /// Menu-sized template symbol. Every action row gets one: half-iconned rows
+    /// are a large part of why the menu read as unstructured.
+    private func symbol(_ name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        image?.isTemplate = true
+        return image
+    }
+
     // MARK: - Live updates
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         updateStatusIcon()
 
-        // Status: a colored state dot + the engine line, at menu size.
-        let (color, text) = statusInfo()
-        let font = NSFont.menuFont(ofSize: 0)
-        let status = NSMutableAttributedString(string: "●  ", attributes: [
-            .font: font, .foregroundColor: color,
-        ])
-        status.append(NSAttributedString(string: text, attributes: [
-            .font: font, .foregroundColor: NSColor.labelColor,
-        ]))
-        statusLineItem.attributedTitle = status
-
-        // Stats: one compact block, labels dimmed so the numbers stand out.
-        let small = NSFont.menuFont(ofSize: NSFont.smallSystemFontSize)
-        let stats = NSMutableAttributedString()
-        for (i, line) in Stats.lines.enumerated() {
-            if i > 0 { stats.append(NSAttributedString(string: "\n")) }
-            if let colon = line.range(of: ": ") {
-                stats.append(NSAttributedString(string: String(line[..<colon.upperBound]), attributes: [
-                    .font: small, .foregroundColor: NSColor.secondaryLabelColor,
-                ]))
-                stats.append(NSAttributedString(string: String(line[colon.upperBound...]), attributes: [
-                    .font: small, .foregroundColor: NSColor.labelColor,
-                ]))
-            } else {
-                stats.append(NSAttributedString(string: line, attributes: [
-                    .font: small, .foregroundColor: NSColor.secondaryLabelColor,
-                ]))
-            }
-        }
-        statsItem.attributedTitle = stats
-
+        headerHost.rootView = headerView()
+        resize(headerHost)
         rebuildDiagnosticsMenu()
 
         permissionItem.isHidden = Permissions.isTrusted
         enabledItem.state = Settings.enabled ? .on : .off
+        enabledItem.image = symbol(Settings.enabled ? "text.cursor" : "pause.circle")
         refreshAppBlacklistItem()
         refreshLanguageHintItem()
-        updateItem.title = UpdateChecker.availableVersion.map { "Update to \($0)…" } ?? "Check for Updates…"
-        hintItem.attributedTitle = shortcutHint()
+        let newer = UpdateChecker.availableVersion
+        updateItem.title = newer.map { "Update to \($0)…" } ?? "Check for Updates…"
+        updateItem.image = symbol(newer != nil ? "arrow.down.circle.fill" : "arrow.down.circle")
+        hintsHost.rootView = MenuHintsView(hints: shortcutHints())
+        resize(hintsHost)
+    }
+
+    private func headerView() -> MenuHeaderView {
+        let (color, text) = statusInfo()
+        return MenuHeaderView(
+            statusColor: Color(nsColor: color),
+            statusText: text,
+            statusOK: color == .systemGreen,
+            savings: Stats.savings,
+            acceptLabel: Settings.hotkeyStyle.label
+        )
     }
 
     /// "Disable in Mail" / "Enable in Mail", named from the context the user was
@@ -210,6 +226,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             // toggleable.
             appBlacklistItem.title = "Always off in \(name)"
             appBlacklistItem.action = nil
+            appBlacklistItem.image = symbol("hand.raised")
         } else if AppPolicy.userBlacklistEntries(for: bundleID).isEmpty,
                   Stats.isUnproductive(bundleID), let record = Stats.record(for: bundleID) {
             // Pretype silenced itself here. The block is ours, not the user's, so
@@ -218,11 +235,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             appBlacklistItem.title = "Quiet in \(name) — \(record.accepted * 100 / record.shown)% "
                 + "of \(record.shown) taken · Resume"
             appBlacklistItem.action = #selector(resumeInFrontmostApp)
+            appBlacklistItem.image = symbol("play.circle")
         } else {
             let off = !AppPolicy.userBlacklistEntries(for: bundleID).isEmpty
             // No .state checkmark: a ✓ next to "Disable in Mail" reads either way.
             appBlacklistItem.title = off ? "Enable in \(name)" : "Disable in \(name)"
             appBlacklistItem.action = #selector(toggleFrontmostAppBlacklist)
+            appBlacklistItem.image = symbol(off ? "checkmark.circle" : "nosign")
         }
     }
 
@@ -273,21 +292,28 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         settingsWindow?.store.activeTab = .model
     }
 
-    /// The two-line shortcut hint, keyed to the user's accept hotkey so its
-    /// notation matches the overlay and onboarding (Tab / ⇧Tab / ⌥Tab) instead
-    /// of a hardcoded ⇥ that also went stale whenever the hotkey was changed.
-    private func shortcutHint() -> NSAttributedString {
+    /// The shortcut hints, keyed to the user's accept hotkey so their notation
+    /// matches the overlay and onboarding (Tab / ⇧Tab / ⌥Tab) instead of a
+    /// hardcoded ⇥ that also went stale whenever the hotkey was changed.
+    ///
+    /// Four rows of keycaps is a wall to read every time the menu opens, and it
+    /// stops being news the moment accepting is muscle memory — so it shrinks to
+    /// one row at the same 20-acceptance mark the suggestion pill uses.
+    /// Onboarding and Settings still spell all of it out.
+    private func shortcutHints() -> [(keys: String, action: String)] {
         let s = Settings.hotkeyStyle
-        return NSAttributedString(
-            string: "\(s.label) accept word · \(s.shiftLabel) accept all\n"
-                + "\(s.correctionLabel) fix word/selection · ⏎ apply · ⎋ keep\n"
-                + (Settings.replyGesture == .off
-                    ? "\(s.replyLabel) write a reply to what's on screen"
-                    : "\(Settings.replyGesture.label) or \(s.replyLabel) — write a reply to what's on screen"),
-            attributes: [
-                .font: NSFont.menuFont(ofSize: NSFont.smallSystemFontSize),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ])
+        let reply = Settings.replyGesture == .off ? s.replyLabel : Settings.replyGesture.label
+        guard Stats.lifetimeAccepted < 20 else {
+            return [(keys: "\(s.label)  \(s.correctionLabel)  \(reply)", action: "accept · fix · reply")]
+        }
+        // One line each, and short enough to survive the widest keycap column
+        // without truncating — the menu's width is set by the header, not here.
+        return [
+            (keys: s.label, action: "accept a word — \(s.shiftLabel) for all"),
+            (keys: s.correctionLabel, action: "fix the word or selection"),
+            (keys: "⏎", action: "apply the fix — ⎋ keeps yours"),
+            (keys: reply, action: "reply to what's on screen"),
+        ]
     }
 
     private func statusInfo() -> (color: NSColor, text: String) {
@@ -307,6 +333,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// Context + pipeline + debug tools, merged into one submenu.
     private func rebuildDiagnosticsMenu() {
         diagnosticsMenu.removeAllItems()
+
+        diagnosticsMenu.addItem(.sectionHeader(title: "Today"))
+        for line in Stats.diagnosticLines {
+            diagnosticsMenu.addItem(NSMenuItem(title: line, action: nil, keyEquivalent: ""))
+        }
 
         diagnosticsMenu.addItem(.sectionHeader(title: "Context"))
         let context = suggestionController?.typingContext ?? TypingContext()
