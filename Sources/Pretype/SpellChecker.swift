@@ -190,6 +190,11 @@ enum SpellChecker {
                 return languageRecognizer.dominantLanguage?.rawValue
             }()
             if let langCode {
+                // The one place the app already knows what language is being
+                // typed. Recorded here rather than re-detected elsewhere: this
+                // runs on the typing path anyway, and a second recognizer would
+                // be a second Core ML model for an answer we already have.
+                TypedLanguage.observe(langCode)
                 // Find if the spellchecker supports this language
                 if let matched = checker.availableLanguages.first(where: {
                     $0.lowercased().hasPrefix(langCode.lowercased())

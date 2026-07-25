@@ -705,6 +705,25 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(SuggestionWindow.fittingPrefix(of: text, font: font, width: width("не") / 2), "")
         XCTAssertEqual(SuggestionWindow.fittingPrefix(of: text, font: font, width: 0), "")
         XCTAssertEqual(SuggestionWindow.fittingPrefix(of: "", font: font, width: 100), "")
+
+        // RTL: the trim is the one place the right-to-left ghost's geometry meets
+        // the text logic. The cut is LOGICAL (a prefix of the string, which is
+        // what `narrowActive` and ⇧⇥ later re-match against) even though it
+        // renders from the right edge — so what's dropped is the visually
+        // leftmost run, and the kept text still starts at the caret.
+        let arabic = "لا تنس أن تأخذ المظلة"
+        let arCut = SuggestionWindow.fittingPrefix(of: arabic, font: font,
+                                                   width: width("لا تنس أن"))
+        XCTAssertEqual(arCut, "لا تنس أن")
+        XCTAssertTrue(arabic.hasPrefix(arCut))
+        XCTAssertTrue(SuggestionWindow.isRightToLeft(arCut),
+                      "a trimmed RTL suggestion must still lay out RTL")
+        // Hebrew, and the same no-room fallback as above.
+        let hebrew = "אל תשכח לקחת מטריה"
+        XCTAssertEqual(SuggestionWindow.fittingPrefix(of: hebrew, font: font,
+                                                      width: width("אל תשכח")), "אל תשכח")
+        XCTAssertEqual(SuggestionWindow.fittingPrefix(of: hebrew, font: font,
+                                                      width: width("אל") / 2), "")
     }
 
     // ConfigProjection powers everything the settings UI claims a setting will
@@ -866,11 +885,17 @@ final class PretypeTests: XCTestCase {
         // The axis figures themselves: core = of-answered headline, "*" =
         // equal-weight mean of the booked per-language of-all cells.
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "core"), 31)
-        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "*"), 23)
+        // 22, not the pre-RTL 23: adding ar (15) and he (16) — both below this
+        // model's 17-language mean — pulls the equal-weight average down. The
+        // ranking is unchanged; only the absolute figure moved.
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "*"), 22)
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "cs"), 23)
         XCTAssertNil(ModelMetrics.axisAccuracy(for: "no-such-model", axis: "*"))
         XCTAssertEqual(ModelMetrics.axisBest("uk"), 24)  // Gemma E4B 8-bit
-        XCTAssertEqual(ModelMetrics.evalLanguages.count, 17)
+        // RTL: the small models tie each other, so the axis best is a Gemma.
+        XCTAssertEqual(ModelMetrics.axisBest("he"), 18)  // Gemma E2B 8-bit
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "openbmb/MiniCPM5-1B-Base", axis: "he"), 1)
+        XCTAssertEqual(ModelMetrics.evalLanguages.count, 19)
 
         // A preset lands on the measured protocol its card advertises
         // (Base · Short — NOT the Gemma recommendation, which is Instruct and
@@ -896,6 +921,149 @@ final class PretypeTests: XCTestCase {
         var dotAuto = dot; dotAuto.useRecommended = true
         XCTAssertTrue(dot.sameRuntime(as: dotAuto))
         XCTAssertFalse(dot.sameRuntime(as: custom))
+    }
+
+    func testTypedLanguageSignal() {
+        TypedLanguage.reset()
+        XCTAssertNil(TypedLanguage.dominant)
+        for _ in 0..<(TypedLanguage.minObservations - 1) { TypedLanguage.observe("ru") }
+        XCTAssertNil(TypedLanguage.dominant, "a thin sample must never decide")
+        TypedLanguage.observe("ru")
+        XCTAssertEqual(TypedLanguage.dominant, "ru")
+
+        // The ru/uk confusion this guard exists for: a split field is not a
+        // verdict, however many observations back it.
+        TypedLanguage.reset()
+        for _ in 0..<200 { TypedLanguage.observe("ru"); TypedLanguage.observe("uk") }
+        XCTAssertNil(TypedLanguage.dominant, "a mixed field must stay undecided")
+
+        // Someone who switches languages has to be able to outvote their own
+        // history. The decay makes that cost a few hundred detections — a few
+        // paragraphs of typing — rather than being impossible.
+        TypedLanguage.reset()
+        for _ in 0..<300 { TypedLanguage.observe("en") }
+        XCTAssertEqual(TypedLanguage.dominant, "en")
+        for _ in 0..<600 { TypedLanguage.observe("he") }
+        XCTAssertEqual(TypedLanguage.dominant, "he", "decay must let a switch through")
+
+        // NLLanguageRecognizer reports Chinese as "zh-Hans"/"zh-Hant"; the eval
+        // tables key on "zh", and the nudge dies silently on a mismatch.
+        TypedLanguage.reset()
+        for _ in 0..<TypedLanguage.minObservations { TypedLanguage.observe("zh-Hans") }
+        XCTAssertEqual(TypedLanguage.dominant, "zh", "script subtags must not hide a measured language")
+        XCTAssertNotNil(ModelMetrics.materiallyBetter(than: "openbmb/MiniCPM5-1B-Base", on: "zh"),
+                        "the zh nudge the normalization exists for must actually fire")
+        TypedLanguage.reset()
+    }
+
+    /// The nudge's whole risk is crying wolf, so the thresholds are asserted
+    /// against the booked table rather than described in a comment.
+    func testMateriallyBetterModelForLanguage() {
+        let minicpm = "openbmb/MiniCPM5-1B-Base"
+        // Fires where the model is the wrong tool: Hebrew 1% and Turkish 5%.
+        let he = ModelMetrics.materiallyBetter(than: minicpm, on: "he")
+        XCTAssertEqual(he?.id, "mlx-community/gemma-4-e2b-8bit")
+        XCTAssertEqual(he?.current, 1)
+        XCTAssertEqual(he?.best, 18)
+        XCTAssertEqual(ModelMetrics.materiallyBetter(than: minicpm, on: "tr")?.id,
+                       "mlx-community/gemma-4-e4b-8bit")
+        // Silent where a better model exists but the current one is still the
+        // best of its weight class — Russian 17 vs 24 is a memory trade-off the
+        // user already made, not a mistake worth a menu line.
+        XCTAssertNil(ModelMetrics.materiallyBetter(than: minicpm, on: "ru"))
+        XCTAssertNil(ModelMetrics.materiallyBetter(than: minicpm, on: "en"))
+        // Never suggests a model against itself, or on an unmeasured language.
+        XCTAssertNil(ModelMetrics.materiallyBetter(than: "mlx-community/gemma-4-e2b-8bit", on: "he"))
+        XCTAssertNil(ModelMetrics.materiallyBetter(than: minicpm, on: "xx"))
+        XCTAssertNil(ModelMetrics.materiallyBetter(than: "no-such-model", on: "he"))
+        // Apple Intelligence trails nearly everywhere, so a nudge for it would
+        // be permanent — and it is the one choice whose point is downloading
+        // nothing. Silent on every language, including its worst.
+        for language in ModelMetrics.evalLanguages {
+            XCTAssertNil(ModelMetrics.materiallyBetter(than: ModelCatalog.appleIntelligenceID,
+                                                       on: language),
+                         "the system model must never be nudged off \(language)")
+        }
+    }
+
+    /// The "*" axis is a mean over each model's OWN language keys, so a table
+    /// where one model carries a language another lacks quietly compares two
+    /// different averages — and "*" is the axis the settings UI opens on. Adding
+    /// a language to the eval means measuring the WHOLE catalog on it; this is
+    /// the guard that says so out loud instead of shipping a skewed ranking.
+    func testPerLanguageTableCoversEveryModelEqually() {
+        let table = ModelMetrics.perLangOfAll
+        XCTAssertFalse(table.isEmpty)
+        let languages = Set(ModelMetrics.evalLanguages)
+        for (id, cells) in table {
+            XCTAssertEqual(Set(cells.keys), languages,
+                           "\(id) is measured on a different language set than the rest")
+        }
+        // Every per-language row belongs to a model the user can actually pick
+        // (or the system engine), so no axis can rank a model that isn't there.
+        for id in table.keys where id != "system.apple-intelligence" {
+            XCTAssertNotNil(ModelCatalog.option(for: id), "\(id) has metrics but no catalog entry")
+        }
+
+        // Coverage is shown beside accuracy on the same axis, so it has to cover
+        // the same models and the same languages or a per-language view silently
+        // falls back to the pooled figure for some of them.
+        XCTAssertEqual(Set(ModelMetrics.perLangCoverage.keys), Set(table.keys))
+        for (id, cells) in ModelMetrics.perLangCoverage {
+            XCTAssertEqual(Set(cells.keys), languages, "\(id) coverage covers a different language set")
+        }
+        // A figure with no sample size behind it can't state its own tolerance.
+        for language in ModelMetrics.evalLanguages {
+            XCTAssertNotNil(ModelMetrics.sampleSize[language], "\(language) has no booked n")
+            XCTAssertGreaterThan(ModelMetrics.axisSampleSize(language), 0)
+        }
+        XCTAssertEqual(ModelMetrics.axisSampleSize("*"),
+                       ModelMetrics.sampleSize.values.reduce(0, +))
+    }
+
+    /// "core" was a language-picker entry until 2026-07-25. Anyone who had it
+    /// selected must land on a real language axis with the settings map still
+    /// on — not on a value the picker can no longer display, which would render
+    /// as a blank selection.
+    func testPooledAxisMigratesToSettingsMapMode() {
+        let axis = Settings.accuracyAxis, mapMode = Settings.settingsMapMode
+        defer { Settings.accuracyAxis = axis; Settings.settingsMapMode = mapMode }
+
+        Settings.accuracyAxis = "core"
+        Settings.settingsMapMode = false
+        Settings.registerDefaults()
+        XCTAssertEqual(Settings.accuracyAxis, "*", "the retired value must not survive")
+        XCTAssertTrue(Settings.settingsMapMode, "the map it stood for must stay on")
+        XCTAssertFalse(ModelMetrics.evalLanguages.contains("core"))
+
+        // A language selection is left alone, map mode or not.
+        Settings.accuracyAxis = "ru"
+        Settings.registerDefaults()
+        XCTAssertEqual(Settings.accuracyAxis, "ru")
+    }
+
+    /// The confidence figure is the whole point of showing n, so it has to be
+    /// arithmetic rather than decoration.
+    func testMarginOfErrorTracksSampleSize() {
+        // A single language cell buys ±5 pp near 20%; Russian's larger cell ±3;
+        // the whole set ±1. These are the numbers the captions now print.
+        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: 280), 5)
+        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: 689), 3)
+        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: ModelMetrics.axisSampleSize("*")), 1)
+        // Tighter at the extremes, and monotone in n — a 1% cell is far better
+        // pinned down than a 25% one at the same sample size.
+        XCTAssertLessThan(ModelMetrics.marginOfError(pct: 1, n: 280),
+                          ModelMetrics.marginOfError(pct: 25, n: 280))
+        XCTAssertLessThan(ModelMetrics.marginOfError(pct: 20, n: 5000),
+                          ModelMetrics.marginOfError(pct: 20, n: 280))
+        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: 0), 0)
+        // The Hebrew cliff must stay a real gap and not a noise artifact:
+        // 1% and 18% at n=280 don't come close to touching.
+        let minicpm = ModelMetrics.axisAccuracy(for: "openbmb/MiniCPM5-1B-Base", axis: "he")!
+        let gemma = ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e2b-8bit", axis: "he")!
+        let n = ModelMetrics.axisSampleSize("he")
+        XCTAssertGreaterThan(gemma - ModelMetrics.marginOfError(pct: gemma, n: n),
+                             minicpm + ModelMetrics.marginOfError(pct: minicpm, n: n))
     }
 
     // Token healing: a mid-word prompt is backed up to the word boundary and

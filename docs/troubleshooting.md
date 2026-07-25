@@ -32,7 +32,7 @@ The model stays resident while you're typing — that's what makes warm completi
 
 ### Which languages work?
 
-Completions are evaluated across 17 languages — see [Choosing a model](models.md); the default is picked from your keyboard layouts and the Gemma 4 builds have the broadest coverage. Inline typo fixes use the macOS spell-checker in whichever language it detects, so any dictionary macOS has installed works (English and Russian are the most-tested pair).
+Completions are evaluated across 19 languages, each measured on its own rather than averaged with its neighbours — see [Choosing a model](models.md); the default is picked from your keyboard layouts and the Gemma 4 builds have the broadest coverage. In **Settings → Model** you can set the accuracy axis to the language you actually type in, and every figure on that tab is re-measured for it, with its sample size and tolerance printed alongside. Inline typo fixes use the macOS spell-checker in whichever language it detects, so any dictionary macOS has installed works (English and Russian are the most-tested pair).
 
 ### Where does my data go?
 

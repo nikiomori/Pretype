@@ -28,7 +28,7 @@ Everything else is a manual pick in **Settings → Model**:
 |---|---|---|
 | **MiniCPM5 1B** | ≈2.2 GB | *Default for EN/RU keyboards* — fastest in the catalog at 49 ms |
 | **Qwen3.5 2B 4-bit** | ≈1.6 GB | *Default for every other keyboard* — best sub-2 GB pick multilingually (p<0.001) |
-| Gemma 4 E4B 8-bit | ≈8.6 GB | Best measured quality; holds up across all 17 eval languages |
+| Gemma 4 E4B 8-bit | ≈8.6 GB | Best measured quality; holds up across all 19 eval languages |
 | Gemma 4 E4B 6-bit | ≈6.8 GB | Ties E4B 8-bit (p=0.052) at 1.8 GB less |
 | Gemma 4 E2B 8-bit | ≈5.7 GB | ~1 pp behind E4B at roughly twice the speed |
 | Gemma 4 E2B 4-bit | ≈3.5 GB | The mildest 4-bit cost in the field |
@@ -38,9 +38,16 @@ Everything else is a manual pick in **Settings → Model**:
 Quantization is not a free axis, and it isn't uniform across families:
 **E4B below 6-bit collapses** — E4B 4-bit was delisted after measuring as a
 statistical tie with the floor of the field — while the same step on E2B is the
-mildest 4-bit cost measured, identical to 8-bit on EN/RU and about two points
-behind it across 17 languages (p<0.001). Reduce footprint by stepping down
-model size rather than bit width.
+mildest 4-bit cost measured, level with 8-bit on English (27 vs 26) and on
+Russian (22 vs 23) alike, and about two points behind it across 17 languages
+(p<0.001). Reduce footprint by stepping down model size rather than bit width.
+
+Figures are quoted per language on purpose. Pooling English and Russian into one
+"EN/RU" number hides the split that matters most for the small models: MiniCPM5
+ties Gemma E2B 8-bit on English (27 vs 26, p=0.35) and gives up 6 points on
+Russian (17 vs 23, p<0.001). Each language cell is 280 rows (English 560,
+Russian 689), which is ±5 pp near 20% — the app prints that tolerance next to
+every figure, so a two-point gap reads as the tie it usually is.
 
 On the Gemma builds the **Instruct** completion style swaps in an instruct
 sibling sized to that entry's RAM class, so no pick ever loads weights your Mac

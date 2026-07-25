@@ -63,11 +63,15 @@ enum ModelCatalog {
             instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
         // The EN/RU default (eval 2026-07-07 + live use): base ties E4B-8bit
-        // base on the EN+RU core at a quarter of the RAM and the lowest latency
-        // in the catalog (p50 49 ms). An EN/RU SPECIALIST though — on the
-        // 17-language set coverage collapses (uk/ro/tr/cs 53–69%) and E2B-8bit
-        // beats it decisively (p<0.001) — so `defaultID` only picks it when the
-        // keyboards say EN/RU. Runs base-only — its instruct mode ANSWERS the
+        // base on the POOLED EN+RU core at a quarter of the RAM and the lowest
+        // latency in the catalog (p50 49 ms). Split by language that tie is
+        // English-only — against E2B-8bit: English 27 vs 26 (p=0.35), Russian
+        // 17 vs 23 (p<0.001). It stays the default for Russian keyboards because
+        // nothing in its weight class does better there (Qwen3.5 2B ties it,
+        // p=0.79), not because the languages measure alike. Beyond EN/RU
+        // coverage collapses (uk/ro/tr/cs 53–69%) and E2B-8bit wins decisively
+        // (p<0.001) — so `defaultID` only picks it when the keyboards say
+        // EN/RU. Runs base-only — its instruct mode ANSWERS the
         // text instead of continuing it (first-word ~0%), so `recommended(for:)`
         // and the fresh-install defaults both pin base style.
         // bf16 straight from the hub; no 8-bit Base conversion is published yet.
@@ -147,7 +151,11 @@ enum ModelCatalog {
     static var defaultRationale: String {
         defaultID != "openbmb/MiniCPM5-1B-Base"
             ? "Auto-picked for your keyboard languages: the best-measured small multilingual model — it beats every other sub-2 GB model across the evaluated languages (p<0.001) at an even lighter footprint. For English or Russian only, MiniCPM 1B is faster; the Gemma tiers are the most accurate."
-            : "Auto-picked for this Mac: the fastest model in the catalog, within a few points of the much larger Gemma tiers on English and Russian. Typing in other languages? A Gemma tier or the multilingual default is more accurate — see the model's note below."
+            // "on English and Russian" used to be one claim. Split by language it
+            // is two different ones: English is a genuine tie with E2B 8-bit
+            // (p=0.35), Russian is a 6 pp loss (p<0.001) — averaging them
+            // reported "a few points" for a language where it isn't true.
+            : "Auto-picked for this Mac: the fastest model in the catalog and a measured tie with the much larger Gemma tiers on English. On Russian it gives up ~6 points to Gemma E2B 8-bit — still the best of the small models there, but a Gemma tier is the accurate pick if you have the memory. Typing in other languages? A Gemma tier or the multilingual default is more accurate — see the model's note below."
     }
 
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):

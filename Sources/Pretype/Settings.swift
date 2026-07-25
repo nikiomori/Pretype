@@ -358,6 +358,16 @@ enum Settings {
                         "fimEnabled", "personalExamples"] {
             defaults.removeObject(forKey: retired)
         }
+        // "core" stopped being a choice in the language picker 2026-07-25: it
+        // pooled English and Russian, which measure differently, into one entry
+        // sitting among real languages. The sample still exists — it is the only
+        // one the settings projections are anchored to — but it is now a mode
+        // (`settingsMapMode`) rather than a language, so picking a language and
+        // looking at the settings map are no longer the same gesture.
+        if defaults.string(forKey: "accuracyAxis") == "core" {
+            defaults.set(true, forKey: "settingsMapMode")
+            defaults.set("*", forKey: "accuracyAxis")
+        }
         // Style/length ship pre-matched to the default model's recommendation:
         // nothing applies it at boot (main only registers defaults), and the
         // engine reads the stored style directly — so a base-only default like
@@ -571,13 +581,28 @@ enum Settings {
 
     /// Which measured axis the Model tab's accuracy surfaces show: "*" =
     /// equal-weight average over all measured languages (the multilingual
-    /// default), "core" = the EN+RU booking (largest sample — and the only
+    /// default), "core" = the EN+RU *pooled* booking — English and Russian
+    /// score differently inside it, so it answers for neither on its own and
+    /// both are selectable separately (largest sample — and the only
     /// axis the settings projections are measured on), or a language code
     /// from `ModelMetrics.evalLanguages`. Presentation-only: never feeds the
     /// completion pipeline.
     static var accuracyAxis: String {
         get { defaults.string(forKey: "accuracyAxis") ?? "*" }
         set { defaults.set(newValue, forKey: "accuracyAxis") }
+    }
+
+    /// Show the model map's settings machinery — the config dots, the reachable
+    /// zone and the projected ring. Its own switch rather than an entry in the
+    /// language picker: those projections are anchored to the pooled
+    /// English+Russian booking and to constants from single experiments (the
+    /// consensus-gate figures come from one model), so they are not a language's
+    /// numbers and can't be redrawn against one. Turning it on moves the whole
+    /// tab onto that sample and says so; the language you picked is remembered
+    /// and comes back when you turn it off.
+    static var settingsMapMode: Bool {
+        get { defaults.bool(forKey: "settingsMapMode") }
+        set { defaults.set(newValue, forKey: "settingsMapMode") }
     }
 
     /// Base (raw continuation) vs instruct (persona-aware) completion.

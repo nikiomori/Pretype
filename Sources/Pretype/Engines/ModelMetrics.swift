@@ -11,6 +11,10 @@ import Foundation
 /// is the **EN+RU core** (n=1449) so rows compare on the languages the app is
 /// tuned for — 17-language verdicts (coverage cliffs, McNemar) live in `note`.
 /// Booking derivation: `book-enru-core.py` in the runs dir.
+/// Arabic and Hebrew were added 2026-07-25 from `Eval/eval-rtl.jsonl` (560 rows,
+/// same three registers, same axis) — a separate file so eval-real and every
+/// verdict booked on it stay byte-identical; see `Eval/runs-2026-07-25/`. Only
+/// `perLangOfAll` grew; the headline EN+RU figures below are untouched by it.
 /// p50 provenance: MLX models from the clean 2026-07-15 solo runs (the 07-16
 /// pass ran with `PRETYPE_EVAL_LOGPROB=1`, which inflates wall-clock); Apple
 /// Intelligence from the 07-16 solo run (no logP pass there), EN/RU-weighted.
@@ -35,7 +39,7 @@ struct ModelMetrics {
     let note: String?
 
     /// Umbrella citation for surfaces that describe the whole catalog.
-    static let evalSource = "eval-real EN+RU core, n=1449, 2026-07-16"
+    static let evalSource = "eval-real, English+Russian pooled, n=1449, 2026-07-16"
 
     static let all: [ModelMetrics] = [
         ModelMetrics(id: "mlx-community/gemma-4-e4b-8bit", shortName: "E4B 8-bit",
@@ -55,11 +59,11 @@ struct ModelMetrics {
         ModelMetrics(id: "mlx-community/gemma-4-e2b-4bit", shortName: "E2B 4-bit",
                      firstWordPct: 29, ci: 27...32, coveragePct: 85,
                      logProbPerChar: -0.925, p50Ms: 127, ramGB: 3.5,
-                     note: "Mildest 4-bit cost in the field: ties E2B 8-bit on EN/RU, measurably behind it on 17 languages (p<0.001) yet still ahead of every smaller model — at 2.2 GB less, though slower."),
+                     note: "Mildest 4-bit cost in the field: ties E2B 8-bit on English (27 vs 26) and on Russian (22 vs 23) alike, measurably behind it on 17 languages (p<0.001) yet still ahead of every smaller model — at 2.2 GB less, though slower."),
         ModelMetrics(id: "openbmb/MiniCPM5-1B-Base", shortName: "MiniCPM5 1B",
                      firstWordPct: 28, ci: 26...31, coveragePct: 81,
                      logProbPerChar: -1.041, p50Ms: 49, ramGB: 2.2,
-                     note: "Fastest in the catalog, but an EN/RU specialist: multilingual coverage collapses (uk/ro/tr/cs 53–69% vs the Gemmas' ≥78%) — E2B 8-bit is decisively better across 17 languages (p<0.001)."),
+                     note: "Fastest in the catalog and an English specialist — on English it ties E2B 8-bit outright (27% vs 26%, p=0.35). Russian is a different story: 17% against E2B 8-bit's 23% (p<0.001), still the best of the small models there but not parity. Wider multilingual coverage collapses (uk/ro/tr/cs 53–69% vs the Gemmas' ≥78%), and Hebrew is its floor at 1% — effectively blind."),
         ModelMetrics(id: "mlx-community/Qwen2.5-0.5B-bf16", shortName: "Qwen2.5 0.5B",
                      firstWordPct: 26, ci: 23...28, coveragePct: 84,
                      logProbPerChar: -1.051, p50Ms: 79, ramGB: 1.0,
@@ -67,7 +71,7 @@ struct ModelMetrics {
         ModelMetrics(id: "mlx-community/Qwen3.5-2B-4bit", shortName: "Qwen3.5 2B",
                      firstWordPct: 27, ci: 24...29, coveragePct: 81,
                      logProbPerChar: -0.993, p50Ms: 93, ramGB: 1.6,
-                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; near-ties MiniCPM5 on EN/RU."),
+                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; matches MiniCPM5 on English (26 vs 27) and on Russian (17 vs 17) alike. On Arabic and Hebrew its lead over the other small models disappears (ties Qwen 0.5B and Bonsai; only MiniCPM5 is worse) — a Gemma tier roughly doubles it there."),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 25...30, coveragePct: 81,
                      logProbPerChar: -1.073, p50Ms: 102, ramGB: 1.1,
@@ -76,7 +80,7 @@ struct ModelMetrics {
         ModelMetrics(id: "system.apple-intelligence", shortName: "Apple Intelligence",
                      firstWordPct: 18, ci: 16...20, coveragePct: 90,
                      logProbPerChar: nil, p50Ms: 430, ramGB: 0,
-                     note: "System model on the Neural Engine — no download, no app memory. Russian is its weak spot (10% first-word vs 24% English), and pl/ro/cs sit outside its supported languages (9–12% coverage)."),
+                     note: "System model on the Neural Engine — no download, no app memory. Russian is its weak spot (10% first-word vs 24% English), and pl/ro/cs sit outside its supported languages (9–12% coverage). Arabic and Hebrew are the opposite trap: it answers on 86% of them — more than any downloadable model — and is right 4–6% of the time."),
     ]
 
     static func metrics(for id: String) -> ModelMetrics? {
@@ -93,26 +97,103 @@ struct ModelMetrics {
     /// char-masked, agglutinative languages pack more per word) — only rank
     /// models inside one language. n≈280/language (en 560, ru 689) → ±5 pp.
     /// Booked from the 2026-07-16 catalog dumps: book-per-lang.py in the runs dir.
+    /// ar/he come from `Eval/eval-rtl.jsonl` (2026-07-25, book-rtl.py) — a
+    /// separate set on the same axis and the same 100/90/90 register design, so
+    /// the cells are drop-in; eval-real stayed frozen for the other 17.
+    /// EVERY model carries EVERY language on purpose: `axisAccuracy(axis: "*")`
+    /// averages over a model's own keys, so a half-measured language would make
+    /// the default axis compare two different means (guarded by a unit test).
     static let perLangOfAll: [String: [String: Int]] = [
         "mlx-community/gemma-4-e4b-8bit":
-            ["cs": 23, "de": 28, "en": 27, "es": 28, "fr": 28, "it": 26, "ja": 6, "ko": 12, "nl": 26, "pl": 28, "pt": 24, "ro": 30, "ru": 24, "sv": 23, "tr": 18, "uk": 24, "zh": 13],
+            ["ar": 15, "cs": 23, "de": 28, "en": 27, "es": 28, "fr": 28, "he": 16, "it": 26, "ja": 6, "ko": 12, "nl": 26, "pl": 28, "pt": 24, "ro": 30, "ru": 24, "sv": 23, "tr": 18, "uk": 24, "zh": 13],
         "mlx-community/gemma-4-e4b-6bit":
-            ["cs": 22, "de": 28, "en": 27, "es": 29, "fr": 26, "it": 26, "ja": 5, "ko": 10, "nl": 26, "pl": 26, "pt": 24, "ro": 30, "ru": 22, "sv": 25, "tr": 16, "uk": 24, "zh": 13],
+            ["ar": 13, "cs": 22, "de": 28, "en": 27, "es": 29, "fr": 26, "he": 17, "it": 26, "ja": 5, "ko": 10, "nl": 26, "pl": 26, "pt": 24, "ro": 30, "ru": 22, "sv": 25, "tr": 16, "uk": 24, "zh": 13],
         "mlx-community/gemma-4-e2b-8bit":
-            ["cs": 21, "de": 25, "en": 26, "es": 29, "fr": 25, "it": 26, "ja": 5, "ko": 11, "nl": 24, "pl": 28, "pt": 21, "ro": 31, "ru": 23, "sv": 22, "tr": 17, "uk": 19, "zh": 14],
+            ["ar": 11, "cs": 21, "de": 25, "en": 26, "es": 29, "fr": 25, "he": 18, "it": 26, "ja": 5, "ko": 11, "nl": 24, "pl": 28, "pt": 21, "ro": 31, "ru": 23, "sv": 22, "tr": 17, "uk": 19, "zh": 14],
         "mlx-community/gemma-4-e2b-4bit":
-            ["cs": 17, "de": 21, "en": 27, "es": 28, "fr": 26, "it": 24, "ja": 3, "ko": 9, "nl": 22, "pl": 24, "pt": 23, "ro": 27, "ru": 22, "sv": 20, "tr": 13, "uk": 18, "zh": 11],
+            ["ar": 8, "cs": 17, "de": 21, "en": 27, "es": 28, "fr": 26, "he": 16, "it": 24, "ja": 3, "ko": 9, "nl": 22, "pl": 24, "pt": 23, "ro": 27, "ru": 22, "sv": 20, "tr": 13, "uk": 18, "zh": 11],
         "openbmb/MiniCPM5-1B-Base":
-            ["cs": 6, "de": 16, "en": 27, "es": 25, "fr": 20, "it": 17, "ja": 6, "ko": 7, "nl": 13, "pl": 10, "pt": 16, "ro": 6, "ru": 17, "sv": 9, "tr": 5, "uk": 5, "zh": 9],
+            ["ar": 5, "cs": 6, "de": 16, "en": 27, "es": 25, "fr": 20, "he": 1, "it": 17, "ja": 6, "ko": 7, "nl": 13, "pl": 10, "pt": 16, "ro": 6, "ru": 17, "sv": 9, "tr": 5, "uk": 5, "zh": 9],
         "mlx-community/Qwen2.5-0.5B-bf16":
-            ["cs": 6, "de": 15, "en": 26, "es": 21, "fr": 19, "it": 15, "ja": 4, "ko": 5, "nl": 14, "pl": 13, "pt": 16, "ro": 9, "ru": 16, "sv": 6, "tr": 6, "uk": 6, "zh": 10],
+            ["ar": 6, "cs": 6, "de": 15, "en": 26, "es": 21, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 5, "nl": 14, "pl": 13, "pt": 16, "ro": 9, "ru": 16, "sv": 6, "tr": 6, "uk": 6, "zh": 10],
         "mlx-community/Qwen3.5-2B-4bit":
-            ["cs": 7, "de": 18, "en": 26, "es": 24, "fr": 22, "it": 20, "ja": 2, "ko": 6, "nl": 17, "pl": 14, "pt": 22, "ro": 18, "ru": 17, "sv": 13, "tr": 7, "uk": 15, "zh": 8],
+            ["ar": 6, "cs": 7, "de": 18, "en": 26, "es": 24, "fr": 22, "he": 10, "it": 20, "ja": 2, "ko": 6, "nl": 17, "pl": 14, "pt": 22, "ro": 18, "ru": 17, "sv": 13, "tr": 7, "uk": 15, "zh": 8],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
-            ["cs": 5, "de": 16, "en": 28, "es": 21, "fr": 21, "it": 12, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 13, "ru": 15, "sv": 9, "tr": 6, "uk": 9, "zh": 5],
+            ["ar": 4, "cs": 5, "de": 16, "en": 28, "es": 21, "fr": 21, "he": 7, "it": 12, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 13, "ru": 15, "sv": 9, "tr": 6, "uk": 9, "zh": 5],
         "system.apple-intelligence":
-            ["cs": 0, "de": 11, "en": 24, "es": 26, "fr": 19, "it": 12, "ja": 2, "ko": 2, "nl": 15, "pl": 1, "pt": 10, "ro": 0, "ru": 7, "sv": 14, "tr": 6, "uk": 5, "zh": 6],
+            ["ar": 4, "cs": 0, "de": 11, "en": 24, "es": 26, "fr": 19, "he": 6, "it": 12, "ja": 2, "ko": 2, "nl": 15, "pl": 1, "pt": 10, "ro": 0, "ru": 7, "sv": 14, "tr": 6, "uk": 5, "zh": 6],
     ]
+
+    /// How often the model offers anything at all, per language, same matched
+    /// cells and same booking rule as `perLangOfAll` (book-per-lang-coverage.py).
+    /// Split out because coverage moves FURTHER by language than accuracy does —
+    /// MiniCPM5 answers 86% of English and 58% of Hebrew, Apple Intelligence 98%
+    /// of English and 9% of Polish — so one merged "offers a suggestion X% of the
+    /// time" was wrong on every axis but the one it was measured on.
+    static let perLangCoverage: [String: [String: Int]] = [
+        "mlx-community/gemma-4-e4b-8bit":
+            ["ar": 75, "cs": 85, "de": 94, "en": 86, "es": 89, "fr": 85, "he": 83, "it": 85, "ja": 71, "ko": 62, "nl": 88, "pl": 84, "pt": 91, "ro": 83, "ru": 83, "sv": 91, "tr": 83, "uk": 79, "zh": 55],
+        "mlx-community/gemma-4-e4b-6bit":
+            ["ar": 72, "cs": 86, "de": 93, "en": 84, "es": 89, "fr": 84, "he": 82, "it": 84, "ja": 69, "ko": 59, "nl": 87, "pl": 83, "pt": 88, "ro": 81, "ru": 82, "sv": 89, "tr": 81, "uk": 78, "zh": 54],
+        "mlx-community/gemma-4-e2b-8bit":
+            ["ar": 71, "cs": 87, "de": 93, "en": 85, "es": 89, "fr": 86, "he": 81, "it": 85, "ja": 71, "ko": 60, "nl": 88, "pl": 82, "pt": 90, "ro": 82, "ru": 84, "sv": 90, "tr": 84, "uk": 78, "zh": 55],
+        "mlx-community/gemma-4-e2b-4bit":
+            ["ar": 72, "cs": 81, "de": 92, "en": 86, "es": 89, "fr": 88, "he": 82, "it": 86, "ja": 68, "ko": 60, "nl": 89, "pl": 80, "pt": 93, "ro": 81, "ru": 84, "sv": 90, "tr": 82, "uk": 73, "zh": 55],
+        "openbmb/MiniCPM5-1B-Base":
+            ["ar": 59, "cs": 60, "de": 89, "en": 86, "es": 88, "fr": 83, "he": 58, "it": 83, "ja": 70, "ko": 55, "nl": 74, "pl": 69, "pt": 88, "ro": 57, "ru": 76, "sv": 78, "tr": 57, "uk": 53, "zh": 51],
+        "mlx-community/Qwen2.5-0.5B-bf16":
+            ["ar": 68, "cs": 65, "de": 88, "en": 88, "es": 90, "fr": 83, "he": 71, "it": 80, "ja": 72, "ko": 50, "nl": 79, "pl": 73, "pt": 90, "ro": 67, "ru": 80, "sv": 66, "tr": 64, "uk": 67, "zh": 55],
+        "mlx-community/Qwen3.5-2B-4bit":
+            ["ar": 65, "cs": 64, "de": 87, "en": 86, "es": 84, "fr": 80, "he": 68, "it": 78, "ja": 67, "ko": 57, "nl": 74, "pl": 71, "pt": 86, "ro": 75, "ru": 77, "sv": 76, "tr": 61, "uk": 74, "zh": 53],
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
+            ["ar": 60, "cs": 62, "de": 86, "en": 87, "es": 83, "fr": 80, "he": 66, "it": 80, "ja": 73, "ko": 49, "nl": 76, "pl": 69, "pt": 81, "ro": 71, "ru": 76, "sv": 75, "tr": 66, "uk": 61, "zh": 55],
+        "system.apple-intelligence":
+            ["ar": 86, "cs": 11, "de": 90, "en": 98, "es": 95, "fr": 94, "he": 86, "it": 92, "ja": 89, "ko": 88, "nl": 94, "pl": 9, "pt": 90, "ro": 12, "ru": 80, "sv": 93, "tr": 85, "uk": 66, "zh": 84],
+    ]
+
+    /// Rows behind each language's cell — the denominator both per-language
+    /// tables are computed over (matched registers; EN excludes the 200 Enron
+    /// rows no other language has). A percentage without this is a number
+    /// without a tolerance, which is why the UI now shows both.
+    static let sampleSize: [String: Int] = [
+        "ar": 280, "cs": 280, "de": 280, "en": 560, "es": 280, "fr": 280, "he": 280,
+        "it": 280, "ja": 280, "ko": 280, "nl": 280, "pl": 280, "pt": 280, "ro": 280,
+        "ru": 689, "sv": 280, "tr": 280, "uk": 280, "zh": 280,
+    ]
+
+    /// Rows behind an axis. "core" is the EN+RU booking, which unlike the
+    /// per-language cells keeps every register (Enron included) — a different
+    /// convention, so it is not the sum of the two language cells.
+    static func axisSampleSize(_ axis: String) -> Int {
+        switch axis {
+        case "core": return 1449
+        case "*": return sampleSize.values.reduce(0, +)
+        default: return sampleSize[axis] ?? 0
+        }
+    }
+
+    /// Wilson 95% half-width in percentage points — how much of a figure is
+    /// sampling noise at that sample size. 280 rows buys ±5 pp near 20%; the
+    /// whole set buys ±1. Shown next to the figure so a 2-point difference
+    /// between two models reads as the tie it usually is.
+    static func marginOfError(pct: Int, n: Int) -> Int {
+        guard n > 0 else { return 0 }
+        let p = Double(pct) / 100, z = 1.96, count = Double(n)
+        let denominator = 1 + z * z / count
+        let half = z * (p * (1 - p) / count + z * z / (4 * count * count)).squareRoot() / denominator
+        return Int((100 * half).rounded())
+    }
+
+    /// Coverage on one axis, matching whatever `axisAccuracy` reports there.
+    static func axisCoverage(for id: String, axis: String) -> Int? {
+        switch axis {
+        case "core": return metrics(for: id)?.coveragePct
+        case "*":
+            guard let t = perLangCoverage[id], !t.isEmpty else { return nil }
+            return Int((Double(t.values.reduce(0, +)) / Double(t.count)).rounded())
+        default: return perLangCoverage[id]?[axis]
+        }
+    }
 
     /// The languages the eval set measures, alphabetical.
     static let evalLanguages: [String] =
@@ -137,10 +218,41 @@ struct ModelMetrics {
         all.compactMap { axisAccuracy(for: $0.id, axis: axis) }.max() ?? 1
     }
 
+    /// A catalog model that measures materially better than `currentID` on
+    /// `language` — the basis for the menu's "you are typing X" nudge. nil when
+    /// the current model is a reasonable tool for that language.
+    ///
+    /// Two guards, because "a better model exists" is true for almost every
+    /// pairing and would make the nudge noise. A single-language cell carries
+    /// ±5 pp, so an absolute gap alone proves nothing; the ratio is what
+    /// separates a worthwhile upgrade from the wrong tool. Calibrated against
+    /// the booked table: MiniCPM5 on Hebrew (1 vs 18) and on Turkish (5 vs 18)
+    /// fire; MiniCPM5 on Russian (17 vs 24) does NOT — there a Gemma is better
+    /// but the small model is still the best of its weight class, which is a
+    /// memory trade-off the user already made, not a mistake to correct.
+    static func materiallyBetter(than currentID: String,
+                                 on language: String) -> (id: String, current: Int, best: Int)? {
+        // Apple Intelligence is excluded on purpose. It trails on nearly every
+        // language, so the nudge would never clear — and its entire value is
+        // downloading nothing, which every alternative undoes. Picking it is an
+        // informed trade-off (its own card lists the language weaknesses), not
+        // the accidental mismatch this exists to catch.
+        guard currentID != ModelCatalog.appleIntelligenceID else { return nil }
+        guard let mine = axisAccuracy(for: currentID, axis: language) else { return nil }
+        let bestID = ModelPriority.accurate.pick(axis: language)
+        guard bestID != currentID, let best = axisAccuracy(for: bestID, axis: language),
+              best >= mine + 5, Double(best) >= 1.5 * Double(mine)
+        else { return nil }
+        return (bestID, mine, best)
+    }
+
     /// Human name of an axis, for the picker and captions.
     static func axisDisplayName(_ axis: String) -> String {
         switch axis {
-        case "core": return "English + Russian"
+        // "pooled" carries the caveat in the name: the two languages inside it
+        // measure differently on every small model, so a label reading
+        // "English + Russian" was one number pretending to answer for both.
+        case "core": return "English + Russian pooled"
         case "*": return "all \(evalLanguages.count) languages"
         default: return Locale.current.localizedString(forLanguageCode: axis)?.capitalized ?? axis
         }

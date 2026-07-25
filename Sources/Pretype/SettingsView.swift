@@ -128,13 +128,30 @@ final class SettingsStore: ObservableObject {
     /// Selection flows through `selectModel`, not a binding didSet.
     @Published var modelID = ModelCatalog.defaultID
 
-    /// Accuracy axis for the whole Model tab ("*" = all languages, "core" =
-    /// EN+RU, or a language code). Presentation-only — re-renders the tab,
-    /// never touches the pipeline.
+    /// Language the Model tab's figures are shown for ("*" = all languages, or
+    /// a language code — no pooled entry: English and Russian are separate
+    /// choices like every other language). Presentation-only — re-renders the
+    /// tab, never touches the pipeline.
     @Published var accuracyAxis = Settings.accuracyAxis {
         didSet { guard !syncing, oldValue != accuracyAxis else { return }
-            Settings.accuracyAxis = accuracyAxis }
+            Settings.accuracyAxis = accuracyAxis
+            // Picking a language is a request to see that language. Leaving the
+            // pooled settings-map sample on would silently override it and show
+            // English+Russian figures under a "Russian" selection.
+            if settingsMapMode { settingsMapMode = false } }
     }
+
+    /// Settings-map mode: the whole tab moves to the pooled English+Russian
+    /// sample the config projections are anchored to. Separate from the
+    /// language so switching it off returns to the language you had picked.
+    @Published var settingsMapMode = Settings.settingsMapMode {
+        didSet { guard !syncing, oldValue != settingsMapMode else { return }
+            Settings.settingsMapMode = settingsMapMode }
+    }
+
+    /// What the tab actually measures against: the pooled sample while the
+    /// settings map is on, the chosen language otherwise.
+    var effectiveAxis: String { settingsMapMode ? "core" : accuracyAxis }
 
     /// Pane selected in the sidebar.
     @Published var activeTab = SettingsTab.general {
@@ -258,13 +275,13 @@ final class SettingsStore: ObservableObject {
     /// figures come from (Base · Short), keeping the precision gates where
     /// the model supports them.
     func applyPriority(_ priority: ModelPriority) {
-        applyConfig(committedConfig.applying(.preset(priority.pick(axis: accuracyAxis))))
+        applyConfig(committedConfig.applying(.preset(priority.pick(axis: effectiveAxis))))
     }
 
     /// A preset reads as active when the pipeline sits exactly where clicking
     /// it would land (gates are preserved by presets, so they don't count).
     func priorityIsActive(_ priority: ModelPriority) -> Bool {
-        modelID == priority.pick(axis: accuracyAxis) && style == .base && length == .short
+        modelID == priority.pick(axis: effectiveAxis) && style == .base && length == .short
     }
 
     /// Add an app to the blacklist via the standard app-picker panel; stores
@@ -533,6 +550,7 @@ final class SettingsStore: ObservableObject {
         automaticUpdateCheck = Settings.automaticUpdateCheck
         loginStatus = LoginItem.status  // the user may have flipped it in System Settings
         accuracyAxis = Settings.accuracyAxis
+        settingsMapMode = Settings.settingsMapMode
         // Journal stats deliberately NOT read here: sync() runs on every ⌘, and
         // after every model/style/gate change, and `fileSize` is a flush barrier
         // that can queue behind a whole-file n-gram replay. PersonalTab refreshes
@@ -651,6 +669,48 @@ struct EffectBadge: View {
         case .caution: return .orange
         case .neutral: return Color.gray
         }
+    }
+}
+
+/// How much evidence stands behind a figure, as a strength scale rather than a
+/// row of arithmetic. "n = 280" tells most people nothing — sampling error
+/// shrinks with the square root of the sample, so the number is not readable at
+/// a glance — while two bars against four is instantly comparable, and the
+/// tolerance beside it is the part that actually changes a decision. Exact rows
+/// stay one hover away.
+struct SampleBadge: View {
+    let samples: Int
+    let marginPP: Int
+
+    /// Bars filled, by tolerance rather than raw rows: what matters is how wide
+    /// the interval is, and that depends on the rate as well as the count (a 1%
+    /// cell is far tighter than a 25% one at the same size).
+    private var level: Double {
+        switch marginPP {
+        case ...1: return 1.0
+        case 2...3: return 0.72
+        case 4...5: return 0.45
+        default: return 0.18
+        }
+    }
+
+    var body: some View {
+        Label {
+            Text("±\(marginPP) pp")
+        } icon: {
+            Image(systemName: "cellularbars", variableValue: level)
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption2.weight(.medium))
+        .lineLimit(1)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .foregroundStyle(.primary)
+        .background(Color.gray.opacity(0.18), in: Capsule())
+        .help("\(samples) held-out samples behind this figure — the 95% interval is ±\(marginPP) points, "
+            + "so two models closer than that are a tie, not a ranking.")
+        .accessibilityElement()
+        .accessibilityLabel("Confidence: \(samples) samples, give or take \(marginPP) points")
     }
 }
 

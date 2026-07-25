@@ -13,7 +13,7 @@ struct ModelTab: View {
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
-    private var axis: String { store.accuracyAxis }
+    private var axis: String { store.effectiveAxis }
 
     private func langName(_ code: String) -> String {
         Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code
@@ -31,13 +31,28 @@ struct ModelTab: View {
     var body: some View {
         Form {
             Section {
+                // Languages only. The pooled English+Russian entry used to sit
+                // here as if it were a language; it pooled two that measure
+                // differently (every small model is stronger in English), and
+                // its real job — anchoring the settings projections — is a mode,
+                // not a language. It moved to the toggle below.
                 Picker("Accuracy shown for", selection: $store.accuracyAxis) {
                     Text("All \(ModelMetrics.evalLanguages.count) languages — equal-weight average").tag("*")
-                    Text("English + Russian — largest sample, full settings map").tag("core")
                     Divider()
                     ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
                         Text(langName(code)).tag(code)
                     }
+                }
+                // Not disabled while the map is on: picking a language turns the
+                // map off (see SettingsStore.accuracyAxis), so the control the
+                // user reaches for is the one that answers.
+                Toggle("Show what settings do to the map", isOn: $store.settingsMapMode)
+                HStack(spacing: 8) {
+                    sampleBadge(for: axis)
+                    Text(axis == "*" ? "\(ModelMetrics.evalLanguages.count) languages pooled equally"
+                                     : "held-out samples behind every figure below")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 axisCaption
             }
@@ -63,7 +78,8 @@ struct ModelTab: View {
                         + "The ring is your current configuration; the small dots inside the dashed zone are this model's other settings — hover to preview, click to apply.")
                 } else {
                     Caption("Up = more accurate for \(ModelMetrics.axisDisplayName(axis)), silence counted as a miss · right = faster · bubble size = memory. "
-                        + "Settings dots and the reachable zone are measured on the EN+RU sample only — switch the axis above to explore them.")
+                        + "Settings dots and the reachable zone are anchored to the pooled English+Russian sample, not to this language — "
+                        + "turn on “Show what settings do to the map” above to see them on the sample they were measured on.")
                 }
             }
 
@@ -165,17 +181,50 @@ struct ModelTab: View {
     /// come from — swapped with the axis so the citation is never stale.
     @ViewBuilder private var axisCaption: some View {
         switch axis {
+        // The sample size and its tolerance live in the badge above, so these
+        // captions say what the numbers MEAN and leave the arithmetic to it.
         case "*":
             Caption("Every measured language weighted equally; staying silent counts as a miss. "
                 + "An average hides per-language cliffs — pick the language you type in to see the whole tab re-measured for it.")
         case "core":
-            Caption("The largest measured sample (\(ModelMetrics.evalSource)) and the only axis settings projections are measured on: "
-                + "accuracy here = correct first word of shown suggestions.")
+            // The split is the point: this sample pools two languages that
+            // measure differently, and every small model is stronger in English
+            // than in Russian. Naming both numbers is cheaper than a caveat.
+            Caption("Settings map on: the whole tab is showing the one sample the config projections are "
+                + "anchored to — English and Russian pooled. Accuracy = correct first word of shown suggestions. "
+                + "The two languages do not score alike\(coreSplitText). Turn this off to go back to "
+                + "measuring one language at a time.")
         default:
             Caption("Everything on this tab — cards, map, ranking — is measured for \(langName(axis)): "
-                + "first word right with silence counted as a miss (matched text registers, ≈280 samples, ±5 pp). "
+                + "first word right with silence counted as a miss, matched text registers. "
                 + "Compare models, not languages against each other (Chinese and Japanese score per character).")
         }
+    }
+
+    /// The tolerance on every figure the axis shows, computed at the selected
+    /// model's own rate so it is honest at the low end too (a 1% cell is far
+    /// tighter than a 25% one).
+    private func margin(for axis: String) -> Int {
+        let pct = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis) ?? 20
+        return ModelMetrics.marginOfError(pct: pct, n: ModelMetrics.axisSampleSize(axis))
+    }
+
+    /// The evidence behind this axis as a strength scale — bars plus the
+    /// tolerance, with the row count in the tooltip.
+    private func sampleBadge(for axis: String) -> some View {
+        SampleBadge(samples: ModelMetrics.axisSampleSize(axis), marginPP: margin(for: axis))
+    }
+
+    /// The EN/RU split for the selected model, for the pooled axis's caption.
+    /// The split cells count silence as a miss while the pooled figure counts
+    /// only shown suggestions — so both halves can sit BELOW the pool, which
+    /// reads as broken arithmetic unless the sentence says the rule changed.
+    private var coreSplitText: String {
+        guard let en = ModelMetrics.axisAccuracy(for: store.modelID, axis: "en"),
+              let ru = ModelMetrics.axisAccuracy(for: store.modelID, axis: "ru")
+        else { return "" }
+        return " — counting silence as a miss, this model measures \(en)% on English and \(ru)% on Russian"
+            + " (a stricter rule than the pooled figure, which is why both can read lower)"
     }
 
     /// Axis accuracy for a row, with the axis best for bar normalization —
@@ -223,12 +272,24 @@ struct ModelTab: View {
     @ViewBuilder private var selectedModelSection: some View {
         Section("Selected: \(store.selectedModelName)") {
             if let m = ModelMetrics.metrics(for: store.modelID) {
+                // Both rows follow the axis. Coverage used to be the pooled EN+RU
+                // figure no matter what was selected, which is how "offers a
+                // suggestion 81% of the time" ended up on the Hebrew axis for a
+                // model that answers 58% of Hebrew.
                 LabeledContent("Offers a suggestion") {
-                    Text("\(m.coveragePct)% of the time — stays silent otherwise")
+                    Text("\(ModelMetrics.axisCoverage(for: store.modelID, axis: axis) ?? m.coveragePct)% "
+                        + "of the time — stays silent otherwise")
                 }
-                if axis != "core", let v = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis) {
+                if let v = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis) {
                     LabeledContent("Accuracy — \(ModelMetrics.axisDisplayName(axis))") {
-                        Text("\(v)% first word, silence counted as a miss")
+                        // The badge carries the tolerance so the sentence stays a
+                        // sentence: at 280 rows a 2-point gap between two models
+                        // is noise, and nothing on this tab used to say so.
+                        HStack(spacing: 6) {
+                            Text("\(v)% first word"
+                                + (axis == "core" ? "" : ", silence counted as a miss"))
+                            sampleBadge(for: axis)
+                        }
                     }
                 }
                 // Apple Intelligence is the system model: style is moot (setupLine
@@ -343,7 +404,8 @@ private struct ModelRow: View {
                         } else {
                             MetricBar(label: "Accuracy", fraction: Bounds.accuracy(m), text: "\(m.firstWordPct)%",
                                       color: .green,
-                                      help: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource).")
+                                      help: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). "
+                                        + "English and Russian are pooled here; pick either as the axis to see it alone.")
                         }
                         MetricBar(label: "Speed", fraction: Bounds.speed(m), text: "\(m.p50Ms) ms",
                                   color: .blue,
@@ -483,7 +545,7 @@ private struct ModelMapView: View {
     /// (dots, envelope, config-projected ring) hides: config effects are
     /// measured on the EN+RU sample only, and drawing them against a
     /// different scale would fabricate numbers.
-    private var axis: String { store.accuracyAxis }
+    private var axis: String { store.effectiveAxis }
 
     /// Where a model's bubble sits on the current axis.
     private func bubbleCenter(for id: String, _ plot: PlotFrame) -> CGPoint {
@@ -552,7 +614,7 @@ private struct ModelMapView: View {
             // Markers and the envelope already glided; the bubbles, labels and
             // gridlines jump-cut around them when the axis rescales. Move the
             // whole chart as one system, on the curve the parts already use.
-            .animation(mapCurve, value: store.accuracyAxis)
+            .animation(mapCurve, value: store.effectiveAxis)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: store.modelID)
         }
         .frame(height: Self.height)

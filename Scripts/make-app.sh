@@ -16,9 +16,11 @@ fi
 
 # -skipMacroValidation: mlx-swift-lm uses Swift macros, which xcodebuild
 # refuses to run from the command line without this flag.
+# pipefail makes a compile failure fatal right here — with a warm
+# .build/xcode a swallowed exit code would package the previous binary.
 xcodebuild -scheme Pretype -configuration Release -destination 'platform=macOS' \
     -derivedDataPath .build/xcode -skipMacroValidation -skipPackagePluginValidation \
-    build | grep -E "BUILD|error" || true
+    build | grep -E "BUILD|error"
 
 PRODUCTS=.build/xcode/Build/Products/Release
 test -x "$PRODUCTS/Pretype" || { echo "Build failed: $PRODUCTS/Pretype not found"; exit 1; }
@@ -69,8 +71,13 @@ fi
 for bundle in "$PRODUCTS"/*.bundle; do
     [ -d "$bundle" ] && cp -R "$bundle" "$APP/Contents/Resources/"
 done
-if ! find "$APP/Contents/Resources/mlx-swift_Cmlx.bundle" -name "default.metallib" | grep -q .; then
-    echo "warning: default.metallib not found in Cmlx bundle — MLX engine will not work"
+# Fatal, not a warning: an app that packages without its shaders launches fine
+# and then fails to complete a single word. The build already refused to start
+# without a Metal toolchain, so reaching here empty means the bundle layout
+# moved under us — exactly what CI runs this script to catch.
+if ! find "$APP/Contents/Resources/mlx-swift_Cmlx.bundle" -name "default.metallib" 2>/dev/null | grep -q .; then
+    echo "error: default.metallib not found in Cmlx bundle — the MLX engine would be dead in this build."
+    exit 1
 fi
 
 # A stable signing identity keeps the TCC permission grants (Accessibility,

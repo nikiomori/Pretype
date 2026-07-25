@@ -12,6 +12,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var permissionItem: NSMenuItem!
     private var enabledItem: NSMenuItem!
     private var appBlacklistItem: NSMenuItem!
+    private var languageHintItem: NSMenuItem!
     private var hintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
 
@@ -106,6 +107,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         appBlacklistItem.target = self
         menu.addItem(appBlacklistItem)
 
+        // Hidden unless the language being typed is one this model is bad at —
+        // see refreshLanguageHintItem.
+        languageHintItem = NSMenuItem(title: "", action: #selector(showModelsForTypedLanguage), keyEquivalent: "")
+        languageHintItem.target = self
+        menu.addItem(languageHintItem)
+
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -175,6 +182,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         permissionItem.isHidden = Permissions.isTrusted
         enabledItem.state = Settings.enabled ? .on : .off
         refreshAppBlacklistItem()
+        refreshLanguageHintItem()
         updateItem.title = UpdateChecker.availableVersion.map { "Update to \($0)…" } ?? "Check for Updates…"
         hintItem.attributedTitle = shortcutHint()
     }
@@ -208,6 +216,53 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             appBlacklistItem.title = off ? "Enable in \(name)" : "Disable in \(name)"
             appBlacklistItem.action = #selector(toggleFrontmostAppBlacklist)
         }
+    }
+
+    /// "Typing Hebrew? Gemma E2B 8-bit measures 18% there, this one 1%."
+    ///
+    /// The model is chosen once, from keyboard layouts, and then never revisited
+    /// — so someone who types a language their model is bad at gets a quiet 1%
+    /// forever with nothing telling them why. This is the telling. It appears
+    /// only when the language signal is settled AND the gap is outside the eval's
+    /// own noise (`ModelMetrics.materiallyBetter`), and it never switches
+    /// anything: clicking opens the model list ranked for that language, where
+    /// the sizes are visible, because the better model is usually the bigger one
+    /// and that is the user's call to make.
+    ///
+    /// ponytail: computed when the menu opens, so the check costs nothing while
+    /// typing; and no "don't show again" state — ignoring a menu line is already
+    /// free, and the item disappears by itself once the model fits the language.
+    private func refreshLanguageHintItem() {
+        guard let language = TypedLanguage.dominant,
+              let better = ModelMetrics.materiallyBetter(than: Settings.mlxModelID, on: language),
+              let name = ModelMetrics.metrics(for: better.id)?.shortName
+        else {
+            languageHintItem.isHidden = true
+            return
+        }
+        languageHintItem.isHidden = false
+        languageHintItem.title =
+            "Typing \(ModelMetrics.axisDisplayName(language))? \(name) measures "
+            + "\(better.best)% there, this one \(better.current)%"
+    }
+
+    /// Show the catalog ranked for the language being typed. Sets the axis first
+    /// so `present()`'s `sync()` picks it up — that also makes the map, the cards
+    /// and the presets re-resolve to that language, which is the whole point:
+    /// the user sees the evidence, not just a recommendation.
+    @objc private func showModelsForTypedLanguage() {
+        if let language = TypedLanguage.dominant {
+            Settings.accuracyAxis = language
+            // Written directly, so the store didSet that normally clears map
+            // mode on a language pick never runs (sync() assigns under its
+            // syncing guard) — clear it here or the tab opens on the pooled
+            // EN+RU sample with this language selected in the picker.
+            Settings.settingsMapMode = false
+        }
+        openSettings()
+        // After present(): sync() would otherwise be the last writer, and the
+        // tab is view state rather than a setting, so it is set on the store.
+        settingsWindow?.store.activeTab = .model
     }
 
     /// The two-line shortcut hint, keyed to the user's accept hotkey so its

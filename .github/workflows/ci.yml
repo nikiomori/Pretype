@@ -21,9 +21,11 @@ concurrency:
 env:
   XCODE_VERSION: '26.3'
 
-# Compile-check only. The full .app (and the MLX engine at runtime) needs the
-# Metal toolchain and an xcodebuild build — that's a local step, see
-# Scripts/make-app.sh. `swift build` is enough to catch compile regressions.
+# `swift build` catches compile regressions on every PR. It does NOT exercise
+# Scripts/make-app.sh — the xcodebuild/Metal path that produces the shipped
+# bundle — so that runs on pushes to main only: cheap enough per merge, and it
+# means the packaging path can't first break on a tag push, where the only
+# symptom is a broken draft release.
 jobs:
   build:
     name: swift build (macOS)
@@ -70,3 +72,11 @@ jobs:
       # headless on the runner even though the full engine can't.
       - name: Test
         run: swift test
+
+      # The release build is the first thing that ever runs make-app.sh, and a
+      # broken bundle there only shows up as a bad download. Same script, same
+      # runner, one merge earlier. PRs skip it: an xcodebuild Release of MLX is
+      # minutes, and a compile break already reddens `swift build` above.
+      - name: Package app bundle
+        if: github.event_name == 'push'
+        run: ./Scripts/make-app.sh
