@@ -1139,8 +1139,11 @@ struct ModelMapView: View {
                 if let target { store.selectModel(target) }
             }
             .onHover { inside in
-                if inside { hoveredSibling = s.id }
-                else if hoveredSibling == s.id { hoveredSibling = nil }
+                if inside {
+                    hoveredSibling = s.id
+                } else if hoveredSibling == s.id {
+                    hoveredSibling = nil
+                }
                 // The rail previews the pick a click would land on — same
                 // hover contract as the completion bubbles and ranked rows.
                 if let target { store.setHover(.model(target), inside) }
