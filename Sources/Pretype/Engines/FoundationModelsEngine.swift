@@ -269,7 +269,8 @@ final class FoundationModelsEngine: CompletionEngine {
             // Same as complete(): a cancelled request (focus moved on, overlay
             // reset) must not surface its late result.
             try Task.checkCancellation()
-            fixed = CorrectionGates.cleanCorrectionOutput(response.content)
+            fixed = CorrectionGates.trimRunOn(
+                CorrectionGates.cleanCorrectionOutput(response.content), original: trimmed)
         } catch let error as LanguageModelSession.GenerationError {
             switch error {
             case .rateLimited, .concurrentRequests:

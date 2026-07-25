@@ -134,7 +134,7 @@ enum ModelPriority: String, CaseIterable {
         case .lightest: return "Smallest footprint — for Macs with little free memory."
         case .quick: return "Fastest of the models within 2 pp of the best accuracy."
         case .accurate: return "Best measured accuracy; first-word ties break on reference scoring."
-        case .balanced: return "The out-of-the-box pick: fastest at near-parity on English and Russian; the best small multilingual model on other languages."
+        case .balanced: return "The out-of-the-box pick: the best tier that stays within about a quarter of this Mac's memory, working fix/reply chords included."
         }
     }
 
@@ -170,13 +170,12 @@ enum ModelPriority: String, CaseIterable {
             return pool.filter { acc($0) >= top - 2 }.min { $0.p50Ms < $1.p50Ms }?.id
                 ?? ModelCatalog.defaultID
         case .balanced:
-            // Same rule as the fresh-install default, keyed on the axis instead
-            // of the keyboards: on EN/RU the fastest model at parity with the
-            // big ones; elsewhere the EN/RU specialist gives way to the best
-            // small multilingual pick (the Gemmas above it are Accurate/Quick
-            // territory).
-            return ["core", "en", "ru"].contains(axis)
-                ? "openbmb/MiniCPM5-1B-Base" : "mlx-community/Qwen3.5-2B-4bit"
+            // The fresh-install rule verbatim: sized to this Mac's memory
+            // (see ModelCatalog.defaultID). Language dropped out of that rule
+            // on 2026-07-25 — no per-language gap between the small models
+            // survives p<0.01 — so unlike the other cards this one does not
+            // move with the axis.
+            return ModelCatalog.defaultID
         }
     }
 }

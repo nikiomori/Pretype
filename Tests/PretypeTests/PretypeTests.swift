@@ -109,6 +109,51 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("“test”"), "test")
         XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("  trimmed  \n  newline  "), "trimmed")
     }
+
+    func testTrimRunOn() {
+        // The measured failure: exact fix + same-line junk (E4B-it-4bit, 39%
+        // of eval-correct rows) — junk after the sentence terminal is cut.
+        XCTAssertEqual(
+            CorrectionGates.trimRunOn("Завтра уже уезжать, а я не собрал чемодан.гуглгугл",
+                                      original: "Звтра уже уезжать, а я не собрал чемодан."),
+            "Завтра уже уезжать, а я не собрал чемодан.")
+        // Closing quote after the terminal survives the cut.
+        XCTAssertEqual(
+            CorrectionGates.trimRunOn("Он сказал: «Готово.» мусор",
+                                      original: "Он сказал: «Готово.»"),
+            "Он сказал: «Готово.»")
+        // Apostrophes/quotes never start a cut (measured regressions).
+        let apostrophe = "Il a rempli ma feuille d'impôts."
+        XCTAssertEqual(CorrectionGates.trimRunOn(apostrophe, original: apostrophe), apostrophe)
+        let tag = "You learned English from Miss Long, didn't you?"
+        XCTAssertEqual(CorrectionGates.trimRunOn(tag + " junk", original: tag), tag)
+        // Original without a sentence ending → no boundary contract, no cut.
+        XCTAssertEqual(CorrectionGates.trimRunOn("fixed words and more",
+                                                 original: "fixd words"),
+                       "fixed words and more")
+        // Exact fix passes through untouched.
+        let clean = "Nothing to trim here."
+        XCTAssertEqual(CorrectionGates.trimRunOn(clean, original: clean), clean)
+        // Multi-terminal endings ("...", "?!", "!!!") survive whole — the cut
+        // keeps the full punctuation run, junk after it still goes.
+        let ellipsis = "I don't know..."
+        XCTAssertEqual(CorrectionGates.trimRunOn(ellipsis, original: "I dont know..."), ellipsis)
+        XCTAssertEqual(CorrectionGates.trimRunOn(ellipsis + "junk", original: "I dont know..."),
+                       ellipsis)
+        XCTAssertEqual(CorrectionGates.trimRunOn("Really?!", original: "Realy?!"), "Really?!")
+        let bang = "Ну и ну!!!"
+        XCTAssertEqual(CorrectionGates.trimRunOn(bang, original: bang), bang)
+        // A dot between digits is a decimal, not a sentence end.
+        let decimal = "The total is 3.14159."
+        XCTAssertEqual(CorrectionGates.trimRunOn(decimal, original: "The total is 3,14159."),
+                       decimal)
+        XCTAssertEqual(CorrectionGates.trimRunOn(decimal + "junk",
+                                                 original: "The total is 3,14159."),
+                       decimal)
+        // CJK closing quote after the terminal survives the cut.
+        XCTAssertEqual(CorrectionGates.trimRunOn("彼は「終わった。」ごみ", original: "彼は「終わった。」"),
+                       "彼は「終わった。」")
+    }
     
     func testTrailingWord() {
         XCTAssertEqual(SpellChecker.trailingWord(of: "hello world"), "world")
@@ -862,7 +907,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelPriority.lightest.pick(axis: "core"), "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-8bit")    // 31%; logP/char beats E2B-4bit's stale-sample tie
         XCTAssertEqual(ModelPriority.quick.pick(axis: "core"), "mlx-community/gemma-4-e2b-8bit")       // ≥29% at 75 ms
-        XCTAssertEqual(ModelPriority.balanced.pick(axis: "core"), "openbmb/MiniCPM5-1B-Base")
+        XCTAssertEqual(ModelPriority.balanced.pick(axis: "core"), ModelCatalog.defaultID)
 
         // Axis-dependence is the feature: on the all-languages average the
         // answers hold, but on Romanian E2B 8-bit measures BEST outright
@@ -870,18 +915,36 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "*"), "mlx-community/gemma-4-e4b-8bit")
         XCTAssertEqual(ModelPriority.quick.pick(axis: "*"), "mlx-community/gemma-4-e2b-8bit")
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "ro"), "mlx-community/gemma-4-e2b-8bit")
-        // Balanced follows the language: EN/RU keeps the fast specialist, any
-        // other axis flips to the best small multilingual model — the same
-        // split the keyboard-aware fresh-install default makes.
-        XCTAssertEqual(ModelPriority.balanced.pick(axis: "ru"), "openbmb/MiniCPM5-1B-Base")
-        XCTAssertEqual(ModelPriority.balanced.pick(axis: "ro"), "mlx-community/Qwen3.5-2B-4bit")
-        XCTAssertEqual(ModelPriority.balanced.pick(axis: "*"), "mlx-community/Qwen3.5-2B-4bit")
-        XCTAssertEqual(ModelCatalog.defaultID(forKeyboardLanguages: ["en", "ru"]),
-                       "openbmb/MiniCPM5-1B-Base")
-        XCTAssertEqual(ModelCatalog.defaultID(forKeyboardLanguages: []),
-                       "openbmb/MiniCPM5-1B-Base")
-        XCTAssertEqual(ModelCatalog.defaultID(forKeyboardLanguages: ["en", "ru", "de"]),
+        // Balanced is the fresh-install rule — sized to THIS Mac's memory,
+        // not to the axis (language dropped out of the default on 2026-07-25;
+        // no per-language gap between the small models survives p<0.01).
+        XCTAssertEqual(ModelPriority.balanced.pick(axis: "ru"), ModelCatalog.defaultID)
+        XCTAssertEqual(ModelPriority.balanced.pick(axis: "*"), ModelCatalog.defaultID)
+        // The RAM ladder: the best Gemma tier whose recommended-config
+        // resident model stays within about a quarter of physical memory;
+        // Qwen3.5 2B is the floor below the smallest Gemma tier.
+        XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 8),
                        "mlx-community/Qwen3.5-2B-4bit")
+        XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 16),
+                       "mlx-community/gemma-4-e2b-4bit")
+        XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 18),
+                       "mlx-community/gemma-4-e2b-4bit")
+        XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 24),
+                       "mlx-community/gemma-4-e2b-8bit")
+        XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 32),
+                       "mlx-community/gemma-4-e4b-6bit")
+        XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 64),
+                       "mlx-community/gemma-4-e4b-6bit")
+        // The quarter-of-memory invariant holds at every tier Apple ships:
+        // what the default actually keeps resident (instruct primary on the
+        // Gemma tiers) never exceeds ram/4.
+        for ram in [8.0, 16, 18, 24, 32, 36, 48, 64] {
+            let id = ModelCatalog.defaultID(forRamGB: ram)
+            let resident = ModelMetrics.instructRamGB(for: id)
+                ?? ModelMetrics.metrics(for: id)?.ramGB ?? 0
+            XCTAssertLessThanOrEqual(resident * 4, ram,
+                                     "default at \(ram) GB holds \(resident) GB resident")
+        }
 
         // The axis figures themselves: core = of-answered headline, "*" =
         // equal-weight mean of the booked per-language of-all cells.
@@ -911,7 +974,9 @@ final class PretypeTests: XCTestCase {
         XCTAssertTrue(landed.logprobGate)        // user's gate survives
         XCTAssertFalse(landed.useRecommended)    // recommendation (Instruct) ≠ landing
         // Where the recommendation IS Base · Short, auto mode stays on.
-        XCTAssertTrue(custom.applying(.preset(ModelPriority.balanced.pick(axis: "core"))).useRecommended)
+        // (Explicit Qwen3.5, not the Balanced pick: Balanced is RAM-sized now
+        // and lands on an instruct-recommended Gemma tier on big machines.)
+        XCTAssertTrue(custom.applying(.preset("mlx-community/Qwen3.5-2B-4bit")).useRecommended)
 
         // A map settings-dot jumps to its exact configuration, verbatim.
         let dot = ProjectionConfig(modelID: custom.modelID, style: .base, length: .medium,
@@ -1020,6 +1085,63 @@ final class PretypeTests: XCTestCase {
         }
         XCTAssertEqual(ModelMetrics.axisSampleSize("*"),
                        ModelMetrics.sampleSize.values.reduce(0, +))
+    }
+
+    /// The fix/reply figures are keyed by the sibling the engine loads, so the
+    /// resolver must follow the same routing as `MLXEngine.correct`: instruct
+    /// primary in Instruct style, correction sibling in Base style.
+    func testTaskMetricsResolution() {
+        // Every measured sibling id must be resolvable FROM some catalog entry,
+        // or the row is dead data no card can ever show.
+        for sibling in ModelMetrics.tasks.keys {
+            let reachable = ModelCatalog.options.contains {
+                $0.correctionModelID == sibling || $0.instructModelID == sibling
+            }
+            XCTAssertTrue(reachable, "\(sibling) has task metrics but no catalog entry routes to it")
+            XCTAssertNotNil(ModelMetrics.taskModelNames[sibling], "\(sibling) has no display name")
+        }
+        // The map's task lenses need a bubble size and a "used by" line for
+        // every measured sibling — a miss renders as a default-sized anonymous
+        // bubble no catalog row points at.
+        for sibling in ModelMetrics.tasks.keys {
+            XCTAssertNotNil(ModelMetrics.taskRamGB(for: sibling), "\(sibling) has no bubble size")
+            XCTAssertFalse(ModelMetrics.taskUsers(of: sibling).isEmpty,
+                           "\(sibling) is measured but no catalog pick routes to it at recommended settings")
+        }
+        // Clicking a sibling bubble on the map switches to the FIRST catalog
+        // user — catalog order is quality order, so the shared E4B-it bubble
+        // must land on the top Gemma tier, not on E2B 8-bit which also runs it.
+        XCTAssertEqual(ModelMetrics.taskUserIDs(of: "mlx-community/gemma-4-e4b-it-4bit").first,
+                       "mlx-community/gemma-4-e4b-8bit")
+        XCTAssertEqual(ModelMetrics.taskUserIDs(of: "openbmb/MiniCPM5-1B"),
+                       ["openbmb/MiniCPM5-1B-Base"])
+        // Instruct style on E2B 8-bit runs the E4B-it 4-bit primary — the
+        // measured 65% fixer — not E2B's own correction sibling.
+        let e2b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e2b-8bit", style: .instruct)
+        XCTAssertEqual(e2b?.m.fixPct, 65)
+        XCTAssertEqual(e2b?.measuredID, "mlx-community/gemma-4-e4b-it-4bit")
+        XCTAssertEqual(e2b?.measuredExactly, true)
+        // The E4B tiers' instruct primary is the unmeasured 6-bit build: the
+        // 4-bit figures come back as a floor, flagged as such.
+        let e4b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .instruct)
+        XCTAssertEqual(e4b?.m.fixPct, 65)
+        XCTAssertEqual(e4b?.measuredExactly, false)
+        // Base style routes to the lazy correction sibling instead.
+        let e4bBase = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .base)
+        XCTAssertEqual(e4bBase?.measuredExactly, true)
+        // The EN/RU default: near-inert fixer, best replier — both from the
+        // instruct build it loads for the chords.
+        let minicpm = ModelMetrics.taskMetrics(for: "openbmb/MiniCPM5-1B-Base", style: .base)
+        XCTAssertEqual(minicpm?.m.fixPct, 4)
+        XCTAssertEqual(minicpm?.m.replyPct, 56)
+        // Bonsai corrects with itself — measured 07-25 late on its own base
+        // build through its chat template (run-bonsai.sh).
+        let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .base)
+        XCTAssertEqual(bonsai?.m.fixPct, 21)
+        XCTAssertEqual(bonsai?.m.replyPct, 21)
+        XCTAssertEqual(bonsai?.measuredExactly, true)
+        // Not measured: only the system model.
+        XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
     }
 
     /// "core" was a language-picker entry until 2026-07-25. Anyone who had it

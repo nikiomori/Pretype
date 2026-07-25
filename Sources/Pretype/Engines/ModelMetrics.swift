@@ -276,4 +276,125 @@ struct ModelMetrics {
             ?? metrics(for: option.instructModelID)?.ramGB
             ?? metrics(for: baseID)?.ramGB
     }
+
+    // MARK: - Fix & reply tasks
+
+    /// Measured quality of the two instruct-templated tasks — the fix chord
+    /// and the reply chord — keyed by the model that RUNS them: the sibling
+    /// the engine loads, not the catalog entry, so two catalog rows sharing a
+    /// sibling share one measurement and can never fork.
+    ///
+    /// Protocol: `Eval/eval-correct.jsonl` — 510 single-typo sentences plus
+    /// 170 clean controls, 17 languages; fix% = restored EXACTLY to the clean
+    /// line, false-fix% = proposed a change on a line with nothing wrong.
+    /// `Eval/eval-reply.jsonl` — 570 on-screen conversations, 19 languages;
+    /// reply% = drafted something in the conversation's language without
+    /// echoing the screen — a floor on usability, not a quality score.
+    /// Booked from `Eval/runs-2026-07-25-tasks/` (book-tasks.py): the E4B
+    /// sibling from the correct3 rerun — after the turn-marker stop and
+    /// run-on trim landed; the earlier pass lost 39% of its rows to same-line
+    /// junk — everything else from correct2, where junk was ~0 so those fixes
+    /// don't move them. Bonsai (which corrects with itself — no instruct
+    /// conversion of the ternary QAT exists) ran the same evening on the
+    /// current-code pipeline (run-bonsai.sh, correct3-/reply-bonsai dumps).
+    /// Verdicts at the p<0.01 rule: E4B-it is the strongest fixer (vs E2B-it
+    /// p=1e-10, paired over the shared 510 rows) and MiniCPM5's instruct
+    /// build the strongest replier (vs Qwen3.5 p=5e-4) — each is the other
+    /// task's weak model. The fix column is a clean ladder: every adjacent
+    /// gap (65 > 50 > 32 > 21 > 11 > 4) is CLAIM-significant, Bonsai slotting
+    /// below Qwen3.5 (p=7e-7) and above Qwen0.5B-it (p=2e-6). On replies
+    /// Bonsai is last outright — its drafts survive mostly in English (80%)
+    /// and Russian (70%) and collapse elsewhere.
+    struct TaskMetrics {
+        /// % of typo rows restored exactly (n=510; Wilson 95% CI in `fixCI`).
+        let fixPct: Int
+        let fixCI: ClosedRange<Int>
+        /// % of clean control rows it "fixed" anyway (n=170).
+        let falseFixPct: Int
+        /// Warm median latency of a fix, ms, on the dev machine.
+        let fixP50Ms: Int
+        /// % of reply rows meeting the contract (n=570; Wilson 95% CI).
+        let replyPct: Int
+        let replyCI: ClosedRange<Int>
+        let replyP50Ms: Int
+    }
+
+    static let tasks: [String: TaskMetrics] = [
+        "mlx-community/gemma-4-e4b-it-4bit": TaskMetrics(
+            fixPct: 65, fixCI: 60...69, falseFixPct: 21, fixP50Ms: 1523,
+            replyPct: 33, replyCI: 30...37, replyP50Ms: 532),
+        "mlx-community/gemma-4-e2b-it-4bit": TaskMetrics(
+            fixPct: 50, fixCI: 45...54, falseFixPct: 29, fixP50Ms: 378,
+            replyPct: 32, replyCI: 28...36, replyP50Ms: 356),
+        "mlx-community/Qwen3.5-2B-4bit": TaskMetrics(
+            fixPct: 32, fixCI: 28...37, falseFixPct: 28, fixP50Ms: 255,
+            replyPct: 46, replyCI: 42...50, replyP50Ms: 448),
+        "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
+            fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 185,
+            replyPct: 38, replyCI: 35...42, replyP50Ms: 345),
+        "openbmb/MiniCPM5-1B": TaskMetrics(
+            fixPct: 4, fixCI: 2...6, falseFixPct: 14, fixP50Ms: 668,
+            replyPct: 56, replyCI: 52...61, replyP50Ms: 1801),
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": TaskMetrics(
+            fixPct: 21, fixCI: 18...25, falseFixPct: 14, fixP50Ms: 324,
+            replyPct: 21, replyCI: 18...25, replyP50Ms: 324),
+    ]
+
+    /// Display names for the measured siblings — they are not catalog
+    /// entries, so `metrics(for:)` doesn't know them.
+    static let taskModelNames: [String: String] = [
+        "mlx-community/gemma-4-e4b-it-4bit": "Gemma E4B-it 4-bit",
+        "mlx-community/gemma-4-e2b-it-4bit": "Gemma E2B-it 4-bit",
+        "mlx-community/Qwen3.5-2B-4bit": "Qwen3.5 2B",
+        "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "Qwen2.5 0.5B-it",
+        "openbmb/MiniCPM5-1B": "MiniCPM5 1B-it",
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": "Bonsai 4B",
+    ]
+
+    /// The task figures the current pick would actually produce: resolves the
+    /// sibling the engine loads for fix/reply — the instruct primary in
+    /// Instruct style, the lazy correction sibling in Base style (mirrors
+    /// `MLXEngine.correct`) — and looks it up. `measuredExactly` is false when
+    /// the pick runs a sibling the sweep didn't cover and the figures come
+    /// from its nearest measured build (E4B-it 6-bit → the 4-bit numbers, a
+    /// floor); `measuredID` is the sibling the figures were measured on, so
+    /// map/list surfaces can point at the same bubble. nil only for Apple
+    /// Intelligence — the system model is not in the task sweep.
+    static func taskMetrics(for id: String, style: CompletionStyle)
+        -> (m: TaskMetrics, runsOn: String, measuredID: String, measuredExactly: Bool)? {
+        guard id != ModelCatalog.appleIntelligenceID,
+              let option = ModelCatalog.option(for: id) else { return nil }
+        let sibling = style == .instruct ? option.instructModelID : option.correctionModelID
+        if let m = tasks[sibling] {
+            return (m, taskModelNames[sibling] ?? sibling, sibling, true)
+        }
+        if sibling == "mlx-community/gemma-4-e4b-it-6bit",
+           let m = tasks["mlx-community/gemma-4-e4b-it-4bit"] {
+            return (m, "Gemma E4B-it 4-bit", "mlx-community/gemma-4-e4b-it-4bit", false)
+        }
+        return nil
+    }
+
+    /// Resident size of a measured task sibling, GB — bubble size on the
+    /// map's task lenses. Falls back to catalog metrics for the models that
+    /// correct with themselves (their sibling id IS a catalog id).
+    static func taskRamGB(for siblingID: String) -> Double? {
+        instructSizesGB[siblingID] ?? metrics(for: siblingID)?.ramGB
+    }
+
+    /// Catalog entries whose chords land on `siblingID` at their recommended
+    /// settings, in catalog (quality) order. Ids feed the map's click-to-
+    /// switch; `taskUsers` renders the same list as display names.
+    static func taskUserIDs(of siblingID: String) -> [String] {
+        ModelCatalog.options.compactMap { option in
+            taskMetrics(for: option.id,
+                        style: ModelCatalog.recommended(for: option.id).style)?
+                .measuredID == siblingID ? option.id : nil
+        }
+    }
+
+    /// The "used by" line on the task-lens map.
+    static func taskUsers(of siblingID: String) -> [String] {
+        taskUserIDs(of: siblingID).map { metrics(for: $0)?.shortName ?? $0 }
+    }
 }

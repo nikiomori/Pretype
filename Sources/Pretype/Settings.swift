@@ -370,8 +370,9 @@ enum Settings {
         }
         // Style/length ship pre-matched to the default model's recommendation:
         // nothing applies it at boot (main only registers defaults), and the
-        // engine reads the stored style directly — so a base-only default like
-        // MiniCPM5 would otherwise launch in its broken instruct mode.
+        // engine reads the stored style directly — so the base-only Qwen3.5
+        // floor (small-RAM Macs) would otherwise launch in its broken
+        // instruct mode.
         let rec = ModelCatalog.recommended(for: ModelCatalog.defaultID)
         defaults.register(defaults: [
             "enabled": true,
@@ -380,8 +381,8 @@ enum Settings {
             "maxContextChars": 1200,
             "idleUnloadMinutes": 5,
             "fimEnabled": true,
-            // Follows the default model's recommendation (base·short for the
-            // MiniCPM5 default; instruct·short on the Gemma builds).
+            // Follows the default model's recommendation (base·short on the
+            // Qwen3.5 floor; instruct·short on the Gemma tiers).
             "completionStyle": rec.style.rawValue,
             "completionLength": rec.length.rawValue,
             "customInstructions": defaultInstructions,

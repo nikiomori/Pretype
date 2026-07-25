@@ -62,19 +62,21 @@ enum ModelCatalog {
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
-        // The EN/RU default (eval 2026-07-07 + live use): base ties E4B-8bit
+        // The former EN/RU default (2026-07-07 → 07-25): base ties E4B-8bit
         // base on the POOLED EN+RU core at a quarter of the RAM and the lowest
         // latency in the catalog (p50 49 ms). Split by language that tie is
         // English-only — against E2B-8bit: English 27 vs 26 (p=0.35), Russian
-        // 17 vs 23 (p<0.001). It stays the default for Russian keyboards because
-        // nothing in its weight class does better there (Qwen3.5 2B ties it,
-        // p=0.79), not because the languages measure alike. Beyond EN/RU
-        // coverage collapses (uk/ro/tr/cs 53–69%) and E2B-8bit wins decisively
-        // (p<0.001) — so `defaultID` only picks it when the keyboards say
-        // EN/RU. Runs base-only — its instruct mode ANSWERS the
-        // text instead of continuing it (first-word ~0%), so `recommended(for:)`
-        // and the fresh-install defaults both pin base style.
-        // bf16 straight from the hub; no 8-bit Base conversion is published yet.
+        // 17 vs 23 (p<0.001). Beyond EN/RU coverage collapses (uk/ro/tr/cs
+        // 53–69%) and E2B-8bit wins decisively (p<0.001). It lost the default
+        // seat in the 07-25 revision — its instruct build is the catalog's
+        // best replier (56%) but as a fixer it is inert (4% vs Qwen3.5's 32%),
+        // and its EN edge over Qwen3.5 is a trend only (p=0.014, ru tie
+        // p=0.79) — so it stays the MANUAL pick for the lowest latency and
+        // the best reply drafts. Runs base-only — its instruct mode ANSWERS
+        // the text instead of continuing it (first-word ~0%), so
+        // `recommended(for:)` and the fresh-install defaults both pin base
+        // style. bf16 straight from the hub; no 8-bit Base conversion is
+        // published yet.
         ModelOption(
             id: "openbmb/MiniCPM5-1B-Base",
             title: "MiniCPM5 1B — fastest, English & Russian",
@@ -84,13 +86,13 @@ enum ModelCatalog {
             instructModelID: "openbmb/MiniCPM5-1B"     // manual instruct flip only; completion there is broken (see above)
         ),
         // Lowest-RAM pick (eval-real 2026-07-15, base·greedy·short, n=870): at
-        // ~1 GB it STATISTICALLY TIES the 2.2 GB MiniCPM5 default and the 5.7 GB
-        // E2B-8bit on first-word (McNemar p=0.51 / 0.13, both of-all 24–26%) —
-        // half the footprint of the default. It's the bottom of the pack on the
-        // continuous axes (logP/char −1.069, RU-weak like MiniCPM), so it's the
-        // 8 GB-Mac option, NOT a quality upgrade — MiniCPM stays the default
-        // (faster p50 49 vs 79 ms, better RU + logP/char). Base bf16 from the
-        // hub; runs base-only (Qwen2.5 instruct echoes the prompt).
+        // ~1 GB it STATISTICALLY TIES the 2.2 GB MiniCPM5 and the 5.7 GB
+        // E2B-8bit on first-word (McNemar p=0.51 / 0.13, both of-all 24–26%).
+        // It's the bottom of the pack on the continuous axes (logP/char
+        // −1.069, RU-weak like MiniCPM), so it's the absolute-minimum-memory
+        // option, NOT a quality upgrade — the 8 GB default seat belongs to
+        // Qwen3.5 (better multilingually p<0.001, stronger chords). Base bf16
+        // from the hub; runs base-only (Qwen2.5 instruct echoes the prompt).
         ModelOption(
             id: "mlx-community/Qwen2.5-0.5B-bf16",
             title: "Qwen2.5 0.5B — smallest footprint",
@@ -99,12 +101,14 @@ enum ModelCatalog {
             correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
             instructModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
         ),
-        // The multilingual default (17-language eval-real, 2026-07-16/17): best
-        // sub-2 GB model on the full set — beats MiniCPM5, Bonsai and Qwen 0.5B
-        // (all p<0.001) with the mildest coverage sag, near-ties MiniCPM5 on
-        // EN/RU. Base-only like the other smalls; correction/instruct siblings
-        // point at the base id itself (guaranteed to load; recommended(for:)
-        // pins base so auto never flips to an echoing instruct mode).
+        // The small-RAM default (the sub-12 GB floor of the memory ladder;
+        // 17-language eval-real, 2026-07-16/17): best sub-2 GB model on the
+        // full set — beats MiniCPM5, Bonsai and Qwen 0.5B (all p<0.001) with
+        // the mildest coverage sag, near-ties MiniCPM5 on EN/RU, and its
+        // chords work (fix 32% / reply 46%). Base-only like the other smalls;
+        // correction/instruct siblings point at the base id itself
+        // (guaranteed to load; recommended(for:) pins base so auto never
+        // flips to an echoing instruct mode).
         ModelOption(
             id: "mlx-community/Qwen3.5-2B-4bit",
             title: "Qwen3.5 2B — best small multilingual",
@@ -125,37 +129,62 @@ enum ModelCatalog {
         // same 2.2 GB (EN/RU 23 vs 28, macro 11 vs 13, p50 59 vs 49 ms).
     ]
 
-    /// The out-of-the-box model, resolved once per launch from the enabled
-    /// keyboard layouts (the same signal that fills the persona languages):
-    /// EN/RU-only typists get MiniCPM5 1B — fastest in the catalog at parity
-    /// with the big Gemmas on the EN+RU core; any other layout flips to
-    /// Qwen3.5 2B — MiniCPM5's multilingual coverage collapses while Qwen3.5
-    /// beats every other sub-2 GB model on the 17-language set (p<0.001), at an
-    /// even smaller footprint (17-lang eval-real, 2026-07-16/17). Both run
-    /// base·short, so the fresh-install style defaults in
-    /// `Settings.registerDefaults` hold either way. The Gemma builds and Apple
-    /// Intelligence remain manual picks in the catalog / settings list.
-    static let defaultID: String = defaultID(forKeyboardLanguages: Settings.keyboardLanguageCodes)
+    /// Physical memory of this Mac, GiB — the axis the out-of-the-box model
+    /// is sized on.
+    static let machineRamGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
 
-    /// The rule behind `defaultID`, keyboard set injected so tests stay
-    /// machine-independent.
-    static func defaultID(forKeyboardLanguages langs: Set<String>) -> String {
-        langs.subtracting(["en", "ru"]).isEmpty
-            ? "openbmb/MiniCPM5-1B-Base" : "mlx-community/Qwen3.5-2B-4bit"
+    /// The out-of-the-box model, resolved once per launch from the Mac's
+    /// physical memory. Keyboard language DROPPED OUT of this rule on
+    /// 2026-07-25: no per-language gap between the small models survives the
+    /// p<0.01 bar (MiniCPM5's English lead over Qwen3.5 is a trend, p=0.014;
+    /// Russian is a tie, p=0.79; Japanese p=0.064 — direct McNemar over the
+    /// runs-2026-07-16 dumps), while the task eval splits hard AGAINST the
+    /// old EN/RU default — MiniCPM5's instruct build fixes 4% of noisy lines
+    /// where Qwen3.5 manages 32% and the Gemma siblings 50–65% — and E2B
+    /// 4-bit beats BOTH smalls on Russian outright (p=0.0007 / 0.0012).
+    /// Keyboard languages still drive the persona and the per-language menu
+    /// nudge; MiniCPM5 stays the manual pick for the lowest latency and the
+    /// best reply drafts.
+    static let defaultID: String = defaultID(forRamGB: machineRamGB)
+
+    /// The rule behind `defaultID`, memory injected so tests stay
+    /// machine-independent: the best Gemma tier whose RECOMMENDED-config
+    /// resident model (the instruct primary — what the pick actually keeps
+    /// loaded) stays within about a QUARTER of physical memory. Quality order
+    /// E4B 6-bit > E2B 8-bit > E2B 4-bit is the 17-language catalog run
+    /// (p ≤ 0.001 each step); E4B 8-bit is never the default — it ties 6-bit
+    /// (p=0.052) at +1.8 GB, so it stays the manual "best quality" pick.
+    /// Below the smallest Gemma tier the floor is Qwen3.5 2B: ties MiniCPM5
+    /// on EN/RU completions, beats every other small multilingually
+    /// (p<0.001), and corrects with itself — 1.6 GB, no sibling download,
+    /// working chords (fix 32% / reply 46% against MiniCPM5's 4% / 56%).
+    static func defaultID(forRamGB ram: Double) -> String {
+        let gemmaTiers = ["mlx-community/gemma-4-e4b-6bit",
+                          "mlx-community/gemma-4-e2b-8bit",
+                          "mlx-community/gemma-4-e2b-4bit"]
+        for id in gemmaTiers {
+            if let resident = ModelMetrics.instructRamGB(for: id), resident * 4 <= ram {
+                return id
+            }
+        }
+        return "mlx-community/Qwen3.5-2B-4bit"
     }
 
-    /// Why the current `defaultID` was picked — keyed to the resolved default so
-    /// the RECOMMENDED tooltip never tells the wrong model's story (the default
-    /// is keyboard-language-aware, so a hardcoded MiniCPM rationale is false for
-    /// the multilingual Qwen default).
+    /// Why the current `defaultID` was picked — keyed to the resolved default
+    /// so the RECOMMENDED tooltip never tells the wrong tier's story.
     static var defaultRationale: String {
-        defaultID != "openbmb/MiniCPM5-1B-Base"
-            ? "Auto-picked for your keyboard languages: the best-measured small multilingual model — it beats every other sub-2 GB model across the evaluated languages (p<0.001) at an even lighter footprint. For English or Russian only, MiniCPM 1B is faster; the Gemma tiers are the most accurate."
-            // "on English and Russian" used to be one claim. Split by language it
-            // is two different ones: English is a genuine tie with E2B 8-bit
-            // (p=0.35), Russian is a 6 pp loss (p<0.001) — averaging them
-            // reported "a few points" for a language where it isn't true.
-            : "Auto-picked for this Mac: the fastest model in the catalog and a measured tie with the much larger Gemma tiers on English. On Russian it gives up ~6 points to Gemma E2B 8-bit — still the best of the small models there, but a Gemma tier is the accurate pick if you have the memory. Typing in other languages? A Gemma tier or the multilingual default is more accurate — see the model's note below."
+        switch defaultID {
+        case "mlx-community/gemma-4-e4b-6bit":
+            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~6.8 GB resident, freed again after idle). Measurably ahead of the E2B tiers across the evaluated languages (p=0.001), statistically tied with E4B 8-bit at 1.8 GB less, and its fix sibling restores 65% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory."
+        case "mlx-community/gemma-4-e2b-8bit":
+            return "Auto-picked for this Mac's memory (~5 GB resident in its recommended configuration, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding the best-measured fixer (65% exact restores). E4B is the upgrade if this Mac gains memory; the small models spend less."
+        case "mlx-community/gemma-4-e2b-4bit":
+            return "Auto-picked for this Mac's memory (~3.5 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and it fixes half of noisy lines exactly where the small models manage 4–32%."
+        case "mlx-community/Qwen3.5-2B-4bit":
+            return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.6 GB, no separate rewrite sibling. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (32% / 46%). A Gemma tier is the accuracy upgrade on a Mac with more memory."
+        default:
+            return "Auto-picked for this Mac."
+        }
     }
 
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):

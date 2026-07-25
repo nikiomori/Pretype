@@ -1077,15 +1077,25 @@ final class MLXEngine: CompletionEngine {
         let output = try await Self.generate(
             in: container,
             makeTokens: { context in
-                try context.tokenizer.applyChatTemplate(messages: messages)
+                // Same template context as reply()/completeInstruct: without
+                // enable_thinking=false the MiniCPM RL template opens a think
+                // turn and the fix path generates NOTHING (eval-correct
+                // 2026-07-25: 0/510 offered); Gemma templates ignore the key.
+                try context.tokenizer.applyChatTemplate(
+                    messages: messages, tools: nil,
+                    additionalContext: ["enable_thinking": false])
             },
             parameters: parameters,
-            extraEOSTokens: extraEOSTokens,
+            // Stop on the turn marker, like every other instruct-templated
+            // path. Without it E4B-it-4bit ran past its answer into same-line
+            // junk on 39% of eval-correct rows ("fix.less than 100 words").
+            extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
             promptCache: nil
         )
         try Task.checkCancellation()
 
-        let fixed = CorrectionGates.cleanCorrectionOutput(output)
+        let fixed = CorrectionGates.trimRunOn(
+            CorrectionGates.cleanCorrectionOutput(output), original: trimmed)
         guard !fixed.isEmpty, fixed != trimmed else { return nil }
         guard CorrectionGates.isMinimalCorrection(original: trimmed, fixed: fixed) else {
             DebugLog.shared.log("FIX", "rejected over-rewrite",

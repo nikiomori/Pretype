@@ -10,6 +10,9 @@ struct ModelTab: View {
     /// Catalog id awaiting delete confirmation. Local @State: it changes on a
     /// click, not on pointer movement, but it still has no business on the store.
     @State private var confirmingDelete: String?
+    /// Which task the map plots. Local @State — a lens, not a setting: it
+    /// changes on a click and resets to completions with the window.
+    @State private var mapLens = MapLens.completion
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
@@ -72,19 +75,40 @@ struct ModelTab: View {
             }
 
             Section("The model map") {
-                ModelMapView(store: store, hover: store.hoverState)
-                if axis == "core" {
-                    Caption("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource)). "
-                        + "The ring is your current configuration; the small dots inside the dashed zone are this model's other settings — hover to preview, click to apply.")
-                } else {
-                    Caption("Up = more accurate for \(ModelMetrics.axisDisplayName(axis)), silence counted as a miss · right = faster · bubble size = memory. "
-                        + "Settings dots and the reachable zone are anchored to the pooled English+Russian sample, not to this language — "
-                        + "turn on “Show what settings do to the map” above to see them on the sample they were measured on.")
+                // The two chord tasks run on a different, smaller set of
+                // models (the instruct siblings), so they are a lens on the
+                // map rather than extra bubbles — same axes, different task.
+                HoverSegments(options: [
+                    (MapLens.completion, "Completions"),
+                    (MapLens.fix, "Fix a line (\(store.hotkeyStyle.correctionLabel))"),
+                    (MapLens.reply, "Reply (\(store.hotkeyStyle.replyLabel))"),
+                ], selection: mapLens, select: { mapLens = $0 })
+                ModelMapView(store: store, hover: store.hoverState, lens: mapLens)
+                switch mapLens {
+                case .fix:
+                    Caption("Up = noisy lines restored byte-exactly · right = faster · bubble size = the sibling's memory. "
+                        + "These are the models that actually run the \(store.hotkeyStyle.correctionLabel) fix — the ring marks the one your pick loads; hover a bubble to see who shares it, click to switch to the pick it serves. "
+                        + "Catalog-wide totals (510 lines, 17 languages, ±4 pp) — the language picker above doesn't apply here.")
+                case .reply:
+                    Caption("Up = usable reply drafts — right language, no echo of the screen; a floor on usability, not a quality score · right = faster · bubble size = the sibling's memory. "
+                        + "The ring marks the sibling your pick loads for \(store.hotkeyStyle.replyLabel); click a bubble to switch to the pick it serves. "
+                        + "Catalog-wide totals (570 conversations, 19 languages, ±4 pp) — the language picker above doesn't apply here.")
+                case .completion:
+                    if axis == "core" {
+                        Caption("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource)). "
+                            + "The ring is your current configuration; the small dots inside the dashed zone are this model's other settings — hover to preview, click to apply.")
+                    } else {
+                        Caption("Up = more accurate for \(ModelMetrics.axisDisplayName(axis)), silence counted as a miss · right = faster · bubble size = memory. "
+                            + "Settings dots and the reachable zone are anchored to the pooled English+Russian sample, not to this language — "
+                            + "turn on “Show what settings do to the map” above to see them on the sample they were measured on.")
+                    }
                 }
             }
 
             Section("Ranked by measured accuracy") {
                 Caption("Longer bars are better: Speed = how fast it answers, Memory = how light it is. "
+                    + "Fix · Reply = the \(store.hotkeyStyle.correctionLabel) and \(store.hotkeyStyle.replyLabel) chords, measured on the sibling the model loads for them — "
+                    + "catalog-wide totals that don't follow the language picker. "
                     + "Hover a row to preview it in the Live Impact rail; click to switch.")
                 ForEach(rankedEntries, id: \.id) { entry in
                     ModelRow(id: entry.id, title: entry.title,
@@ -313,6 +337,7 @@ struct ModelTab: View {
                     : (store.recommendation.fim
                         ? "Mid-line edits condition on what follows the cursor, so the completion meets the existing text instead of re-typing it."
                         : "Fill-in-the-middle is reliable on E4B-class models only, so it's skipped automatically here — not a setting, just how this model is driven."))
+                ChordTaskRows(store: store)
                 if let note = m.note {
                     Caption(note)
                 }
@@ -325,10 +350,44 @@ struct ModelTab: View {
     }
 }
 
+// MARK: - Chord task rows
+
+/// The fix/reply figures on the selected-model card. The chord tasks run on
+/// the instruct sibling, not the selected model — resolved per the current
+/// style the same way the engine picks what it loads, so the figures are the
+/// ones this pick would actually produce.
+struct ChordTaskRows: View {
+    @ObservedObject var store: SettingsStore
+
+    var body: some View {
+        if store.isAppleIntelligence {
+            LabeledContent("Fix & reply chords") {
+                Text("run on the system model — not yet in the task eval")
+            }
+        } else if let t = ModelMetrics.taskMetrics(for: store.modelID, style: store.style) {
+            LabeledContent("Fix a line (\(store.hotkeyStyle.correctionLabel))") {
+                Text("\(t.m.fixPct)% restored exactly · touches \(t.m.falseFixPct)% of clean lines")
+            }
+            .help("Of 510 single-typo sentences in 17 languages, \(t.runsOn) — the model this pick loads for the chord — restored \(t.m.fixPct)% [\(t.m.fixCI.lowerBound)–\(t.m.fixCI.upperBound)] to the exact original; on 170 already-clean lines it still proposed a change \(t.m.falseFixPct)% of the time. Warm median \(t.m.fixP50Ms) ms. eval-correct, 2026-07-25.")
+            LabeledContent("Draft a reply (\(store.hotkeyStyle.replyLabel))") {
+                Text("\(t.m.replyPct)% usable drafts — right language, no echo")
+            }
+            .help("Of 570 on-screen conversations in 19 languages, \(t.runsOn) drafted something in the conversation's language without parroting the screen \(t.m.replyPct)% [\(t.m.replyCI.lowerBound)–\(t.m.replyCI.upperBound)] of the time — a floor on usability, not a quality score. Warm median \(t.m.replyP50Ms) ms. eval-reply, 2026-07-25.")
+            if !t.measuredExactly {
+                Caption("Chord figures measured on \(t.runsOn); this pick runs the 6-bit build of the same sibling, so treat them as a floor.")
+            }
+        } else {
+            LabeledContent("Fix & reply chords") {
+                Text("not measured for this model's correction sibling yet")
+            }
+        }
+    }
+}
+
 // MARK: - Comparison row
 
 /// One selectable model with its three measured axes as labeled bars.
-private struct ModelRow: View {
+struct ModelRow: View {
     let id: String
     let title: String
     let isSelected: Bool
@@ -416,6 +475,7 @@ private struct ModelRow: View {
                                   help: m.ramGB > 0
                                     ? String(format: "Resident weights: %.1f GB — longer bar = lighter.", m.ramGB)
                                     : "System model — no download, no app memory.")
+                        chordFigures
                     }
                     .padding(.leading, 24)
                 } else {
@@ -433,6 +493,48 @@ private struct ModelRow: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .onHover { hovering = $0; hover?($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+
+    /// The chord figures beside the bars: fix% · reply%, in the task colors
+    /// the map lenses use. Resolved at the model's RECOMMENDED settings (what
+    /// a click gives you); the selected-model card below re-resolves against
+    /// the live style. "~" marks the E4B tiers' 4-bit floor for their
+    /// unmeasured 6-bit sibling; "—" = sibling not in the task sweep.
+    @ViewBuilder private var chordFigures: some View {
+        let chord = ModelMetrics.taskMetrics(
+            for: id, style: ModelCatalog.recommended(for: id).style)
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Fix · Reply").font(.caption2).foregroundStyle(.tertiary)
+            if let chord {
+                let approx = chord.measuredExactly ? "" : "~"
+                let fixText = Text("\(approx)\(chord.m.fixPct)%").foregroundStyle(Color.orange)
+                let dotText = Text(" · ").foregroundStyle(Color.secondary)
+                let replyText = Text("\(approx)\(chord.m.replyPct)%").foregroundStyle(Color.purple)
+                (fixText + dotText + replyText)
+                    .font(.caption2.monospacedDigit())
+            } else {
+                Text("—").font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .frame(width: 68, alignment: .leading)
+        .help(chordHelp(chord))
+    }
+
+    private func chordHelp(
+        _ chord: (m: ModelMetrics.TaskMetrics, runsOn: String,
+                  measuredID: String, measuredExactly: Bool)?) -> String {
+        guard let c = chord else {
+            return "The fix and reply chords for this model aren't measured by the task eval yet."
+        }
+        var out = "The fix and reply chords run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly "
+        out += "[\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(c.m.replyPct)% usable reply drafts "
+        out += "[\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this "
+        out += "model's recommended settings; they don't follow the language picker. "
+        if !c.measuredExactly {
+            out += "This pick runs the 6-bit build of the sibling; the 4-bit figures are its floor. "
+        }
+        out += "eval-correct/eval-reply, 2026-07-25."
+        return out
     }
 
     /// Normalization bounds across the measured catalog, so bar lengths are
@@ -524,16 +626,31 @@ private struct PriorityCard: View {
 
 // MARK: - Model map
 
+/// What the map plots: the completion catalog, or one of the two chord tasks
+/// measured on the instruct siblings.
+enum MapLens: Hashable {
+    case completion, fix, reply
+}
+
 /// The catalog as a scatter map: accuracy up, speed right (log scale), bubble
 /// size = memory. A dashed envelope marks everything the selected model can
 /// reach through settings; a solid marker shows where the committed
 /// configuration sits and a dashed ghost previews the hovered change. Same
 /// `ConfigProjection` figures as the rail — one truth, two views.
-private struct ModelMapView: View {
+/// The fix/reply lenses swap the data source to the five measured siblings
+/// (`ModelMetrics.tasks`): task % up, task latency right, sibling memory as
+/// bubble size — the settings machinery (envelope, dots, projected ring) is
+/// completion-only and hides.
+struct ModelMapView: View {
     @ObservedObject var store: SettingsStore
     /// Hover previews live on their own observable so pointer movement
     /// re-renders the map and rail — never the scrolling Form around them.
     @ObservedObject var hover: HoverState
+    var lens: MapLens = .completion
+    /// Hovered sibling bubble on the chord lenses. Local @State: sibling ids
+    /// aren't models the Live Impact rail can preview, so they never touch
+    /// the shared hover store.
+    @State private var hoveredSibling: String?
 
     /// Bubbles, envelope and ring translate across ~300pt when the axis or the
     /// model changes — exactly the travel Reduce Motion exists to suppress. A
@@ -574,11 +691,18 @@ private struct ModelMapView: View {
     /// fits the gated config projections (up to ~67%); on any other axis the
     /// models span a much narrower band (all-language averages sit at 9–23%),
     /// and the fixed scale squeezed every bubble into the bottom fifth — so
-    /// the scale fits the plotted data instead, rounded to 5s.
+    /// the scale fits the plotted data instead, rounded to 5s. The chord
+    /// lenses always fit their own five values (fix spans 4–65%).
     private var accBounds: (lo: Double, hi: Double) {
-        guard axis != "core" else { return (Scale.accMin, Scale.accMax) }
-        let values = visibleMetrics.map {
-            Double(ModelMetrics.axisAccuracy(for: $0.id, axis: axis) ?? $0.firstWordPct)
+        let values: [Double]
+        switch lens {
+        case .completion:
+            guard axis != "core" else { return (Scale.accMin, Scale.accMax) }
+            values = visibleMetrics.map {
+                Double(ModelMetrics.axisAccuracy(for: $0.id, axis: axis) ?? $0.firstWordPct)
+            }
+        case .fix, .reply:
+            values = chordStats.map { Double($0.pct) }
         }
         guard let minV = values.min(), let maxV = values.max() else {
             return (Scale.accMin, Scale.accMax)
@@ -600,16 +724,29 @@ private struct ModelMapView: View {
     var body: some View {
         GeometryReader { geo in
             let bounds = accBounds
-            let plot = PlotFrame(size: geo.size, accLo: bounds.lo, accHi: bounds.hi)
+            let plot = PlotFrame(size: geo.size, accLo: bounds.lo, accHi: bounds.hi,
+                                 msRange: lens == .completion ? Scale.msRange : Self.chordMsRange)
             ZStack(alignment: .topLeading) {
                 gridAndAxes(plot)
-                envelope(plot)
-                bubbles(plot)
-                configDots(plot)
-                markers(plot)
-                infoCard
-                    .padding(.leading, plot.minX + 6)
-                    .padding(.top, 2)
+                if lens == .completion {
+                    envelope(plot)
+                    bubbles(plot)
+                    configDots(plot)
+                    markers(plot)
+                    infoCard
+                        .padding(.leading, plot.minX + 6)
+                        .padding(.top, 2)
+                } else {
+                    chordBubbles(plot)
+                    chordMarker(plot)
+                    // Top-RIGHT, unlike the completion card: both chord
+                    // lenses put their best model top-left (accurate = slow
+                    // there), exactly where the completion card sits.
+                    chordInfoCard
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.trailing, 12)
+                        .padding(.top, 2)
+                }
             }
             // Markers and the envelope already glided; the bubbles, labels and
             // gridlines jump-cut around them when the axis rescales. Move the
@@ -622,8 +759,15 @@ private struct ModelMapView: View {
         // focus, nothing to announce. The ranked list below is the accessible
         // equivalent, so describe the chart and point VoiceOver at the list.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Model map — accuracy, speed and memory of every model. Use the ranked list below to choose a model, and the Suggestions tab for the style, length and confidence settings the map previews.")
+        .accessibilityLabel(lens == .completion
+            ? "Model map — accuracy, speed and memory of every model. Use the ranked list below to choose a model, and the Suggestions tab for the style, length and confidence settings the map previews."
+            : "Task map — how well each instruct sibling handles the \(lens == .fix ? "fix" : "reply") chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model.")
     }
+
+    /// Latency span of the chord lenses: fixes and replies run 185–1801 ms
+    /// warm across the measured siblings — the completion scale tops out at
+    /// 800 and would pile three bubbles onto the left edge.
+    private static let chordMsRange = 150.0...2100.0
 
     /// Chart coordinates: x = log-speed (faster → right), y = accuracy on the
     /// axis-dependent span.
@@ -631,13 +775,14 @@ private struct ModelMapView: View {
         let size: CGSize
         let accLo: Double
         let accHi: Double
+        var msRange = ConfigProjection.Scale.msRange
         var minX: CGFloat { 38 }
         var maxX: CGFloat { size.width - 12 }
         var minY: CGFloat { 8 }
         var maxY: CGFloat { size.height - 24 }
 
         func x(ms: Double) -> CGFloat {
-            let f = ConfigProjection.Scale.logFraction(ms, in: ConfigProjection.Scale.msRange)
+            let f = ConfigProjection.Scale.logFraction(ms, in: msRange)
             return minX + (1 - f) * (maxX - minX)
         }
         func y(acc: Double) -> CGFloat {
@@ -928,6 +1073,153 @@ private struct ModelMapView: View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label).font(.system(size: 8).weight(.semibold)).foregroundStyle(.tertiary)
             Text(value).font(.caption2.monospacedDigit().weight(.semibold)).foregroundStyle(tint)
+        }
+    }
+
+    // MARK: Chord lenses
+
+    /// One measured sibling on a chord lens, with the lens's task figures.
+    private struct ChordStat: Identifiable {
+        let id: String
+        let name: String
+        let pct: Int
+        let ci: ClosedRange<Int>
+        let p50Ms: Int
+        let ramGB: Double
+    }
+
+    private var chordStats: [ChordStat] {
+        ModelMetrics.tasks.map { id, t in
+            ChordStat(id: id, name: ModelMetrics.taskModelNames[id] ?? id,
+                      pct: lens == .fix ? t.fixPct : t.replyPct,
+                      ci: lens == .fix ? t.fixCI : t.replyCI,
+                      p50Ms: lens == .fix ? t.fixP50Ms : t.replyP50Ms,
+                      ramGB: ModelMetrics.taskRamGB(for: id) ?? 1)
+        }.sorted { $0.pct > $1.pct }
+    }
+
+    /// The task colors, shared with the ranked rows' Fix · Reply figures.
+    private var chordTint: Color { lens == .fix ? .orange : .purple }
+
+    /// The sibling the current pick actually loads for the chords.
+    private var currentSiblingID: String? {
+        ModelMetrics.taskMetrics(for: store.modelID, style: store.style)?.measuredID
+    }
+
+    private func chordCenter(_ s: ChordStat, _ plot: PlotFrame) -> CGPoint {
+        CGPoint(x: plot.x(ms: Double(s.p50Ms)), y: plot.y(acc: Double(s.pct)))
+    }
+
+    /// The catalog pick a click on a sibling bubble switches to: the first
+    /// (quality-ordered) entry whose chords land on it at recommended
+    /// settings. A sibling isn't itself a catalog row, so the click routes
+    /// back through the mapping the ring and the info card already use.
+    private func chordPickTarget(_ siblingID: String) -> String? {
+        ModelMetrics.taskUserIDs(of: siblingID).first
+    }
+
+    private func chordBubbles(_ plot: PlotFrame) -> some View {
+        ForEach(chordStats) { s in
+            let mine = s.id == currentSiblingID
+            let r = radius(s.ramGB)
+            let center = chordCenter(s, plot)
+            let target = chordPickTarget(s.id)
+            // Interactivity before .position — see the bubbles comment.
+            ZStack {
+                Circle().fill(chordTint.opacity(mine ? 0.8 : 0.42))
+                Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5)
+            }
+            .frame(width: 2 * r, height: 2 * r)
+            .shadow(color: .black.opacity(mine ? 0.3 : 0.12), radius: mine ? 4 : 2, y: 1)
+            .contentShape(Circle())
+            .scaleEffect(hoveredSibling == s.id ? 1.12 : 1)
+            .animation(.easeOut(duration: 0.12), value: hoveredSibling)
+            .help(chordBubbleHelp(s))
+            .onTapGesture {
+                if let target { store.selectModel(target) }
+            }
+            .onHover { inside in
+                if inside { hoveredSibling = s.id }
+                else if hoveredSibling == s.id { hoveredSibling = nil }
+                // The rail previews the pick a click would land on — same
+                // hover contract as the completion bubbles and ranked rows.
+                if let target { store.setHover(.model(target), inside) }
+            }
+            .position(center)
+            // Always labeled: a handful of bubbles doesn't crowd, and unlike
+            // the completion lens there is no ranked list of siblings below
+            // to name them.
+            let below = center.y + r + 9
+            Text(s.name)
+                .font(.system(size: 9).weight(mine ? .bold : .medium))
+                .foregroundStyle(mine ? Color.primary : Color.secondary)
+                .position(x: min(max(center.x, plot.minX + 44), plot.maxX - 44),
+                          y: below > plot.maxY - 3 ? center.y - r - 9 : below)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// "You are here" on a chord lens: the same accent ring as the completion
+    /// marker, on the sibling the current pick loads. No ghost — settings
+    /// previews don't move the chord routing.
+    @ViewBuilder private func chordMarker(_ plot: PlotFrame) -> some View {
+        if let s = chordStats.first(where: { $0.id == currentSiblingID }) {
+            ZStack {
+                Circle()
+                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.75))
+                Circle()
+                    .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 5, height: 5)
+            }
+            .frame(width: 18, height: 18)
+            .shadow(color: Color.accentColor.opacity(0.55), radius: 5)
+            .position(chordCenter(s, plot))
+            .zIndex(7)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func chordBubbleHelp(_ s: ChordStat) -> String {
+        let users = ModelMetrics.taskUsers(of: s.id)
+        guard let first = users.first else {
+            return "\(s.name) — no catalog pick routes its chords here."
+        }
+        let serves = users.count > 1
+            ? "Runs the chords for \(users.joined(separator: ", "))."
+            : "Runs the chords for \(first)."
+        return "\(serves) Click to switch to \(first)."
+    }
+
+    @ViewBuilder private var chordInfoCard: some View {
+        let id = hoveredSibling ?? currentSiblingID ?? chordStats.first?.id
+        if let s = chordStats.first(where: { $0.id == id }) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(s.name).font(.caption.weight(.bold))
+                HStack(spacing: 10) {
+                    stat(lens == .fix ? "EXACT FIX" : "USABLE REPLY",
+                         "\(s.pct)% [\(s.ci.lowerBound)–\(s.ci.upperBound)]", chordTint)
+                    stat("SPEED", s.p50Ms >= 1000
+                        ? String(format: "%.1f s", Double(s.p50Ms) / 1000) : "\(s.p50Ms) ms", .blue)
+                    stat("MEM", String(format: "%.1f GB", s.ramGB), .teal)
+                }
+                if lens == .fix, let t = ModelMetrics.tasks[s.id] {
+                    Text("touches \(t.falseFixPct)% of clean lines")
+                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                }
+                let users = ModelMetrics.taskUsers(of: s.id)
+                if !users.isEmpty {
+                    Text("runs the chords for \(users.joined(separator: " · "))")
+                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: 250, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .glassCard(cornerRadius: 8)
+            .allowsHitTesting(false)
         }
     }
 }

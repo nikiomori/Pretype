@@ -94,11 +94,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(headerItem)
         menu.addItem(.separator())
 
+        // The long form ("Grant Accessibility permission…") was 25pt wider than
+        // the header on its own, so an ungranted Mac met a wider menu than a
+        // granted one. The sentence moved to the tooltip.
         permissionItem = NSMenuItem(
-            title: "Grant Accessibility permission…",
+            title: "Grant Accessibility…",
             action: #selector(openAccessibilitySettings),
             keyEquivalent: ""
         )
+        permissionItem.toolTip =
+            "Pretype needs Accessibility permission to read the field you're typing in."
         permissionItem.target = self
         permissionItem.image = symbol("exclamationmark.triangle.fill")
         menu.addItem(permissionItem)
@@ -163,6 +168,31 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         view.frame = NSRect(origin: .zero, size: view.fittingSize)
     }
 
+    /// What a menu row costs beyond its title text: the item's indent and
+    /// template image on the left, the key-equivalent column and margin on the
+    /// right. Measured off a menu built like this one (`NSMenu.size` came back
+    /// at text + 99.2…100.0 for every title tried), not guessed.
+    private static let titleChrome: CGFloat = 100
+
+    /// Keeps a title inside the header's width. Every row here is a short verb
+    /// except the two that name an app or a language, and those were setting the
+    /// menu's width themselves — so the whole menu grew by a third whenever
+    /// Pretype had gone quiet somewhere, and snapped back the next time it
+    /// hadn't. The header is the one item with a designed width, so it stays the
+    /// only one that sets it; anything longer is truncated here and the full
+    /// sentence goes on the item's tooltip.
+    private func fitting(_ title: String) -> String {
+        let font = NSFont.menuFont(ofSize: 0)
+        let budget = MenuHeaderView.width - Self.titleChrome
+        func width(_ text: String) -> CGFloat {
+            (text as NSString).size(withAttributes: [.font: font]).width
+        }
+        guard width(title) > budget else { return title }
+        var text = title
+        while !text.isEmpty, width(text + "…") > budget { text.removeLast() }
+        return text.trimmingCharacters(in: .whitespaces) + "…"
+    }
+
     /// Menu-sized template symbol. Every action row gets one: half-iconned rows
     /// are a large part of why the menu read as unstructured.
     private func symbol(_ name: String) -> NSImage? {
@@ -215,39 +245,44 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             return
         }
         appBlacklistItem.isHidden = false
-        // Same clamp as the diagnostics lines: one long app name must not set
-        // the menu's width.
+        // Same clamp as the diagnostics lines, before `fitting` measures what's
+        // left: one long app name must not set the menu's width.
         let name = String((context.appName ?? bundleID).prefix(40))
+        appBlacklistItem.toolTip = nil
         if AppPolicy.isTerminal(bundleID) || AppPolicy.isCredentialApp(bundleID) {
             // Built-in blocks can't be lifted, so the item states the fact and
             // greys itself out (nil action + NSMenu autoenabling) rather than
             // offering a toggle that would silently do nothing. Code editors are
             // deliberately not here: they only lose screen OCR, and stay
             // toggleable.
-            appBlacklistItem.title = "Always off in \(name)"
+            appBlacklistItem.title = fitting("Always off in \(name)")
             appBlacklistItem.action = nil
             appBlacklistItem.image = symbol("hand.raised")
         } else if AppPolicy.userBlacklistEntries(for: bundleID).isEmpty,
                   Stats.isUnproductive(bundleID), let record = Stats.record(for: bundleID) {
             // Pretype silenced itself here. The block is ours, not the user's, so
-            // the item that would offer "Disable" states the reason with its own
-            // evidence and becomes the way back instead.
-            appBlacklistItem.title = "Quiet in \(name) — \(record.accepted * 100 / record.shown)% "
-                + "of \(record.shown) taken · Resume"
+            // the item that would offer "Disable" becomes the way back instead.
+            // It says only that — the accept rate that justified going quiet is a
+            // sentence-long aside that widened the menu every time it appeared,
+            // so it hovers rather than prints.
+            appBlacklistItem.title = fitting("Resume in \(name)")
+            appBlacklistItem.toolTip = "Pretype went quiet here: "
+                + "\(record.accepted * 100 / record.shown)% of \(record.shown) suggestions taken."
             appBlacklistItem.action = #selector(resumeInFrontmostApp)
             appBlacklistItem.image = symbol("play.circle")
         } else {
             let off = !AppPolicy.userBlacklistEntries(for: bundleID).isEmpty
             // No .state checkmark: a ✓ next to "Disable in Mail" reads either way.
-            appBlacklistItem.title = off ? "Enable in \(name)" : "Disable in \(name)"
+            appBlacklistItem.title = fitting(off ? "Enable in \(name)" : "Disable in \(name)")
             appBlacklistItem.action = #selector(toggleFrontmostAppBlacklist)
             appBlacklistItem.image = symbol(off ? "checkmark.circle" : "nosign")
         }
     }
 
-    /// "Typing Hebrew? Gemma E2B 8-bit measures 18% there, this one 1%."
+    /// "Better models for Hebrew", hovering "Gemma E2B 8-bit measures 18% on
+    /// Hebrew — this one 1%."
     ///
-    /// The model is chosen once, from keyboard layouts, and then never revisited
+    /// The model is chosen once, sized to the Mac's memory, and never revisited
     /// — so someone who types a language their model is bad at gets a quiet 1%
     /// forever with nothing telling them why. This is the telling. It appears
     /// only when the language signal is settled AND the gap is outside the eval's
@@ -268,9 +303,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             return
         }
         languageHintItem.isHidden = false
-        languageHintItem.title =
-            "Typing \(ModelMetrics.axisDisplayName(language))? \(name) measures "
-            + "\(better.best)% there, this one \(better.current)%"
+        let display = ModelMetrics.axisDisplayName(language)
+        // The evidence hovers instead of printing, for the same reason the
+        // quiet-app row's does: a full sentence here was the widest thing in the
+        // menu, and the click already lands on the ranked table that shows it.
+        languageHintItem.title = fitting("Better models for \(display)")
+        languageHintItem.toolTip =
+            "\(name) measures \(better.best)% on \(display) — this one \(better.current)%."
     }
 
     /// Show the catalog ranked for the language being typed. Sets the axis first

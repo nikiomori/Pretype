@@ -58,7 +58,7 @@ It's a free, MIT-licensed alternative to [Cotypist](https://cotypist.app) — a 
 * **<kbd>Tab</kbd> to accept** — one word at a time, <kbd>⇧Tab</kbd> for the rest, or just keep typing to reject. The part one <kbd>Tab</kbd> will take renders a step brighter. Switchable to <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd> or <kbd>⌃Space</kbd> in Settings.
 * **Inline typo fixes** — a correction pill above the misspelled word, <kbd>Tab</kbd> to apply. Uses the macOS spell-checker in whichever language it detects from the surrounding text.
 * **Emoji shortcodes** — type `:shrug:` and 🤷 is offered in the same pill, <kbd>Tab</kbd> to take it. A handful of Gemoji nicknames plus every Unicode character name macOS already knows, so `:rocket:` and `:thinking_face:` work without shipping a table.
-* **Rewrites (<kbd>⌥Tab</kbd>)** — select clumsy text and the local model fixes grammar, typos and phrasing in place, keeping your tone. With nothing selected it fixes the word you just typed. On some models this needs a separate instruct sibling, downloaded once on first use (≈2.2 GB on the English/Russian default, up to ≈5 GB on Gemma; the menu bar shows *preparing…*).
+* **Rewrites (<kbd>⌥Tab</kbd>) and reply drafts (<kbd>⌥⇧Tab</kbd>)** — select clumsy text and the local model fixes grammar, typos and phrasing in place, keeping your tone; with nothing selected it fixes the word you just typed. Add <kbd>⇧</kbd> (or double-tap a modifier) and it drafts your next message from the conversation on screen instead. Both are measured per model — the strongest sibling restores 65% of noisy lines byte-exactly — and both tasks have *opposite* winners, so [Choosing a model](docs/models.md#fixing-and-replying) has the table. On some models this needs a separate instruct sibling, downloaded once on first use (≈2.2 GB on MiniCPM5, up to ≈5 GB on a base-style Gemma; the menu bar shows *preparing…*).
 * **Fast** — 49–145 ms warm completions across the local models, by prefilling only the newly typed tokens and reusing the KV cache.
 * **Knows where it is** — adapts per app, stays out of terminals and password managers, and stops reading entirely while macOS reports secure input. Where you almost never take its suggestions it goes quiet by itself, and says so in the menu with the numbers and a one-click *Resume*. Optional on-screen OCR pulls in surrounding context.
 * **Sounds like you** — one persona plus per-app style instructions, learned from a local journal you can clear or switch off at any time.
@@ -84,7 +84,7 @@ brew install --no-quarantine nikiomori/tap/pretype
    ```
    *(Or open it via **System Settings → Privacy & Security → Open Anyway**.)* Developer ID signing is planned; until then an in-place updater would change the code signature and make macOS revoke the Accessibility grant the app runs on, so updates stay manual.
 3. Launch it and **grant Accessibility** when prompted. If you grant it after launching, restart the app.
-4. On first launch Pretype downloads one model from Hugging Face (**≈1.6–2.2 GB**, picked to match your keyboard languages — the menu-bar icon shows progress). Any other model is one click in **Settings → Model**; [Choosing a model](docs/models.md) has the eval numbers behind the default.
+4. On first launch Pretype downloads one model from Hugging Face (**≈1.6–6.8 GB, sized to your Mac's memory** — the strongest tier that stays within about a quarter of it; the menu-bar icon shows progress). Any other model is one click in **Settings → Model**; [Choosing a model](docs/models.md) has the eval numbers behind the default.
 5. Pretype lives in the **menu bar** — no Dock icon, no main window. Click the icon for status, **Diagnostics**, and **Settings…** (<kbd>⌘,</kbd>).
 
 ### Build from source
@@ -173,8 +173,8 @@ Rendered at **[pretype.app/docs](https://pretype.app/docs)**, written in [`docs/
 
 * **OS** — macOS 14+ (macOS 26+ for the Apple Intelligence engine)
 * **Hardware** — Apple Silicon (M1 or newer). Intel Macs can't run MLX at all.
-* **Memory** — 8 GB is enough; the defaults hold ≈1.6–2.2 GB resident, and the catalog goes down to ≈1 GB. Big-RAM Macs can pick Gemma 4 E4B 8-bit at ≈8.6 GB.
-* **Storage** — ≈1.6–2.2 GB for the default model; 1–8.6 GB depending on what you pick. Using <kbd>⌥Tab</kbd> can add a one-time instruct sibling (≈2.2 GB on the EN/RU default, up to ≈5 GB on Gemma; none on Qwen3.5 or Bonsai, which correct with themselves)
+* **Memory** — 8 GB is enough; the default is sized to about a quarter of your Mac's memory (≈1.6 GB resident on 8 GB Macs up to ≈6.8 GB from 32 GB), and the catalog goes down to ≈1 GB. Big-RAM Macs can pick Gemma 4 E4B 8-bit at ≈8.6 GB.
+* **Storage** — ≈1.6–6.8 GB for the default model (sized to your Mac); 1–8.6 GB depending on what you pick. Using <kbd>⌥Tab</kbd> can add a one-time instruct sibling (≈2.2 GB on MiniCPM5, up to ≈5 GB on a base-style Gemma; none on Qwen3.5 or Bonsai, which correct with themselves, or on a Gemma in its recommended Instruct style)
 * **To build** — full Xcode 26+ (macOS 26 SDK + Metal toolchain). Not needed for the prebuilt app.
 
 ---
