@@ -209,18 +209,34 @@ final class DictationControllerTests: XCTestCase {
         await pump(0.05)
     }
 
+    /// Hold the key and wait until the capture is actually LIVE. The press
+    /// arms a real timer and `begin` crosses two awaits before `.listening`,
+    /// so "held long enough" says nothing about how far the machine got — a
+    /// loaded runner schedules those hops late, and a partial poked (or a
+    /// release applied) before they land exercises a different path than the
+    /// one the test is about.
+    private func startCapture(_ rig: Rig) async {
+        await holdDown(rig.controller)
+        await pump(until: { rig.controller.phase == .listening("") })
+    }
+
+    /// Push a partial and wait until the controller has heard it.
+    private func hear(_ text: String, in rig: Rig) async {
+        rig.session.onPartial?(text)
+        await pump(until: { rig.controller.phase == .listening(text) })
+    }
+
     // MARK: - Tests
 
     func testCaptureToInsertion() async {
         let rig = makeRig()
-        await holdDown(rig.controller)
+        await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
         XCTAssertEqual(rig.capture.startCount, 1)
-        rig.session.onPartial?("say someth")
-        await pump(0.03)
+        await hear("say someth", in: rig)
         XCTAssertEqual(rig.controller.phase, .listening("say someth"))
         await release(rig.controller)
-        await pump(0.1)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertGreaterThanOrEqual(rig.capture.stopCount, 1)
@@ -235,13 +251,12 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         rig.host.anchor = nil
         rig.host.fallbackCaretRect = CGRect(x: 40, y: 60, width: 1, height: 18)
-        await holdDown(rig.controller)
+        await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
         XCTAssertTrue(rig.host.shownModes.contains { if case .listening = $0 { return true }
                                                      return false },
                       "a capture with no readable caret still has to look like one")
-        rig.session.onPartial?("слышу")
-        await pump(0.03)
+        await hear("слышу", in: rig)
         guard case .listening(let text)? = rig.host.shownModes.last else {
             return XCTFail("partials must keep repainting the pill")
         }
@@ -250,23 +265,21 @@ final class DictationControllerTests: XCTestCase {
 
     func testFocusChangeDropsTranscript() async {
         let rig = makeRig()
-        await holdDown(rig.controller)
-        rig.session.onPartial?("meant for the other field")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("meant for the other field", in: rig)
         // Only the generation guard is under test here — the live app also
         // calls `invalidate()` on a real focus change.
         rig.host.focusGeneration += 1
         await release(rig.controller)
-        await pump(0.1)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.inserted.isEmpty)
         XCTAssertEqual(rig.controller.phase, .idle)
     }
 
     func testKeystrokeDuringFinalizeDiscardsWithNotice() async {
         let rig = makeRig { $0.finishDelay = 0.3 }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("about to vanish")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("about to vanish", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         rig.controller.keyPressed()
@@ -281,9 +294,8 @@ final class DictationControllerTests: XCTestCase {
 
     func testSecondHoldQueuesBehindFinalize() async {
         let rig = makeRig { $0.finishDelay = 0.25 }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("first sentence")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("first sentence", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         // Second hold while the first transcript is still being written down:
@@ -291,7 +303,7 @@ final class DictationControllerTests: XCTestCase {
         await holdDown(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         XCTAssertEqual(rig.capture.startCount, 1)
-        await pump(0.4)
+        await pump(until: { rig.capture.startCount == 2 })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertTrue(rig.controller.isCapturing, "the queued hold must start once the insert lands")
         XCTAssertEqual(rig.capture.startCount, 2)
@@ -299,10 +311,8 @@ final class DictationControllerTests: XCTestCase {
 
     func testDeviceChangeWithoutPinnedFormatFinishes() async {
         let rig = makeRig()  // audioFormat nil: restart-in-place is unsound
-        await holdDown(rig.controller)
-        await pump(until: { rig.controller.phase == .listening("") })
-        rig.session.onPartial?("already heard")
-        await pump(until: { rig.controller.phase == .listening("already heard") })
+        await startCapture(rig)
+        await hear("already heard", in: rig)
         rig.capture.onDeviceChange?()
         await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"],
@@ -312,8 +322,7 @@ final class DictationControllerTests: XCTestCase {
 
     func testDeviceLossHeardNothingFails() async {
         let rig = makeRig()
-        await holdDown(rig.controller)
-        await pump(until: { rig.controller.phase == .listening("") })
+        await startCapture(rig)
         rig.capture.onDeviceChange?()
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.inserted.isEmpty)
@@ -327,10 +336,8 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig {
             $0.audioFormat = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)
         }
-        await holdDown(rig.controller)
-        await pump(until: { rig.controller.phase == .listening("") })
-        rig.session.onPartial?("keep going")
-        await pump(until: { rig.controller.phase == .listening("keep going") })
+        await startCapture(rig)
+        await hear("keep going", in: rig)
         rig.capture.onDeviceChange?()
         await pump(until: { rig.capture.startCount == 2 })
         XCTAssertEqual(rig.capture.startCount, 2, "AirPods arriving is a hiccup, not an ending")
@@ -348,10 +355,8 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig {
             $0.audioFormat = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)
         }
-        await holdDown(rig.controller)
-        await pump(until: { rig.controller.phase == .listening("") })
-        rig.session.onPartial?("что-то услышал")
-        await pump(until: { rig.controller.phase == .listening("что-то услышал") })
+        await startCapture(rig)
+        await hear("что-то услышал", in: rig)
         // Poke-and-confirm, not a blind burst: the fake only holds the LATEST
         // restart's callback, so a poke that lands before the previous restart
         // was processed replays a stale epoch and is (correctly) dropped —
@@ -381,14 +386,14 @@ final class DictationControllerTests: XCTestCase {
             return session
         }
         rig.controller.modifierChanged(optionEvent(down: true))
-        await pump(0.08)
+        await pump(until: { rig.controller.phase == .preparing })
         XCTAssertEqual(rig.controller.phase, .preparing)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertEqual(rig.capture.startCount, 0)
-        await pump(0.3)
         // The download task was left running on purpose; the session it
         // produced belongs to a discarded capture and dies on arrival.
+        await pump(until: { session.cancelCount == 1 })
         XCTAssertEqual(session.cancelCount, 1)
         XCTAssertEqual(rig.capture.startCount, 0)
     }
@@ -397,6 +402,9 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         rig.controller.gates.secureInput = { true }
         await holdDown(rig.controller)
+        // The refusal is the arm timer's doing — wait for its evidence, not
+        // for a fixed slice of runner time.
+        await pump(until: { !rig.host.transientNotices.isEmpty })
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertEqual(rig.capture.startCount, 0)
         guard case .hint? = rig.host.transientNotices.last else {
@@ -412,11 +420,10 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         rig.host.tidy = { _ in "Polished." }
         rig.host.tidyDelay = 0.5
-        await holdDown(rig.controller)
-        rig.session.onPartial?("x")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("x", in: rig)
         await release(rig.controller)
-        await pump(0.3)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"],
                        "a slow tidy-up must not hold the sentence hostage")
     }
@@ -425,19 +432,17 @@ final class DictationControllerTests: XCTestCase {
         Settings.dictationPolish = true
         let rig = makeRig()
         rig.host.tidy = { _ in "Hello, world." }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("x")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("x", in: rig)
         await release(rig.controller)
-        await pump(0.15)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["Hello, world."])
     }
 
     func testEscapeDuringFinalizeSaysCancelled() async {
         let rig = makeRig { $0.finishDelay = 0.3 }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("never mind")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("never mind", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         rig.controller.keyPressed(isEscape: true)
@@ -469,11 +474,10 @@ final class DictationControllerTests: XCTestCase {
         DictationController.finalizeSeconds = 0.1
         defer { DictationController.finalizeSeconds = saved }
         let rig = makeRig { $0.finishDelay = 5 }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("x")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("x", in: rig)
         await release(rig.controller)
-        await pump(0.4)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle, "a hung finalize must not wedge the pill")
         XCTAssertTrue(rig.host.inserted.isEmpty)
         guard case .error(let why)? = rig.host.transientNotices.last else {
@@ -659,13 +663,12 @@ final class DictationControllerTests: XCTestCase {
         DictationController.finalizeSeconds = 0.1
         defer { DictationController.finalizeSeconds = saved }
         let rig = makeRig { $0.uncancellableFinishDelay = 1.0 }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("x")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("x", in: rig)
         await release(rig.controller)
         // Well before the 1 s hang resolves: the deadline must not wait for a
         // finalize that ignores cancellation.
-        await pump(0.4)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle,
                        "an uncancellable hang must still trip the watchdog")
         XCTAssertTrue(rig.host.inserted.isEmpty)
@@ -683,11 +686,10 @@ final class DictationControllerTests: XCTestCase {
         let spoken = "zanzibar-confidential-sentence"
         let rig = makeRig { $0.transcript = spoken }
         let before = DebugLog.shared.snapshot().count
-        await holdDown(rig.controller)
-        rig.session.onPartial?(spoken)
-        await pump(0.03)
+        await startCapture(rig)
+        await hear(spoken, in: rig)
         await release(rig.controller)
-        await pump(0.1)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, [spoken], "the capture itself must succeed")
         XCTAssertFalse(rig.host.lastEvent.contains(spoken), rig.host.lastEvent)
         for entry in DebugLog.shared.snapshot().dropFirst(before) {
@@ -700,14 +702,17 @@ final class DictationControllerTests: XCTestCase {
     /// never delivered, but whatever was said still gets typed.
     func testCaptureCeilingFinishesInsteadOfDiscarding() async {
         let saved = DictationController.maxCaptureSeconds
-        DictationController.maxCaptureSeconds = 0.15
+        // The ceiling clock starts inside `begin`, racing the same hops
+        // `startCapture` waits out — 0.6 keeps it comfortably behind them on a
+        // loaded runner, while still ending the test in under a second.
+        DictationController.maxCaptureSeconds = 0.6
         defer { DictationController.maxCaptureSeconds = saved }
         let rig = makeRig()
-        await holdDown(rig.controller)
+        await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
         rig.session.onPartial?("still talking")
         // Never released — the ceiling has to end it alone.
-        await pump(0.4)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertEqual(rig.host.inserted, ["hello world"],
                        "the ceiling must finish, not discard")
@@ -727,8 +732,9 @@ final class DictationControllerTests: XCTestCase {
             throw AudioCapture.Failure.sessionFailed("never reached")
         }
         await holdDown(rig.controller)
+        await pump(until: { rig.controller.phase == .preparing })
         XCTAssertEqual(rig.controller.phase, .preparing)
-        await pump(0.4)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle,
                        "a hung start must not wedge `.preparing`")
         guard case .error? = rig.host.transientNotices.last else {
@@ -741,9 +747,8 @@ final class DictationControllerTests: XCTestCase {
     /// pill vanishing under the click is its own explanation.
     func testPointerDuringWorkingShowsNoticeListeningStaysSilent() async {
         let rig = makeRig { $0.finishDelay = 0.3 }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("about to vanish")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("about to vanish", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         rig.controller.mouseDown()
@@ -756,7 +761,7 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.inserted.isEmpty)
 
         let quiet = makeRig()
-        await holdDown(quiet.controller)
+        await startCapture(quiet)
         XCTAssertEqual(quiet.controller.phase, .listening(""))
         quiet.controller.scrolled()
         XCTAssertEqual(quiet.controller.phase, .idle)
@@ -770,6 +775,7 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         rig.host.composing = true
         await holdDown(rig.controller)
+        await pump(until: { !rig.host.transientNotices.isEmpty })
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertEqual(rig.capture.startCount, 0, "the microphone must never open")
         guard case .hint(let notice)? = rig.host.transientNotices.last else {
@@ -783,6 +789,7 @@ final class DictationControllerTests: XCTestCase {
     func testBeginCancelsPendingFix() async {
         let rig = makeRig()
         await holdDown(rig.controller)
+        await pump(until: { rig.host.cancelledFixes == 1 })
         XCTAssertEqual(rig.host.cancelledFixes, 1)
     }
 
@@ -792,17 +799,17 @@ final class DictationControllerTests: XCTestCase {
     /// land; sentence two's loss must be said out loud.
     func testQueuedHoldReleasedBeforeInsertGetsNotice() async {
         let rig = makeRig { $0.finishDelay = 0.3 }
-        await holdDown(rig.controller)
-        rig.session.onPartial?("first sentence")
-        await pump(0.03)
+        await startCapture(rig)
+        await hear("first sentence", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         // Second hold queues behind the write…
         await holdDown(rig.controller)
         // …and is released before the write resolves.
         await release(rig.controller)
-        await pump(0.5)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
+        await pump(until: { !rig.host.transientNotices.isEmpty })
         guard case .hint(let notice)? = rig.host.transientNotices.last else {
             return XCTFail("a swallowed queued hold must be said out loud")
         }
