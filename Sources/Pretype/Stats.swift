@@ -7,6 +7,7 @@ enum Stats {
     private static let dailyKeys = [
         "stats.shown", "stats.accepted", "stats.acceptedChars",
         "stats.corrections", "stats.latencySumMs", "stats.latencyCount",
+        "stats.dictatedChars",
     ]
 
     private static let dayFormatter: DateFormatter = {
@@ -129,6 +130,31 @@ enum Stats {
         bump("stats.corrections")
     }
 
+    /// Characters a finished dictation carried into the field — the transcript
+    /// itself, not the seam spaces the injector adds around it.
+    ///
+    /// Booked on its OWN counter, deliberately outside `netSaved…` and the
+    /// header's time figure. Speaking a sentence produces in one gesture what
+    /// autocomplete accrues over dozens of accepted words: folded into the same
+    /// number it would swamp it within a day, and the week of history behind
+    /// the sparkline would stop meaning what it meant when it was recorded.
+    /// Different gesture, different saving, different counter.
+    static func recordDictated(chars: Int) {
+        guard chars > 0 else { return }
+        bump("stats.dictatedChars", by: chars)
+        defaults.set(
+            defaults.integer(forKey: "stats.lifetimeDictatedChars") + chars,
+            forKey: "stats.lifetimeDictatedChars"
+        )
+    }
+
+    static var dictatedToday: Int {
+        rollDayIfNeeded()
+        return defaults.integer(forKey: "stats.dictatedChars")
+    }
+
+    static var dictatedTotal: Int { defaults.integer(forKey: "stats.lifetimeDictatedChars") }
+
     static func recordLatency(_ seconds: TimeInterval) {
         bump("stats.latencySumMs", by: Int(seconds * 1000))
         bump("stats.latencyCount")
@@ -226,6 +252,10 @@ enum Stats {
         ]
         if latencyCount > 0 {
             lines.append("Engine latency: ~\(defaults.integer(forKey: "stats.latencySumMs") / latencyCount) ms")
+        }
+        let dictated = defaults.integer(forKey: "stats.dictatedChars")
+        if dictated > 0 || dictatedTotal > 0 {
+            lines.append("Dictated: \(dictated) chars today, \(dictatedTotal) in total")
         }
         return lines
     }

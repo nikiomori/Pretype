@@ -26,6 +26,29 @@ PRODUCTS=.build/xcode/Build/Products/Release
 test -x "$PRODUCTS/Pretype" || { echo "Build failed: $PRODUCTS/Pretype not found"; exit 1; }
 
 APP=build/Pretype.app
+# Quit a running instance of THIS build BEFORE its bundle is deleted below. Left
+# running, it becomes a process whose bundle no longer exists — LaunchServices
+# still lists it as open, so the next `open build/Pretype.app` tries to ACTIVATE
+# that corpse instead of launching the new build and fails with -600 ("The
+# application is not open anymore" in Finder). The rebuild then looks like it
+# worked while nothing new is actually running.
+# Both commands are anchored on the absolute build path (the script has already
+# cd'd to the repo root): a released copy installed in /Applications may be
+# running alongside the source build, and rebuilding here is no reason to shoot
+# it. The pkill pattern still ends at the bare executable, so a diagnostic run
+# (`--dictation-probe`), whose command line carries the flag, survives the
+# rebuild it is being used to debug.
+# Gated on pgrep because `tell application ... to quit` LAUNCHES a non-running
+# app just to deliver the quit event — every clean rebuild would flash the old
+# build's menu-bar icon for nothing.
+# pgrep/pkill -f take an ERE, so the checkout path must be matched literally —
+# a clone under something like "proj (1)" would otherwise never match and the
+# stale process would survive the rebuild.
+PWD_ERE=$(printf '%s\n' "$PWD" | sed 's/[][\^$.*+?(){}|]/\\&/g')
+if pgrep -f "$PWD_ERE/build/Pretype.app/Contents/MacOS/Pretype$" >/dev/null 2>&1; then
+    osascript -e "tell application \"$PWD/build/Pretype.app\" to quit" >/dev/null 2>&1 || true
+    pkill -f "$PWD_ERE/build/Pretype.app/Contents/MacOS/Pretype$" >/dev/null 2>&1 || true
+fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
@@ -55,6 +78,11 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <!-- Hold-to-talk dictation. macOS kills a process that touches the
+         microphone without this string, so it ships whether or not the feature
+         is switched on; the text is what the permission dialog shows. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Pretype transcribes what you say into the text field you are typing in, on this Mac. Audio is never recorded to disk and never leaves your computer.</string>
 </dict>
 </plist>
 EOF

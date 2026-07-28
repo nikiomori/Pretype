@@ -243,9 +243,26 @@ protocol CompletionEngine: AnyObject {
     /// Whether `correct(selection:request:)` does anything.
     var supportsCorrection: Bool { get }
 
+    /// Whether `correct` can run *now* without first fetching a model. False
+    /// means the call would block on a download — which the dictation tidy-up
+    /// pass, on a three-second budget, could never wait out anyway.
+    var isCorrectionReady: Bool { get }
+
+    /// Start loading whatever `correct` needs, in the background. Called by a
+    /// caller that just declined to wait for it, so the next one doesn't have
+    /// to decline too.
+    func prewarmCorrection()
+
     /// Returns a typo/grammar-fixed version of the selected text, or nil
     /// when there is nothing to fix.
-    func correct(selection: String, request: CompletionRequest) async throws -> String?
+    ///
+    /// `redactLog` keeps the text itself out of the debug log — lengths only.
+    /// The caller knows what the text IS and the engine cannot: a ⌥⇥ fix works
+    /// on words the user typed, which the log export already declares, while
+    /// the dictation tidy-up pass is handed a spoken sentence, which
+    /// `docs/privacy.md` promises never reaches the log.
+    func correct(selection: String, request: CompletionRequest,
+                 redactLog: Bool) async throws -> String?
 
     /// Composes the user's whole next message from the conversation on screen
     /// (the reply hotkey), instead of continuing what they typed. nil when the
@@ -281,7 +298,17 @@ extension CompletionEngine {
         return false
     }
     var supportsCorrection: Bool { false }
-    func correct(selection: String, request: CompletionRequest) async throws -> String? { nil }
+    /// An engine with no separate fix model has nothing to wait for.
+    var isCorrectionReady: Bool { supportsCorrection }
+    func prewarmCorrection() {}
+    func correct(selection: String, request: CompletionRequest,
+                 redactLog: Bool) async throws -> String? { nil }
+
+    /// The ⌥⇥ spelling: text the user typed, logged as the debug export
+    /// already says it is.
+    func correct(selection: String, request: CompletionRequest) async throws -> String? {
+        try await correct(selection: selection, request: request, redactLog: false)
+    }
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? { nil }
     func updateCompletion(length: CompletionLength, instructions: String) {}
     func updatePersonalization(_ level: PersonalizationLevel) {}

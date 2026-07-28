@@ -18,6 +18,8 @@ then re-grant.
 
 **No suggestions anywhere, MLX engine missing** — a source build without compiled Metal shaders. Use `./Scripts/make-app.sh` rather than plain `swift build`.
 
+**`open build/Pretype.app` fails with `-600`, or Finder says "the application is not open anymore"** *(building from source)* — a previous instance was still running when its bundle was replaced, so LaunchServices tries to activate a process whose bundle no longer exists instead of launching the new build. `make-app.sh` now quits the running instance of that build first (a copy installed in /Applications is left alone, so you can keep dogfooding one while rebuilding the other); on an older checkout, quit Pretype from the menu bar before rebuilding, or launch with `open -n build/Pretype.app`.
+
 **Gatekeeper blocks the first launch** — releases before the Developer ID signing are ad-hoc signed. Clear the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`, or open the app via **System Settings → Privacy & Security → Open Anyway**.
 
 ## FAQ
@@ -33,6 +35,26 @@ Deliberate. Once Pretype has offered a few dozen completions in an app and under
 Only offers you could actually have taken count toward that. The pipeline re-offers after every keystroke, so a ghost that was replaced by the next one, or that vanished in under 0.4 s, was never a suggestion you declined — and one you typed out yourself, word for word, means the model was right. None of those reach the tally, and neither do they reach the acceptance figure in **Diagnostics**.
 
 It isn't silent about it. The menu-bar item that normally offers *Disable in …* becomes **Resume in Slack** instead, hovering the numbers behind the decision (*"Pretype went quiet here: 2% of 74 suggestions taken."*), and one click clears the record and starts offering again from scratch.
+
+### Dictation does nothing when I hold the key
+
+Work down the list in **Settings → General → Dictation** — it names the blocker itself:
+
+* **The section says it needs macOS 26.** Dictation uses the system's own on-device speech models. On macOS 14–15 those don't exist, and Pretype doesn't bundle a model of its own.
+* **The section says "built app only".** A raw `swift build` binary has no bundle, and macOS grants microphone access by bundle. Run `./Scripts/make-app.sh` and launch the `.app`.
+* **The section says the microphone is denied.** macOS only ever asks once, so a past refusal never re-prompts. Re-allow Pretype under **System Settings → Privacy & Security → Microphone** — the button under the notice jumps straight to the pane — then switch dictation on again.
+* **The language line warns that macOS has no model for it.** Apple's newer speech model covers 30 locales; the rest fall back to the system dictation model, and a few languages have neither. The Settings caption names which one your current language gets — dictation can't invent a model Pretype doesn't ship.
+* **The first press only says "getting the dictation model ready…"** — macOS is downloading that language, once. Try again in a minute; the download continues even after you let go.
+* **The pill never appears.** It is a *hold*, not a tap: keep the key down for about half a second before speaking. Either side of the modifier works. Any other keypress — or a mouse click — cancels a capture in progress, so don't type while talking.
+* **My music goes flat and quiet while I dictate.** That is the headset switching to call mode: Bluetooth carries either good playback or a two-way call, never both. **Settings → General → Dictation → Microphone** is set to *Automatic*, which avoids it by recording from the built-in microphone whenever your earbuds are also playing your audio — if you pinned the headset there instead, this is the cost. (If the sound stays flat *after* the capture, that was a bug fixed in 2.3.0: the audio engine kept the device claimed until the app quit.)
+* **The headset died (or AirPods connected) mid-sentence.** The capture follows the default input: when the device changes it carries on from whatever macOS switched to, and only ends when no microphone is left at all — in which case whatever was already heard is typed rather than thrown away.
+* **A long dictation lands unpunctuated.** The tidy-up pass is the same minimal-edit fix <kbd>⌥Tab</kbd> uses, and that one is defined for a single short line: anything past 500 characters skips it and is typed exactly as heard, rather than going in half-corrected. Say a long passage in a few holds if you want the punctuation back.
+
+Still silent? **Diagnostics → `Dictation:`** states the app's own view in one line. For the whole picture, run the built binary with `--dictation-probe`: it prints the environment, then every modifier edge with the hold state it produced, and — when a hold completes — each condition the capture checks, so a refusal names itself.
+
+```bash
+./build/Pretype.app/Contents/MacOS/Pretype --dictation-probe
+```
 
 ### What does it cost in battery and memory?
 

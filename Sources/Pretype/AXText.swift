@@ -103,17 +103,37 @@ enum AXText {
     /// (Chromium/Electron/Java, or a timeout on a hung app) — only the last one
     /// pays for the input-source fallback.
     static func isComposing(_ element: AXUIElement) -> Bool {
+        switch markedRangeAnswer(element) {
+        case .marked: return true
+        case .clear: return false
+        case .unsupported: return isComposingInputSourceActive()
+        }
+    }
+
+    /// The precise answer only: the element implements the marked-range
+    /// attribute AND something is marked right now. `false` where the attribute
+    /// is unsupported — no input-source fallback. This is the dictation gate:
+    /// refusing on the coarse fallback would ban dictation outright for anyone
+    /// with a CJK source selected in Electron/Chromium (where it demonstrably
+    /// works today), to guard against a composition those apps never report.
+    static func hasMarkedText(_ element: AXUIElement) -> Bool {
+        markedRangeAnswer(element) == .marked
+    }
+
+    private enum MarkedRangeAnswer { case marked, clear, unsupported }
+
+    private static func markedRangeAnswer(_ element: AXUIElement) -> MarkedRangeAnswer {
         var ref: CFTypeRef?
         switch AXUIElementCopyAttributeValue(element, "AXTextInputMarkedRange" as CFString, &ref) {
         case .success:
-            guard let ref, CFGetTypeID(ref) == AXValueGetTypeID() else { return false }
+            guard let ref, CFGetTypeID(ref) == AXValueGetTypeID() else { return .clear }
             var range = CFRange()
-            guard AXValueGetValue(ref as! AXValue, .cfRange, &range) else { return false }
-            return range.length > 0
+            guard AXValueGetValue(ref as! AXValue, .cfRange, &range) else { return .clear }
+            return range.length > 0 ? .marked : .clear
         case .noValue:
-            return false  // attribute implemented, nothing marked
+            return .clear  // attribute implemented, nothing marked
         default:
-            return isComposingInputSourceActive()
+            return .unsupported
         }
     }
 

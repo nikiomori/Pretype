@@ -50,6 +50,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             state = .failed                       // attention: Accessibility not granted
         } else if !Settings.enabled {
             state = .disabled                     // paused
+        } else if suggestionController?.dictationController.isCapturing == true {
+            state = .listening                    // the microphone is open right now
         } else {
             switch suggestionController?.engine.state {
             case .ready, .none: state = .ready
@@ -78,6 +80,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     func bind(to controller: SuggestionController) {
         suggestionController = controller
+        // Push, not poll: a capture lasts seconds, and the 1 s status timer
+        // would show the mic late — or, for a short sentence, never.
+        controller.onDictationActivity = { [weak self] in self?.updateStatusIcon() }
     }
 
     /// Status + a single diagnostics submenu; every setting lives in the
@@ -347,18 +352,27 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
         // One line each, and short enough to survive the widest keycap column
         // without truncating — the menu's width is set by the header, not here.
-        return [
+        var hints = [
             (keys: s.label, action: "accept a word — \(s.shiftLabel) for all"),
             (keys: s.correctionLabel, action: "fix the word or selection"),
             (keys: "⏎", action: "apply the fix — ⎋ keeps yours"),
             (keys: reply, action: "reply to what's on screen"),
         ]
+        // Only once it's switched on: a shortcut for a feature the user hasn't
+        // enabled is a line of noise in a list that has to stay scannable.
+        if Settings.dictationEnabled, Settings.dictationGesture != .off {
+            hints.append((keys: "hold \(Settings.dictationGesture.shortLabel)", action: "talk instead of typing"))
+        }
+        return hints
     }
 
     private func statusInfo() -> (color: NSColor, text: String) {
         guard Permissions.isTrusted else { return (.systemRed, "Accessibility permission required") }
         guard let controller = suggestionController else { return (.systemGray, "Starting…") }
         guard Settings.enabled else { return (.systemGray, "Paused") }
+        if controller.dictationController.isCapturing {
+            return (.systemRed, "Listening — dictation is capturing")
+        }
         switch controller.engine.state {
         case .ready:
             return (.systemGreen, controller.engine.statusLine ?? "\(controller.engine.name) ready")
@@ -414,6 +428,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func toggleEnabled() {
         Settings.enabled.toggle()
         if !Settings.enabled {
+            // Pause means the microphone too: a capture that survived the
+            // toggle would keep listening — and then type — under an app the
+            // user just switched off.
+            suggestionController?.dictationController.invalidate()
             suggestionController?.dismiss()
         }
     }

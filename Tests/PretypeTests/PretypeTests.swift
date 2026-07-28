@@ -127,10 +127,34 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(CorrectionGates.trimRunOn(apostrophe, original: apostrophe), apostrophe)
         let tag = "You learned English from Miss Long, didn't you?"
         XCTAssertEqual(CorrectionGates.trimRunOn(tag + " junk", original: tag), tag)
-        // Original without a sentence ending → no boundary contract, no cut.
-        XCTAssertEqual(CorrectionGates.trimRunOn("fixed words and more",
+        // Original without a sentence ending — the shape DICTATION always has,
+        // since the system dictation model writes no punctuation. There is no
+        // ending to anchor on, so length is the anchor: a tidy-up adds
+        // punctuation and case, it does not add words.
+        //
+        // Reported from real use: strange characters at the end of a dictation,
+        // CJK or stray Latin — an instruct model generating past its answer.
+        let heard = "завтра уже уезжать а я не собрал чемодан"
+        let tidied = "Завтра уже уезжать, а я не собрал чемодан."
+        XCTAssertEqual(CorrectionGates.trimRunOn(tidied, original: heard), tidied,
+                       "adding punctuation and case must survive untouched")
+        XCTAssertEqual(CorrectionGates.trimRunOn(tidied + "你好世界你好世界", original: heard), tidied)
+        XCTAssertEqual(CorrectionGates.trimRunOn(tidied + " fix.less than 100 words",
+                                                 original: heard), tidied)
+        // Junk with no sentence terminal anywhere to cut back to: hand back the
+        // original, which makes the caller keep exactly what was heard.
+        XCTAssertEqual(
+            CorrectionGates.trimRunOn("Завтра уже уезжать а я не собрал чемодан 你好世界你好世界你好世界",
+                                      original: heard),
+            heard)
+        // Growth within the budget is left alone — a short fix has room to
+        // breathe (the +6 floor), so ordinary ⌥⇥ on a fragment still works.
+        XCTAssertEqual(CorrectionGates.trimRunOn("fixed words", original: "fixd words"),
+                       "fixed words")
+        // …but a fragment the model CONTINUED instead of fixing is refused.
+        XCTAssertEqual(CorrectionGates.trimRunOn("fixed words and then some more",
                                                  original: "fixd words"),
-                       "fixed words and more")
+                       "fixd words")
         // Exact fix passes through untouched.
         let clean = "Nothing to trim here."
         XCTAssertEqual(CorrectionGates.trimRunOn(clean, original: clean), clean)
@@ -1727,6 +1751,180 @@ final class PretypeTests: XCTestCase {
                                                    gesture: .off, now: at(dt)))
             }
         }
+    }
+
+    // Hold-to-talk decides when Pretype opens the microphone, so every rule
+    // about what is NOT a hold is pinned here: a brushed modifier, a chord, a
+    // tap, the other side's key, and — the one that makes the two gestures able
+    // to share a modifier — a double tap.
+    func testModifierHold() {
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        func at(_ dt: TimeInterval) -> Date { t0.addingTimeInterval(dt) }
+        var hold = ModifierHold()
+        func down(_ dt: TimeInterval, _ code: Int64 = KeyCode.rightOption,
+                  _ flags: CGEventFlags = [.maskAlternate]) -> ModifierHold.Event? {
+            hold.modifierChanged(keyCode: code, flags: flags, gesture: .option, now: at(dt))
+        }
+        func up(_ dt: TimeInterval, _ code: Int64 = KeyCode.rightOption) -> ModifierHold.Event? {
+            hold.modifierChanged(keyCode: code, flags: [], gesture: .option, now: at(dt))
+        }
+
+        // Hold past the threshold, then release: capture and use it.
+        XCTAssertNil(down(0))
+        XCTAssertTrue(hold.isArmed)
+        XCTAssertNil(hold.tick(now: at(0.2)))       // too early to open the mic
+        XCTAssertEqual(hold.tick(now: at(0.5)), .begin)
+        XCTAssertTrue(hold.isActive)
+        XCTAssertNil(hold.tick(now: at(0.9)))       // begin fires once, not per tick
+        XCTAssertEqual(up(2.0), .end)
+        XCTAssertFalse(hold.isActive)
+
+        // A quick brush of the key never records anything.
+        hold = ModifierHold()
+        XCTAssertNil(down(0))
+        XCTAssertNil(up(0.12))
+        XCTAssertNil(hold.tick(now: at(0.6)))
+
+        // A double tap — the reply gesture — is not a hold. The two share ⌥
+        // precisely because neither can be mistaken for the other.
+        hold = ModifierHold()
+        for dt in [0.0, 0.08, 0.2, 0.28] {
+            XCTAssertNil(dt == 0.0 || dt == 0.2 ? down(dt) : up(dt))
+            XCTAssertNil(hold.tick(now: at(dt)))
+        }
+
+        // A key pressed during the hold makes it a chord: the capture is
+        // cancelled, not used.
+        hold = ModifierHold()
+        XCTAssertNil(down(0))
+        XCTAssertEqual(hold.tick(now: at(0.5)), .begin)
+        XCTAssertEqual(hold.keyPressed(), .cancel)
+        XCTAssertFalse(hold.isActive)
+        XCTAssertNil(up(0.7))   // the release has nothing left to end
+
+        // The same key pressed BEFORE the threshold has to disarm just as
+        // firmly, and this is the case a caller is tempted to skip: there is no
+        // capture yet, so nothing comes back to cancel. ⌥⌫ word-delete and
+        // ⌥-arrow word navigation live entirely inside this window — the
+        // modifier stays down across several presses — and a hold still armed
+        // when the timer catches up opens the microphone mid-edit.
+        hold = ModifierHold()
+        XCTAssertNil(down(0))
+        XCTAssertTrue(hold.isArmed)
+        XCTAssertNil(hold.keyPressed())
+        XCTAssertFalse(hold.isArmed)
+        XCTAssertNil(hold.tick(now: at(0.5)))   // the timer finds nothing to start
+        XCTAssertNil(up(0.9))
+
+        // A click or a scroll inside that window says the same thing: a long
+        // ⌥-drag or ⌃-zoom is a gesture, not a sentence.
+        hold = ModifierHold()
+        XCTAssertNil(down(0))
+        XCTAssertNil(hold.interrupt())
+        XCTAssertFalse(hold.isArmed)
+        XCTAssertNil(hold.tick(now: at(0.5)))
+
+        // Another modifier joining does the same…
+        hold = ModifierHold()
+        XCTAssertNil(down(0))
+        XCTAssertEqual(hold.tick(now: at(0.5)), .begin)
+        XCTAssertEqual(down(0.6, KeyCode.leftCommand, [.maskAlternate, .maskCommand]), .cancel)
+
+        // …and so does starting from a chord: ⌥ pressed while ⌘ is already down
+        // never arms at all.
+        hold = ModifierHold()
+        XCTAssertNil(down(0, KeyCode.rightOption, [.maskAlternate, .maskCommand]))
+        XCTAssertFalse(hold.isArmed)
+        XCTAssertNil(hold.tick(now: at(0.5)))
+
+        // EITHER side fires. This shipped right-hand-only and the left key was
+        // the one the first user reached for: no pill, no error, no log line —
+        // a dead feature. The chord guards above are what keep the left key
+        // usable, not a refusal to look at it.
+        for code in [KeyCode.leftOption, KeyCode.rightOption] {
+            hold = ModifierHold()
+            XCTAssertNil(down(0, code))
+            XCTAssertTrue(hold.isArmed, "keyCode \(code) must arm")
+            XCTAssertEqual(hold.tick(now: at(0.5)), .begin)
+            XCTAssertEqual(up(1.0, code), .end)
+        }
+
+        // Every gesture watches its own modifier — both keys of it — and `off`
+        // watches none.
+        for (gesture, codes) in [
+            (DictationGesture.command, [KeyCode.leftCommand, KeyCode.rightCommand]),
+            (.control, [KeyCode.leftControl, KeyCode.rightControl]),
+        ] {
+            let mask = gesture.keys!.mask
+            for code in codes {
+                var picked = ModifierHold()
+                var off = ModifierHold()
+                var other = ModifierHold()
+                XCTAssertNil(picked.modifierChanged(keyCode: code, flags: mask,
+                                                    gesture: gesture, now: at(0)))
+                XCTAssertEqual(picked.tick(now: at(0.5)), .begin, "\(gesture.label) / \(code)")
+                XCTAssertNil(off.modifierChanged(keyCode: code, flags: mask,
+                                                 gesture: .off, now: at(0)))
+                XCTAssertNil(off.tick(now: at(0.5)))
+                // A different modifier's key must not arm this gesture.
+                XCTAssertNil(other.modifierChanged(keyCode: code, flags: mask,
+                                                   gesture: .option, now: at(0)))
+                XCTAssertNil(other.tick(now: at(0.5)))
+            }
+        }
+    }
+
+    // What a transcript looks like by the time it reaches the field. A newline
+    // would SEND the message in half the apps this types into, and speech has
+    // no spacebar — the seam with what is already typed is ours to get right.
+    func testDictationTextShaping() {
+        XCTAssertEqual(DictationController.clean("  hello   there\nfriend \n"), "hello there friend")
+        XCTAssertEqual(DictationController.clean("a\r\nb\u{2028}c"), "a b c")
+        XCTAssertEqual(DictationController.clean("   "), "")
+
+        // The pill shows the END of a long dictation — that is where the words
+        // being spoken right now are.
+        XCTAssertEqual(DictationController.tail("short", limit: 10), "short")
+        XCTAssertEqual(DictationController.tail("abcdefghijkl", limit: 4), "…ijkl")
+
+        func seam(_ text: String, _ context: String) -> String {
+            SuggestionController.spacedForInsertion(text, after: context)
+        }
+        XCTAssertEqual(seam("привет", "я сказал"), " привет")     // word + word
+        XCTAssertEqual(seam("привет", "я сказал "), "привет")     // space already typed
+        XCTAssertEqual(seam("hello", ""), "hello")                // empty field
+        XCTAssertEqual(seam("hello", "line\n"), "hello")          // start of a line
+        XCTAssertEqual(seam(", then", "yes"), ", then")           // punctuation hugs the word
+        XCTAssertEqual(seam("word", "("), "word")                 // just opened a bracket
+        XCTAssertEqual(seam("word", "«"), "word")
+
+        // Chinese and Japanese are written without spaces between words, so a
+        // seam space there is a typo the user has to delete. Either side of the
+        // boundary being Han or kana is enough to suppress it.
+        XCTAssertEqual(seam("世界", "你好"), "世界")               // Han + Han
+        XCTAssertEqual(seam("それ", "です"), "それ")               // kana + kana
+        XCTAssertEqual(seam("です", "hello"), "です")              // Latin, then kana
+        XCTAssertEqual(seam("world", "你好"), "world")            // Han, then Latin
+        // Korean is NOT scriptio continua — Hangul spaces its words like ours.
+        XCTAssertEqual(seam("하세요", "안녕"), " 하세요")
+        // Fullwidth punctuation carries its own side-bearing: none before a
+        // closing "。", none after an opening bracket.
+        XCTAssertEqual(seam("。", "你好"), "。")
+        XCTAssertEqual(seam("こんにちは", "「"), "こんにちは")
+
+        // The RIGHT seam, when the caret sits before existing text. Same rules
+        // mirrored — otherwise "hello|world" fuses the dictated tail into the
+        // word that follows it.
+        func seamed(_ text: String, _ context: String, _ following: String) -> String {
+            SuggestionController.spacedForInsertion(text, after: context, before: following)
+        }
+        XCTAssertEqual(seamed("there", "hello", "world"), " there ")  // both sides fuse
+        XCTAssertEqual(seamed("there", "hello", " world"), " there")  // space already there
+        XCTAssertEqual(seamed("there", "hello", ""), " there")        // caret at the end
+        XCTAssertEqual(seamed("there", "hello", "\nnext"), " there")  // end of the line
+        XCTAssertEqual(seamed("yes", "", ", then"), "yes")            // punctuation hugs it
+        XCTAssertEqual(seamed("(", "", "word"), "(")                  // opened a bracket
+        XCTAssertEqual(seamed("世界", "", "です"), "世界")             // no space either side
     }
 
     // The reply chord must never be mistaken for the fix chord (which would

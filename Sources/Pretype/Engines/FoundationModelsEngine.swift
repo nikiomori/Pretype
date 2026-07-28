@@ -244,7 +244,8 @@ final class FoundationModelsEngine: CompletionEngine {
 
     var supportsCorrection: Bool { true }
 
-    func correct(selection: String, request: CompletionRequest) async throws -> String? {
+    func correct(selection: String, request: CompletionRequest,
+                 redactLog: Bool) async throws -> String? {
         guard case .ready = stateBox.get() else { return nil }
         let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n") else { return nil }
@@ -286,8 +287,11 @@ final class FoundationModelsEngine: CompletionEngine {
         }
         guard !fixed.isEmpty, fixed != trimmed else { return nil }
         guard CorrectionGates.isMinimalCorrection(original: trimmed, fixed: fixed) else {
-            DebugLog.shared.log("FM", "fix rejected (over-rewrite)",
-                                detail: "\"\(trimmed)\" → \"\(fixed)\"")
+            DebugLog.shared.log(
+                "FM", "fix rejected (over-rewrite)",
+                detail: redactLog
+                    ? "\(trimmed.count) → \(fixed.count) chars — redacted from log"
+                    : "\"\(trimmed)\" → \"\(fixed)\"")
             return nil
         }
         return fixed

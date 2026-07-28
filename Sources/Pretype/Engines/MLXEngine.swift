@@ -86,6 +86,9 @@ final class MLXEngine: CompletionEngine {
     private var loadTask: Task<ModelContainer, Error>?
     /// Instruct model for fix-selection; loaded lazily on first ⌥Tab.
     private var correctionLoadTask: Task<ModelContainer, Error>?
+    /// "The fix model's weights are on this machine" — see `isCorrectionReady`.
+    /// Outlives an idle unload on purpose: unloading frees memory, not disk.
+    private let correctionFetched = LockedValue(false)
 
     /// Serializes model lifecycle (load · idle-unload · reload) across the
     /// generation tasks, the idle timer, and the memory-pressure source.
@@ -1046,7 +1049,8 @@ final class MLXEngine: CompletionEngine {
     /// (loaded lazily, fresh KV cache). Minimal-edit prompt + a divergence guard
     /// keep it from rewriting the selection. The shared prompt/cleanup/guard live
     /// in `CorrectionGates`.
-    func correct(selection: String, request: CompletionRequest) async throws -> String? {
+    func correct(selection: String, request: CompletionRequest,
+                 redactLog: Bool) async throws -> String? {
         guard let task = beginRequest() else { return nil }
         defer { endRequest() }
         // Instruct style already runs the instruct model as primary; base
@@ -1090,7 +1094,11 @@ final class MLXEngine: CompletionEngine {
             // path. Without it E4B-it-4bit ran past its answer into same-line
             // junk on 39% of eval-correct rows ("fix.less than 100 words").
             extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
-            promptCache: nil
+            promptCache: nil,
+            // The generation log prints its own raw output — redacting only the
+            // divergence-guard line below would leave the same sentence in the
+            // buffer twenty lines earlier, on the SUCCESS path at that.
+            logRaw: !redactLog
         )
         try Task.checkCancellation()
 
@@ -1098,8 +1106,11 @@ final class MLXEngine: CompletionEngine {
             CorrectionGates.cleanCorrectionOutput(output), original: trimmed)
         guard !fixed.isEmpty, fixed != trimmed else { return nil }
         guard CorrectionGates.isMinimalCorrection(original: trimmed, fixed: fixed) else {
-            DebugLog.shared.log("FIX", "rejected over-rewrite",
-                                detail: "\"\(trimmed)\" → \"\(fixed)\"")
+            DebugLog.shared.log(
+                "FIX", "rejected over-rewrite",
+                detail: redactLog
+                    ? "\(trimmed.count) → \(fixed.count) chars — redacted from log"
+                    : "\"\(trimmed)\" → \"\(fixed)\"")
             return nil
         }
         return fixed
@@ -1172,6 +1183,42 @@ final class MLXEngine: CompletionEngine {
         modelLock.unlock()
     }
 
+    /// Whether a fix would cost at most a LOAD, never a download.
+    ///
+    /// Deliberately not "is the model resident": an idle-unloaded model is
+    /// still on disk, and re-reading it is exactly the kind of wait the
+    /// tidy-up's own budget is there to bound. What no budget can absorb is a
+    /// multi-gigabyte fetch — so that, and only that, answers false.
+    ///
+    /// Both styles are probed, and the first draft of this was wrong to skip
+    /// instruct: it fixes with the PRIMARY model, which is only "already here"
+    /// after its own first download — on a fresh install that is the same
+    /// multi-gigabyte wait, reached by a different branch.
+    ///
+    /// Memoized once true: the answer can only go from "not fetched" to
+    /// "fetched" while an engine lives. The first probe is still a small
+    /// directory read on whatever thread asks (often main); the memo only
+    /// spares every call after it.
+    var isCorrectionReady: Bool {
+        if correctionFetched.get() { return true }
+        let fetched = ModelStorage.isFetched(style == .instruct ? modelID : correctionModelID)
+        if fetched { correctionFetched.set(true) }
+        return fetched
+    }
+
+    func prewarmCorrection() {
+        guard style != .instruct else { return prewarmIfNeeded() }
+        _ = correctionLoadTaskOrCreate()
+    }
+
+    /// The sibling `correct` would use — resolved the same way
+    /// `correctionLoadTaskOrCreate` resolves it.
+    private var correctionModelID: String {
+        ProcessInfo.processInfo.environment["PRETYPE_TEST_FIX_MODEL"]
+            ?? ModelCatalog.option(for: modelID)?.correctionModelID
+            ?? ModelCatalog.options[0].correctionModelID
+    }
+
     private func correctionContainer() async throws -> ModelContainer {
         try await correctionLoadTaskOrCreate().value
     }
@@ -1179,10 +1226,9 @@ final class MLXEngine: CompletionEngine {
     private func correctionLoadTaskOrCreate() -> Task<ModelContainer, Error> {
         modelLock.lock(); defer { modelLock.unlock() }
         if let correctionLoadTask { return correctionLoadTask }
-        let id = ProcessInfo.processInfo.environment["PRETYPE_TEST_FIX_MODEL"]
-            ?? ModelCatalog.option(for: modelID)?.correctionModelID
-            ?? ModelCatalog.options[0].correctionModelID
+        let id = correctionModelID
         let stateBox = self.stateBox
+        let correctionFetched = self.correctionFetched
         let task = Task<ModelContainer, Error> { [weak self] in
             let previous = stateBox.get()
             stateBox.set(.preparing("loading fix model…"))
@@ -1194,6 +1240,10 @@ final class MLXEngine: CompletionEngine {
                     }
                 )
                 stateBox.set(previous)
+                // Whatever the disk probe thought, the weights are provably
+                // here now — and after an idle unload nils the task, this is
+                // what keeps the next fix from being skipped as "not fetched".
+                correctionFetched.set(true)
                 return container
             } catch {
                 stateBox.set(previous)

@@ -1,4 +1,6 @@
 import AppKit
+import AVFoundation
+import Carbon
 import SwiftUI
 
 // MARK: - Store
@@ -48,6 +50,46 @@ final class SettingsStore: ObservableObject {
         didSet { guard !syncing, oldValue != replyGesture else { return }
             Settings.replyGesture = replyGesture }
     }
+    /// Hold-to-talk dictation. The write goes through `SettingsUI` because
+    /// switching it on is what asks for the microphone — and has to report a
+    /// refusal, since macOS only ever prompts once.
+    @Published var dictation = false {
+        didSet { guard !syncing, oldValue != dictation else { return }
+            SettingsUI.setDictation(dictation) { [weak self] granted in
+                guard let self, !granted else { return }
+                self.syncing = true
+                self.dictation = false
+                self.syncing = false
+            } }
+    }
+    @Published var dictationGesture = DictationGesture.option {
+        didSet { guard !syncing, oldValue != dictationGesture else { return }
+            Settings.dictationGesture = dictationGesture }
+    }
+    @Published var dictationPolish = true {
+        didSet { guard !syncing, oldValue != dictationPolish else { return }
+            Settings.dictationPolish = dictationPolish }
+    }
+    @Published var dictationInput = "auto" {
+        didSet { guard !syncing, oldValue != dictationInput else { return }
+            Settings.dictationInput = dictationInput
+            refreshDictationInput() }
+    }
+    /// Input devices to offer, and the one a capture would open right now.
+    @Published var dictationInputs: [AudioDevices.Device] = []
+    @Published var dictationInputNote: String?
+    @Published var dictationLanguage = "auto" {
+        didSet { guard !syncing, oldValue != dictationLanguage else { return }
+            Settings.dictationLanguage = dictationLanguage
+            refreshDictationLanguage() }
+    }
+    /// Which speech model the current language would use — or that macOS has
+    /// none for it. Resolved async; nil until the first answer arrives.
+    @Published var dictationSupport: Transcription.LanguageSupport?
+    /// Languages the system transcriber offers, loaded once when the pane
+    /// appears (the lookup is async and never changes within a session).
+    @Published var dictationLocales: [Locale] = []
+
     @Published var ghostOpacity = 0.7 {
         didSet { guard !syncing else { return }
             Settings.ghostOpacity = ghostOpacity }
@@ -201,6 +243,80 @@ final class SettingsStore: ObservableObject {
     @Published var importing = false
 
     // MARK: Derived
+
+    /// Why dictation can't run here, or nil when it can. Shown instead of the
+    /// controls: a switch that flips but never works is worse than none.
+    var dictationBlocker: String? {
+        if !MicrophoneAccess.isBundled {
+            return "Available in the built app only — this binary is running outside a .app bundle, "
+                + "and macOS grants microphone access by bundle."
+        }
+        if !Transcription.isSupported {
+            return "Needs macOS 26 or later: dictation uses the system's own on-device speech models, "
+                + "so there is nothing to download from us and nothing to send anywhere."
+        }
+        if dictationMicDenied {
+            return "Microphone access is denied for Pretype, and macOS only ever asks once — "
+                + "allow it under Privacy & Security → Microphone, then come back and switch "
+                + "dictation on."
+        }
+        return nil
+    }
+
+    /// The one blocker the user can actually reverse — surfaced with a button
+    /// that jumps straight to the pane where the refusal is undone.
+    var dictationMicDenied: Bool {
+        MicrophoneAccess.isBundled && Transcription.isSupported
+            && [.denied, .restricted].contains(MicrophoneAccess.status)
+    }
+
+    /// The language a capture would open with right now, named — so "Follow
+    /// keyboard" can show what it currently resolves to.
+    var dictationLanguageName: String {
+        let locale = Settings.resolvedDictationLocale
+        return Locale.current.localizedString(forIdentifier: locale.identifier)
+            ?? Locale.current.localizedString(forLanguageCode: locale.identifier)
+            ?? locale.identifier
+    }
+
+    /// Load the transcriber's language list once (async, never changes within
+    /// a session). Sorted by their names in the user's own locale.
+    func loadDictationLocales() {
+        refreshDictationLanguage()
+        guard dictationLocales.isEmpty else { return }
+        Task { @MainActor [weak self] in
+            let locales = await Transcription.supportedLocales()
+            self?.dictationLocales = locales.sorted {
+                Transcription.name(of: $0) < Transcription.name(of: $1)
+            }
+        }
+    }
+
+    /// Re-read the device list and say — out loud — when the automatic rule is
+    /// substituting a microphone, because the substitution is otherwise exactly
+    /// the kind of surprise that reads as a bug ("I chose AirPods in System
+    /// Settings; why does it record from the laptop?").
+    func refreshDictationInput() {
+        let inputs = AudioDevices.inputs()
+        dictationInputs = inputs
+        let defaultInput = AudioDevices.defaultInput()
+        let chosen = AudioDevices.resolve(
+            preference: AudioDevices.Preference(stored: Settings.dictationInput),
+            inputs: inputs, defaultInput: defaultInput,
+            defaultOutput: AudioDevices.defaultOutput())
+        dictationInputNote = AudioDevices.automaticExplanation(
+            defaultInput: defaultInput, defaultOutput: AudioDevices.defaultOutput(), chosen: chosen)
+    }
+
+    /// Re-ask which model serves the language a capture would use right now.
+    /// Cheap, and re-run whenever the pane appears — under "Follow keyboard"
+    /// the answer changes with the layout.
+    func refreshDictationLanguage() {
+        Task { @MainActor [weak self] in
+            let support = await Transcription.support(for: Settings.resolvedDictationLocale)
+            self?.dictationSupport = support
+        }
+    }
 
     var recommendation: ModelCatalog.Recommendation { ModelCatalog.recommended(for: modelID) }
     var logprobGateUsable: Bool { style == .base }
@@ -531,6 +647,22 @@ final class SettingsStore: ObservableObject {
         presentation = Settings.suggestionPresentation
         hotkeyStyle = Settings.hotkeyStyle
         replyGesture = Settings.replyGesture
+        // Permission can be revoked in System Settings while we're running.
+        // Clear the stored flag rather than just the switch: a setting that
+        // reads on while the microphone is denied is a feature that silently
+        // refuses every time the key is held. Only a REAL refusal though:
+        // `.notDetermined` (a TCC reset, an ad-hoc re-sign) keeps the feature —
+        // `begin()` answers it by asking on the next hold — and an unbundled
+        // `swift run` has no TCC identity to read at all.
+        if Settings.dictationEnabled, MicrophoneAccess.isBundled,
+           [.denied, .restricted].contains(MicrophoneAccess.status) {
+            Settings.dictationEnabled = false
+        }
+        dictation = Settings.dictationEnabled
+        dictationGesture = Settings.dictationGesture
+        dictationPolish = Settings.dictationPolish
+        dictationLanguage = Settings.dictationLanguage
+        dictationInput = Settings.dictationInput
         ghostOpacity = Settings.ghostOpacity
         blacklist = Settings.userBlacklist
         useRecommended = Settings.useRecommendedSettings
@@ -1034,6 +1166,161 @@ struct GeneralTab: View {
                 Caption(store.presentation == .inline
                     ? "Live preview — drag the slider and watch it update. Ghost text takes its font and its dark-or-light rendering from the field's own text, so it stays readable on a white page under a dark system. It never runs past the end of the input or over words you've already typed — with the cursor mid-line, or too near the edge, it moves above the line instead."
                     : "Live preview — the floating panel is a fully opaque HUD, legible on any background. It picks dark or light rendering from behind the cursor (with Screen Recording; otherwise it follows the system theme).")
+            }
+
+            Section("Dictation") {
+                if let blocker = store.dictationBlocker {
+                    Caption(blocker)
+                    if store.dictationMicDenied {
+                        Button("Open Microphone Settings…") {
+                            if let url = MicrophoneAccess.settingsURL {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                } else {
+                    Toggle("Hold a key and talk", isOn: $store.dictation)
+                    Caption("Hold the key, say the sentence, let go — it is typed into the field "
+                        + "you're already in. macOS transcribes it on this Mac: no audio is written "
+                        + "to disk, nothing is sent anywhere, and nothing records unless the key is down.")
+                    if store.dictation {
+                        LabeledContent("Push-to-talk key") {
+                            Picker("", selection: $store.dictationGesture) {
+                                ForEach(DictationGesture.allCases, id: \.self) { gesture in
+                                    Text(gesture.label).tag(gesture)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 190)
+                        }
+                        if store.dictationGesture == .off {
+                            Caption("⚠︎ Dictation is on but no key is assigned, so nothing can "
+                                + "start a capture. Pick a key above, or switch the feature off.")
+                        }
+                        Caption("A hold, not a tap: “\(store.replyGesture.label)” for a reply and "
+                            + "holding the same key to talk can share a modifier without ever "
+                            + "triggering each other. Either side of the key works. Recording "
+                            + "starts only after about half a second of quiet hold — any other "
+                            + "keypress, a click, or a scroll before that disarms it on the spot; "
+                            + "⎋ discards one already running.")
+                        LabeledContent("Microphone") {
+                            Picker("", selection: $store.dictationInput) {
+                                Text("Automatic").tag("auto")
+                                Text("System default").tag("system")
+                                Divider()
+                                ForEach(store.dictationInputs, id: \.uid) { device in
+                                    Text(device.name).tag(device.uid)
+                                }
+                                // A pinned microphone that is currently
+                                // unplugged has no row above, and a Picker
+                                // whose selection matches no tag renders
+                                // EMPTY — which reads as "no microphone
+                                // chosen" while captures still honor the pin
+                                // the moment it returns.
+                                if store.dictationInput != "auto",
+                                   store.dictationInput != "system",
+                                   !store.dictationInputs.contains(where: { $0.uid == store.dictationInput }) {
+                                    Text("Unplugged microphone").tag(store.dictationInput)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 190)
+                        }
+                        if let note = store.dictationInputNote {
+                            Caption("✓ \(note)")
+                        }
+                        Caption(store.dictationInput == "auto"
+                            ? "Automatic keeps wireless earbuds out of call mode. A headset carries "
+                                + "either good playback or a two-way call, never both — so the moment "
+                                + "anything opens its microphone, whatever you're listening to drops "
+                                + "to mono and goes quiet. When your default input and output are the "
+                                + "same headset, dictation records from the built-in microphone "
+                                + "instead and your audio never changes."
+                            : "Dictation records from this device. Note that recording from a "
+                                + "wireless headset switches it into call mode for the length of the "
+                                + "capture, which makes anything playing sound flat and quiet.")
+                        LabeledContent("Language") {
+                            Picker("", selection: $store.dictationLanguage) {
+                                Text("Follow keyboard").tag("auto")
+                                Divider()
+                                ForEach(store.dictationLocales, id: \.identifier) { locale in
+                                    Text(Locale.current.localizedString(forIdentifier: locale.identifier)
+                                        ?? locale.identifier)
+                                        .tag(locale.identifier)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 190)
+                        }
+                        Caption(store.dictationLanguage == "auto"
+                            ? "Whichever keyboard layout is active when you press the key — right now "
+                                + "that resolves to \(store.dictationLanguageName). Switching keyboard "
+                                + "switches dictation language, which is a thing you already do to type."
+                            : "Pinned. Dictation always listens for this language, whatever the keyboard "
+                                + "is set to.")
+                        // Which model — and, for the languages macOS simply
+                        // cannot dictate, saying so HERE instead of letting the
+                        // user find out by holding a key and getting nothing.
+                        switch store.dictationSupport {
+                        case .preferred:
+                            Caption("\(store.dictationLanguageName): uses Apple's newer speech model — "
+                                + "the more accurate of the two, with its own punctuation. macOS "
+                                + "downloads it the first time you speak this language.")
+                        case .fallback:
+                            Caption("\(store.dictationLanguageName): Apple's newer speech model covers only "
+                                + "30 locales and this isn't one of them, so dictation uses the system "
+                                + "dictation model instead — the same one macOS's own dictation key uses. "
+                                + "It is a little rougher, which is what “Tidy up” below is for.")
+                        case .unsupported:
+                            Caption("⚠︎ macOS has no speech model for \(store.dictationLanguageName) at all. "
+                                + "Pick a language it can dictate, or switch keyboard layout before "
+                                + "holding the key.")
+                        case nil:
+                            EmptyView()
+                        }
+                        Toggle("Tidy up with the model", isOn: $store.dictationPolish)
+                        Caption("Runs the transcript through the same minimal-edit fix ⌥⇥ uses on a "
+                            + "selection — capitalization, punctuation, obvious mishearings — and "
+                            + "rejects the result outright if the model starts rephrasing instead. "
+                            + "Costs one short generation before the text lands; off types exactly "
+                            + "what was heard. On models that fix with a separate instruct sibling, "
+                            + "the first use downloads it — dictations land as heard rather than "
+                            + "waiting for that, and the tidy-up starts once it has finished.")
+                    }
+                }
+            }
+            .onAppear {
+                store.loadDictationLocales()
+                store.refreshDictationInput()
+            }
+            // Devices come and go while the pane is open — a headset
+            // connecting is exactly the event that changes both the list and
+            // the "recording from X" note, and it happens outside any state
+            // this pane owns. (The notifications fire for cameras too; a
+            // spurious refresh costs a device-list read.) The notifications
+            // post on an arbitrary thread and the store is main-actor, hence
+            // the explicit hop.
+            .onReceive(NotificationCenter.default.publisher(
+                for: AVCaptureDevice.wasConnectedNotification)
+                .receive(on: DispatchQueue.main)) { _ in
+                store.refreshDictationInput()
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: AVCaptureDevice.wasDisconnectedNotification)
+                .receive(on: DispatchQueue.main)) { _ in
+                store.refreshDictationInput()
+            }
+            // Under "Follow keyboard" both the caption's "right now that
+            // resolves to X" and the speech-model badge depend on the layout
+            // that is selected system-wide — and the user switches it from the
+            // menu bar or ⌃Space, outside our process, so no state we own
+            // changes. Carbon's distributed notification is the only signal
+            // that crosses the process boundary; re-resolving on it keeps both
+            // lines honest while the pane stays open. It is scoped to the
+            // section, so it costs nothing on the other tabs.
+            .onReceive(DistributedNotificationCenter.default().publisher(
+                for: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String))) { _ in
+                store.refreshDictationLanguage()
             }
 
             Section("Turned off in these apps") {

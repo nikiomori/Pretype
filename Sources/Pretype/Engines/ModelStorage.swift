@@ -25,15 +25,102 @@ enum ModelStorage {
         return HubCache.default.repoDirectory(repo: repo, kind: .model)
     }
 
+    /// Whether loading `id` would cost at most a read from disk — no network.
+    ///
+    /// Cheap on purpose (one directory listing of `snapshots/`, no blob walk),
+    /// because the dictation tidy-up asks this on the main thread while a
+    /// transcript waits: the question is only ever "would this go to the
+    /// network", and a repo with a materialized snapshot answers no. Ids with
+    /// no cache directory at all — the Apple Intelligence pseudo-id, a local
+    /// fine-tune folder — are already on the machine, so they answer no too.
+    static func isFetched(_ id: String) -> Bool {
+        guard let directory = directory(for: id) else { return true }
+        return isFetched(at: directory)
+    }
+
+    /// The same question against an explicit repo directory — the seam a test
+    /// can point at a fixture, since the id form resolves through the real
+    /// shared cache.
+    static func isFetched(at directory: URL) -> Bool {
+        let manager = FileManager.default
+        let snapshots = directory.appendingPathComponent("snapshots")
+        guard let revisions = try? manager.contentsOfDirectory(atPath: snapshots.path) else {
+            return false
+        }
+        let named = revisions.filter { !$0.hasPrefix(".") }
+        // WHICH revision matters, and picking whichever the filesystem listed
+        // first does not. Nothing prunes old revision directories, and this
+        // cache is shared with the user's other Hugging Face tooling: one
+        // `hf_hub_download(repo, "config.json")` at another sha leaves a
+        // metadata-only sibling, and enumerating that one would report a fully
+        // downloaded model as missing — permanently, since the answer is
+        // latched. `refs/main` is the cache's own record of the current head,
+        // so ask about that one; without it, any complete revision will do.
+        if let head = try? String(
+            contentsOf: directory.appendingPathComponent("refs/main"), encoding: .utf8) {
+            let sha = head.trimmingCharacters(in: .whitespacesAndNewlines)
+            if named.contains(sha) {
+                return isRevisionComplete(snapshots.appendingPathComponent(sha))
+            }
+        }
+        return named.contains { isRevisionComplete(snapshots.appendingPathComponent($0)) }
+    }
+
+    /// Whether one snapshot revision holds the model's weights, not just the
+    /// metadata that lands first.
+    private static func isRevisionComplete(_ root: URL) -> Bool {
+        let manager = FileManager.default
+        guard let files = try? manager.contentsOfDirectory(atPath: root.path) else { return false }
+        func present(_ name: String) -> Bool {
+            // The entries are symlinks into `blobs/`, and the downloader writes
+            // a blob only once its file is complete — so a link that resolves
+            // is a finished file. `fileExists` follows the link, which is
+            // exactly the semantics wanted here.
+            manager.fileExists(atPath: root.appendingPathComponent(name).path)
+        }
+        // A revision directory is NOT proof of a finished download: the hub
+        // populates it file by file, so `snapshots/<rev>/` appears the moment a
+        // few-kilobyte config.json lands with gigabytes of weights still on the
+        // wire — and a download abandoned there leaves exactly that behind, no
+        // `.incomplete` residue of any kind (this client streams into a
+        // URLSession temp file and only copies in on success; the `.incomplete`
+        // path is the resume branch, which needs the file to exist already).
+        // The honest question is therefore whether the WEIGHTS are here.
+        if let data = try? Data(contentsOf: root.appendingPathComponent("model.safetensors.index.json")),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let shards = json["weight_map"] as? [String: String] {
+            return Set(shards.values).allSatisfy(present)
+        }
+        // No shard index to go by. Anything that looks like weights — by
+        // extension, or simply by being far too big to be metadata — counts
+        // once its link resolves (a single-file repo mid-download leaves a
+        // dangling snapshot symlink), and an unrecognized layout is read as
+        // ready on purpose: the cost of guessing wrong that way is one stalled
+        // tidy-up during a download, while guessing the other way turns the
+        // feature permanently off.
+        return files.contains { name in
+            if name.hasSuffix(".safetensors") || name.hasSuffix(".npz") || name.hasSuffix(".gguf") {
+                return present(name)
+            }
+            guard name != "config.json", present(name) else { return false }
+            let size = try? root.appendingPathComponent(name)
+                .resourceValues(forKeys: [.fileSizeKey]).fileSize
+            return (size ?? 0) > 20_000_000
+        }
+    }
+
     /// Bytes on disk for one repo. Blocking I/O — callers must keep it off the
     /// main actor.
     ///
     /// Only `blobs/` is summed. `snapshots/` is symlinks INTO blobs and
     /// `URL.resourceValues` stats through symlinks, so walking the whole repo
     /// dir reports exactly double (measured: du -sh 1.6G vs du -shL 3.3G).
-    /// blobs/ is flat, so no enumerator is needed, and it also holds
-    /// `<etag>.incomplete` partials — a cancelled download still shows its
-    /// footprint, which is precisely the space a user wants to reclaim.
+    /// blobs/ is flat, so no enumerator is needed. It also holds any
+    /// `<etag>.incomplete` partial left by OTHER Hugging Face tooling sharing
+    /// this cache — space a user reclaiming a model wants counted. Our own
+    /// downloader leaves none: it streams into a URLSession temp file and
+    /// copies in only on success, so an abandoned fetch of ours costs the
+    /// blobs that did complete and nothing more.
     static func bytes(at repoDirectory: URL) -> Int64 {
         let blobs = repoDirectory.appendingPathComponent("blobs")
         guard let entries = try? FileManager.default.contentsOfDirectory(

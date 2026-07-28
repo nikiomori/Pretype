@@ -57,8 +57,11 @@ enum CorrectionGates {
         let terminals: Set<Character> = [".", "!", "?", "…", "。", "！", "？"]
         let closers: Set<Character> = ["\"", "»", "”", "’", "'", ")", "」", "』", "）"]
         let trimmedOriginal = original.trimmingCharacters(in: .whitespaces)
-        guard let last = trimmedOriginal.last,
-              terminals.contains(last) || closers.contains(last) else { return fixed }
+        guard let last = trimmedOriginal.last else { return fixed }
+        guard terminals.contains(last) || closers.contains(last) else {
+            return trimUnpunctuatedRunOn(fixed, original: trimmedOriginal,
+                                         terminals: terminals, closers: closers)
+        }
         let chars = Array(fixed)
         let slack = max(8, trimmedOriginal.count / 5)
         var i = max(4, trimmedOriginal.count - slack)
@@ -77,6 +80,57 @@ enum CorrectionGates {
             i += 1
         }
         return fixed
+    }
+
+    /// The run-on cut for an original that does NOT end like a sentence.
+    ///
+    /// This is the shape DICTATION always produces: the system dictation model
+    /// writes no punctuation at all for Russian and most locales (measured
+    /// 2026-07-26), which is most of what the tidy-up pass is for — so the
+    /// contract above ("if the original ends like a sentence, the fix must
+    /// too") has no ending to match and used to return the text untouched.
+    /// That left the one path where a run-on is least visible completely
+    /// unguarded: the junk lands at the end of a message the user is about to
+    /// send, and the minimal-edit guard waves it through because a few stray
+    /// characters on a hundred-character sentence is a rounding error. Reported
+    /// from real use as "strange characters at the end — CJK, sometimes Latin",
+    /// which is exactly what an instruct model generating past its answer emits.
+    ///
+    /// Without an ending to anchor on, LENGTH is the anchor: adding punctuation
+    /// and case cannot grow the text by much. Past that budget the answer
+    /// ended early — cut back to the last sentence-terminal inside it, or, when
+    /// there is none, hand back the original so the caller keeps exactly what
+    /// was heard. (A cut that lands too short is then rejected by
+    /// `isMinimalCorrection`, so a fix mangled into a fragment never ships.)
+    private static func trimUnpunctuatedRunOn(
+        _ fixed: String, original: String,
+        terminals: Set<Character>, closers: Set<Character>
+    ) -> String {
+        let budget = original.count + max(6, original.count / 8)
+        let chars = Array(fixed)
+        guard chars.count > budget else { return fixed }
+        var cut: Int?
+        var i = 0
+        while i < min(budget, chars.count) {
+            guard terminals.contains(chars[i]) else {
+                i += 1
+                continue
+            }
+            // A dot between digits is a decimal (3.14), not an ending — same
+            // rule the punctuated branch applies.
+            if chars[i] == ".", i > 0, i + 1 < chars.count,
+               chars[i - 1].isNumber, chars[i + 1].isNumber {
+                i += 1
+                continue
+            }
+            var j = i + 1
+            while j < chars.count,
+                  terminals.contains(chars[j]) || closers.contains(chars[j]) { j += 1 }
+            cut = j
+            i = j
+        }
+        guard let cut else { return original }
+        return String(chars[0..<cut])
     }
 
     /// True when `fixed` is a plausible *minimal* correction of `original`

@@ -26,7 +26,10 @@ IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/De
 if [ -n "$IDENTITY" ]; then
     # Hardened runtime + secure timestamp are notarization requirements.
     # Single binary + resource-only bundles, so there is no nested code to sign.
-    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$DIST/Pretype.app"
+    # The entitlements are what let the hardened runtime open the microphone
+    # (dictation) — it denies it by default regardless of the TCC grant.
+    codesign --force --options runtime --timestamp \
+        --entitlements Scripts/Pretype.entitlements --sign "$IDENTITY" "$DIST/Pretype.app"
     codesign --verify --strict "$DIST/Pretype.app"
 
     ditto -c -k --keepParent "$DIST/Pretype.app" build/Pretype.app.zip

@@ -18,6 +18,9 @@ enum SuggestionDisplayMode {
     /// A spell-fix shown in a pill ABOVE the mistyped word (Cotypist-style):
     /// the original struck through, an arrow, then the proposed fix. Tab to apply.
     case correction(original: String, fix: String)
+    /// Dictation is capturing the microphone; the payload is the transcript so
+    /// far (empty right after the key goes down).
+    case listening(String)
 }
 
 /// Draws one line of attributed text with its **baseline pinned to the view's
@@ -167,6 +170,20 @@ final class SuggestionWindow: NSPanel {
     /// one floats free of the field and shows the suggestion whole.
     @discardableResult
     func show(mode: SuggestionDisplayMode, at caretRect: CGRect, host: HostTextStyle = HostTextStyle()) -> String? {
+        // A protected notice outranks the pipeline's own chatter. The keystroke
+        // that discards a dictation ALSO restarts completion, which blanks or
+        // repaints this window within ~60 ms — so the one line explaining where
+        // the sentence went used to flash and vanish. Only the non-committal
+        // modes are held off: a real suggestion still takes the window, because
+        // an invisible ghost that ⇥ would accept is a worse failure than a
+        // shortened notice.
+        if noticeIsProtected {
+            switch mode {
+            case .thinking, .status: return nil
+            default: noticeProtectedUntil = .distantPast
+            }
+        }
+        currentMode = mode
         lastCaret = caretRect
         // Engine notices (CaretIndicator) carry no host info, and the thinking
         // dots are inline ghost text too — keep the style already resolved for
@@ -244,6 +261,10 @@ final class SuggestionWindow: NSPanel {
     /// Called on focus changes, not from `hide()`: dismissals within one field
     /// must keep their measured style.
     func fieldChanged() {
+        // A notice belongs to the field it was raised in; carried across a
+        // focus change it would hold the window against the new field's own
+        // overlay for the rest of its protection.
+        clearNoticeProtection()
         lastHost = HostTextStyle()
         // The thinking dots inherit the direction of the last suggestion (they
         // have no letters of their own); across a field change that is the wrong
@@ -256,7 +277,57 @@ final class SuggestionWindow: NSPanel {
     /// the pending `orderOut`, so a new suggestion never gets yanked away.
     private var hideGeneration = 0
 
-    func hide() {
+    /// What the window is currently offering, or nil when it offers nothing.
+    ///
+    /// The keyboard gates used to ask `isVisible`, which answers a different
+    /// question: an overlay of ANY kind — a dictation notice, an engine status,
+    /// a spell pill — made a completion ghost or a fix preview look live to ⇥
+    /// and ⏎ even though what was on screen belonged to someone else, and the
+    /// key then applied text nobody could see. Each owner asks about its own
+    /// mode instead.
+    private(set) var currentMode: SuggestionDisplayMode?
+
+    /// A completion ghost (or panel) is the thing on screen right now.
+    var showsSuggestion: Bool { Self.offersSuggestion(currentMode) }
+
+    /// A correction is on screen: the ⌥⇥ preview awaiting accept, or the inline
+    /// spell pill over the word at the caret.
+    var showsCorrection: Bool { Self.offersCorrection(currentMode) }
+
+    /// Which owner a displayed mode belongs to. Static and mode-only so the
+    /// keyboard gates can be pinned by a test without a window server: what
+    /// they decide is whether ⇥ inserts text, which is the one thing in this
+    /// app that must never fire over something the user cannot see.
+    nonisolated static func offersSuggestion(_ mode: SuggestionDisplayMode?) -> Bool {
+        if case .suggestion = mode { return true }
+        return false
+    }
+
+    nonisolated static func offersCorrection(_ mode: SuggestionDisplayMode?) -> Bool {
+        switch mode {
+        case .fixPreview, .correction: return true
+        default: return false
+        }
+    }
+
+    /// While this is in the future, a notice on screen is being given time to
+    /// be read — see `show` and `showTransient(protectFor:)`.
+    private var noticeProtectedUntil = Date.distantPast
+    private var noticeIsProtected: Bool { Date() < noticeProtectedUntil }
+
+    /// Give up the protection early: the caret this notice belongs to has moved
+    /// or gone (focus change, scroll, window move), so holding the window for
+    /// it would only strand a pill over unrelated text.
+    func clearNoticeProtection() { noticeProtectedUntil = .distantPast }
+
+    /// `force` overrides an active notice protection. Everything that means
+    /// "this overlay is now in the wrong place" passes it; the ordinary
+    /// pipeline dismissals do not.
+    func hide(force: Bool = false) {
+        if force { clearNoticeProtection() } else if noticeIsProtected { return }
+        // Before the visibility guard: "nothing is being offered" has to become
+        // true the moment the dismissal is accepted, not when the fade lands.
+        currentMode = nil
         guard isVisible else { setHighlight(false); return }
         hideGeneration += 1
         let gen = hideGeneration
@@ -281,13 +352,20 @@ final class SuggestionWindow: NSPanel {
     /// and `hide()`), so a completion ghost, correction pill, or status overlay
     /// that takes the window in the meantime cancels the pending auto-hide: the
     /// timed hide can never blank a live overlay of any kind.
+    /// `protectFor` seconds of immunity from the completion pipeline's own
+    /// repaints — for notices raised by the same keystroke that restarts it.
     func showTransient(_ mode: SuggestionDisplayMode, at caretRect: CGRect,
-                       host: HostTextStyle = HostTextStyle(), hideAfter: TimeInterval = 1.8) {
+                       host: HostTextStyle = HostTextStyle(), hideAfter: TimeInterval = 1.8,
+                       protectFor: TimeInterval = 0) {
         show(mode: mode, at: caretRect, host: host)   // bumps hideGeneration via place()
+        if protectFor > 0 { noticeProtectedUntil = Date().addingTimeInterval(protectFor) }
         let gen = hideGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + hideAfter) { [weak self] in
             guard let self, self.hideGeneration == gen else { return }
-            self.hide()
+            // Force: this hide IS the notice's own expiry. Anything that
+            // replaced it in the meantime bumped `hideGeneration` and never
+            // reaches here.
+            self.hide(force: true)
         }
     }
 
@@ -337,7 +415,7 @@ final class SuggestionWindow: NSPanel {
     private func isGhostable(_ mode: SuggestionDisplayMode) -> Bool {
         switch mode {
         case .suggestion, .thinking: return true
-        case .status, .error, .hint, .fixPreview, .correction: return false
+        case .status, .error, .hint, .fixPreview, .correction, .listening: return false
         }
     }
 
@@ -369,7 +447,36 @@ final class SuggestionWindow: NSPanel {
             pillLabel.attributedStringValue = fixPreview(s)
         case .correction(let original, let fix):
             pillLabel.attributedStringValue = correctionDiff(original: original, fix: fix)
+        case .listening(let s):
+            pillLabel.attributedStringValue = listening(s)
         }
+    }
+
+    /// The dictation pill: a red dot — the universal "live" — then the words as
+    /// they are recognized. The point of showing them is that you can tell
+    /// you're being heard *before* you finish the sentence, so the caller feeds
+    /// the tail of the transcript rather than its start.
+    private func listening(_ text: String) -> NSAttributedString {
+        let result = NSMutableAttributedString(string: "●  ", attributes: [
+            .font: NSFont.systemFont(ofSize: 10),
+            .foregroundColor: NSColor.systemRed,
+        ])
+        result.append(NSAttributedString(string: text.isEmpty ? "Listening…" : text, attributes: [
+            .font: NSFont.systemFont(ofSize: 13),
+            .foregroundColor: text.isEmpty ? NSColor.tertiaryLabelColor : NSColor.labelColor,
+        ]))
+        // The leading dot forces the line's base direction LTR, which renders
+        // an Arabic or Hebrew transcript backwards: words in RTL order but the
+        // line laid out from the left, ellipsis on the wrong side. Basing the
+        // paragraph on the transcript mirrors the whole pill — dot on the
+        // right, tail growing leftwards — which is what an RTL reader expects.
+        if Self.isRightToLeft(text) {
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.baseWritingDirection = .rightToLeft
+            result.addAttribute(.paragraphStyle, value: paragraph,
+                                range: NSRange(location: 0, length: result.length))
+        }
+        return result
     }
 
     private static func keycap(_ text: String) -> NSAttributedString {

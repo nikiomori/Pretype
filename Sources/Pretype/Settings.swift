@@ -122,6 +122,62 @@ enum ReplyGesture: String, CaseIterable {
     }
 }
 
+/// Push-to-talk trigger: HOLD a bare modifier, speak, release — the transcript
+/// is typed into the field you were already in.
+///
+/// A *hold* rather than a tap or a chord, for two reasons. The event tap only
+/// watches key-DOWN (see `KeyTap`), so the one kind of key whose release we can
+/// see at all is a modifier. And because `ReplyGesture` fires only on taps, a
+/// hold can share a modifier with it without either one ever swallowing the
+/// other — which is why the defaults (hold right ⌥ / double-tap ⌥) coexist.
+///
+/// Either side of the modifier counts.
+///
+/// This shipped right-hand-only, on the theory that the left modifier is the
+/// one held while reaching for a chord. The theory was fine and the feature was
+/// unusable: someone who reaches for the left key gets no pill, no error and no
+/// log line — the gesture simply never fires, which is indistinguishable from
+/// broken software. A chord that pauses mid-reach is handled where it should
+/// be, by `ModifierHold.keyPressed` cancelling the capture the moment any other
+/// key arrives.
+enum DictationGesture: String, CaseIterable {
+    case option
+    case command
+    case control
+    case off
+
+    var label: String {
+        switch self {
+        case .option: return "Hold ⌥"
+        case .command: return "Hold ⌘"
+        case .control: return "Hold ⌃"
+        case .off: return "Off"
+        }
+    }
+
+    /// Short form for the caret pill and the menu ("⌥ to talk").
+    var shortLabel: String {
+        switch self {
+        case .option: return "⌥"
+        case .command: return "⌘"
+        case .control: return "⌃"
+        case .off: return ""
+        }
+    }
+
+    /// Both physical keys to watch and the flag they raise — same shape as
+    /// `ReplyGesture`, so the tap-twin and the hold-twin of a modifier behave
+    /// identically about which key you actually reach for.
+    var keys: (codes: [Int64], mask: CGEventFlags)? {
+        switch self {
+        case .option: return ([KeyCode.leftOption, KeyCode.rightOption], .maskAlternate)
+        case .command: return ([KeyCode.leftCommand, KeyCode.rightCommand], .maskCommand)
+        case .control: return ([KeyCode.leftControl, KeyCode.rightControl], .maskControl)
+        case .off: return nil
+        }
+    }
+}
+
 enum HotkeyStyle: String, CaseIterable {
     case tab
     case cmdSpace
@@ -305,6 +361,19 @@ enum Settings {
         })
     }
 
+    /// Language of the layout that is selected RIGHT NOW ("ru" while the
+    /// Russian keyboard is active). The closest thing to a free signal of which
+    /// language the user is about to *speak*, so dictation follows it by
+    /// default instead of asking. nil when the active source declares no
+    /// language (some IMEs, the emoji picker).
+    static var currentKeyboardLanguage: String? {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let langPtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages),
+              let langs = Unmanaged<CFArray>.fromOpaque(langPtr).takeUnretainedValue() as? [String],
+              let first = langs.first, !first.isEmpty else { return nil }
+        return first
+    }
+
     /// First language of each enabled keyboard layout / input mode (e.g. the
     /// "Russian – PC" keyboard → "ru"). Carbon Text Input Sources; no permission.
     private static func keyboardLanguages() -> [String] {
@@ -423,8 +492,29 @@ enum Settings {
             "ghostOpacity": 0.7,
             "hotkeyStyle": HotkeyStyle.tab.rawValue,
             "replyGesture": ReplyGesture.option.rawValue,
+            // Dictation is OFF until asked for: it is the one feature that
+            // opens the microphone, and a third permission prompt at first
+            // launch (after Accessibility and Screen Recording) is not
+            // something to spring on someone who came for autocomplete.
+            "dictation": false,
+            "dictationGesture": DictationGesture.option.rawValue,
+            // The transcript goes through the same minimal-edit fix the ⌥⇥
+            // flow uses — free on top of a generation the user is already
+            // waiting for, and it is what makes this Pretype's dictation
+            // rather than a second copy of the system's.
+            "dictationPolish": true,
+            "dictationLanguage": "auto",
+            "dictationInput": "auto",
             "onboardingCompleted": false,
         ])
+        // The push-to-talk gesture was right-hand-only for its first day
+        // (2026-07-26) and now matches either side — carry the stored pick over
+        // rather than silently resetting someone to the default key.
+        if let stored = defaults.string(forKey: "dictationGesture"), stored.hasPrefix("right") {
+            let modifier = stored.dropFirst("right".count)
+            defaults.set(modifier.prefix(1).lowercased() + modifier.dropFirst(),
+                         forKey: "dictationGesture")
+        }
         // The catalog changes over time; clear stale model picks every launch.
         if let stored = defaults.string(forKey: "mlxModelID"), ModelCatalog.option(for: stored) == nil {
             defaults.removeObject(forKey: "mlxModelID")
@@ -662,6 +752,50 @@ enum Settings {
     static var replyGesture: ReplyGesture {
         get { ReplyGesture(rawValue: defaults.string(forKey: "replyGesture") ?? "") ?? .option }
         set { defaults.set(newValue.rawValue, forKey: "replyGesture") }
+    }
+
+    /// Hold-to-talk dictation. Off by default (see `registerDefaults`); turning
+    /// it on is what asks for the microphone.
+    static var dictationEnabled: Bool {
+        get { defaults.bool(forKey: "dictation") }
+        set { defaults.set(newValue, forKey: "dictation") }
+    }
+
+    static var dictationGesture: DictationGesture {
+        get { DictationGesture(rawValue: defaults.string(forKey: "dictationGesture") ?? "") ?? .option }
+        set { defaults.set(newValue.rawValue, forKey: "dictationGesture") }
+    }
+
+    /// Run the transcript through the model's minimal-edit fix before typing it.
+    static var dictationPolish: Bool {
+        get { defaults.bool(forKey: "dictationPolish") }
+        set { defaults.set(newValue, forKey: "dictationPolish") }
+    }
+
+    /// Which microphone a capture opens: "auto" (keep a Bluetooth headset out
+    /// of call mode — see `AudioDevices`), "system" (always the system default
+    /// input), or a device UID.
+    static var dictationInput: String {
+        get { defaults.string(forKey: "dictationInput") ?? "auto" }
+        set { defaults.set(newValue, forKey: "dictationInput") }
+    }
+
+    /// Language to dictate in: "auto" follows the active keyboard layout, any
+    /// other value is a language/locale identifier the user pinned.
+    static var dictationLanguage: String {
+        get { defaults.string(forKey: "dictationLanguage") ?? "auto" }
+        set { defaults.set(newValue, forKey: "dictationLanguage") }
+    }
+
+    /// The locale a dictation session should open with. "auto" reads the
+    /// layout that is active at the moment the key goes down — a bilingual
+    /// user switches languages by switching keyboard, which they already do to
+    /// type, so there is nothing extra to set.
+    static var resolvedDictationLocale: Locale {
+        let stored = dictationLanguage
+        if stored != "auto", !stored.isEmpty { return Locale(identifier: stored) }
+        if let current = currentKeyboardLanguage { return Locale(identifier: current) }
+        return Locale.current
     }
 }
 

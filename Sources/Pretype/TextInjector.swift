@@ -45,6 +45,7 @@ enum TextInjector {
         for _ in 0..<count {
             for keyDown in [true, false] {
                 guard let event = CGEvent(keyboardEventSource: source, virtualKey: deleteKey, keyDown: keyDown) else { continue }
+                event.flags = []
                 event.setIntegerValueField(.eventSourceUserData, value: magicTag)
                 event.post(tap: .cghidEventTap)
             }
@@ -56,6 +57,13 @@ enum TextInjector {
         chunk.withUnsafeBufferPointer { buffer in
             event.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress)
         }
+        // A `.hidSystemState` event is stamped with the HARDWARE modifiers held
+        // at post time — and this path routinely runs while keys are physically
+        // down: ⇧ during ⇧⇥ accept-all, and the dictation modifier whenever a
+        // queued capture's transcript lands mid-hold. Un-cleared, the text
+        // arrives as ⌥/⇧-modified keystrokes, which apps with accelerators
+        // treat as shortcuts instead of typing.
+        event.flags = []
         event.setIntegerValueField(.eventSourceUserData, value: magicTag)
         event.post(tap: .cghidEventTap)
     }

@@ -37,6 +37,15 @@ final class SuggestionController: NSObject {
     /// kept separate from the completion pipeline below.
     let correctionController = CorrectionController()
 
+    /// Hold-to-talk dictation. Owns the microphone, the caret pill while it
+    /// listens, and nothing else — the transcript comes back through
+    /// `insertDictated`, which is the same injection path an accept takes.
+    let dictationController = DictationController()
+
+    /// Fired when the microphone opens or closes, so the status item can show
+    /// a mic while a capture is live. Set by `StatusMenuController.bind`.
+    var onDictationActivity: (() -> Void)?
+
     private struct Active {
         /// Text before the caret at the moment the suggestion became valid.
         var anchor: String
@@ -89,6 +98,12 @@ final class SuggestionController: NSObject {
 
     private var keyRefreshScheduled = false
     private var lastAcceptedChunk: String?
+    /// Whether that chunk was SPOKEN rather than suggested. The undo path books
+    /// its chunk into the debug log, the Diagnostics line and the journal —
+    /// all three fine for a suggestion the model produced, none of them allowed
+    /// to hold a dictated sentence (`docs/privacy.md`: the transcript is
+    /// redacted from the log and never journaled).
+    private var lastAcceptedWasDictated = false
     /// The most recent `textBeforeCaret` seen by `textDidChange`. Lets a streamed
     /// partial tell — without a fresh AX read — whether the user has typed since
     /// the completion stream began, so it knows when its cached context is stale.
@@ -150,14 +165,35 @@ final class SuggestionController: NSObject {
         engineCoordinator.onRebuild = { [weak self] in self?.dismiss() }
         window.presentation = Settings.suggestionPresentation
         correctionController.owner = self
+        dictationController.owner = self
         focusTracker.delegate = self
         keyTap.handler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
         }
-        keyTap.scrollHandler = { [weak self] in
-            self?.dropOverlay(why: "the view scrolled")
+        keyTap.scrollHandler = { [weak self] isMomentum in
+            guard let self else { return }
+            // Momentum frames don't reach dictation at all — a flick keeps
+            // coasting for seconds after the finger left, and a hold started
+            // (or a transcript being finalized) during that tail is
+            // deliberate, not a scroll gesture interrupting it.
+            let dictating = self.dictationController.isBusy
+            if !isMomentum { self.dictationController.scrolled() }
+            // While dictation is busy the overlay is its to keep: the live
+            // pill riding out a momentum tail, or the protected "dictation
+            // dropped" notice `scrolled()` just posted — `dropOverlay` would
+            // erase either one, and dictation tears down its own overlay on
+            // discard anyway. (`mouseDownHandler` skips it for the same
+            // reason.)
+            if !dictating { self.dropOverlay(why: "the view scrolled") }
+        }
+        keyTap.mouseDownHandler = { [weak self] in
+            self?.dictationController.mouseDown()
         }
         keyTap.flagsHandler = { [weak self] event in
+            // Both gestures read every modifier edge. They cannot collide: a
+            // reply only ever fires on a pair of taps, a dictation capture only
+            // on a hold past `ModifierHold.threshold`.
+            self?.dictationController.modifierChanged(event)
             guard let self, self.replyTap.modifierChanged(
                 keyCode: event.getIntegerValueField(.keyboardEventKeycode),
                 flags: event.flags, gesture: Settings.replyGesture, now: Date()) else { return }
@@ -190,6 +226,7 @@ final class SuggestionController: NSObject {
     }
 
     func shutdown() {
+        dictationController.invalidate()
         engineCoordinator.shutdown()
     }
 
@@ -285,6 +322,10 @@ final class SuggestionController: NSObject {
     private func dropOverlay(why: String) {
         guard active != nil || refreshTask != nil || window.isVisible else { return }
         lastEvent = "dismissed — \(why)"
+        // Every caller of this means the caret moved out from under the
+        // overlay (scroll, window move, app switch) — a protected notice is as
+        // stranded as a ghost would be.
+        window.clearNoticeProtection()
         dismiss()
     }
 
@@ -304,6 +345,7 @@ final class SuggestionController: NSObject {
             "Key tap: \(keyTap.isActive ? "active ✓" : "NOT active ✗")",
             "Text element: \(hasField ? "detected ✓" : "none")",
             "Engine: \(engine.name)\(engine.statusLine.map { " — \($0)" } ?? "")",
+            "Dictation: \(dictationController.statusLine)",
             "Prompt: \(lastPromptDescription?.count ?? 0) chars"
                 + (screenSummary.map { " (incl. \($0.count) screen)" } ?? ""),
             "Last: \(lastEvent)",
@@ -453,6 +495,11 @@ final class SuggestionController: NSObject {
 
     private func textDidChange() {
         guard Settings.enabled else { return }
+        // The overlay belongs to the dictation pill while it listens, and an AX
+        // notification arriving mid-capture (a selection event, the injection
+        // itself) would both hide it and start generating for text the user is
+        // still speaking. The post-injection refresh re-enters here normally.
+        if dictationController.isBusy { return }
         if isOwnUIFrontmost { dismiss(); return }
         if AppPolicy.isBlacklisted(typingContext.bundleID) {
             lastEvent = "suggestions are off in blacklisted apps"
@@ -1028,6 +1075,17 @@ final class SuggestionController: NSObject {
         if event.getIntegerValueField(.eventSourceUserData) == TextInjector.magicTag { return false }
         // A real keystroke means a held modifier is part of a chord, not a tap.
         replyTap.keyPressed()
+        // ...and not someone talking either. Unconditional, because the window
+        // that matters most is the one where there is no capture yet: ⌥⌫ and
+        // ⌥-arrows hold the modifier across several presses, and a hold left
+        // armed through them opens the microphone in the middle of a chord.
+        // Idle this costs a cleared date. Escape is the explicit "forget that"
+        // while listening, so it is ours to swallow — but only when a capture
+        // was live as it arrived, which the call below is what ends.
+        let wasDictating = dictationController.isBusy
+        let isEscape = event.getIntegerValueField(.keyboardEventKeycode) == KeyCode.escape
+        dictationController.keyPressed(isEscape: isEscape)
+        if wasDictating, isEscape { return true }
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
@@ -1085,7 +1143,11 @@ final class SuggestionController: NSObject {
         // accepts instead of picking a candidate.
         // Upgrade path if that's ever seen in the wild: query
         // `AXText.isComposing` on the focused element here too.
-        if let current = active, window.isVisible {
+        // `showsSuggestion`, not `isVisible`: the ghost is only acceptable while
+        // it is the thing on screen. Anything else holding the window — a
+        // dictation notice, a correction pill, an engine status — means ⇥ would
+        // be inserting text the user can no longer see.
+        if let current = active, window.showsSuggestion {
             let style = Settings.hotkeyStyle
             if style.matchesAcceptAll(keyCode: keyCode, flags: flags) {
                 accept(chunk: current.text)
@@ -1266,13 +1328,23 @@ final class SuggestionController: NSObject {
             latestTextBeforeCaret?.removeLast(accepted.count)
         }
         injectionSettleDeadline = Date().addingTimeInterval(0.3)
+        let wasDictated = lastAcceptedWasDictated
         dismiss()
-        lastEvent = "undid acceptance of \"\(accepted)\""
-        DebugLog.shared.log("UNDO", "\"\(accepted)\"")
+        // A dictated chunk is a spoken sentence: it may be named by length
+        // here, never quoted — the debug buffer is exported into bug reports
+        // and this message field is not even length-capped on the way out.
+        lastEvent = wasDictated
+            ? "undid a dictation of \(accepted.count) characters"
+            : "undid acceptance of \"\(accepted)\""
+        DebugLog.shared.log(
+            "UNDO", wasDictated ? "\(accepted.count) chars — redacted from log" : "\"\(accepted)\"")
         indicator.flashTransient(.hint("Undone"))
         // The accept was already journaled; an undo is the strongest reject
-        // signal there is, so it gets its own event.
-        if Settings.suggestionJournalEnabled {
+        // signal there is, so it gets its own event. Never for dictation: the
+        // journal is on disk, the flow promises it never records a transcript,
+        // and an `.undone` row only ever acts as a negative filter against a
+        // phrase this pipeline suggested — which a spoken sentence never was.
+        if Settings.suggestionJournalEnabled, !wasDictated {
             SuggestionJournal.shared.append(SuggestionJournal.Entry(
                 ts: SuggestionJournal.timestamp(),
                 app: typingContext.bundleID,
@@ -1292,6 +1364,11 @@ final class SuggestionController: NSObject {
     private func accept(chunk: String) {
         guard var current = active, !chunk.isEmpty else { return }
         lastAcceptedChunk = chunk
+        // Paired with every assignment of the chunk, so the flag can never
+        // describe a different chunk than the one undo would remove. The nil
+        // assignments leave it alone on purpose: it is only ever read
+        // alongside a non-nil chunk.
+        lastAcceptedWasDictated = false
         TextInjector.insert(chunk)
         // Advance the cached marker in step with the injection (mirrors
         // narrowActive for user-typed keys). Until the 0.09 s AX refresh lands,
@@ -1340,6 +1417,160 @@ final class SuggestionController: NSObject {
         scheduleKeystrokeRefresh(after: 0.09)
     }
 
+    // MARK: - Dictation
+
+    /// Adopt a caret reading taken by a side flow, so the indicator and any
+    /// later overlay place against the same field that flow measured.
+    func noteCaret(rect: CGRect, host: HostTextStyle) {
+        lastCaretRect = rect
+        lastHostStyle = host
+    }
+
+    /// Type a finished dictation into the field it was spoken into.
+    ///
+    /// Goes through the same bookkeeping an accepted suggestion does — advance
+    /// the synchronous cache, arm the settle window, arm ⌘Z — because the
+    /// hazards are identical: a streamed partial must not anchor on the
+    /// pre-injection context, and a misheard sentence has to be one keypress
+    /// away from gone. The field is re-read first: the transcript arrives
+    /// hundreds of milliseconds after the words were spoken, and only the live
+    /// caret can say whether a space belongs at the seam.
+    func insertDictated(_ text: String) {
+        guard !text.isEmpty else { return }
+        // Synthetic keystrokes land in whatever holds keyboard focus RIGHT NOW,
+        // not in the element the capture pinned — so the checks `begin()` made
+        // hundreds of milliseconds ago have to be remade at the moment of
+        // injection. Our own app frontmost means the transcript would type into
+        // Pretype's menu or Settings; secure input means a password field took
+        // focus in a way no AX notification reports (a browser engaging kernel
+        // secure entry, a SecurityAgent sheet).
+        //
+        // Each drop gets a notice as well as a log line: the pill said
+        // "writing it down…" and was hidden just before this ran, so a silent
+        // return here is the sentence vanishing into nothing — the exact
+        // failure the refusal ladder in `begin()` was built to prevent. The
+        // secure-input case especially can engage with no user action that
+        // would explain the disappearance.
+        func drop(_ why: String, hint: String) {
+            lastEvent = "dictation dropped — \(why)"
+            DictationController.note("dropped \(text.count) chars — \(why)")
+            showTransientOverlay(.hint(hint),
+                                 at: lastCaretRect ?? DictationController.pointerAnchor(),
+                                 host: lastHostStyle)
+        }
+        guard !NSApp.isActive else {
+            return drop("our own window took focus",
+                        hint: "dictation dropped — click back into your text field")
+        }
+        guard !AXText.isSecureInputActive() else {
+            return drop("secure input engaged",
+                        hint: "dictation dropped — a password field took focus")
+        }
+        guard currentTextElement() != nil else {
+            return drop("no text field", hint: "dictation dropped — no text field in focus")
+        }
+        // Remade at injection time like the rest: a composition opened during
+        // the capture (the transcript arrives hundreds of milliseconds after
+        // the words) would swallow the synthetic keystrokes into its marked
+        // text. Precise marked-text only — see `isComposingInFocusedField`.
+        guard !isComposingInFocusedField() else {
+            return drop("an IME composition is open",
+                        hint: "dictation dropped — finish composing that word first")
+        }
+        // Advisory, exactly as at capture time: a field that publishes no caret
+        // (web and Electron inputs before their first keystroke) must still
+        // receive what was said. Without the read there is no seam to judge and
+        // no snapshot to undo against, so both are skipped rather than guessed.
+        // Through the same re-resolving read the anchor uses — the handle this
+        // very method invalidated last time is the one that would fail here.
+        let context = dictationFieldContext()
+        let before = context?.textBeforeCaret
+        clearActiveCompletion()
+        window.hide()
+        latestTextBeforeCaret = before
+        // Both seams come out of that one read: the caret can sit mid-sentence
+        // (dictating into a half-written line), and the text after it decides
+        // the trailing space exactly as the text before it decides the leading
+        // one. A second AX round-trip would only re-read the same snapshot.
+        let chunk = context.map {
+            Self.spacedForInsertion(text, after: $0.textBeforeCaret, before: $0.textAfterCaret)
+        } ?? text
+        TextInjector.insert(chunk)
+        if before != nil {
+            lastAcceptedChunk = chunk
+            // ⌘Z removes it exactly like an accepted suggestion — but the undo
+            // path books what it removed, and this chunk was spoken.
+            lastAcceptedWasDictated = true
+            advanceCache(chunk)
+            lastAcceptedSnapshot = latestTextBeforeCaret
+        }
+        injectionSettleDeadline = Date().addingTimeInterval(0.3)
+        // The transcript's own length, not the chunk's: the seam spaces are
+        // typing mechanics, and the counter claims to measure what was said.
+        Stats.recordDictated(chars: text.count)
+        lastEvent = "dictated \(chunk.count) characters"
+        // The transcript itself never reaches the log: the debug buffer is
+        // exportable for bug reports, and what was said aloud is as sensitive
+        // as the OCR'd screen and the clipboard, both of which the prompt log
+        // redacts the same way. The count is the whole diagnostic value here.
+        DictationController.note("typed \(chunk.count) characters")
+        scheduleKeystrokeRefresh(after: 0.09)
+    }
+
+    /// The spaces between what is already in the field and what was just
+    /// dictated. Speech has no spacebar: the transcript always starts at a
+    /// word, and the caret may be sitting right after one — "привет" spoken
+    /// after "я сказал" must not land as "я сказалпривет" — or right *before*
+    /// one, where "hello|world" would fuse the spoken tail into the word that
+    /// follows. Nothing is added after whitespace or an opening bracket, and
+    /// nothing before punctuation that belongs to the word it hugs; the right
+    /// seam is the same rules mirrored. Both are decided here so the caller
+    /// injects, caches and books ONE chunk — a trailing space added by a second
+    /// insert would be missing from `advanceCache` and the undo snapshot.
+    ///
+    /// `following` defaults to empty because a caret at the end of the field
+    /// has no right seam to judge, which is where dictation usually lands.
+    nonisolated static func spacedForInsertion(_ text: String, after context: String,
+                                               before following: String = "") -> String {
+        var chunk = text
+        if let last = context.last, let first = text.first,
+           !last.isWhitespace, !last.isNewline, !first.isWhitespace,
+           !"([{«“„<".contains(last), !".,!?;:)]}»”…".contains(first),
+           !isScriptioContinua(last), !isScriptioContinua(first) {
+            chunk = " " + chunk
+        }
+        if let last = text.last, let first = following.first,
+           !last.isWhitespace, !last.isNewline, !first.isWhitespace, !first.isNewline,
+           !"([{«“„<".contains(last), !".,!?;:)]}»”…".contains(first),
+           !isScriptioContinua(last), !isScriptioContinua(first) {
+            chunk += " "
+        }
+        return chunk
+    }
+
+    /// Han, kana, and the CJK/fullwidth punctuation that travels with them —
+    /// scripts written without spaces between words, where a seam space is not
+    /// a nicety but a typo the user then has to delete. Fullwidth punctuation
+    /// carries its own side-bearing for the same reason, so "。" needs no space
+    /// before it and "「" none after it. Hangul is deliberately absent: Korean
+    /// orthography spaces its words like ours, so it takes the ordinary rules.
+    nonisolated private static func isScriptioContinua(_ ch: Character) -> Bool {
+        guard let scalar = ch.unicodeScalars.first else { return false }
+        switch scalar.value {
+        case 0x3000...0x303F,      // CJK symbols and punctuation (、。「」)
+             0x3040...0x309F,      // hiragana
+             0x30A0...0x30FF,      // katakana
+             0x3400...0x4DBF,      // CJK ideographs ext. A
+             0x4E00...0x9FFF,      // CJK unified ideographs
+             0xF900...0xFAFF,      // CJK compatibility ideographs
+             0xFF00...0xFFEF,      // fullwidth and halfwidth forms (！？，)
+             0x20000...0x2FA1F:    // CJK ext. B–F (e.g. 𨐈)
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Drop a leading space the context already supplies. You type "спасибо за "
     /// and the model predicts a fresh word as " ответ" — the space is right
     /// after a word, wrong after a space. Shown, it is a stray gap between the
@@ -1385,6 +1616,9 @@ extension SuggestionController: FocusTrackerDelegate {
         if newContext == typingContext, sameElement { return }
 
         focusGeneration += 1
+        // A capture belongs to the field it started in: carried across a focus
+        // change it would type a sentence meant for one app into another.
+        dictationController.invalidate()
         lastFocusedElement = tracker.focusedTextElement
         lastCaretRect = nil
         lastHostStyle = HostTextStyle()
@@ -1445,6 +1679,13 @@ extension SuggestionController: FocusTrackerDelegate {
     }
 
     func focusTrackerDidResignActiveApp(_ tracker: FocusTracker) {
+        // A capture dies with the app it started in. This is the only signal
+        // that fires when the app switched *to* is Pretype itself — the tracker
+        // never attaches to our own pid, so no focus change bumps
+        // `focusGeneration`, and a capture left alive here would pass its
+        // stale-focus check and type the transcript into our own menu or
+        // Settings field.
+        dictationController.invalidate()
         // Left the app we were typing in — drop any ghost/indicator left at its
         // caret. A returning keystroke re-queries from the live context, so this
         // can't strand a still-wanted suggestion.
@@ -1453,5 +1694,120 @@ extension SuggestionController: FocusTrackerDelegate {
 
     func focusTrackerViewportDidChange(_ tracker: FocusTracker) {
         dropOverlay(why: "the window moved or resized")
+    }
+}
+
+// What dictation is allowed to see of this controller — the protocol keeps the
+// capture state machine testable without an AX tree or a window server, and
+// keeps `DictationController` from growing casual reach into the completion
+// pipeline. `insertDictated`, `clearActiveCompletion`, `noteCaret`,
+// `typingContext`, `focusGeneration`, `lastEvent` and `onDictationActivity`
+// already satisfy their requirements above.
+extension SuggestionController: DictationHost {
+    var fallbackCaretRect: CGRect? { lastCaretRect }
+    var fallbackHostStyle: HostTextStyle { lastHostStyle }
+
+    func hasFocusedTextField() -> Bool { currentTextElement() != nil }
+
+    /// Precise marked-text only — `AXText.hasMarkedText`, not `isComposing` —
+    /// so a CJK input source merely being SELECTED (the coarse fallback's
+    /// answer in Electron/Chromium) doesn't ban dictation wholesale where it
+    /// demonstrably works today.
+    func isComposingInFocusedField() -> Bool {
+        guard let element = focusTracker.focusedTextElement
+            ?? AXText.systemFocusedTextElement() else { return false }
+        return AXText.hasMarkedText(element)
+    }
+
+    func cancelPendingFix() { correctionController.reset() }
+
+    func dictationAnchor() -> DictationAnchor? {
+        guard let ctx = dictationFieldContext() else { return nil }
+        return DictationAnchor(caretRect: ctx.caretRect, host: ctx.host,
+                               textBeforeCaret: ctx.textBeforeCaret)
+    }
+
+    /// The focused field, read for a dictation — with one re-resolve when the
+    /// tracked handle answers nothing.
+    ///
+    /// Web and Electron apps REPLACE the focused node when their value
+    /// changes, and typing a transcript into one is exactly such a change.
+    /// They do it without an AX focus notification, so the tracker keeps
+    /// handing out a handle every read now fails on: reported from real use as
+    /// a second dictation that recorded but drew no pill (the log said "field
+    /// publishes no caret yet" for every capture after the first). The same
+    /// dead handle costs `insertDictated` its seam space, which would run two
+    /// dictated sentences together.
+    ///
+    /// Read-only on purpose: re-latching the tracker here would fire a focus
+    /// change, and a focus change discards the capture being read for.
+    private func dictationFieldContext() -> TextContext? {
+        func read(_ element: AXUIElement) -> TextContext? {
+            AXText.context(for: element, maxChars: Settings.maxContextChars, allowEmpty: true)
+        }
+        if let element = focusTracker.focusedTextElement, let ctx = read(element) { return ctx }
+        guard let fresh = AXText.systemFocusedTextElement() else { return nil }
+        return read(fresh)
+    }
+
+    func stopProgressIndicator() { indicator.stop() }
+
+    func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle) {
+        // A live capture's own pill outranks a protected notice: the
+        // protection guards notices from the completion pipeline's chatter,
+        // not from the next capture the user has already started — held
+        // within the protection window, the "starting dictation…" status
+        // would otherwise be refused and the stale notice would sit at the
+        // caret while the microphone is genuinely opening.
+        window.clearNoticeProtection()
+        window.show(mode: mode, at: rect, host: host)
+    }
+
+    func showTransientOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle) {
+        // A notice takes the window from whatever was in it — and a ghost left
+        // `active` under an opaque pill stays Tab-acceptable while invisible,
+        // which is how ⇥ inserts text nobody saw. `CaretIndicator.flashTransient`
+        // answers this by refusing to draw; dictation cannot, because a refusal
+        // the user can't see is the failure this whole flow was built around.
+        // So the ghost is retired instead of hidden.
+        //
+        // The refusals in `begin()` are exactly the ones that need it: a bare
+        // modifier posts no key-down, so holding the dictation key never
+        // narrows or drops a suggestion that is already on screen.
+        clearActiveCompletion()
+        // Nothing is torn down on CorrectionController's behalf: its previews
+        // now gate on `window.showsCorrection`, so a notice taking the window
+        // already makes them un-appliable, and clearing them here is what broke
+        // the ⌥⇥ chord — this runs from `dictationController.keyPressed()`,
+        // i.e. BEFORE `correctionController.handleKey`, on the very ⇥ that
+        // completes it.
+        // Every dictation notice is raised by something that also wakes the
+        // completion pipeline — a keystroke, a release, a focus-adjacent
+        // event — so each needs a moment of immunity or it never gets read.
+        window.showTransient(mode, at: rect, host: host, protectFor: 1.2)
+    }
+
+    func hideOverlay() { window.hide() }
+
+    func tidyDictation(_ text: String, before context: String) async -> String? {
+        guard engine.supportsCorrection else { return nil }
+        // A fix model that still has to be fetched cannot help THIS sentence:
+        // the tidy-up budget is three seconds and the download is gigabytes.
+        // Waiting would only stall every dictation behind a progress bar it
+        // can't outlast, so the words go in as heard and the fetch starts in
+        // the background for the next one.
+        guard engine.isCorrectionReady else {
+            engine.prewarmCorrection()
+            DictationController.note("tidy-up skipped — fetching the fix model for next time")
+            return nil
+        }
+        let request = makeRequest(text: context)
+        // `redactLog` is the whole point of the parameter: what is being fixed
+        // here was SPOKEN, and the divergence guard's rejection path logs the
+        // pair verbatim otherwise — into a buffer whose export dialog only
+        // warns about text the user typed.
+        let fixed = try? await engine.correct(selection: text, request: request, redactLog: true)
+        guard let fixed, !fixed.isEmpty, fixed != text else { return nil }
+        return fixed
     }
 }

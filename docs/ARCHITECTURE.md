@@ -93,6 +93,76 @@ Details and the measured swing are in `Eval/BASELINE.md`.
   one-time download of a small instruct sibling of your completion model (shown
   as *preparing…* in the menu bar).
 
+## Dictation
+
+Hold-to-talk, off by default, macOS 26+ (`Sources/Pretype/Dictation/`).
+
+* **The gesture** — `ModifierHold` in `KeyTap.swift`, the complement of the
+  reply gesture's `ModifierDoubleTap`: a hold is never a tap and two taps are
+  never a hold, which is what lets both live on the same modifier. Pure and
+  time-injected, so every rule about what does *not* open the microphone is a
+  unit test. The event tap sees only key-down, so a hold gesture is only
+  possible on a modifier — that is why it is one.
+* **Which microphone** — `AudioDevices`. A Bluetooth headset carries either good
+  playback or a two-way call, never both, so opening the AirPods microphone
+  drops whatever is playing into hands-free quality for the length of the hold.
+  The default setting steps around it: when the default input and the default
+  output are the same physical device (macOS publishes a headset as two objects
+  whose UIDs share everything before the colon), dictation records from the
+  built-in microphone instead and the headset never leaves music mode. Settings
+  can pin any input device, or the system default, instead.
+* **Audio** — `AudioCapture` opens the chosen input for exactly as long as the
+  key is down and resamples each buffer into the format the analyzer asks for.
+  It is built on `AVCaptureSession`, not `AVAudioEngine`, and the choice is
+  load-bearing: merely instantiating an engine builds an aggregate device
+  around the system-default input *and output*, which alone drops a Bluetooth
+  headset into hands-free attenuation — music dipped quieter-then-louder
+  around every hold. A capture session opens exactly one device, the
+  microphone, and has no output side to disturb. The session is built per
+  capture and **released** on stop, so nothing stays alive to keep the device
+  claimed (or the orange microphone indicator lit) between holds.
+  Nothing is buffered, nothing is written to disk. If the device changes
+  mid-capture (a headset dying, AirPods taking over the default input), the tap
+  restarts on the new device and the session never notices — provided the
+  session pinned a format to resample into; one running on the device's raw
+  format ends gracefully instead, since a mid-stream format change is exactly
+  what the analyzer rejects. With no input left, whatever was already heard is
+  finalized and typed instead of discarded.
+* **Words** — `Transcription` wraps Apple's `SpeechAnalyzer` behind a
+  `TranscriptionSession` protocol, so the controller above it isn't
+  version-gated and a bundled Whisper/Parakeet engine for macOS 14–15 could slot
+  in later. The models are the system's own, downloaded by macOS per language on
+  first use and shared with every other app that asks — zero bytes shipped by us.
+  Volatile results drive the live pill at the caret.
+* **Two models, picked per language** — `SpeechTranscriber` is the newer and
+  better one and covers exactly 30 locales (en, de, es, fr, it, ja, ko, pt, yue,
+  zh). Everything else, **Russian included**, is served by
+  `DictationTranscriber`: the model behind the system's own dictation key, older
+  and punctuation-free. Support is decided by *membership* in
+  `supportedLocales`, never by `supportedLocale(equivalentTo:)` — that one
+  canonicalizes an identifier ("ru" → "ru_RU") whether or not a model exists,
+  which reads as support and then fails at load. Measured on synthesized speech:
+  Russian transcribes correctly through the fallback but returns no punctuation
+  at all, which is most of what the tidy-up pass restores.
+* **Tidy-up** — the transcript goes through `engine.correct`, the same
+  minimal-edit pass `⌥Tab` uses, including its divergence guard: a model that
+  starts paraphrasing is rejected and the text goes in as heard. On a hard time
+  budget, because an idle-unloaded engine starts with a model reload: past a few
+  seconds the raw transcript is typed rather than held hostage.
+* **The state machine** — `DictationController` talks to the app through the
+  `DictationHost` protocol and takes its session, audio capture and environment
+  checks as injectable seams, so the whole capture lifecycle (queued holds,
+  focus-mismatch drops, device loss, watchdogs) is pinned by unit tests that
+  never touch a microphone.
+* **Insertion** — `SuggestionController.insertDictated`, which reuses the accept
+  path's bookkeeping (cache advance, settle window, `⌘Z` undo) because the
+  hazards are identical. Captures serialize: a hold that passes its threshold
+  while the previous transcript is still being written down waits for that
+  insert to land, instead of invalidating it.
+* **Accounting** — dictated characters are booked on their own counter, outside
+  the menu's time-saved figure: one spoken sentence would otherwise swamp a
+  week of accepted words and silently redefine what that number meant.
+
 ## Context
 
 * **App awareness** — prompt style adapts to the active app (short completions

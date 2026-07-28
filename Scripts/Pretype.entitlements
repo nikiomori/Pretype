@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hold-to-talk dictation. The hardened runtime (required for
+         notarization) denies the microphone unless the app is entitled to it,
+         no matter what TCC says — without this key the audio engine starts and
+         delivers nothing but silence. Not needed for the development-signed
+         build, which runs without the hardened runtime. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

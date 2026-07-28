@@ -208,7 +208,14 @@ final class CorrectionController {
 
         // While a proposed fix is on screen: ⏎ or style's accept key applies it, esc keeps the
         // original (but still reaches the app).
-        if pendingFix != nil, owner.window.isVisible {
+        //
+        // `showsCorrection`, not `isVisible`: a dictation notice, an engine
+        // status or a completion ghost also makes the window visible, and a
+        // preview that was never painted (no caret rect to hang it on, which
+        // web and Electron fields routinely report) would then let ⏎ apply a
+        // rewrite nobody saw — and swallow the Enter that was meant to send
+        // the message.
+        if pendingFix != nil, owner.window.showsCorrection {
             if keyCode == KeyCode.returnKey || keyCode == KeyCode.keypadEnter || style.matchesAcceptWord(keyCode: keyCode, flags: flags) {
                 applyPendingFix()
                 return .consumed
@@ -220,7 +227,7 @@ final class CorrectionController {
         }
 
         // Inline spell-fix: style's accept key replaces the word, esc dismisses
-        if let correction = activeCorrection, owner.window.isVisible {
+        if let correction = activeCorrection, owner.window.showsCorrection {
             if style.matchesAcceptWord(keyCode: keyCode, flags: flags) {
                 applyCorrection()
                 return .consumed

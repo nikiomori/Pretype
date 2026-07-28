@@ -9,7 +9,7 @@ import AppKit
 /// instead of being swapped out for a generic SF Symbol. Coordinates mirror
 /// `Assets/pretype-glyph.svg` and use a top-left (flipped) coordinate space.
 enum BrandMark {
-    enum State: String { case ready, disabled, preparing, failed }
+    enum State: String { case ready, disabled, preparing, failed, listening }
 
     /// Template image for the `NSStatusItem` button. `height` is in points.
     /// `phase` (0…2) animates the typing dots of the `.preparing` state; the
@@ -66,6 +66,13 @@ enum BrandMark {
                 caret.stroke()
                 let dot = NSBezierPath(ovalIn: NSRect(x: 695 - 30, y: 646 - 30, width: 60, height: 60))
                 dot.fill()
+            case .listening: // record dot — dictation has the microphone open.
+                // The same ● the caret pill shows while listening, so the two
+                // surfaces speak one language; a mic glyph was tried and turned
+                // to mush inside a caret slot this narrow. The system's orange
+                // dot says "some app is recording"; this says WHICH one, for
+                // exactly as long as it is true.
+                NSBezierPath(ovalIn: NSRect(x: 695 - 60, y: 512 - 60, width: 120, height: 120)).fill()
             }
             return true
         }

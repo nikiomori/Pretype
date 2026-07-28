@@ -91,4 +91,40 @@ enum SettingsUI {
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
+
+    /// Turn hold-to-talk dictation on or off. Enabling asks for the microphone
+    /// the first time; a *previous* refusal can only be undone in System
+    /// Settings — macOS never prompts twice — so that case opens the pane and
+    /// says so instead of leaving a switch that flips and does nothing.
+    /// `completion` reports whether the feature is actually usable, so the
+    /// caller can snap its toggle back.
+    static func setDictation(_ enable: Bool, completion: @escaping (Bool) -> Void) {
+        guard enable else {
+            Settings.dictationEnabled = false
+            completion(true)
+            return
+        }
+        let alreadyRefused = MicrophoneAccess.status == .denied
+            || MicrophoneAccess.status == .restricted
+        Task { @MainActor in
+            let granted = await MicrophoneAccess.request()
+            Settings.dictationEnabled = granted
+            completion(granted)
+            guard !granted else { return }
+            if alreadyRefused, let url = MicrophoneAccess.settingsURL {
+                NSWorkspace.shared.open(url)
+            }
+            let alert = NSAlert()
+            alert.messageText = "Pretype needs the microphone"
+            alert.informativeText = """
+            Dictation transcribes what you say on this Mac and types it into the field \
+            you're in. Nothing is recorded to disk and nothing leaves your computer.
+
+            Allow Pretype under System Settings → Privacy & Security → Microphone, \
+            then switch dictation on again.
+            """
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+        }
+    }
 }

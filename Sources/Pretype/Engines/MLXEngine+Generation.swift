@@ -396,6 +396,7 @@ extension MLXEngine {
         forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
         healExpected: String? = nil,
+        logRaw: Bool = true,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         try await generate(
@@ -411,6 +412,7 @@ extension MLXEngine {
             forcedFirst: forcedFirst,
             trimLogProb: trimLogProb,
             healExpected: healExpected,
+            logRaw: logRaw,
             onPartial: onPartial
         )
     }
@@ -428,6 +430,12 @@ extension MLXEngine {
         forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
         healExpected: String? = nil,
+        /// False when the generated text is not ours to print: the dictation
+        /// tidy-up pass hands this path a SPOKEN sentence, and the debug buffer
+        /// is exported into bug reports under a dialog that only warns about
+        /// text the user typed. Lengths still go out — the diagnostic value of
+        /// this line is the timing, not the words.
+        logRaw: Bool = true,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         // Annotate the param: under `-enable-testing` (swift test) overload
@@ -582,7 +590,9 @@ extension MLXEngine {
                     DebugLog.shared.log(
                         "GATE",
                         String(format: "confidence-trim: weak tail below %.2f", threshold),
-                        detail: "kept \(trimmed.debugDescription) of \(text.debugDescription)"
+                        detail: logRaw
+                            ? "kept \(trimmed.debugDescription) of \(text.debugDescription)"
+                            : "kept \(trimmed.count) of \(text.count) chars — redacted from log"
                     )
                     text = trimmed
                 }
@@ -598,9 +608,13 @@ extension MLXEngine {
                 String(reused), inputTokens.count, prefillSeconds * 1000, prefillRate,
                 fed.count, decodeSeconds * 1000, decodeRate
             )
-            DebugLog.shared.log("GEN", summary, detail: "raw: \(text.debugDescription)")
+            DebugLog.shared.log(
+                "GEN", summary,
+                detail: logRaw
+                    ? "raw: \(text.debugDescription)"
+                    : "\(text.count) chars — redacted from log")
             if Self.debugLogging.get() {
-                print("[gen] \(summary) raw=\(text.debugDescription)")
+                print("[gen] \(summary) raw=\(logRaw ? text.debugDescription : "<redacted>")")
             }
             return text
         }
