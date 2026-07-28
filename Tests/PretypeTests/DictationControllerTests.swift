@@ -184,6 +184,20 @@ final class DictationControllerTests: XCTestCase {
         }
     }
 
+    /// Pump until `condition` holds. A fixed margin that holds locally loses
+    /// by an order of magnitude on a loaded CI runner — each `Task { @MainActor }`
+    /// hop can take longer there than a whole 0.1 s pump window — so waits on
+    /// the controller's async paths are stated as the condition they wait FOR.
+    /// The deadline only bounds a genuine wedge: the assertions right after
+    /// still run, and name the wedged state.
+    private func pump(until condition: () -> Bool, timeout: TimeInterval = 2) async {
+        let end = Date().addingTimeInterval(timeout)
+        while !condition() && Date() < end {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.005))
+            await Task.yield()
+        }
+    }
+
     /// Press the dictation key and wait out the (shortened) hold threshold.
     private func holdDown(_ controller: DictationController) async {
         controller.modifierChanged(optionEvent(down: true))
@@ -286,10 +300,11 @@ final class DictationControllerTests: XCTestCase {
     func testDeviceChangeWithoutPinnedFormatFinishes() async {
         let rig = makeRig()  // audioFormat nil: restart-in-place is unsound
         await holdDown(rig.controller)
+        await pump(until: { rig.controller.phase == .listening("") })
         rig.session.onPartial?("already heard")
-        await pump(0.03)
+        await pump(until: { rig.controller.phase == .listening("already heard") })
         rig.capture.onDeviceChange?()
-        await pump(0.1)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"],
                        "words already heard must be typed, not thrown away")
         XCTAssertEqual(rig.controller.phase, .idle)
@@ -298,8 +313,9 @@ final class DictationControllerTests: XCTestCase {
     func testDeviceLossHeardNothingFails() async {
         let rig = makeRig()
         await holdDown(rig.controller)
+        await pump(until: { rig.controller.phase == .listening("") })
         rig.capture.onDeviceChange?()
-        await pump(0.1)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.inserted.isEmpty)
         XCTAssertEqual(rig.controller.phase, .idle)
         guard case .error? = rig.host.transientNotices.last else {
@@ -312,10 +328,11 @@ final class DictationControllerTests: XCTestCase {
             $0.audioFormat = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)
         }
         await holdDown(rig.controller)
+        await pump(until: { rig.controller.phase == .listening("") })
         rig.session.onPartial?("keep going")
-        await pump(0.03)
+        await pump(until: { rig.controller.phase == .listening("keep going") })
         rig.capture.onDeviceChange?()
-        await pump(0.1)
+        await pump(until: { rig.capture.startCount == 2 })
         XCTAssertEqual(rig.capture.startCount, 2, "AirPods arriving is a hiccup, not an ending")
         XCTAssertTrue(rig.controller.isCapturing)
         XCTAssertTrue(rig.host.inserted.isEmpty)
@@ -332,13 +349,22 @@ final class DictationControllerTests: XCTestCase {
             $0.audioFormat = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)
         }
         await holdDown(rig.controller)
+        await pump(until: { rig.controller.phase == .listening("") })
         rig.session.onPartial?("что-то услышал")
-        await pump(0.03)
-        for _ in 0..<12 {
+        await pump(until: { rig.controller.phase == .listening("что-то услышал") })
+        // Poke-and-confirm, not a blind burst: the fake only holds the LATEST
+        // restart's callback, so a poke that lands before the previous restart
+        // was processed replays a stale epoch and is (correctly) dropped —
+        // which would test the epoch guard, not the circuit breaker.
+        var pokes = 0
+        while rig.controller.isCapturing, pokes < 12 {
+            pokes += 1
+            let started = rig.capture.startCount
             rig.capture.onDeviceChange?()
-            await pump(0.02)
+            await pump(until: { rig.capture.startCount > started || !rig.controller.isCapturing },
+                       timeout: 1)
         }
-        await pump(0.1)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertLessThanOrEqual(rig.capture.startCount, 4,
                                  "the tap must not be restarted on every notification")
         XCTAssertEqual(rig.controller.phase, .idle)
@@ -426,6 +452,10 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         rig.capture.failStart = true
         await holdDown(rig.controller)
+        // The condition is the cancel, not `.idle`: the phase is also `.idle`
+        // BEFORE the arm timer fires, so waiting on it could return early with
+        // the whole begin-and-fail chain still queued.
+        await pump(until: { rig.session.cancelCount == 1 })
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertEqual(rig.session.cancelCount, 1,
                        "a session started before the microphone failed must not leak")
