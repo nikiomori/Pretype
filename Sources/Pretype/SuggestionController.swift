@@ -1070,11 +1070,66 @@ final class SuggestionController: NSObject {
 
     // MARK: - Key handling
 
+    /// The hands-free dictation chord, and whether we are in any position to
+    /// act on it.
+    ///
+    /// Every condition here is also a condition on SWALLOWING the key, which is
+    /// what makes them load-bearing rather than tidy. ⌃⌥D is a plain letter
+    /// chord that other apps bind, and the setting carrying it defaults to a
+    /// real value while dictation itself defaults to off — so an unguarded
+    /// match would quietly stop that chord working system-wide for every user
+    /// who never turned dictation on, with nothing in the UI to explain it (the
+    /// picker isn't even drawn until the feature is enabled).
+    private func isLatchChord(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        let latch = Settings.dictationLatch
+        guard latch != .off, Settings.dictationEnabled else { return false }
+        guard latch.matches(keyCode: keyCode, flags: flags) else { return false }
+        // Where the two collide the fix chord wins, and Settings says so —
+        // eating it here would make ⌥⇥'s twin silently stop fixing text.
+        guard !latch.collidesWithFixChord else { return false }
+        // An app Pretype has been told to stay out of is one where holding on
+        // to its keystrokes is still being in the way; `begin` would refuse a
+        // moment later anyway, having already eaten the key.
+        guard !AppPolicy.isBlacklisted(typingContext.bundleID) else { return false }
+        // Our own Settings window: `begin` refuses while we are frontmost, so
+        // swallowing here would take a keystroke out of our own text fields to
+        // do nothing with it.
+        return !isOwnUIFrontmost
+    }
+
     private func handleKeyDown(_ event: CGEvent) -> Bool {
         guard Settings.enabled else { return false }
         if event.getIntegerValueField(.eventSourceUserData) == TextInjector.magicTag { return false }
         // A real keystroke means a held modifier is part of a chord, not a tap.
         replyTap.keyPressed()
+
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let flags = event.flags
+
+        // Hands-free dictation, started and ended by the same chord.
+        //
+        // FIRST, ahead of `keyPressed` below, because that call reads any
+        // ordinary keystroke as "the modifier you were holding was part of a
+        // chord" and throws the capture away — including the one this very
+        // chord is being pressed to continue. Hold ⌥, say a sentence, release,
+        // reach for ⌃⌥D to carry on hands-free, and the sentence would vanish
+        // with a notice blaming you for typing.
+        if isLatchChord(keyCode: keyCode, flags: flags) {
+            lastAcceptedChunk = nil
+            // Autorepeat is swallowed and otherwise ignored. The WindowServer
+            // sends these at ~15 Hz for as long as the chord is held, and a
+            // toggle apiece would tear the capture down and re-open the input
+            // device on every one — an HFP profile flip per frame on a
+            // Bluetooth headset, which is the exact damage the device-change
+            // circuit breaker exists to prevent, by a path it can't see.
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                // Off the tap before the AX reads `begin` makes, same rule as
+                // the reply chord.
+                DispatchQueue.main.async { [weak self] in self?.dictationController.toggleLatch() }
+            }
+            return true
+        }
+
         // ...and not someone talking either. Unconditional, because the window
         // that matters most is the one where there is no capture yet: ⌥⌫ and
         // ⌥-arrows hold the modifier across several presses, and a hold left
@@ -1083,15 +1138,12 @@ final class SuggestionController: NSObject {
         // while listening, so it is ours to swallow — but only when a capture
         // was live as it arrived, which the call below is what ends.
         let wasDictating = dictationController.isBusy
-        let isEscape = event.getIntegerValueField(.keyboardEventKeycode) == KeyCode.escape
+        let isEscape = keyCode == KeyCode.escape
         dictationController.keyPressed(isEscape: isEscape)
         if wasDictating, isEscape { return true }
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
-
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        let flags = event.flags
 
         // Exact ⌘Z undoes the last accepted chunk. The cached-text check decides
         // consume vs pass-through synchronously (no AX read inside the tap): a

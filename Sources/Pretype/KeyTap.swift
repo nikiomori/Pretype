@@ -291,6 +291,8 @@ enum KeyCode {
     static let returnKey: Int64 = 36
     static let keypadEnter: Int64 = 76
     static let z: Int64 = 6
+    static let d: Int64 = 2
+    static let v: Int64 = 9
     static let leftOption: Int64 = 58
     static let rightOption: Int64 = 61
     static let leftShift: Int64 = 56

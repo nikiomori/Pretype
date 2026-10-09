@@ -115,6 +115,11 @@ final class DictationControllerTests: XCTestCase {
     private var savedDictation = false
     private var savedGesture = DictationGesture.option
     private var savedPolish = false
+    private var savedLatch = DictationLatch.off
+    private var savedSilence: TimeInterval = 0
+    private var savedLatchCeiling: TimeInterval = 0
+    private var savedSilenceTick: TimeInterval = 0
+    private var savedOpeningSilence: TimeInterval = 0
 
     override func setUp() {
         super.setUp()
@@ -122,10 +127,20 @@ final class DictationControllerTests: XCTestCase {
         savedDictation = Settings.dictationEnabled
         savedGesture = Settings.dictationGesture
         savedPolish = Settings.dictationPolish
+        savedLatch = Settings.dictationLatch
+        savedSilence = Settings.dictationSilence
+        savedLatchCeiling = DictationController.maxLatchedSeconds
+        savedSilenceTick = DictationController.silenceTick
+        savedOpeningSilence = DictationController.openingSilenceSeconds
         Settings.enabled = true
         Settings.dictationEnabled = true
         Settings.dictationGesture = .option
         Settings.dictationPolish = false
+        Settings.dictationLatch = .controlOptionD
+        // Off unless a test asks for it: the silence clock is real wall time,
+        // and a default budget ticking under every latch test would end
+        // captures the test believes it still owns.
+        Settings.dictationSilence = 0
     }
 
     override func tearDown() {
@@ -133,6 +148,11 @@ final class DictationControllerTests: XCTestCase {
         Settings.dictationEnabled = savedDictation
         Settings.dictationGesture = savedGesture
         Settings.dictationPolish = savedPolish
+        Settings.dictationLatch = savedLatch
+        Settings.dictationSilence = savedSilence
+        DictationController.maxLatchedSeconds = savedLatchCeiling
+        DictationController.silenceTick = savedSilenceTick
+        DictationController.openingSilenceSeconds = savedOpeningSilence
         super.tearDown()
     }
 
@@ -202,6 +222,15 @@ final class DictationControllerTests: XCTestCase {
     private func holdDown(_ controller: DictationController) async {
         controller.modifierChanged(optionEvent(down: true))
         await pump(0.12)
+    }
+
+    /// A `.flagsChanged` for a modifier that is NOT the dictation gesture —
+    /// the other half of a ⌃⌥ chord coming back up.
+    private func controlEvent(down: Bool) -> CGEvent {
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.leftControl),
+                            keyDown: down)!
+        event.flags = down ? .maskControl : []
+        return event
     }
 
     private func release(_ controller: DictationController) async {
@@ -834,5 +863,456 @@ final class DictationControllerTests: XCTestCase {
             withDestinationURL: root.appendingPathComponent("blobs/not-here-yet"))
         XCTAssertFalse(ModelStorage.isFetched(at: root),
                        "a dangling single-file weight link is a download in flight")
+    }
+
+    // MARK: - Hands-free
+
+    /// Press the chord and wait until the capture is actually live — the same
+    /// reasoning as `startCapture`, minus the arm timer a latch doesn't use.
+    private func startLatched(_ rig: Rig) async {
+        rig.controller.toggleLatch()
+        await pump(until: { rig.controller.phase == .listening("") })
+    }
+
+    func testLatchStartsAndStopsWithoutAKeyHeldDown() async {
+        let rig = makeRig()
+        await startLatched(rig)
+        XCTAssertEqual(rig.controller.phase, .listening(""))
+        XCTAssertEqual(rig.controller.trigger, .latch)
+        XCTAssertEqual(rig.capture.startCount, 1)
+        await hear("a whole paragraph", in: rig)
+        rig.controller.toggleLatch()
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// The rule that makes hands-free worth having. Under a hold, every one of
+    /// these means "that was a chord, not talking" and kills the capture — and
+    /// applied to a latch they would make it a hold with extra steps.
+    func testTypingClickingAndScrollingLeaveAHandsFreeCaptureAlone() async {
+        let rig = makeRig()
+        await startLatched(rig)
+        await hear("still going", in: rig)
+        rig.controller.keyPressed()
+        rig.controller.mouseDown()
+        rig.controller.scrolled()
+        await pump(0.05)
+        XCTAssertEqual(rig.controller.phase, .listening("still going"),
+                       "hands-free means the user keeps working while it runs")
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+        rig.controller.toggleLatch()
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+    }
+
+    /// ⎋ is the one keystroke that still means something: Settings promises it
+    /// discards a running capture, and that promise is not per-gesture.
+    func testEscapeStillCancelsAHandsFreeCapture() async {
+        let rig = makeRig()
+        await startLatched(rig)
+        await hear("never mind", in: rig)
+        rig.controller.keyPressed(isEscape: true)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertEqual(rig.controller.phase, .idle)
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+        XCTAssertGreaterThanOrEqual(rig.capture.stopCount, 1)
+    }
+
+    /// A modifier held while a latch runs is someone reaching for a chord. Fed
+    /// to `ModifierHold` it would arm, open a SECOND microphone under the first,
+    /// and — worse — leave the hold believing it owns a capture, so the release
+    /// would end one it never started.
+    func testAHeldModifierCannotOpenASecondCaptureUnderALatch() async {
+        let rig = makeRig()
+        await startLatched(rig)
+        await holdDown(rig.controller)
+        await pump(0.1)
+        XCTAssertEqual(rig.capture.startCount, 1, "one capture, one microphone")
+        XCTAssertEqual(rig.controller.phase, .listening(""))
+        // And the release of that modifier must not end the latched capture.
+        await release(rig.controller)
+        XCTAssertEqual(rig.controller.phase, .listening(""))
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+    }
+
+    /// Silence is what stops a capture nobody is holding. It FINISHES rather
+    /// than discards: the words were said, and making the user say them again
+    /// because they paused too long is the worst possible answer.
+    func testSilenceEndsAHandsFreeCaptureAndTypesWhatItHeard() async {
+        Settings.dictationSilence = 0.15
+        DictationController.silenceTick = 0.02
+        let rig = makeRig()
+        await startLatched(rig)
+        // A partial is what tells the meter someone spoke — without it the
+        // capture is still inside the far longer opening budget.
+        await hear("said something", in: rig)
+        await pump(until: { !rig.host.inserted.isEmpty }, timeout: 3)
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// Before the first word the budget is the long one. Someone who pressed
+    /// the chord and is still gathering their thoughts has said nothing to
+    /// measure, and holding them to a mid-sentence pause budget would break the
+    /// feature for the long-form dictation it exists for.
+    func testSilenceBeforeTheFirstWordGetsTheLongerBudget() async {
+        Settings.dictationSilence = 0.05
+        DictationController.silenceTick = 0.02
+        DictationController.openingSilenceSeconds = 5
+        let rig = makeRig()
+        await startLatched(rig)
+        await pump(0.3)
+        XCTAssertEqual(rig.controller.phase, .listening(""),
+                       "nothing said yet is not the same as having stopped talking")
+    }
+
+    /// A held key already says when the user is done. Cutting one short on a
+    /// thinking pause would take away the single thing a hold is unambiguous
+    /// about.
+    func testAHeldCaptureIsNeverCutShortBySilence() async {
+        Settings.dictationSilence = 0.05
+        DictationController.silenceTick = 0.02
+        let rig = makeRig()
+        await startCapture(rig)
+        await hear("mid sentence", in: rig)
+        await pump(0.3)
+        XCTAssertEqual(rig.controller.phase, .listening("mid sentence"))
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+    }
+
+    /// The two ceilings mean different things: 120 s is a safety net under a
+    /// key-up the event tap may have swallowed, which a latch has no need of.
+    /// A latch bound by the hold's ceiling would cut a long dictation off at
+    /// two minutes for a reason that does not apply to it.
+    func testAHandsFreeCaptureRunsPastTheHoldCeiling() async {
+        let saved = DictationController.maxCaptureSeconds
+        // 0.6 for the same reason `testCaptureCeilingFinishesInsteadOfDiscarding`
+        // picks it: the short bound still covers `.preparing`, so anything
+        // tighter races the two awaits before `.listening` on a loaded runner.
+        DictationController.maxCaptureSeconds = 0.6
+        DictationController.maxLatchedSeconds = 5
+        defer { DictationController.maxCaptureSeconds = saved }
+        let rig = makeRig()
+        await startLatched(rig)
+        await hear("a long one", in: rig)
+        await pump(1.0)
+        XCTAssertEqual(rig.controller.phase, .listening("a long one"))
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+    }
+
+    /// ...and it does have a ceiling of its own. Nothing was ever going to
+    /// arrive to end a forgotten latch, so this is the only bound on it — and
+    /// like the hold's, it finishes rather than discarding.
+    func testAForgottenLatchStillHitsItsOwnCeiling() async {
+        DictationController.maxLatchedSeconds = 0.15
+        let rig = makeRig()
+        await startLatched(rig)
+        await hear("left running", in: rig)
+        await pump(until: { !rig.host.inserted.isEmpty }, timeout: 3)
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// Pressed again while the last transcript is still being written down. A
+    /// chord is its own toggle, so the second press takes the queued capture
+    /// back off rather than stacking a third.
+    func testAQueuedHandsFreeCaptureCanBeTakenBack() async {
+        let rig = makeRig { $0.finishDelay = 0.3 }
+        await startLatched(rig)
+        await hear("first", in: rig)
+        rig.controller.toggleLatch()
+        XCTAssertEqual(rig.controller.phase, .working)
+        rig.controller.toggleLatch()
+        rig.controller.toggleLatch()
+        await pump(until: { rig.controller.phase == .idle }, timeout: 3)
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertEqual(rig.capture.startCount, 1, "the queued capture was taken back")
+    }
+
+    /// Hold the capture open in `.preparing` — a Bluetooth microphone spends
+    /// seconds there and a first-use language pack minutes.
+    private func slowStart(_ rig: Rig, seconds: TimeInterval) {
+        let session = rig.session
+        rig.controller.gates.startSession = { _, onPartial in
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            session.onPartial = onPartial
+            return session
+        }
+    }
+
+    /// `.preparing` is inside the hands-free window, not outside it. Scoping
+    /// the relaxed rules to `.listening` alone meant a scroll while the model
+    /// was still coming down tore the capture apart with no pill and no notice
+    /// — and "press the chord, then go and find what I was going to say" is
+    /// the hands-free case exactly.
+    func testInterruptsDuringAHandsFreeStartLeaveItAlone() async {
+        let rig = makeRig()
+        slowStart(rig, seconds: 0.3)
+        rig.controller.toggleLatch()
+        await pump(until: { rig.controller.phase == .preparing })
+        rig.controller.scrolled()
+        rig.controller.mouseDown()
+        rig.controller.keyPressed()
+        XCTAssertEqual(rig.controller.phase, .preparing,
+                       "the wait for the microphone is still part of the capture")
+        await pump(until: { rig.controller.phase == .listening("") }, timeout: 3)
+        XCTAssertEqual(rig.controller.phase, .listening(""))
+        XCTAssertEqual(rig.capture.startCount, 1)
+    }
+
+    /// ...and ⎋ during that same wait is still an explicit cancel, with the
+    /// wording Settings promises rather than a silent teardown.
+    func testEscapeDuringAHandsFreeStartSaysCancelled() async {
+        let rig = makeRig()
+        slowStart(rig, seconds: 0.3)
+        rig.controller.toggleLatch()
+        await pump(until: { rig.controller.phase == .preparing })
+        rig.controller.keyPressed(isEscape: true)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertEqual(rig.controller.phase, .idle)
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a deliberate cancel has to say so")
+        }
+        XCTAssertTrue(notice.contains("cancelled"), notice)
+    }
+
+    /// Reaching for ⌃⌥D with ⌥ already down. The chord deliberately no longer
+    /// disarms the hold (that is what used to destroy the sentence a previous
+    /// hold had just finished), so the hold's arm timer fires *inside* the
+    /// hands-free capture. Swallowing that `.begin` without clearing it left
+    /// `ModifierHold` believing it owned a capture it never started — and the
+    /// first modifier released afterwards then read as a cancel and threw the
+    /// paragraph away.
+    func testAModifierHeldIntoALatchLeavesNoPhantomHold() async {
+        let rig = makeRig { $0.finishDelay = 0.2 }
+        rig.controller.modifierChanged(optionEvent(down: true))
+        rig.controller.toggleLatch()
+        await pump(until: { rig.controller.phase == .listening("") })
+        // Past the (shortened) hold threshold, so the arm timer has fired.
+        await pump(0.1)
+        XCTAssertEqual(rig.controller.phase, .listening(""))
+        XCTAssertEqual(rig.capture.startCount, 1, "one capture, not two")
+        await hear("the whole paragraph", in: rig)
+        rig.controller.toggleLatch()
+        XCTAssertEqual(rig.controller.phase, .working)
+        // ⌃ lifts before ⌥ — the coin flip that used to end in a cancel.
+        rig.controller.modifierChanged(controlEvent(down: false))
+        rig.controller.modifierChanged(optionEvent(down: false))
+        await pump(until: { !rig.host.inserted.isEmpty }, timeout: 3)
+        XCTAssertEqual(rig.host.inserted, ["hello world"],
+                       "letting go of a modifier must not cancel what was already said")
+    }
+
+    /// The pre-first-word budget belongs to the microphone being open, not to
+    /// the keypress. The meter has to be built before the capture starts, but
+    /// measured from there a first-use language-pack download spends the whole
+    /// budget before a word can be said — and the first check after the wait
+    /// ends the capture as "nothing heard".
+    func testTheOpeningSilenceBudgetStartsWhenTheMicrophoneDoes() async {
+        Settings.dictationSilence = 5
+        DictationController.silenceTick = 0.02
+        DictationController.openingSilenceSeconds = 0.4
+        let rig = makeRig()
+        slowStart(rig, seconds: 0.6)
+        rig.controller.toggleLatch()
+        await pump(until: { rig.controller.phase == .listening("") }, timeout: 3)
+        await pump(0.2)
+        XCTAssertEqual(rig.controller.phase, .listening(""),
+                       "the wait for the model must not be charged to the speaker")
+    }
+
+    /// ⎋ has to mean cancelled, not paused. A second press of the chord during
+    /// the write-down queues another capture, and the resume that honours it
+    /// runs from `discard` too — so without an explicit rule the microphone
+    /// re-opens on the far side of the cancel, and `begin`'s repaint wipes the
+    /// "dictation cancelled" pill on its way past.
+    func testCancellingAQueuedHandsFreeCaptureDoesNotReopenTheMicrophone() async {
+        let rig = makeRig { $0.finishDelay = 0.4 }
+        await startLatched(rig)
+        await hear("first", in: rig)
+        rig.controller.toggleLatch()
+        XCTAssertEqual(rig.controller.phase, .working)
+        rig.controller.toggleLatch()
+        rig.controller.keyPressed(isEscape: true)
+        await pump(until: { rig.controller.phase == .idle })
+        await pump(0.2)
+        XCTAssertEqual(rig.controller.phase, .idle, "⎋ means cancelled, not paused")
+        XCTAssertEqual(rig.capture.startCount, 1, "the microphone must not re-open after a cancel")
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+    }
+
+    /// The same rule for a focus change: it ends the capture *and* the queue
+    /// behind it, rather than opening the microphone in the app just moved to.
+    func testAFocusChangeDoesNotHandTheQueuedCaptureToTheNextApp() async {
+        let rig = makeRig { $0.finishDelay = 0.4 }
+        await startLatched(rig)
+        await hear("first", in: rig)
+        rig.controller.toggleLatch()
+        rig.controller.toggleLatch()
+        rig.controller.invalidate()
+        await pump(until: { rig.controller.phase == .idle })
+        await pump(0.2)
+        XCTAssertEqual(rig.capture.startCount, 1)
+        XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// Standing down from the interrupts is about the LISTENING window. Once
+    /// the chord has been pressed again and the words are being written down,
+    /// a click has moved the caret they are about to be typed at — which is
+    /// exactly what the pre-existing notice is for, whatever started it.
+    func testAClickWhileWritingAHandsFreeTranscriptDownStillCancels() async {
+        let rig = makeRig { $0.finishDelay = 0.4 }
+        await startLatched(rig)
+        await hear("about to land", in: rig)
+        rig.controller.toggleLatch()
+        XCTAssertEqual(rig.controller.phase, .working)
+        rig.controller.mouseDown()
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertTrue(rig.host.inserted.isEmpty,
+                      "the caret moved — the transcript must not follow it")
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a dropped finished sentence has to say so")
+        }
+        XCTAssertTrue(notice.contains("caret moved"), notice)
+    }
+
+    /// A latched capture's long ceiling is about how long someone may SPEAK.
+    /// Applied to a session that never opened it would leave "starting
+    /// dictation…" on screen for ten minutes with the completion pipeline
+    /// suppressed behind `isBusy` the whole time.
+    func testAHungHandsFreeStartGivesUpOnTheShortCeiling() async {
+        let saved = DictationController.maxCaptureSeconds
+        DictationController.maxCaptureSeconds = 0.15
+        DictationController.maxLatchedSeconds = 30
+        defer { DictationController.maxCaptureSeconds = saved }
+        let rig = makeRig()
+        rig.controller.gates.startSession = { _, _ in
+            try await Task.sleep(nanoseconds: 5_000_000_000)
+            throw AudioCapture.Failure.sessionFailed("never reached")
+        }
+        rig.controller.toggleLatch()
+        await pump(until: { rig.controller.phase == .preparing })
+        await pump(until: { rig.controller.phase == .idle }, timeout: 3)
+        XCTAssertEqual(rig.controller.phase, .idle,
+                       "a hung start wedges the whole pipeline — the long ceiling is not for it")
+    }
+
+    /// The chord matcher is exact about modifiers: ⌃⌥D must not fire on ⌃⌥⇧D
+    /// or on plain D, or it would eat a keystroke meant for the app.
+    func testLatchChordDemandsExactModifiers() {
+        let latch = DictationLatch.controlOptionD
+        XCTAssertTrue(latch.matches(keyCode: KeyCode.d, flags: [.maskControl, .maskAlternate]))
+        XCTAssertFalse(latch.matches(keyCode: KeyCode.d, flags: [.maskControl, .maskAlternate, .maskShift]))
+        XCTAssertFalse(latch.matches(keyCode: KeyCode.d, flags: [.maskControl]))
+        XCTAssertFalse(latch.matches(keyCode: KeyCode.d, flags: []))
+        XCTAssertFalse(latch.matches(keyCode: KeyCode.space, flags: [.maskControl, .maskAlternate]))
+        XCTAssertFalse(DictationLatch.off.matches(keyCode: KeyCode.d,
+                                                  flags: [.maskControl, .maskAlternate]))
+    }
+
+    // MARK: - Voice meter
+
+    /// One buffer of a tone at `amplitude`, in the mono float format the
+    /// analyzer asks for.
+    private func toneBuffer(amplitude: Float, frames: Int = 800) -> AVAudioPCMBuffer {
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format,
+                                      frameCapacity: AVAudioFrameCount(frames))!
+        buffer.frameLength = AVAudioFrameCount(frames)
+        let channel = buffer.floatChannelData![0]
+        for index in 0..<frames {
+            channel[index] = amplitude * sin(Float(index) * 0.3)
+        }
+        return buffer
+    }
+
+    func testVoiceMeterHearsSpeechOverALearnedRoomFloor() {
+        let meter = VoiceMeter()
+        XCTAssertFalse(meter.heardVoice)
+        // Room tone, however long it runs. The floor learns its way down to it
+        // and the margin keeps it under the bar the whole time.
+        for _ in 0..<200 { meter.feed(toneBuffer(amplitude: 0.002)) }
+        XCTAssertFalse(meter.heardVoice, "a steady room must never read as speech")
+        meter.feed(toneBuffer(amplitude: 0.25))
+        XCTAssertTrue(meter.heardVoice)
+    }
+
+    /// The drift the "learn from quiet frames only" rule exists to prevent: a
+    /// floor that averages speech in climbs toward the talker, the margin
+    /// closes, and a long sentence reads as silence exactly when it matters.
+    ///
+    /// Driven on simulated time, and with the gaps real speech has between
+    /// words — a wall-clock loop would finish in milliseconds and prove nothing
+    /// about a sentence that runs for half a minute.
+    func testALongSentenceDoesNotTrainTheFloorUpToItself() {
+        let opened = Date()
+        let meter = VoiceMeter(now: opened)
+        var elapsed: TimeInterval = 0
+        // 30 s of speech at 50 buffers a second, one quiet frame in every ten
+        // for the stops between words.
+        for step in 0..<1500 {
+            elapsed += 0.02
+            let quiet = step % 10 == 0
+            meter.feed(toneBuffer(amplitude: quiet ? 0.002 : 0.25),
+                       now: opened.addingTimeInterval(elapsed))
+        }
+        XCTAssertLessThan(meter.quietFor(now: opened.addingTimeInterval(elapsed)), 0.05,
+                          "sustained speech must stay voiced to the last buffer")
+    }
+
+    /// The other half of the same trade-off. Learning only from quiet frames
+    /// means a room that is never quiet is never measured: the first buffer
+    /// clears the starting floor, nothing after it is ever judged quiet, and
+    /// the silence auto-stop is off for the rest of the capture — a forgotten
+    /// chord then runs to the ten-minute ceiling with the microphone open.
+    func testARoomThatIsNeverQuietStillGetsMeasured() {
+        let opened = Date()
+        let meter = VoiceMeter(now: opened)
+        // Loud room tone, unbroken: −35 dBFS clears the −50 starting floor from
+        // the very first buffer.
+        var elapsed: TimeInterval = 0
+        for _ in 0..<600 {
+            elapsed += 0.02
+            meter.feed(toneBuffer(amplitude: 0.025), now: opened.addingTimeInterval(elapsed))
+        }
+        let recalibrated = opened.addingTimeInterval(elapsed)
+        // Past the recalibration window the room has become the floor, so it
+        // reads as quiet and the clock starts running again.
+        meter.feed(toneBuffer(amplitude: 0.025), now: recalibrated.addingTimeInterval(0.02))
+        XCTAssertGreaterThan(meter.quietFor(now: recalibrated.addingTimeInterval(1)), 0.5,
+                             "an unbroken room must not read as speech forever")
+        // ...and speech over it still clears the new floor.
+        meter.feed(toneBuffer(amplitude: 0.3), now: recalibrated.addingTimeInterval(1))
+        XCTAssertLessThan(meter.quietFor(now: recalibrated.addingTimeInterval(1)), 0.05)
+    }
+
+    /// A device that opens on digital silence — a warming USB microphone, a
+    /// hardware-muted headset, the first frames after `startRunning` — used to
+    /// drag the floor to −95 in well under a second. Ordinary room tone then
+    /// cleared the bar permanently, which is the auto-stop switching itself off
+    /// by a second door.
+    func testSilenceAtTheMicrophoneOpeningDoesNotDeafenTheMeter() {
+        let opened = Date()
+        let meter = VoiceMeter(now: opened)
+        for step in 0..<100 {
+            meter.feed(toneBuffer(amplitude: 0),
+                       now: opened.addingTimeInterval(Double(step) * 0.02))
+        }
+        // Room tone at −57 dBFS, which has to stay under the bar.
+        meter.feed(toneBuffer(amplitude: 0.002), now: opened.addingTimeInterval(2))
+        XCTAssertFalse(meter.heardVoice,
+                       "a floor dragged down by dead air would hear the room as speech")
+    }
+
+    /// Silence is measured from the microphone opening until something is
+    /// heard — otherwise a capture that heard nothing at all would report zero
+    /// quiet seconds forever and never reach its budget.
+    func testQuietTimeRunsFromTheMicrophoneOpeningUntilTheFirstWord() {
+        let opened = Date()
+        let meter = VoiceMeter(now: opened)
+        XCTAssertEqual(meter.quietFor(now: opened.addingTimeInterval(4)), 4, accuracy: 0.01)
+        meter.noteVoice(now: opened.addingTimeInterval(4))
+        XCTAssertEqual(meter.quietFor(now: opened.addingTimeInterval(5)), 1, accuracy: 0.01)
     }
 }

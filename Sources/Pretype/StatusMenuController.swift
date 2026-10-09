@@ -363,6 +363,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         if Settings.dictationEnabled, Settings.dictationGesture != .off {
             hints.append((keys: "hold \(Settings.dictationGesture.shortLabel)", action: "talk instead of typing"))
         }
+        if Settings.dictationEnabled, Settings.dictationLatch != .off {
+            hints.append((keys: Settings.dictationLatch.label, action: "talk hands-free — press again to stop"))
+        }
         return hints
     }
 

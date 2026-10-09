@@ -48,6 +48,15 @@ MainActor.assumeIsolated {
         print("transcription:      \(Transcription.isSupported ? "available" : "UNAVAILABLE")")
         print("dictation enabled:  \(Settings.dictationEnabled)")
         print("gesture:            \(Settings.dictationGesture.label)")
+        // The probe traces modifier edges only, so say plainly that the other
+        // half of the feature is out of its view — otherwise a user whose
+        // hands-free chord is the one misbehaving reads a clean trace as proof
+        // nothing is wrong.
+        print("hands-free chord:   \(Settings.dictationLatch.label)"
+            + " (not traced below — the probe watches modifier edges only)")
+        print("stop after silence: "
+            + (Settings.dictationSilence > 0 ? "\(Int(Settings.dictationSilence))s" : "never")
+            + " — hands-free captures only")
         let locale = Settings.resolvedDictationLocale
         Task { @MainActor in
             print("language:           \(Transcription.name(of: locale)) — \(await Transcription.support(for: locale))")

@@ -66,6 +66,16 @@ final class SettingsStore: ObservableObject {
         didSet { guard !syncing, oldValue != dictationGesture else { return }
             Settings.dictationGesture = dictationGesture }
     }
+    @Published var dictationLatch = DictationLatch.off {
+        didSet { guard !syncing, oldValue != dictationLatch else { return }
+            Settings.dictationLatch = dictationLatch }
+    }
+    /// Silence budget for a hands-free capture, in seconds; 0 is off. Stored as
+    /// a Double so the picker can offer it directly.
+    @Published var dictationSilence = 5.0 {
+        didSet { guard !syncing, oldValue != dictationSilence else { return }
+            Settings.dictationSilence = dictationSilence }
+    }
     @Published var dictationPolish = true {
         didSet { guard !syncing, oldValue != dictationPolish else { return }
             Settings.dictationPolish = dictationPolish }
@@ -660,6 +670,8 @@ final class SettingsStore: ObservableObject {
         }
         dictation = Settings.dictationEnabled
         dictationGesture = Settings.dictationGesture
+        dictationLatch = Settings.dictationLatch
+        dictationSilence = Settings.dictationSilence
         dictationPolish = Settings.dictationPolish
         dictationLanguage = Settings.dictationLanguage
         dictationInput = Settings.dictationInput
@@ -1179,10 +1191,11 @@ struct GeneralTab: View {
                         }
                     }
                 } else {
-                    Toggle("Hold a key and talk", isOn: $store.dictation)
-                    Caption("Hold the key, say the sentence, let go — it is typed into the field "
-                        + "you're already in. macOS transcribes it on this Mac: no audio is written "
-                        + "to disk, nothing is sent anywhere, and nothing records unless the key is down.")
+                    Toggle("Talk instead of typing", isOn: $store.dictation)
+                    Caption("Hold a key and say the sentence, or press a chord and say the "
+                        + "paragraph — either way it is typed into the field you're already in. "
+                        + "macOS transcribes it on this Mac: no audio is written to disk, nothing "
+                        + "is sent anywhere, and nothing records unless you asked it to.")
                     if store.dictation {
                         LabeledContent("Push-to-talk key") {
                             Picker("", selection: $store.dictationGesture) {
@@ -1193,9 +1206,10 @@ struct GeneralTab: View {
                             .labelsHidden()
                             .frame(width: 190)
                         }
-                        if store.dictationGesture == .off {
+                        if store.dictationGesture == .off, store.dictationLatch == .off {
                             Caption("⚠︎ Dictation is on but no key is assigned, so nothing can "
-                                + "start a capture. Pick a key above, or switch the feature off.")
+                                + "start a capture. Pick a key above or a hands-free chord below, "
+                                + "or switch the feature off.")
                         }
                         Caption("A hold, not a tap: “\(store.replyGesture.label)” for a reply and "
                             + "holding the same key to talk can share a modifier without ever "
@@ -1203,6 +1217,45 @@ struct GeneralTab: View {
                             + "starts only after about half a second of quiet hold — any other "
                             + "keypress, a click, or a scroll before that disarms it on the spot; "
                             + "⎋ discards one already running.")
+                        LabeledContent("Hands-free chord") {
+                            Picker("", selection: $store.dictationLatch) {
+                                ForEach(DictationLatch.allCases, id: \.self) { latch in
+                                    Text(latch.label).tag(latch)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 190)
+                        }
+                        if store.dictationLatch != .off {
+                            Caption("Press it once to start, once more to stop — nothing to hold, so "
+                                + "you can scroll, click and think mid-sentence without losing the "
+                                + "capture. It also starts recording on the keypress itself rather "
+                                + "than half a second later, because nothing else on the system means "
+                                + "this chord. ⎋ still throws the capture away, and moving to another "
+                                + "field ends it.")
+                            if store.dictationLatch.collidesWithFixChord {
+                                Caption("⚠︎ \(store.dictationLatch.label) is already the ⌥⇥ fix's chord "
+                                    + "under your “\(store.hotkeyStyle.label)” hotkey, and the fix wins. "
+                                    + "Pick the other chord, or change the hotkey on the General tab.")
+                            }
+                            LabeledContent("Stop after silence") {
+                                Picker("", selection: $store.dictationSilence) {
+                                    Text("Never").tag(0.0)
+                                    Text("3 seconds").tag(3.0)
+                                    Text("5 seconds").tag(5.0)
+                                    Text("10 seconds").tag(10.0)
+                                }
+                                .labelsHidden()
+                                .frame(width: 190)
+                            }
+                            Caption(store.dictationSilence == 0
+                                ? "A hands-free capture runs until you press the chord again — or for "
+                                    + "ten minutes, whichever comes first."
+                                : "A hands-free capture that hears nothing for this long types what it "
+                                    + "has and stops, so a forgotten chord isn't an open microphone. "
+                                    + "The clock only starts once you've said something: pausing before "
+                                    + "the first word gives you half a minute.")
+                        }
                         LabeledContent("Microphone") {
                             Picker("", selection: $store.dictationInput) {
                                 Text("Automatic").tag("auto")

@@ -178,6 +178,65 @@ enum DictationGesture: String, CaseIterable {
     }
 }
 
+/// Hands-free dictation: one chord starts a capture, the next one ends it —
+/// for the paragraph nobody wants to hold a key through.
+///
+/// A chord rather than the bare modifier `DictationGesture` uses, because both
+/// one-finger meanings of a bare modifier are already spoken for: a hold is a
+/// capture, a double tap is the reply flow. A third meaning on the same key
+/// could only be told apart by timing the user cannot see.
+///
+/// The chord earns something the hold cannot have, too. `ModifierHold` waits
+/// out its threshold before opening the microphone, because a modifier on its
+/// way to a chord must never start recording — so the first syllable of a hold
+/// is spoken into a microphone that isn't open yet. Nothing else means ⌃⌥D, so
+/// a latch can open on the key-down itself.
+enum DictationLatch: String, CaseIterable {
+    case off
+    case controlOptionD
+    case controlOptionV
+
+    var label: String {
+        switch self {
+        case .off: return "Off"
+        case .controlOptionD: return "⌃⌥D"
+        case .controlOptionV: return "⌃⌥V"
+        }
+    }
+
+    /// Both are letters on purpose. ⌃⌥Space was the obvious third option and
+    /// is the wrong one: macOS binds it to "select the next input source", and
+    /// this app's dictation language *follows the keyboard layout* — so the
+    /// users it would break are exactly the ones the feature is built around.
+    private var keyCode: Int64? {
+        switch self {
+        case .off: return nil
+        case .controlOptionD: return KeyCode.d
+        case .controlOptionV: return KeyCode.v
+        }
+    }
+
+    func matches(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        guard let expected = self.keyCode, keyCode == expected else { return false }
+        return flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
+            == [.maskControl, .maskAlternate]
+    }
+
+    /// True when this chord is already the ⌥⇥ fix's chord under the current
+    /// base hotkey.
+    ///
+    /// No shipped combination reaches it — every fix chord is built on ⇥ or
+    /// Space and every latch chord is a letter — but it is what KEEPS that
+    /// true. The latch is matched before the fix at the tap, so this guard,
+    /// not the ordering, is what stops a new chord from silently eating ⌥⇥'s
+    /// twin; and Settings says so rather than letting the latch look broken.
+    var collidesWithFixChord: Bool {
+        guard let keyCode else { return false }
+        return Settings.hotkeyStyle.matchesCorrection(
+            keyCode: keyCode, flags: [.maskControl, .maskAlternate])
+    }
+}
+
 enum HotkeyStyle: String, CaseIterable {
     case tab
     case cmdSpace
@@ -498,6 +557,15 @@ enum Settings {
             // something to spring on someone who came for autocomplete.
             "dictation": false,
             "dictationGesture": DictationGesture.option.rawValue,
+            // The hands-free half. On by default *within* dictation (which is
+            // itself off): someone who has just turned the microphone on should
+            // find both halves of the feature there, and a chord that starts
+            // nothing until dictation is enabled costs an unused key binding.
+            "dictationLatch": DictationLatch.controlOptionD.rawValue,
+            // Long enough to think mid-sentence, short enough that a capture
+            // forgotten about doesn't run to the ceiling. Only ever consulted
+            // for a latched capture — a held key says when it is done.
+            "dictationSilence": 5.0,
             // The transcript goes through the same minimal-edit fix the ⌥⇥
             // flow uses — free on top of a generation the user is already
             // waiting for, and it is what makes this Pretype's dictation
@@ -764,6 +832,20 @@ enum Settings {
     static var dictationGesture: DictationGesture {
         get { DictationGesture(rawValue: defaults.string(forKey: "dictationGesture") ?? "") ?? .option }
         set { defaults.set(newValue.rawValue, forKey: "dictationGesture") }
+    }
+
+    /// The chord that starts and ends a hands-free capture.
+    static var dictationLatch: DictationLatch {
+        get { DictationLatch(rawValue: defaults.string(forKey: "dictationLatch") ?? "") ?? .off }
+        set { defaults.set(newValue.rawValue, forKey: "dictationLatch") }
+    }
+
+    /// How long a hands-free capture may hear nothing before it ends itself and
+    /// types what it has. 0 turns it off — then only a second press of the
+    /// chord (or the ceiling) stops it.
+    static var dictationSilence: TimeInterval {
+        get { defaults.double(forKey: "dictationSilence") }
+        set { defaults.set(newValue, forKey: "dictationSilence") }
     }
 
     /// Run the transcript through the model's minimal-edit fix before typing it.
