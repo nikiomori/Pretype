@@ -671,7 +671,7 @@ final class DictationControllerTests: XCTestCase {
     /// else (a dictation notice, an engine status) has covered up.
     func testOverlayOwnershipGates() {
         XCTAssertTrue(SuggestionWindow.offersSuggestion(.suggestion("inute")))
-        XCTAssertTrue(SuggestionWindow.offersCorrection(.fixPreview("receive")))
+        XCTAssertTrue(SuggestionWindow.offersCorrection(.fixPreview(original: "recieve", fix: "receive")))
         XCTAssertTrue(SuggestionWindow.offersCorrection(.correction(original: "recieve", fix: "receive")))
         // Everything a notice, a status or a live capture can put on screen
         // belongs to nobody's accept key.
@@ -684,7 +684,7 @@ final class DictationControllerTests: XCTestCase {
         }
         // The two owners are never both armed by one overlay.
         XCTAssertFalse(SuggestionWindow.offersCorrection(.suggestion("inute")))
-        XCTAssertFalse(SuggestionWindow.offersSuggestion(.fixPreview("receive")))
+        XCTAssertFalse(SuggestionWindow.offersSuggestion(.fixPreview(original: "recieve", fix: "receive")))
     }
 
     func testWatchdogAbandonsUncancellableFinalize() async {

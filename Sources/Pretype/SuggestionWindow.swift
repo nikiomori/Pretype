@@ -11,10 +11,15 @@ enum SuggestionDisplayMode {
     case status(String)
     /// Something is broken.
     case error(String)
-    /// Neutral hint, e.g. the ⌥⇥ fix-selection affordance.
+    /// Neutral one-line notice ("✓ looks fine", "dictation cancelled").
     case hint(String)
-    /// A proposed fix for the selection, awaiting the user's accept/cancel.
-    case fixPreview(String)
+    /// A key and what it does, drawn as a keycap — the ⌥⇥ fix-selection
+    /// affordance.
+    case shortcut(key: String, action: String)
+    /// A proposed fix for the selection (or the last word), awaiting the
+    /// user's accept/cancel. Drawn as a word diff against `original`, wrapped
+    /// so a long fix can be read in full before ⏎ applies it.
+    case fixPreview(original: String, fix: String)
     /// A spell-fix shown in a pill ABOVE the mistyped word (Cotypist-style):
     /// the original struck through, an arrow, then the proposed fix. Tab to apply.
     case correction(original: String, fix: String)
@@ -50,6 +55,32 @@ private final class GhostTextView: NSView {
     }
 }
 
+/// The pill's text. Drawn rather than an NSTextField so the size it asks for
+/// is exactly the size it draws in — the field cell's private insets clipped
+/// the last glyph ("receiv…") — and so a fix preview can wrap. A truncating
+/// paragraph style keeps every other mode on one ellipsized line.
+private final class PillTextView: NSView {
+    var attributed = NSAttributedString() {
+        didSet { needsDisplay = true }
+    }
+
+    static let options: NSString.DrawingOptions = [.usesLineFragmentOrigin, .usesFontLeading,
+                                                   .truncatesLastVisibleLine]
+
+    override var isFlipped: Bool { true }
+    override var isOpaque: Bool { false }
+
+    /// The text's laid-out size within `maxWidth`, at most `maxHeight` tall.
+    func fittingSize(maxWidth: CGFloat, maxHeight: CGFloat) -> NSSize {
+        let r = attributed.boundingRect(with: NSSize(width: maxWidth, height: maxHeight), options: Self.options)
+        return NSSize(width: min(maxWidth, ceil(r.width)), height: min(maxHeight, ceil(r.height)))
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        attributed.draw(with: bounds, options: Self.options)
+    }
+}
+
 /// Borderless, non-activating floating panel that renders the completion.
 ///
 /// A real suggestion draws as **chromeless inline ghost text** — gray, sized to
@@ -59,7 +90,7 @@ private final class GhostTextView: NSView {
 /// legible against any background.
 final class SuggestionWindow: NSPanel {
     private let container = NSView()
-    private let pillLabel = NSTextField(labelWithString: "")
+    private let pillText = PillTextView()
     private let ghost = GhostTextView()
     private var highlightLayer: CALayer?
 
@@ -75,7 +106,6 @@ final class SuggestionWindow: NSPanel {
     private var panelBackdrop: NSView { glassBackdrop ?? visualBackdrop }
 
     private let pillPadH: CGFloat = 9
-    private let pillPadV: CGFloat = 4
 
     /// Inline ghost text vs a floating panel beside the caret. Set by the
     /// controller from `Settings.suggestionPresentation`.
@@ -130,11 +160,7 @@ final class SuggestionWindow: NSPanel {
 
         container.wantsLayer = true
 
-        pillLabel.lineBreakMode = .byTruncatingTail
-        pillLabel.maximumNumberOfLines = 1
-        pillLabel.font = .systemFont(ofSize: 13)
-        pillLabel.textColor = .secondaryLabelColor
-        pillHost.addSubview(pillLabel)
+        pillHost.addSubview(pillText)
 
         if #available(macOS 26.0, *) {
             // Liquid Glass — the macOS 26 material that refracts whatever is
@@ -229,7 +255,13 @@ final class SuggestionWindow: NSPanel {
                 // back a pixel too wide for its own window and be ellipsized —
                 // which is the exact thing this trim exists to prevent.
                 let room = max(0, (inlineRoom(at: caretRect, rtl: ghostRTL) ?? 0) - 2)
-                let fitted = Self.fittingPrefix(of: s, font: ghostFont, width: room)
+                // A new user's ghost carries the accept keycap when the line
+                // has room for it and at least a word; otherwise the words win.
+                let keycapWidth = Self.tutorsAccept ? ceil(ghostKeycap().size().width) : 0
+                var fitted = keycapWidth > 0
+                    ? Self.fittingPrefix(of: s, font: ghostFont, width: room - keycapWidth) : ""
+                ghostShowsKeycap = !fitted.isEmpty
+                if fitted.isEmpty { fitted = Self.fittingPrefix(of: s, font: ghostFont, width: room) }
                 if fitted.isEmpty {
                     ghostMode = false   // not even one word — the pill says it in full
                 } else {
@@ -412,12 +444,23 @@ final class SuggestionWindow: NSPanel {
     /// Modes that *can* draw as chromeless inline ghost text; engine notices and
     /// fixes are always pills. Whether one actually does also depends on there
     /// being room at the caret — see `inlineHasRoom`.
+    /// The ⌥⇥ affordance and preview: anchored on a selection box (or the
+    /// caret, for a last-word fix) rather than on a caret line.
+    private func anchorsOnSelection(_ mode: SuggestionDisplayMode?) -> Bool {
+        switch mode {
+        case .shortcut, .fixPreview: return true
+        default: return false
+        }
+    }
+
     private func isGhostable(_ mode: SuggestionDisplayMode) -> Bool {
         switch mode {
         case .suggestion, .thinking: return true
-        case .status, .error, .hint, .fixPreview, .correction, .listening: return false
+        case .status, .error, .hint, .shortcut, .fixPreview, .correction, .listening: return false
         }
     }
+
+    private static let pillFont = NSFont.systemFont(ofSize: 13)
 
     private func applyContent(_ mode: SuggestionDisplayMode, ghost ghostMode: Bool) {
         switch mode {
@@ -425,31 +468,71 @@ final class SuggestionWindow: NSPanel {
             if ghostMode {
                 ghost.attributed = suggestionGhost(s)
             } else {
-                pillLabel.attributedStringValue = panelSuggestion(s)
+                setPill(panelSuggestion(s))
             }
         case .thinking(let phase):
-            // A faint ellipsis pulsing while the model runs — ghost at the caret
-            // inline, or in the pill when in panel mode.
-            let dots = String(repeating: "·", count: (phase % 3) + 1)
             if ghostMode {
-                ghost.attributed = ghostString(dots, dim: 0.6)
+                ghost.attributed = thinkingGhost(phase)
                 ghostHeadWidth = 0
             } else {
-                pillLabel.attributedStringValue = pill(dots, .tertiaryLabelColor)
+                setPill(Self.dots(phase, beside: Self.pillFont) { Self.dynamicAlpha(.labelColor, 0.7 * $0) })
             }
         case .status(let s):
-            pillLabel.attributedStringValue = pill("⏳ \(s)", .tertiaryLabelColor)
+            // The mark says whose "loading…" this is — at the caret, a bare
+            // engine notice reads as the host app's own.
+            let text = NSMutableAttributedString(attributedString: Self.mark(.ready, .secondaryLabelColor))
+            text.append(Self.plain(s, .secondaryLabelColor))
+            setPill(text)
         case .error(let s):
-            pillLabel.attributedStringValue = pill("⚠︎ \(s)", .systemOrange)
+            // Orange marks the severity; the words stay full-strength ink —
+            // orange text on a light pill was the hardest line here to read.
+            let text = NSMutableAttributedString(attributedString: Self.mark(.failed, .systemOrange))
+            text.append(Self.plain(s, .labelColor))
+            setPill(text)
         case .hint(let s):
-            pillLabel.attributedStringValue = pill(s, .tertiaryLabelColor)
-        case .fixPreview(let s):
-            pillLabel.attributedStringValue = fixPreview(s)
+            // Wraps: the actionable notices ("allow Pretype in System
+            // Settings, then relaunch") run past one line, and the clipped
+            // tail was the instruction itself.
+            setPill(Self.plain(s, .secondaryLabelColor), wraps: true)
+        case .shortcut(let key, let action):
+            let text = NSMutableAttributedString(attributedString: Self.keycap(key))
+            text.append(Self.plain(" " + action, .secondaryLabelColor))
+            setPill(text)
+        case .fixPreview(let original, let fix):
+            setPill(fixPreview(original: original, fix: fix), wraps: true)
         case .correction(let original, let fix):
-            pillLabel.attributedStringValue = correctionDiff(original: original, fix: fix)
+            let text = NSMutableAttributedString(attributedString: Self.replacement(original, fix))
+            text.append(Self.plain("   "))
+            text.append(Self.keycap(Settings.hotkeyStyle.label))
+            setPill(text)
         case .listening(let s):
-            pillLabel.attributedStringValue = listening(s)
+            setPill(listening(s))
         }
+    }
+
+    /// Whether the current pill may wrap (a fix preview, a notice) — it then
+    /// gets a height cap instead of one line.
+    private var pillWraps = false
+    /// Set by `pillSize`: a pill that actually wrapped gets a little more
+    /// vertical padding than a one-line capsule.
+    private var pillPadV: CGFloat = 4
+
+    /// One ellipsized line unless `wraps`; any paragraph settings the content
+    /// already carries (an RTL base direction) are kept.
+    private func setPill(_ text: NSAttributedString, wraps: Bool = false) {
+        let out = NSMutableAttributedString(attributedString: text)
+        let existing = out.length > 0
+            ? out.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle : nil
+        let paragraph = (existing?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+        paragraph.lineBreakMode = wraps ? .byWordWrapping : .byTruncatingTail
+        out.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: out.length))
+        pillWraps = wraps
+        pillText.attributed = out
+    }
+
+    private static func plain(_ s: String, _ color: NSColor = .labelColor,
+                              _ font: NSFont = pillFont) -> NSAttributedString {
+        NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
     }
 
     /// The dictation pill: a red dot — the universal "live" — then the words as
@@ -461,10 +544,8 @@ final class SuggestionWindow: NSPanel {
             .font: NSFont.systemFont(ofSize: 10),
             .foregroundColor: NSColor.systemRed,
         ])
-        result.append(NSAttributedString(string: text.isEmpty ? "Listening…" : text, attributes: [
-            .font: NSFont.systemFont(ofSize: 13),
-            .foregroundColor: text.isEmpty ? NSColor.tertiaryLabelColor : NSColor.labelColor,
-        ]))
+        result.append(Self.plain(text.isEmpty ? "Listening…" : text,
+                                 text.isEmpty ? .secondaryLabelColor : .labelColor))
         // The leading dot forces the line's base direction LTR, which renders
         // an Arabic or Hebrew transcript backwards: words in RTL order but the
         // line laid out from the left, ellipsis on the wrong side. Basing the
@@ -479,57 +560,223 @@ final class SuggestionWindow: NSPanel {
         return result
     }
 
-    private static func keycap(_ text: String) -> NSAttributedString {
-        let font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-        let bgColor = dynamicAlpha(.labelColor, 0.08)
-        let fgColor = NSColor.secondaryLabelColor
-
-        let attr = NSMutableAttributedString(string: "\u{00A0}\(text)\u{00A0}", attributes: [
-            .font: font,
-            .foregroundColor: fgColor,
-            .backgroundColor: bgColor,
-            .kern: 0.5
+    /// A key drawn as a key: a rounded, hairline-edged cap with the label
+    /// centred on it, the cap centred on `font`'s cap height so it sits level
+    /// with the words around it. The old flat background-colour run hugged the
+    /// glyphs in a hard box. Rendered at draw time (`cacheMode = .never`), so
+    /// its colours resolve against the window's appearance like every other
+    /// colour here, async tone flips included. `strength` dims the whole cap
+    /// to sit inside a ghost.
+    static func keycap(_ key: String, size: CGFloat = 10, beside font: NSFont = pillFont,
+                       strength: CGFloat = 1) -> NSAttributedString {
+        let labelFont = NSFont.systemFont(ofSize: size, weight: .semibold)
+        let label = NSAttributedString(string: key, attributes: [
+            .font: labelFont,
+            .foregroundColor: dynamicAlpha(.labelColor, 0.62 * strength),
         ])
-        attr.addAttribute(.baselineOffset, value: 0.5, range: NSRange(location: 0, length: attr.length))
-        return attr
+        let textWidth = ceil(label.size().width)
+        let cap = NSSize(width: textWidth + 2 * ceil(size * 0.45), height: ceil(size * 1.5))
+        let image = NSImage(size: cap, flipped: false) { rect in
+            let path = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5),
+                                    xRadius: min(4, rect.height / 3), yRadius: min(4, rect.height / 3))
+            dynamicAlpha(.labelColor, 0.07 * strength).setFill()
+            path.fill()
+            dynamicAlpha(.labelColor, 0.2 * strength).setStroke()
+            path.lineWidth = 0.5
+            path.stroke()
+            // Optical centre: the cap-height midline, not the line box's.
+            label.draw(at: NSPoint(x: (rect.width - textWidth) / 2,
+                                   y: rect.height / 2 + labelFont.descender - labelFont.capHeight / 2
+                                      - (labelFont.ascender + labelFont.descender - labelFont.capHeight) / 2))
+            return true
+        }
+        image.cacheMode = .never
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0, y: ((font.capHeight - cap.height) / 2).rounded(),
+                                   width: cap.width, height: cap.height)
+        return NSAttributedString(attachment: attachment)
     }
 
-    /// A proposed correction: the fixed text in full strength, then a faint
-    /// "⏎ apply · esc" affordance so the user knows it is awaiting confirmation.
-    private func fixPreview(_ s: String) -> NSAttributedString {
-        let result = NSMutableAttributedString(string: s, attributes: [
-            .font: NSFont.systemFont(ofSize: 13),
-            .foregroundColor: NSColor.labelColor,
-        ])
-        result.append(NSAttributedString(string: "   "))
-        result.append(Self.keycap("⏎ Return"))
-        result.append(NSAttributedString(string: "   "))
-        result.append(Self.keycap("esc"))
+    /// The Pretype mark in `color`, leading an engine notice.
+    private static func mark(_ state: BrandMark.State, _ color: NSColor) -> NSAttributedString {
+        let template = BrandMark.statusItemImage(state, phase: 2, height: 10)
+        let image = NSImage(size: template.size, flipped: false) { rect in
+            template.draw(in: rect)
+            // sourceIn, not sourceAtop: the colour REPLACES the black template
+            // (its own alpha kept), where atop blended a translucent grey over
+            // black and drew the mark near-black on a light pill.
+            color.set()
+            rect.fill(using: .sourceIn)
+            return true
+        }
+        image.cacheMode = .never
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0, y: ((pillFont.capHeight - template.size.height) / 2).rounded(),
+                                   width: template.size.width, height: template.size.height)
+        let out = NSMutableAttributedString(attachment: attachment)
+        out.append(plain("  "))
+        return out
+    }
+
+    /// Three dots, one lit, the light walking left to right. Constant width,
+    /// so it pulses in place instead of growing and shrinking at the caret the
+    /// way the old 1-2-3 ellipsis did. The dots sit on `font`'s x-height
+    /// midline; a zero-width space in `font` keeps the line box the host's, so
+    /// the inline ghost places them on the line like any other ghost text.
+    private static func dots(_ phase: Int, beside font: NSFont,
+                             extra: [NSAttributedString.Key: Any] = [:],
+                             ink: (CGFloat) -> NSColor) -> NSAttributedString {
+        let dotFont = NSFont.systemFont(ofSize: max(8, (font.pointSize * 0.7).rounded()))
+        let lift = (font.xHeight - dotFont.xHeight) / 2
+        let out = NSMutableAttributedString(string: "\u{200B}", attributes: extra.merging([.font: font]) { $1 })
+        for i in 0..<3 {
+            out.append(NSAttributedString(string: i == 0 ? "•" : "\u{2009}•", attributes: extra.merging([
+                .font: dotFont,
+                .baselineOffset: lift,
+                .foregroundColor: ink(i == phase % 3 ? 1 : 0.3),
+            ]) { $1 }))
+        }
+        return out
+    }
+
+    private func thinkingGhost(_ phase: Int) -> NSAttributedString {
+        let strength = ghostStrength(1)
+        return Self.dots(phase, beside: ghostFont, extra: ghostAttributes(dim: 1)) {
+            Self.dynamicAlpha(.labelColor, strength * $0)
+        }
+    }
+
+    /// "original → fix": the original muted under a quiet red-tinted
+    /// strikethrough (a hint of "wrong", not a shout), a muted arrow, then the
+    /// fix in full-strength semibold ink. Not the accent colour: with the
+    /// Graphite accent that drew the fix in the same grey as the word it
+    /// replaces, and the one word that matters came out the faintest.
+    private static func replacement(_ original: String, _ fix: String) -> NSAttributedString {
+        let result = NSMutableAttributedString(attributedString: removedRun(original))
+        result.append(plain("  →  ", .tertiaryLabelColor, .systemFont(ofSize: 11)))
+        result.append(insertedRun(fix, highlighted: false))
         return result
     }
 
-    /// An inline spell-fix as a readable diff: the mistyped word muted with a
-    /// quiet red-tinted strikethrough (a hint of "wrong", not a shout), an
-    /// arrow, then the proposed fix in the system accent — noticeable without
-    /// being loud. A faint ⇥ marks how to apply it.
-    private func correctionDiff(original: String, fix: String) -> NSAttributedString {
-        let result = NSMutableAttributedString(string: original, attributes: [
-            .font: NSFont.systemFont(ofSize: 13),
+    private static func removedRun(_ s: String) -> NSAttributedString {
+        NSAttributedString(string: s, attributes: [
+            .font: pillFont,
             .foregroundColor: NSColor.secondaryLabelColor,
             .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-            .strikethroughColor: NSColor.systemRed.withAlphaComponent(0.45),
+            .strikethroughColor: dynamicAlpha(.systemRed, 0.6),
         ])
-        result.append(NSAttributedString(string: "  →  ", attributes: [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.tertiaryLabelColor,
-        ]))
-        result.append(NSAttributedString(string: fix, attributes: [
+    }
+
+    private static func insertedRun(_ s: String, highlighted: Bool) -> NSAttributedString {
+        var attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: NSColor.controlAccentColor,
-        ]))
-        result.append(NSAttributedString(string: "   "))
-        result.append(Self.keycap(Settings.hotkeyStyle.label))
+            .foregroundColor: NSColor.labelColor,
+        ]
+        if highlighted { attributes[.backgroundColor] = dynamicAlpha(.systemGreen, 0.18) }
+        return NSAttributedString(string: s, attributes: attributes)
+    }
+
+    /// A proposed fix, as what it CHANGES: a sentence re-typed in full left the
+    /// user proofreading it against their own to find the two words that
+    /// moved, and a long one was cut to a single ellipsized line — ⏎ applied
+    /// text nobody could read. Now the edits are marked in place and the pill
+    /// wraps, so everything ⏎ will type is on screen. A single word reads as
+    /// the same "old → new" the spell pill uses. Then the two keys, with verbs.
+    private func fixPreview(original: String, fix: String) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let trimmed = original.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty, !trimmed.contains(where: \.isWhitespace), !fix.contains(where: \.isWhitespace) {
+            result.append(Self.replacement(original, fix))
+        } else if let runs = Self.wordDiff(from: original, to: fix) {
+            var previous: DiffRun?
+            for run in runs {
+                switch run {
+                case .same(let s): result.append(Self.plain(s))
+                case .removed(let s): result.append(Self.removedRun(s))
+                case .inserted(let s):
+                    // "their" struck, then "they're": keep them two words.
+                    if case .removed(let r)? = previous, r.last?.isWhitespace == false,
+                       s.first?.isWhitespace == false {
+                        result.append(Self.plain(" "))
+                    }
+                    result.append(Self.insertedRun(s, highlighted: true))
+                }
+                previous = run
+            }
+        } else {
+            result.append(Self.plain(fix))
+        }
+        result.append(Self.plain("   "))
+        result.append(Self.keycap("⏎"))
+        result.append(Self.plain(" apply   ", .secondaryLabelColor, .systemFont(ofSize: 11)))
+        result.append(Self.keycap("esc"))
+        result.append(Self.plain(" cancel", .secondaryLabelColor, .systemFont(ofSize: 11)))
         return result
+    }
+
+    enum DiffRun: Equatable {
+        case same(String), removed(String), inserted(String)
+    }
+
+    /// Word-level diff of a fix against the text it replaces. Tokens are runs
+    /// of letters/digits, single punctuation marks, and whitespace runs, so
+    /// "their" → "they're" is one replaced word, not a smear of characters.
+    /// nil when the fix rewrote most of a longer text: a paragraph of
+    /// strikethrough reads worse than the fix itself. Pinned by a test.
+    nonisolated static func wordDiff(from old: String, to new: String) -> [DiffRun]? {
+        func tokens(_ s: String) -> [String] {
+            var out: [String] = []
+            var current = ""
+            var kind = 0
+            for ch in s {
+                let k = ch.isLetter || ch.isNumber ? 1 : ch.isWhitespace ? 2 : 3
+                if k != kind || k == 3, !current.isEmpty { out.append(current); current = "" }
+                current.append(ch)
+                kind = k
+            }
+            if !current.isEmpty { out.append(current) }
+            return out
+        }
+        let a = tokens(old), b = tokens(new)
+        var removed = Set<Int>(), inserted = Set<Int>()
+        for change in b.difference(from: a) {
+            switch change {
+            case .remove(let offset, _, _): removed.insert(offset)
+            case .insert(let offset, _, _): inserted.insert(offset)
+            }
+        }
+        // "Most of it" by characters, not tokens: "they're" is three tokens
+        // and one word, and counting tokens tipped a two-word fix into "a
+        // rewrite" and dropped its diff.
+        let isWord = { (t: String) in t.contains { $0.isLetter || $0.isNumber } }
+        let words = b.filter(isWord).count
+        let total = b.filter(isWord).reduce(0) { $0 + $1.count }
+        let changed = inserted.filter { isWord(b[$0]) }.reduce(0) { $0 + b[$1].count }
+        guard words > 0, words < 4 || changed * 2 <= total else { return nil }
+
+        var runs: [DiffRun] = []
+        func push(_ run: DiffRun) {
+            switch (runs.last, run) {
+            case (.same(let x)?, .same(let y)): runs[runs.count - 1] = .same(x + y)
+            case (.removed(let x)?, .removed(let y)): runs[runs.count - 1] = .removed(x + y)
+            case (.inserted(let x)?, .inserted(let y)): runs[runs.count - 1] = .inserted(x + y)
+            default: runs.append(run)
+            }
+        }
+        var i = 0, j = 0
+        while i < a.count || j < b.count {
+            if i < a.count, removed.contains(i) {
+                push(.removed(a[i])); i += 1
+            } else if j < b.count, inserted.contains(j) {
+                push(.inserted(b[j])); j += 1
+            } else {
+                if j < b.count { push(.same(b[j])) }
+                i += 1; j += 1
+            }
+        }
+        return runs
     }
 
     /// The classic panel content: the suggestion text (⇥-acceptable chunk a step
@@ -537,31 +784,37 @@ final class SuggestionWindow: NSPanel {
     /// accepting is muscle memory, so the pill stays compact for regulars.
     private func panelSuggestion(_ s: String) -> NSAttributedString {
         let head = SuggestionController.firstWordChunk(of: s)
-        let result = NSMutableAttributedString(string: head, attributes: [
-            .font: NSFont.systemFont(ofSize: 13),
-            .foregroundColor: NSColor.labelColor,
-        ])
+        let result = NSMutableAttributedString(attributedString: Self.plain(head))
         let tail = String(s.dropFirst(head.count))
-        if !tail.isEmpty {
-            result.append(NSAttributedString(string: tail, attributes: [
-                .font: NSFont.systemFont(ofSize: 13),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ]))
-        }
-        guard Stats.lifetimeAccepted < 20 else { return result }
+        if !tail.isEmpty { result.append(Self.plain(tail, .secondaryLabelColor)) }
+        guard Self.tutorsAccept else { return result }
         let style = Settings.hotkeyStyle
-        result.append(NSAttributedString(string: "   "))
+        let hint = NSFont.systemFont(ofSize: 11)
+        result.append(Self.plain("   "))
         result.append(Self.keycap(style.label))
-        result.append(NSAttributedString(string: " word   ", attributes: [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.tertiaryLabelColor
-        ]))
+        result.append(Self.plain(" word   ", .secondaryLabelColor, hint))
         result.append(Self.keycap(style.shiftLabel))
-        result.append(NSAttributedString(string: " all", attributes: [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.tertiaryLabelColor
-        ]))
+        result.append(Self.plain(" all", .secondaryLabelColor, hint))
         return result
+    }
+
+    /// New users get the accept key spelled out next to the suggestion — in
+    /// the panel AND inline, where a bare grey continuation gave no clue that
+    /// a key takes it — until accepting is muscle memory.
+    private static var tutorsAccept: Bool { Stats.lifetimeAccepted < 20 }
+
+    /// Whether the ghost currently on screen carries the accept keycap — kept
+    /// for `advance`, which re-renders the remainder in place.
+    private var ghostShowsKeycap = false
+
+    /// The accept keycap that trails a new user's inline ghost: a small key
+    /// dimmed to the ghost's own strength, so it reads as part of the offer
+    /// rather than as UI stuck onto the user's text.
+    private func ghostKeycap() -> NSAttributedString {
+        let out = NSMutableAttributedString(attributedString: ghostString("  ", dim: 1))
+        out.append(Self.keycap(Settings.hotkeyStyle.label, size: max(8, (ghostFont.pointSize * 0.7).rounded()),
+                               beside: ghostFont, strength: min(1, ghostStrength(1) / 0.7)))
+        return out
     }
 
     /// Ghost text with the ⇥-acceptable chunk (same split the controller uses)
@@ -572,6 +825,7 @@ final class SuggestionWindow: NSPanel {
         ghostHeadWidth = ceil(result.size().width)
         let tail = String(s.dropFirst(head.count))
         if !tail.isEmpty { result.append(ghostString(tail, dim: 0.72)) }
+        if ghostShowsKeycap { result.append(ghostKeycap()) }
         return result
     }
 
@@ -675,6 +929,23 @@ final class SuggestionWindow: NSPanel {
 
     /// `dim` scales the opacity setting: 1 for the ⇥ chunk, less for the tail.
     private func ghostString(_ string: String, dim: CGFloat) -> NSAttributedString {
+        NSAttributedString(string: string, attributes: ghostAttributes(dim: dim))
+    }
+
+    /// The ghost's ink strength for `dim`: the opacity setting scaled by it.
+    private func ghostStrength(_ dim: CGFloat) -> CGFloat {
+        // "Increase contrast" exists to stop exactly this: text you have to
+        // squint at. Floor the opacity SETTING, not the finished ink: `dim`
+        // still scales it, so the head-vs-tail split survives (it's what shows
+        // how far one ⇥ reaches) and the ⇥ chunk stays visibly lighter than the
+        // words the user actually typed — at full label alpha the ghost reads
+        // as already committed text.
+        var opacity = CGFloat(Settings.ghostOpacity)
+        if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast { opacity = max(0.85, opacity) }
+        return opacity * dim
+    }
+
+    private func ghostAttributes(dim: CGFloat) -> [NSAttributedString.Key: Any] {
         // Both semantic, so they resolve together at draw time against the
         // window's appearance (see resolveAppearance) and can never disagree:
         // the paper tone is by definition the label tone's opposite. The ghost
@@ -695,28 +966,12 @@ final class SuggestionWindow: NSPanel {
             paragraph.baseWritingDirection = .rightToLeft
             paragraph.alignment = .right
         }
-        // "Increase contrast" exists to stop exactly this: text you have to
-        // squint at. Floor the opacity SETTING, not the finished ink: `dim`
-        // still scales it, so the head-vs-tail split survives (it's what shows
-        // how far one ⇥ reaches) and the ⇥ chunk stays visibly lighter than the
-        // words the user actually typed — at full label alpha the ghost reads
-        // as already committed text.
-        var opacity = CGFloat(Settings.ghostOpacity)
-        if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast { opacity = max(0.85, opacity) }
-        let strength = opacity * dim
-        return NSAttributedString(string: string, attributes: [
+        return [
             .font: ghostFont,
-            .foregroundColor: Self.dynamicAlpha(.labelColor, strength),
+            .foregroundColor: Self.dynamicAlpha(.labelColor, ghostStrength(dim)),
             .shadow: halo,
             .paragraphStyle: paragraph,
-        ])
-    }
-
-    private func pill(_ string: String, _ color: NSColor) -> NSAttributedString {
-        NSAttributedString(string: string, attributes: [
-            .font: NSFont.systemFont(ofSize: 13),
-            .foregroundColor: color,
-        ])
+        ]
     }
 
     /// How far the inline ghost may draw *in its writing direction*: the far
@@ -851,7 +1106,14 @@ final class SuggestionWindow: NSPanel {
             // Sit just above the TEXT top (font-derived), not the caret box top —
             // an inflated caret box pushed the panel too high above the line.
             let gap: CGFloat = 3
-            let textTop = caretRect.minY + lineFont
+            // A fix anchors on the selection's whole box, which spans every
+            // line a wrapped selection covers: sit above its TOP line (and, with
+            // no room there, flip below its bottom one) — measured from the
+            // box's bottom, the pill landed on the selection's own upper lines,
+            // over the very text it was fixing.
+            let textTop = anchorsOnSelection(currentMode)
+                ? max(caretRect.maxY, caretRect.minY + lineFont)
+                : caretRect.minY + lineFont
             var origin = CGPoint(x: caretRect.minX, y: textTop + gap)
             if origin.y + size.height > visible.maxY - 2 {
                 origin.y = caretRect.minY - size.height - gap
@@ -907,7 +1169,7 @@ final class SuggestionWindow: NSPanel {
             // Pill modes and the over-word correction share the panel layout.
             panelBackdrop.frame = bounds
             pillHost.frame = bounds
-            pillLabel.frame = pillHost.bounds.insetBy(dx: pillPadH, dy: pillPadV)
+            pillText.frame = pillHost.bounds.insetBy(dx: pillPadH, dy: pillPadV)
             // Capsule the glass to the pill height — the signature Liquid Glass shape.
             if #available(macOS 26.0, *), let glass = glassBackdrop as? NSGlassEffectView {
                 glass.cornerRadius = min(16, bounds.height / 2)
@@ -966,13 +1228,14 @@ final class SuggestionWindow: NSPanel {
     }
 
     private func pillSize() -> NSSize {
-        let textSize = pillLabel.attributedStringValue.size()
-        // Generous horizontal slack: the glass capsule insets its content a few
-        // points, which was clipping the last glyph ("receiv…" for "receive").
-        return NSSize(
-            width: min(ceil(textSize.width) + 8, 460) + pillPadH * 2,
-            height: ceil(textSize.height) + pillPadV * 2
-        )
+        // Measured with the same options it draws with, so the box fits the
+        // text exactly. A wrapping fix preview is capped at ten lines — past
+        // that the last visible line ellipsizes rather than the pill growing
+        // over half the screen. A point of slack absorbs rounding.
+        let line = Self.pillFont.boundingRectForFont.height
+        let text = pillText.fittingSize(maxWidth: 460, maxHeight: pillWraps ? ceil(line * 10) : 10_000)
+        pillPadV = text.height > line * 1.5 ? 6 : 4
+        return NSSize(width: text.width + 1 + pillPadH * 2, height: text.height + pillPadV * 2)
     }
 
     private func screenContaining(_ point: CGPoint) -> NSScreen? {

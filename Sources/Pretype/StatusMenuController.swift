@@ -15,6 +15,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var appBlacklistItem: NSMenuItem!
     private var languageHintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
+    private var settingsItem: NSMenuItem!
+    private var retryItem: NSMenuItem!
+    /// While the menu is open the header redraws on every status tick, so a
+    /// download percentage moves instead of freezing at the value it had when
+    /// the menu opened.
+    private var menuIsOpen = false
 
     private var statusTimer: Timer?
     private var iconPhase = 0   // animates the preparing-state typing dots
@@ -33,11 +39,18 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         statusItem.menu = menu
         // Live status light: the icon reflects engine state at a glance even
         // when the menu is closed, so "no suggestion" is never a silent mystery.
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.updateStatusIcon()
+                guard let self else { return }
+                self.updateStatusIcon()
+                if self.menuIsOpen { self.refreshHeader() }
             }
         }
+        // .common, not the default mode: menu tracking runs the event loop in
+        // its own mode, and a default-mode timer stops for exactly as long as
+        // the user is looking at the menu.
+        RunLoop.main.add(timer, forMode: .common)
+        statusTimer = timer
         updateStatusIcon()
     }
 
@@ -52,12 +65,17 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             state = .disabled                     // paused
         } else if suggestionController?.dictationController.isCapturing == true {
             state = .listening                    // the microphone is open right now
-        } else {
-            switch suggestionController?.engine.state {
-            case .ready, .none: state = .ready
-            case .preparing: state = .preparing   // downloading / loading model
+        } else if let engine = suggestionController?.engine {
+            switch engine.state {
+            case .ready: state = .ready
+            // Idle-unloaded is `.preparing` with nothing running — the app's
+            // most common resting state, and it reloads on the next keystroke.
+            // Animating "loading" dots for hours over it was a false alarm.
+            case .preparing: state = engine.isLoading ? .preparing : .ready
             case .failed: state = .failed         // engine not working
             }
+        } else {
+            state = .ready
         }
         iconPhase = state == .preparing ? (iconPhase + 1) % 3 : 0
         // Rebuild the template image only when the drawn state changes; this token
@@ -113,9 +131,19 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         permissionItem.image = symbol("exclamationmark.triangle.fill")
         menu.addItem(permissionItem)
 
-        enabledItem = NSMenuItem(title: "Enabled", action: #selector(toggleEnabled), keyEquivalent: "")
+        // A verb, not a checkmark: "Enabled" with a pause icon and no ✓ read
+        // as either state. Title and icon flip in menuNeedsUpdate.
+        enabledItem = NSMenuItem(title: "Pause Pretype", action: #selector(toggleEnabled), keyEquivalent: "")
         enabledItem.target = self
         menu.addItem(enabledItem)
+
+        // Only while the engine has failed: the background retry is silent and
+        // Apple Intelligence never re-checks on its own, so without this the
+        // way back from a failure was a relaunch.
+        retryItem = NSMenuItem(title: "Retry Loading the Model", action: #selector(retryEngine), keyEquivalent: "")
+        retryItem.target = self
+        retryItem.image = symbol("arrow.clockwise")
+        menu.addItem(retryItem)
 
         // Title filled in menuNeedsUpdate — it names the app the user was last
         // typing in, which isn't known until the menu opens.
@@ -130,7 +158,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         languageHintItem.image = symbol("globe")
         menu.addItem(languageHintItem)
 
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.image = symbol("gearshape")
         menu.addItem(settingsItem)
@@ -208,16 +236,37 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     // MARK: - Live updates
 
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        updateStatusIcon()
+    func menuWillOpen(_ menu: NSMenu) { menuIsOpen = true }
+    func menuDidClose(_ menu: NSMenu) { menuIsOpen = false }
 
+    private func refreshHeader() {
         headerHost.rootView = headerView()
         resize(headerHost)
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        updateStatusIcon()
+        // A menu-bar app runs for weeks; a check made only at launch went
+        // stale (and one made offline at launch never retried). It throttles
+        // itself to once a day and respects the automatic-check setting.
+        UpdateChecker.checkInBackground()
+
+        refreshHeader()
         rebuildDiagnosticsMenu()
 
         permissionItem.isHidden = Permissions.isTrusted
-        enabledItem.state = Settings.enabled ? .on : .off
-        enabledItem.image = symbol(Settings.enabled ? "text.cursor" : "pause.circle")
+        enabledItem.title = Settings.enabled ? "Pause Pretype" : "Resume Pretype"
+        enabledItem.image = symbol(Settings.enabled ? "pause.circle" : "play.circle")
+        if case .failed = suggestionController?.engine.state {
+            retryItem.isHidden = false
+        } else {
+            retryItem.isHidden = true
+        }
+        // Settings needs the pipeline, which starts once Accessibility is
+        // granted — until then the item greys out (nil action) and says why,
+        // instead of silently doing nothing when clicked.
+        settingsItem.action = suggestionController == nil ? nil : #selector(openSettings)
+        settingsItem.toolTip = suggestionController == nil ? "Available once Accessibility is granted." : nil
         refreshAppBlacklistItem()
         refreshLanguageHintItem()
         let newer = UpdateChecker.availableVersion
@@ -344,28 +393,36 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// stops being news the moment accepting is muscle memory — so it shrinks to
     /// one row at the same 20-acceptance mark the suggestion pill uses.
     /// Onboarding and Settings still spell all of it out.
-    private func shortcutHints() -> [(keys: String, action: String)] {
+    private func shortcutHints() -> [MenuHintsView.Hint] {
         let s = Settings.hotkeyStyle
         let reply = Settings.replyGesture == .off ? s.replyLabel : Settings.replyGesture.label
+        // Only once it's switched on: a shortcut for a feature the user hasn't
+        // enabled is a line of noise in a list that has to stay scannable.
+        let talk = Settings.dictationEnabled && Settings.dictationGesture != .off
+            ? "Hold \(Settings.dictationGesture.shortLabel)" : nil
+        let latch = Settings.dictationEnabled && Settings.dictationLatch != .off
+            ? Settings.dictationLatch.label : nil
         guard Stats.lifetimeAccepted < 20 else {
-            return [(keys: "\(s.label)  \(s.correctionLabel)  \(reply)", action: "accept · fix · reply")]
+            // One cap per key: three chords in one cap read as a single combo.
+            // Dictation stays in the short form too — it may be switched on
+            // long after the 20th accept, and then it would never be hinted.
+            var keys = [s.label, s.correctionLabel, reply]
+            var actions = ["accept", "fix", "reply"]
+            if let talk { keys.append(talk); actions.append("talk") }
+            return [MenuHintsView.Hint(keys: keys, action: actions.joined(separator: " · "))]
         }
         // One line each, and short enough to survive the widest keycap column
         // without truncating — the menu's width is set by the header, not here.
+        // "esc", not ⎋: the overlay's keycap says esc, and ⎋ at caption size
+        // is an unreadable swirl.
         var hints = [
-            (keys: s.label, action: "accept a word — \(s.shiftLabel) for all"),
-            (keys: s.correctionLabel, action: "fix the word or selection"),
-            (keys: "⏎", action: "apply the fix — ⎋ keeps yours"),
-            (keys: reply, action: "reply to what's on screen"),
+            MenuHintsView.Hint(keys: [s.label], action: "accept a word — \(s.shiftLabel) for all"),
+            MenuHintsView.Hint(keys: [s.correctionLabel], action: "fix the word or selection"),
+            MenuHintsView.Hint(keys: ["⏎"], action: "apply the fix — esc keeps yours"),
+            MenuHintsView.Hint(keys: [reply], action: "reply to what's on screen"),
         ]
-        // Only once it's switched on: a shortcut for a feature the user hasn't
-        // enabled is a line of noise in a list that has to stay scannable.
-        if Settings.dictationEnabled, Settings.dictationGesture != .off {
-            hints.append((keys: "hold \(Settings.dictationGesture.shortLabel)", action: "talk instead of typing"))
-        }
-        if Settings.dictationEnabled, Settings.dictationLatch != .off {
-            hints.append((keys: Settings.dictationLatch.label, action: "talk hands-free — press again to stop"))
-        }
+        if let talk { hints.append(MenuHintsView.Hint(keys: [talk], action: "talk instead of typing")) }
+        if let latch { hints.append(MenuHintsView.Hint(keys: [latch], action: "hands-free — again to stop")) }
         return hints
     }
 
@@ -376,13 +433,28 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         if controller.dictationController.isCapturing {
             return (.systemRed, "Listening — dictation is capturing")
         }
-        switch controller.engine.state {
+        // Secure input blinds the key tap system-wide (a password field, or a
+        // terminal's Secure Keyboard Entry left on) — the one silence a
+        // "ready" light would otherwise misreport.
+        if AXText.isSecureInputActive() {
+            return (.systemOrange, "Paused by secure input — a password field or Secure Keyboard Entry is on")
+        }
+        // The model the user PICKED, by the name Settings shows it under. The
+        // engine's own line is a repo slug, and in Instruct style the slug of
+        // a sibling the user never chose ("gemma-4-e4b-it-4bit: ready").
+        let engine = controller.engine
+        let id = Settings.mlxModelID
+        let name = ModelMetrics.metrics(for: id)?.shortName ?? ModelCatalog.option(for: id)?.title ?? engine.name
+        switch engine.state {
         case .ready:
-            return (.systemGreen, controller.engine.statusLine ?? "\(controller.engine.name) ready")
+            return (.systemGreen, "\(name) ready")
+        case .preparing where !engine.isLoading:
+            // Idle-unloaded: nothing is wrong, and the next keystroke reloads it.
+            return (.systemGreen, "\(name) ready · idle")
         case .preparing(let detail):
-            return (.systemOrange, detail)
+            return (.systemOrange, "\(name) — \(detail)")
         case .failed(let detail):
-            return (.systemRed, detail)
+            return (.systemRed, "\(name) failed — \(detail)")
         }
     }
 
@@ -417,7 +489,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let show = NSMenuItem(title: "Show Last Prompt…", action: #selector(showLastPrompt), keyEquivalent: "")
         show.target = self
         diagnosticsMenu.addItem(show)
-        let unload = NSMenuItem(title: "Unload model from memory",
+        let unload = NSMenuItem(title: "Unload Model from Memory",
                                 action: #selector(unloadModel), keyEquivalent: "")
         unload.target = self
         diagnosticsMenu.addItem(unload)
@@ -534,8 +606,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         alert.informativeText = "You're on \(UpdateChecker.currentVersion). "
             + (brew
                 ? "Installed with Homebrew — upgrade with:\n\n    \(UpdateChecker.upgradeCommand)"
-                : "Download it and replace Pretype in Applications — updates are never installed for you.")
-            + "\n\nmacOS may ask you to grant Accessibility again afterwards."
+                : "Pretype doesn't update itself — download it and replace the copy in Applications.")
+            + (UpdateChecker.isAdHocSigned
+                ? "\n\nmacOS will ask you to grant Accessibility again afterwards." : "")
         alert.addButton(withTitle: brew ? "Copy Command" : "Download…")
         alert.addButton(withTitle: "Later")
         NSApp.activate(ignoringOtherApps: true)
@@ -550,6 +623,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc private func openDebugConsole() {
         DebugWindowController.shared.show()
+    }
+
+    @objc private func retryEngine() {
+        suggestionController?.retryEngine()
     }
 
     @objc private func unloadModel() {

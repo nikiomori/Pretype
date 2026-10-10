@@ -9,10 +9,21 @@ final class OnboardingWindow: NSPanel {
     private let visualBackdrop = NSVisualEffectView()
     
     private let titleLabel = NSTextField(labelWithString: "Pretype is Ready")
-    private let subtitleLabel = NSTextField(labelWithString: "Try typing in TextEdit")
-    
-    private let statusLabel = NSTextField(labelWithString: "Waiting for suggestion…")
+    private let subtitleLabel = NSTextField(labelWithString: Copy.readySubtitle)
+
+    private let statusLabel = NSTextField(wrappingLabelWithString: Copy.waiting)
     private let gotItButton = NSButton(title: "Got It", target: nil, action: nil)
+    /// Somewhere to try it without hunting for a text field: a blank TextEdit
+    /// document, opened directly (TextEdit launched bare opens its iCloud
+    /// Open panel instead of a page to type on).
+    private let tryButton = NSButton(title: "Open TextEdit", target: nil, action: nil)
+    /// Shown only when the engine failed — the way back without a relaunch.
+    private let retryButton = NSButton(title: "Retry", target: nil, action: nil)
+
+    private enum Copy {
+        static let readySubtitle = "Type in any app — Pretype lives in the menu bar"
+        static let waiting = "Type a few words and pause — grey text appears after your cursor."
+    }
     /// Mirrors the engine state (model download progress, failures) into the
     /// window — without this, a first launch spends minutes "Waiting for
     /// suggestion…" while the model downloads, with no hint anything is
@@ -20,7 +31,7 @@ final class OnboardingWindow: NSPanel {
     private var statusTimer: Timer?
     private var suggestionActive = false
 
-    init(controller: SuggestionController) {
+    init(controller: SuggestionController?) {
         self.controller = controller
         
         super.init(
@@ -124,7 +135,15 @@ final class OnboardingWindow: NSPanel {
             description: "Fix last word / selection"
         )
         tutorialStack.addArrangedSubview(row3)
-        
+
+        // Without this a new user's only way to make a ghost go away is to
+        // type over it — not knowing that is what makes it feel pushy.
+        let row4 = makeTutorialRow(
+            key: makeKeycap("esc"),
+            description: "Dismiss a suggestion"
+        )
+        tutorialStack.addArrangedSubview(row4)
+
         // Footer Stack
         let footerStack = NSStackView()
         footerStack.orientation = .horizontal
@@ -132,18 +151,27 @@ final class OnboardingWindow: NSPanel {
         footerStack.alignment = .centerY
         footerStack.translatesAutoresizingMaskIntoConstraints = false
         
+        // Two lines, not one truncated one: a failure reason or the waiting
+        // instruction is exactly the sentence that must be read in full.
         statusLabel.font = .systemFont(ofSize: 12, weight: .medium)
         statusLabel.textColor = .secondaryLabelColor
-        statusLabel.lineBreakMode = .byTruncatingTail
+        statusLabel.maximumNumberOfLines = 2
+        statusLabel.preferredMaxLayoutWidth = 340
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        footerStack.addArrangedSubview(statusLabel)
-        
-        gotItButton.target = self
-        gotItButton.action = #selector(gotItPressed)
-        gotItButton.bezelStyle = .rounded
-        gotItButton.controlSize = .regular
-        footerStack.addArrangedSubview(gotItButton)
-        
+        mainStack.addArrangedSubview(statusLabel)
+
+        for (button, action) in [(tryButton, #selector(tryPressed)), (retryButton, #selector(retryPressed)),
+                                 (gotItButton, #selector(gotItPressed))] {
+            button.target = self
+            button.action = action
+            button.bezelStyle = .rounded
+            button.controlSize = .regular
+        }
+        retryButton.isHidden = true
+        footerStack.distribution = .gravityAreas
+        footerStack.spacing = 8
+        footerStack.setViews([tryButton, retryButton, gotItButton], in: .trailing)
+
         mainStack.addArrangedSubview(footerStack)
         
         // AutoLayout constraints (container IS the contentView — the window
@@ -160,6 +188,10 @@ final class OnboardingWindow: NSPanel {
             mainStack.trailingAnchor.constraint(equalTo: visualBackdrop.trailingAnchor, constant: -24),
             
             tutorialStack.widthAnchor.constraint(equalToConstant: 340),
+            statusLabel.widthAnchor.constraint(equalToConstant: 340),
+            // Room for two lines in every state, so the card never resizes
+            // under the user as the status text changes length.
+            statusLabel.heightAnchor.constraint(equalToConstant: 32),
             footerStack.widthAnchor.constraint(equalToConstant: 340)
         ])
     }
@@ -185,7 +217,7 @@ final class OnboardingWindow: NSPanel {
         keysStack.translatesAutoresizingMaskIntoConstraints = false
         
         NSLayoutConstraint.activate([
-            keysContainer.widthAnchor.constraint(equalToConstant: 110),
+            keysContainer.widthAnchor.constraint(equalToConstant: 84),
             keysContainer.heightAnchor.constraint(equalToConstant: 24),
             keysStack.leadingAnchor.constraint(equalTo: keysContainer.leadingAnchor),
             keysStack.centerYAnchor.constraint(equalTo: keysContainer.centerYAnchor)
@@ -229,10 +261,13 @@ final class OnboardingWindow: NSPanel {
     func show() {
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
-        let x = screenFrame.midX - frame.width / 2
-        // Position slightly above center so it is prominent
-        let y = screenFrame.midY - frame.height / 3
-        setFrameOrigin(CGPoint(x: x, y: y))
+        // Top-right, under the menu bar: centred, it sat on top of the very
+        // window it asked the user to type in — and up here it points at
+        // where Pretype lives once this card is gone.
+        layoutIfNeeded()
+        let size = contentView?.fittingSize ?? frame.size
+        setContentSize(size)
+        setFrameOrigin(CGPoint(x: screenFrame.maxX - size.width - 16, y: screenFrame.maxY - size.height - 12))
         
         alphaValue = 0
         orderFrontRegardless()
@@ -253,11 +288,21 @@ final class OnboardingWindow: NSPanel {
 
     /// Same 1 s poll the menu-bar icon uses — no engine callback plumbing.
     private func refreshEngineStatus() {
-        guard !suggestionActive else { return }
-        switch controller?.engine.state {
+        guard !suggestionActive, !celebrating else { return }
+        let engine = controller?.engine
+        var state = engine?.state ?? .ready
+        // Idle-unloaded is `.preparing` with nothing running; it reloads on
+        // the first keystroke, so for this card it is ready.
+        if case .preparing = state, engine?.isLoading == false { state = .ready }
+        retryButton.isHidden = true
+        tryButton.isHidden = false
+        statusLabel.toolTip = nil
+        switch state {
         case .preparing(let detail):
             titleLabel.stringValue = "Setting up Pretype"
-            subtitleLabel.stringValue = "One-time model download"
+            // Only a fetch is "one-time"; a model already on disk is loading.
+            subtitleLabel.stringValue = detail.hasPrefix("downloading")
+                ? "One-time model download" : "Loading the model"
             statusLabel.textColor = .secondaryLabelColor
             statusLabel.stringValue = detail
         case .failed(let detail):
@@ -265,12 +310,49 @@ final class OnboardingWindow: NSPanel {
             subtitleLabel.stringValue = "The completion engine couldn't start"
             statusLabel.textColor = .systemRed
             statusLabel.stringValue = detail
-        case .ready, .none:
+            statusLabel.toolTip = detail
+            retryButton.isHidden = false
+            tryButton.isHidden = true
+        case .ready:
             titleLabel.stringValue = "Pretype is Ready"
-            subtitleLabel.stringValue = "Try typing in TextEdit"
+            subtitleLabel.stringValue = Copy.readySubtitle
             statusLabel.textColor = .secondaryLabelColor
-            statusLabel.stringValue = "Waiting for suggestion…"
+            statusLabel.stringValue = Copy.waiting
         }
+    }
+
+    private var celebrating = false
+
+    /// The first accept: say it worked before going, instead of vanishing on
+    /// the keystroke — an instant dismissal read as "did I break it?".
+    func celebrate() {
+        celebrating = true
+        titleLabel.layer?.removeAnimation(forKey: "pulse")
+        titleLabel.stringValue = "That's it"
+        subtitleLabel.stringValue = "Pretype keeps suggesting as you type, in any app"
+        statusLabel.textColor = .systemGreen
+        statusLabel.stringValue = "✓ Accepted — \(Settings.hotkeyStyle.shiftLabel) takes a whole suggestion next time."
+        tryButton.isHidden = true
+        retryButton.isHidden = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.dismiss() }
+    }
+
+    @objc private func tryPressed() {
+        // A blank document to type on: an empty file opened directly, which
+        // skips TextEdit's iCloud Open panel.
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Try Pretype.txt")
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try? "".write(to: url, atomically: true, encoding: .utf8)
+        }
+        let textEdit = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: config)
+    }
+
+    @objc private func retryPressed() {
+        controller?.retryEngine()
+        refreshEngineStatus()
     }
 
     func dismiss() {
@@ -298,9 +380,12 @@ final class OnboardingWindow: NSPanel {
         // restarts its blink on each keystroke and refreshEngineStatus() thrashes.
         guard suggestionActive != active else { return }
         suggestionActive = active
+        guard !celebrating else { return }
         if active {
-            statusLabel.textColor = .controlAccentColor
-            statusLabel.stringValue = "Suggestion ready! Press \(Settings.hotkeyStyle.label)"
+            // Not the accent colour: with Graphite it is grey, and this is
+            // the one line on the card that has to jump out.
+            statusLabel.textColor = .labelColor
+            statusLabel.stringValue = "See the grey text? Press \(Settings.hotkeyStyle.label) to take a word."
 
             // Subtle pulse animation on title to draw attention
             if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {

@@ -34,17 +34,14 @@ final class CaretIndicator {
         self.isQueryRunning = isQueryRunning
     }
 
-    /// Begin showing state at the caret: "downloading…" immediately while the
-    /// model is not ready, animated dots when a query is slower than a blink.
+    /// Begin showing state at the caret: "downloading…" once a load outlasts a
+    /// warm reload, animated dots when a query is slower than a blink.
     func start() {
         // Idempotent: invalidate any live timer first. A start() without a
         // paired stop() (e.g. ⌥⇥ last-word fix firing mid-completion) would
         // otherwise orphan the previous run-loop-retained timer, which keeps
         // firing update() and can hide a live overlay.
         stop()
-        if case .preparing = engineState() {
-            update()
-        }
         // Surface "thinking" promptly: warm completions finish in ~0.13 s (no
         // indicator), but a slow one (cold start, cache miss) shows dots quickly
         // so the caret never sits silent.
@@ -61,7 +58,7 @@ final class CaretIndicator {
 
     /// Briefly show `mode` at the caret, then hide it (unless a real suggestion
     /// took the window over in the meantime).
-    func flashTransient(_ mode: SuggestionDisplayMode) {
+    func flashTransient(_ mode: SuggestionDisplayMode, hideAfter: TimeInterval = 1.8) {
         // Never overdraw a live suggestion — same invariant update() enforces.
         // Stomping it leaves `active` non-nil under the transient pill, so the
         // suggestion stays Tab-acceptable while invisible. The transient is
@@ -69,7 +66,7 @@ final class CaretIndicator {
         guard let rect = caretRect(), !hasActiveSuggestion() else { return }
         // The auto-hide is superseded by any later overlay (completion ghost,
         // correction pill, status) via hideGeneration — see showTransient.
-        window.showTransient(mode, at: rect, host: hostStyle())
+        window.showTransient(mode, at: rect, host: hostStyle(), hideAfter: hideAfter)
     }
 
     private func update() {
@@ -80,6 +77,12 @@ final class CaretIndicator {
             // instant n-gram suggestion can be up while the model loads) —
             // `active` would stay Tab-acceptable under the status pill.
             guard !hasActiveSuggestion() else { return }
+            // A warm reload finishes in well under a second: a status pill
+            // that appears for a few frames and is replaced by the ghost is
+            // noise. Only a load still running after ~0.9 s (a cold start, a
+            // download) earns one; until then the caret stays quiet.
+            thinkingPhase += 1
+            guard thinkingPhase > 3 else { return }
             window.show(mode: .status(detail), at: rect, host: hostStyle())
         case .ready:
             // A visible suggestion owns the shared window: never overdraw it

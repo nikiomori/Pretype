@@ -87,7 +87,7 @@ final class CorrectionController {
             let rect = info.rect ?? owner.lastCaretRect
             // A proposed fix for this exact selection stays up until accept/cancel.
             if let fix = pendingFix, fix.original == info.text {
-                if let rect { owner.window.show(mode: .fixPreview(fix.replacement), at: rect) }
+                if let rect { owner.window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement), at: rect) }
                 return true
             }
             pendingFix = nil
@@ -96,8 +96,9 @@ final class CorrectionController {
                 && !info.text.contains("\n")
             if fixable, !inFlight {
                 selection = SelectionState(text: info.text, rect: info.rect)
-                let hintText = "\(Settings.hotkeyStyle.correctionLabel) fix"
-                if let rect { owner.window.show(mode: .hint(hintText), at: rect) }
+                if let rect {
+                    owner.window.show(mode: .shortcut(key: Settings.hotkeyStyle.correctionLabel, action: "fix"), at: rect)
+                }
             } else if !inFlight {
                 selection = nil
                 owner.window.hide()
@@ -127,7 +128,7 @@ final class CorrectionController {
             if let rect = ctx.caretRect,
                ctx.textAfterCaret.first?.isLetter != true,
                Self.lastWord(of: text) == fix.original {
-                owner.window.show(mode: .fixPreview(fix.replacement), at: rect)
+                owner.window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement), at: rect)
                 return true
             }
             pendingFix = nil
@@ -335,7 +336,7 @@ final class CorrectionController {
                     owner.lastEvent = proposedEvent
                     DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
                     if let rect = owner.lastCaretRect {
-                        owner.window.show(mode: .fixPreview(fixed), at: rect)
+                        owner.window.show(mode: .fixPreview(original: fix.original, fix: fixed), at: rect)
                     }
                 case .success(nil):
                     owner.lastEvent = "nothing to fix"

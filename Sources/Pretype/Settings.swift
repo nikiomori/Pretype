@@ -814,7 +814,9 @@ enum Settings {
     }
 
     static var ghostOpacity: Double {
-        get { defaults.double(forKey: "ghostOpacity") }
+        // Floored like the Settings slider (0.4…1): a value stored under the
+        // old 0.1 floor would otherwise keep the ghost near-invisible.
+        get { max(0.4, defaults.double(forKey: "ghostOpacity")) }
         set { defaults.set(newValue, forKey: "ghostOpacity") }
     }
 

@@ -17,12 +17,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // for an app that watches typing — explain the why first.
             let alert = NSAlert()
             alert.messageText = "Pretype needs Accessibility access"
-            alert.informativeText = """
-            Accessibility is how Pretype reads the text field you're typing in, \
-            catches the \(Settings.hotkeyStyle.label) key, and types accepted suggestions back.
+            if Settings.onboardingCompleted {
+                // A returning user: the grant didn't vanish, the app's signature
+                // changed under it (an update). System Settings still shows
+                // Pretype switched ON — a stale entry — so the first-run copy
+                // left them flipping a switch that already looked right.
+                alert.informativeText = """
+                Pretype was updated, so macOS needs to grant Accessibility again.
 
-            macOS will ask you to grant it next. Everything you type stays on this Mac.
-            """
+                If Pretype already shows as switched on in System Settings, switch it \
+                off and on again — or remove it with − and add it back.
+                """
+            } else {
+                alert.informativeText = """
+                Accessibility is how Pretype reads the text field you're typing in, \
+                catches the \(Settings.hotkeyStyle.label) key, and types accepted suggestions back.
+
+                macOS will ask you to grant it next. Everything you type stays on this Mac.
+                """
+            }
             alert.addButton(withTitle: "Continue")
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()

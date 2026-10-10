@@ -174,7 +174,7 @@ private struct MeterView: View {
                 if let delta {
                     Text(delta.text)
                         .font(.caption2.monospacedDigit().weight(.bold))
-                        .foregroundStyle(delta.improved ? Color.green : Color.orange)
+                        .foregroundStyle((delta.improved ? Color.green : Color.orange).legible)
                 }
                 if let previewValue, previewValue != value {
                     (Text("→ ").foregroundStyle(.secondary) + Text(previewValue))

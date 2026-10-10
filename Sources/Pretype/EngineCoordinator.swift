@@ -82,6 +82,9 @@ final class EngineCoordinator {
         engine.updatePersonalization(level)
     }
 
+    /// A fresh engine for the same settings — the way back from `.failed`.
+    func retry() { rebuild() }
+
     /// Free the engine's resident model now (reloads on next use).
     func releaseModelNow() {
         engine.releaseModelNow()

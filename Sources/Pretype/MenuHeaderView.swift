@@ -58,9 +58,11 @@ struct MenuHeaderView: View {
                     Spacer(minLength: 0)
                     sparkline
                 }
+                // Secondary, not tertiary: tertiary caption text sits near 2:1
+                // on a light menu.
                 Text("\(savings.totalText) all time · \(savings.totalKeystrokes.formatted()) keystrokes")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 14)
@@ -83,9 +85,15 @@ struct MenuHeaderView: View {
     private var figure: some View {
         VStack(alignment: .leading, spacing: 0) {
             if savings.todayKeystrokes == 0 {
-                Text("Nothing yet today")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                // The same figure as any other day, at zero — "Nothing yet
+                // today" over "saved today" read as one garbled sentence.
+                (
+                    Text("0")
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    + Text(" min")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                )
+                .foregroundStyle(.secondary)
             } else {
                 let figure = savings.todayFigure
                 (
@@ -120,7 +128,7 @@ struct MenuHeaderView: View {
             .frame(height: 26, alignment: .bottom)
             Text("last 7 days")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -128,28 +136,33 @@ struct MenuHeaderView: View {
 /// The footer's shortcut reminders as real keycaps. Same idea as the suggestion
 /// pill's hint, which is where the user first meets this notation.
 struct MenuHintsView: View {
-    /// `(keys, what it does)`, in the order they're learned.
-    let hints: [(keys: String, action: String)]
+    /// Keys (one cap each) and what they do.
+    struct Hint {
+        let keys: [String]
+        let action: String
+    }
+
+    /// In the order they're learned.
+    let hints: [Hint]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            ForEach(hints, id: \.keys) { hint in
-                HStack(spacing: 8) {
-                    Text(hint.keys)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(MenuHeaderView.keycapFill, in: RoundedRectangle(cornerRadius: 4))
-                        // Keycaps differ in width ("Tab" vs "⌥⇧Tab"), and a
-                        // ragged column of them left the descriptions stepping in
-                        // and out. Only the multi-row form needs the column.
-                        .frame(minWidth: hints.count > 1 ? 48 : 0, alignment: .leading)
+        // A grid, so every description starts on one column however wide the
+        // widest cap is ("Double ⌥" outgrew the old fixed 48 pt minimum and
+        // stepped its row out of line).
+        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 5) {
+            ForEach(Array(hints.enumerated()), id: \.offset) { _, hint in
+                GridRow {
+                    HStack(spacing: 3) {
+                        ForEach(hint.keys, id: \.self) { Self.keycap($0) }
+                    }
+                    // Two lines, not an ellipsis: the one-row summary next to
+                    // four caps ("Double ⌥", "Hold ⌥") has ~50 pt left.
                     Text(hint.action)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -157,5 +170,17 @@ struct MenuHintsView: View {
         .padding(.vertical, 4)
         .frame(width: MenuHeaderView.width, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+
+    static func keycap(_ key: String) -> some View {
+        Text(key)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(MenuHeaderView.keycapFill, in: RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
     }
 }

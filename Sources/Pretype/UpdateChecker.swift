@@ -1,4 +1,5 @@
 import AppKit
+import Security
 
 /// Notify-only update check against the GitHub Releases API.
 ///
@@ -47,11 +48,19 @@ enum UpdateChecker {
     /// left automatic checks on — this app promises nothing leaves your Mac, so
     /// the one outbound request it makes on its own has to be opt-out-able.
     static func checkInBackground() {
-        guard Settings.automaticUpdateCheck else { return }
+        guard Settings.automaticUpdateCheck, !backgroundCheckRunning else { return }
         let day: TimeInterval = 24 * 60 * 60
         guard Date().timeIntervalSince1970 - defaults.double(forKey: "lastUpdateCheck") > day else { return }
-        Task { await check() }
+        // Called on every menu open, and the stamp lands only on success — so
+        // offline, without this, each open would start another 10 s fetch.
+        backgroundCheckRunning = true
+        Task {
+            await check()
+            backgroundCheckRunning = false
+        }
     }
+
+    private static var backgroundCheckRunning = false
 
     /// Returns the latest published version, or nil if the check itself failed
     /// (offline, rate-limited, malformed) — so callers can tell "you're current"
@@ -59,8 +68,10 @@ enum UpdateChecker {
     /// effect. Never throws, never alerts: a failed update check is not news.
     @discardableResult
     static func check() async -> String? {
-        defaults.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
         guard let latest = await fetchLatestVersion() else { return nil }
+        // Stamped on success only: stamped up front, a check made offline
+        // suppressed every retry for a day.
+        defaults.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
         availableVersion = isNewer(latest, than: currentVersion) ? latest : nil
         return latest
     }
@@ -92,6 +103,21 @@ enum UpdateChecker {
             if a != b { return a > b }
         }
         return false
+    }
+
+    /// True when this copy has no Team ID (ad-hoc signed). Only then does
+    /// replacing it change the identity macOS keys the Accessibility grant to;
+    /// a Developer ID build keeps its grant across updates.
+    static var isAdHocSigned: Bool {
+        var code: SecCode?
+        var staticCode: SecStaticCode?
+        var info: CFDictionary?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
+              SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
+              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation),
+                                            &info) == errSecSuccess,
+              let dict = info as? [String: Any] else { return true }
+        return dict[kSecCodeInfoTeamIdentifier as String] == nil
     }
 
     static func openReleasePage() {

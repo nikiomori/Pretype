@@ -126,7 +126,7 @@ struct ModelTab: View {
                 }
                 if !store.modelDiskBytes.isEmpty {
                     Caption("A size on a row = that model's weights sit in the local Hugging Face cache, "
-                        + "including the separate instruct sibling the ⌥⇥ rewrite loads. Deleting frees the space now; "
+                        + "including the separate instruct sibling the \(Settings.hotkeyStyle.correctionLabel) rewrite loads. Deleting frees the space now; "
                         + "picking the model again re-downloads it. The model you're using is never offered.")
                 }
                 HStack {
@@ -414,7 +414,7 @@ struct ModelRow: View {
                         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                     Text(title)
                         .fontWeight(isSelected ? .semibold : .regular)
-                        .lineLimit(1).truncationMode(.middle)
+                        .lineLimit(1).truncationMode(.tail)
                     if id == ModelCatalog.defaultID {
                         Text("RECOMMENDED")
                             .font(.system(size: 9, weight: .bold))
@@ -447,7 +447,7 @@ struct ModelRow: View {
                         .buttonStyle(.borderless)
                         .help(deleteDisabled
                             ? "The model is loading — deleting is available once it finishes."
-                            : "Delete the downloaded weights (\(size), incl. any ⌥⇥ rewrite sibling) — picking this model again re-downloads them.")
+                            : "Delete the downloaded weights (\(size), incl. any \(Settings.hotkeyStyle.correctionLabel) rewrite sibling) — picking this model again re-downloads them.")
                         .accessibilityLabel(deleteDisabled
                             ? "Delete downloaded \(title) — unavailable while a model loads"
                             : "Delete downloaded \(title), frees \(size)")
@@ -507,9 +507,9 @@ struct ModelRow: View {
             Text("Fix · Reply").font(.caption2).foregroundStyle(.tertiary)
             if let chord {
                 let approx = chord.measuredExactly ? "" : "~"
-                let fixText = Text("\(approx)\(chord.m.fixPct)%").foregroundStyle(Color.orange)
+                let fixText = Text("\(approx)\(chord.m.fixPct)%").foregroundStyle(Color.orange.legible)
                 let dotText = Text(" · ").foregroundStyle(Color.secondary)
-                let replyText = Text("\(approx)\(chord.m.replyPct)%").foregroundStyle(Color.purple)
+                let replyText = Text("\(approx)\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
                 (fixText + dotText + replyText)
                     .font(.caption2.monospacedDigit())
             } else {
@@ -592,15 +592,19 @@ private struct PriorityCard: View {
                     // Metric colors match every other surface (rail meters,
                     // ranked bars, map info card) — green accuracy, blue
                     // speed, teal memory — so the triple scans, not reads.
-                    (Text("\(acc ?? m.firstWordPct)%").foregroundStyle(.green)
+                    (Text("\(acc ?? m.firstWordPct)%").foregroundStyle(Color.green.legible)
                         + Text(" · ").foregroundStyle(.tertiary)
-                        + Text("\(m.p50Ms) ms").foregroundStyle(.blue)
+                        + Text("\(m.p50Ms) ms").foregroundStyle(Color.blue.legible)
                         + Text(" · ").foregroundStyle(.tertiary)
-                        + Text(String(format: "%.1f GB", m.ramGB)).foregroundStyle(.teal))
+                        + Text(String(format: "%.1f GB", m.ramGB)).foregroundStyle(Color.teal.legible))
                         // Semibold, not a color change: tone-colored ink at 10pt
                         // is thin on a light form, but the metric color coding is
                         // deliberate and shared with the rail and ranked bars.
                         .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                        // One line at the 1020 pt minimum width, where four
+                        // cards leave ~96 pt for a ~113 pt triple.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
             .padding(8)
@@ -1072,7 +1076,7 @@ struct ModelMapView: View {
     private func stat(_ label: String, _ value: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label).font(.system(size: 8).weight(.semibold)).foregroundStyle(.tertiary)
-            Text(value).font(.caption2.monospacedDigit().weight(.semibold)).foregroundStyle(tint)
+            Text(value).font(.caption2.monospacedDigit().weight(.semibold)).foregroundStyle(tint.legible)
         }
     }
 

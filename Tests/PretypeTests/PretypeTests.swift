@@ -850,6 +850,29 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(SuggestionWindow.ghostLift(caretHeight: 200, lineHeight: 16), 6.4, accuracy: 0.001) // whole-view span
     }
 
+    // The ⌥⇥ preview marks what a fix changes, word by word, and gives up on a
+    // rewrite rather than striking out most of the text.
+    func testFixPreviewWordDiff() {
+        typealias R = SuggestionWindow.DiffRun
+        XCTAssertEqual(SuggestionWindow.wordDiff(from: "their going too the store",
+                                                 to: "they're going to the store"),
+                       [R.removed("their"), .inserted("they're"), .same(" going "),
+                        .removed("too"), .inserted("to"), .same(" the store")])
+        // Applying the runs' kept text reproduces the fix exactly.
+        let old = "i think their going too the store tomorow"
+        let new = "I think they're going to the store tomorrow."
+        let runs = SuggestionWindow.wordDiff(from: old, to: new) ?? []
+        XCTAssertEqual(runs.map { if case .removed = $0 { return "" }
+                                  if case .same(let s) = $0 { return s }
+                                  if case .inserted(let s) = $0 { return s }
+                                  return "" }.joined(), new)
+        // A rewrite of a longer text is not a diff.
+        XCTAssertNil(SuggestionWindow.wordDiff(from: "the cat sat on the mat today",
+                                               to: "a dog lay across every rug yesterday"))
+        // Short texts always diff, even when every word changed.
+        XCTAssertEqual(SuggestionWindow.wordDiff(from: "teh", to: "the"), [R.removed("teh"), .inserted("the")])
+    }
+
     // The ghost hangs off the caret and runs in the writing direction, stopping
     // at the field's far edge. Same rule for the first placement and every
     // post-accept slide, so they cannot drift apart.
@@ -1583,8 +1606,8 @@ final class PretypeTests: XCTestCase {
             statusOK: true, savings: savings, acceptLabel: "Tab"
         ))
         let hints = NSHostingView(rootView: MenuHintsView(hints: [
-            (keys: "Tab", action: "accept a word — ⇧Tab for all"),
-            (keys: "⌥Tab", action: "fix the word or selection"),
+            .init(keys: ["Tab"], action: "accept a word — ⇧Tab for all"),
+            .init(keys: ["⌥Tab"], action: "fix the word or selection"),
         ]))
 
         let menu = NSMenu()

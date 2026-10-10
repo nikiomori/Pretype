@@ -23,7 +23,15 @@ final class SuggestionController: NSObject {
     /// transient notices). Shares the overlay window with the suggestion.
     lazy var indicator = CaretIndicator(
         window: window,
-        engineState: { [weak self] in self?.engine.state ?? .ready },
+        engineState: { [weak self] in
+            // The idle-unloaded resting state reports `.preparing` with nothing
+            // running; the keystroke reloads it in well under a second. At the
+            // caret that is just a slow query (dots), not "idle — model
+            // unloaded" flashed over the user's text.
+            guard let engine = self?.engine else { return .ready }
+            if case .preparing = engine.state, !engine.isLoading { return .ready }
+            return engine.state
+        },
         caretRect: { [weak self] in self?.lastCaretRect },
         hostStyle: { [weak self] in self?.lastHostStyle ?? HostTextStyle() },
         hasActiveSuggestion: { [weak self] in self?.active != nil },
@@ -237,6 +245,7 @@ final class SuggestionController: NSObject {
     func applyConfig(_ target: ProjectionConfig) { engineCoordinator.apply(target) }
     func applyRecommendedSettings() { engineCoordinator.applyRecommendedSettings() }
     func releaseEngineModel() { engineCoordinator.releaseModelNow() }
+    func retryEngine() { engineCoordinator.retry() }
     func setCompletionStyle(_ style: CompletionStyle) { engineCoordinator.setCompletionStyle(style) }
     func setLogprobGate(_ enabled: Bool) { engineCoordinator.setLogprobGate(enabled) }
     func setCompletionLength(_ length: CompletionLength) { engineCoordinator.setCompletionLength(length) }
@@ -1034,7 +1043,14 @@ final class SuggestionController: NSObject {
         guard Settings.screenContextEnabled, ScreenContext.hasPermission,
               AppPolicy.allowsScreenContext(typingContext.bundleID) else {
             stop("needs screen context — \(screenContextStatus)")
-            indicator.flashTransient(.error("reply needs screen context"))
+            // Say which of the three is missing, in the words the fix is found
+            // under — "needs screen context" left the user to work out which.
+            let why = !Settings.screenContextEnabled
+                ? "reply reads the screen — turn on “Use screen context” in Settings"
+                : !ScreenContext.hasPermission
+                    ? "reply needs Screen Recording — allow Pretype in System Settings, then relaunch"
+                    : "reply doesn't read the screen in \(typingContext.appName ?? "this app")"
+            indicator.flashTransient(.hint(why), hideAfter: 3.5)
             return
         }
         clearActiveCompletion()
@@ -1500,7 +1516,7 @@ final class SuggestionController: NSObject {
         }
         if !Settings.onboardingCompleted {
             Settings.onboardingCompleted = true
-            onboardingWindow?.dismiss()
+            onboardingWindow?.celebrate()
         }
         // Re-read context once the synthetic keystrokes have landed.
         scheduleKeystrokeRefresh(after: 0.09)

@@ -862,10 +862,34 @@ struct SampleBadge: View {
 struct BadgeRow: View {
     let badges: [EffectBadge]
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(badges.enumerated()), id: \.offset) { $0.element }
-            Spacer(minLength: 0)
+        // Stacks instead of truncating when the window is narrow: several rows
+        // measure 480–620 pt against a ~480 pt form at the minimum width, and
+        // an ellipsized badge loses exactly the number it exists to show.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                ForEach(Array(badges.enumerated()), id: \.offset) { $0.element }
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(badges.enumerated()), id: \.offset) { $0.element }
+            }
         }
+    }
+}
+
+extension Color {
+    /// This tint as small TEXT: darkened under the light appearance, where
+    /// system green, orange and teal at caption size sit near 2:1 on a light
+    /// form. Dark is untouched — there they already clear 4.5:1. Same idea as
+    /// the menu's `MenuHeaderView.gain`.
+    var legible: Color {
+        let base = NSColor(self)
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            var resolved = base
+            appearance.performAsCurrentDrawingAppearance { resolved = base.usingColorSpace(.sRGB) ?? base }
+            return appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? resolved : (resolved.blended(withFraction: 0.35, of: .black) ?? resolved)
+        })
     }
 }
 
@@ -1148,10 +1172,34 @@ struct GeneralTab: View {
                 Picker("Accept hotkey", selection: $store.hotkeyStyle) {
                     ForEach(HotkeyStyle.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
+                // Pretype takes the fix chord on every press and the accept key
+                // whenever a suggestion is up — say so where the pick is made,
+                // not after the user's input-source switch stops working.
+                switch store.hotkeyStyle {
+                case .ctrlSpace:
+                    Caption("⚠︎ ⌃Space and ⌃⌥Space are macOS's input-source switches. Pretype takes \(store.hotkeyStyle.correctionLabel) on every press and ⌃Space while a suggestion shows — pick another hotkey if you switch keyboard layouts with them.")
+                case .cmdSpace:
+                    Caption("⚠︎ ⌘Space is Spotlight and ⌥⌘Space a Finder search. Pretype takes \(store.hotkeyStyle.correctionLabel) on every press and ⌘Space while a suggestion shows.")
+                default:
+                    EmptyView()
+                }
                 Picker("Write a reply", selection: $store.replyGesture) {
                     ForEach(ReplyGesture.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                Caption("Reads the conversation on screen (needs Screen Context) and drafts your next message as ghost text — \(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) takes all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel); pick the one that doesn't clash with your launcher.")
+                Caption("Reads the conversation on screen and drafts your next message as ghost text — \(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
+                // Reply is on by default but reads the screen, which is off by
+                // default and needs a permission — the checklist says what's
+                // missing and fixes it in place, instead of the chord flashing
+                // a notice at the caret.
+                RequirementRow(met: store.screenContext, text: "Screen context on",
+                               fixTitle: "Turn On") { store.screenContext = true }
+                RequirementRow(met: ScreenContext.hasPermission,
+                               text: "Screen Recording allowed (then relaunch Pretype)",
+                               fixTitle: "Open Settings…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
                 // Ghost opacity dims inline ghost text only; the panel is an
                 // opaque HUD by design (SuggestionWindow), so the slider is
                 // inline-only — a control that moved the preview but never the
@@ -1160,8 +1208,11 @@ struct GeneralTab: View {
                     LabeledContent("Ghost visibility") {
                         HStack(spacing: 8) {
                             Text("Faint").font(.caption).foregroundStyle(.tertiary)
-                            Slider(value: $store.ghostOpacity, in: 0.1...1)
+                            // Floor at 40%: the help text itself calls 45%
+                            // near-invisible, and below that the ghost vanished.
+                            Slider(value: $store.ghostOpacity, in: 0.4...1, step: 0.05)
                                 .accessibilityLabel("Ghost visibility")
+                                .accessibilityValue("\(Int(store.ghostOpacity * 100)) percent")
                             Text("Bold").font(.caption).foregroundStyle(.tertiary)
                             Text("\(Int(store.ghostOpacity * 100))%")
                                 .font(.caption.monospacedDigit())
@@ -1176,7 +1227,7 @@ struct GeneralTab: View {
                                opacity: store.ghostOpacity,
                                hotkey: store.hotkeyStyle)
                 Caption(store.presentation == .inline
-                    ? "Live preview — drag the slider and watch it update. Ghost text takes its font and its dark-or-light rendering from the field's own text, so it stays readable on a white page under a dark system. It never runs past the end of the input or over words you've already typed — with the cursor mid-line, or too near the edge, it moves above the line instead."
+                    ? "Live preview. The ghost uses the field's own font and ink; with the cursor mid-line or near the edge it moves above the line. New users see the \(store.hotkeyStyle.label) key beside it for their first 20 accepts."
                     : "Live preview — the floating panel is a fully opaque HUD, legible on any background. It picks dark or light rendering from behind the cursor (with Screen Recording; otherwise it follows the system theme).")
             }
 
@@ -1211,12 +1262,12 @@ struct GeneralTab: View {
                                 + "start a capture. Pick a key above or a hands-free chord below, "
                                 + "or switch the feature off.")
                         }
-                        Caption("A hold, not a tap: “\(store.replyGesture.label)” for a reply and "
-                            + "holding the same key to talk can share a modifier without ever "
-                            + "triggering each other. Either side of the key works. Recording "
-                            + "starts only after about half a second of quiet hold — any other "
-                            + "keypress, a click, or a scroll before that disarms it on the spot; "
-                            + "⎋ discards one already running.")
+                        if store.dictationGesture != .off {
+                            Caption("A hold, not a tap"
+                                + (store.replyGesture == .off ? "" : ", so it never collides with “\(store.replyGesture.label)” for a reply")
+                                + ". Recording starts after about half a second of quiet hold; any other "
+                                + "key, click or scroll before that cancels it, and esc discards one already running.")
+                        }
                         LabeledContent("Hands-free chord") {
                             Picker("", selection: $store.dictationLatch) {
                                 ForEach(DictationLatch.allCases, id: \.self) { latch in
@@ -1234,9 +1285,9 @@ struct GeneralTab: View {
                                 + "this chord. ⎋ still throws the capture away, and moving to another "
                                 + "field ends it.")
                             if store.dictationLatch.collidesWithFixChord {
-                                Caption("⚠︎ \(store.dictationLatch.label) is already the ⌥⇥ fix's chord "
+                                Caption("⚠︎ \(store.dictationLatch.label) is already the \(store.hotkeyStyle.correctionLabel) fix's chord "
                                     + "under your “\(store.hotkeyStyle.label)” hotkey, and the fix wins. "
-                                    + "Pick the other chord, or change the hotkey on the General tab.")
+                                    + "Pick the other chord, or change the accept hotkey above.")
                             }
                             LabeledContent("Stop after silence") {
                                 Picker("", selection: $store.dictationSilence) {
@@ -1332,7 +1383,7 @@ struct GeneralTab: View {
                             EmptyView()
                         }
                         Toggle("Tidy up with the model", isOn: $store.dictationPolish)
-                        Caption("Runs the transcript through the same minimal-edit fix ⌥⇥ uses on a "
+                        Caption("Runs the transcript through the same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses on a "
                             + "selection — capitalization, punctuation, obvious mishearings — and "
                             + "rejects the result outright if the model starts rephrasing instead. "
                             + "Costs one short generation before the text lands; off types exactly "
@@ -1378,7 +1429,7 @@ struct GeneralTab: View {
 
             Section("Turned off in these apps") {
                 if store.blacklist.isEmpty {
-                    Caption("Suggestions currently run everywhere (terminals are always excluded — ghost text next to shell commands is dangerous). Add apps where Pretype should stay silent.")
+                    Caption("Suggestions currently run everywhere except terminals and password managers, which are always excluded. Add apps where Pretype should stay silent.")
                 }
                 ForEach(store.blacklist, id: \.self) { entry in
                     BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }
@@ -1391,7 +1442,7 @@ struct GeneralTab: View {
                     }
                     .controlSize(.small)
                     TextField("", text: $blacklistDraft,
-                              prompt: Text("or type a name / bundle ID — press ⏎ to add"))
+                              prompt: Text("or part of a bundle ID (e.g. slack) — ⏎ adds"))
                         .labelsHidden()
                         .textFieldStyle(.roundedBorder)
                         .controlSize(.small)
@@ -1531,7 +1582,7 @@ private struct PerAppInstructionRow: View {
 /// Live preview of the overlay exactly as configured — the current presentation
 /// mode, ghost opacity and hotkey — over a light AND a dark host background,
 /// mirroring the background-probe behavior at the caret.
-private struct OverlayPreview: View {
+struct OverlayPreview: View {
     let presentation: SuggestionPresentation
     let opacity: Double
     let hotkey: HotkeyStyle
@@ -1552,6 +1603,9 @@ private struct OverlayPreview: View {
             (light ? Color.white : Color(white: 0.09))
             line(light: light).padding(.horizontal, 14)
         }
+        // Each half is its own appearance, so the keycaps' semantic colours
+        // resolve against the page they sit on, not the Settings window.
+        .environment(\.colorScheme, light ? .light : .dark)
     }
 
     private func line(light: Bool) -> some View {
@@ -1565,27 +1619,44 @@ private struct OverlayPreview: View {
         // differently promised a look the caret never delivered.
         let head = ink.opacity(1.0 * effective)
         let tail = ink.opacity(0.72 * effective)
-        return HStack(spacing: 5) {
+        return Group {
             if presentation == .inline {
-                Text("Write ").foregroundColor(ink)
-                    + Text("a reply").foregroundColor(head)
-                    + Text(" to Anna").foregroundColor(tail)
-            } else {
-                Text("Write ").foregroundColor(ink)
-                HStack(spacing: 4) {
-                    Text("a reply to Anna").foregroundColor(head)
-                    Text(hotkey.label)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(tail)
+                // The ghost, then the accept keycap a new user sees beside it.
+                HStack(spacing: 6) {
+                    Text("Write ").foregroundColor(ink)
+                        + Text("a reply").foregroundColor(head)
+                        + Text(" to Anna").foregroundColor(tail)
+                    MenuHintsView.keycap(hotkey.label)
+                        .opacity(min(1, effective / 0.7))
                 }
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(ink.opacity(0.09), in: Capsule())
-                .overlay(Capsule().stroke(ink.opacity(0.15), lineWidth: 1))
+            } else {
+                // The pill floats just ABOVE the line, starting at the caret —
+                // where the real one sits — never beside the typed words.
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 0) {
+                        Text("Write ").hidden()
+                        HStack(spacing: 6) {
+                            Text("a reply").foregroundColor(ink)
+                                + Text(" to Anna").foregroundColor(ink.opacity(0.55))
+                            MenuHintsView.keycap(hotkey.label)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(ink.opacity(0.07), in: Capsule())
+                        .overlay(Capsule().stroke(ink.opacity(0.15), lineWidth: 0.5))
+                    }
+                    Text("Write ").foregroundColor(ink)
+                }
             }
         }
         .font(.system(size: 13))
         .lineLimit(1)
+        // One description for VoiceOver instead of the sample sentence read
+        // word by word (and twice, once per half).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(presentation == .inline
+            ? "Preview: grey suggestion text continues the line after the cursor"
+            : "Preview: the suggestion floats in a small box above the line")
     }
 }
 
@@ -1638,6 +1709,7 @@ private struct PresentationCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .frame(maxWidth: .infinity)
         .onHover { hovering = $0 }
@@ -1650,15 +1722,19 @@ private struct PresentationCard: View {
                 + Text("a reply").foregroundColor(.secondary))
                 .font(.system(size: 13))
         } else {
-            HStack(spacing: 4) {
-                Text("Write ").font(.system(size: 13))
-                HStack(spacing: 4) {
-                    Text("a reply").font(.system(size: 13)).foregroundStyle(.secondary)
-                    Text(hotkeyLabel).font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+            // Above the line, from the caret — where the real pill floats.
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 0) {
+                    Text("Write ").font(.system(size: 13)).hidden()
+                    HStack(spacing: 4) {
+                        Text("a reply").font(.system(size: 12))
+                        MenuHintsView.keycap(hotkeyLabel)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.14), in: Capsule())
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.secondary.opacity(0.18), in: RoundedRectangle(cornerRadius: 5))
+                Text("Write ").font(.system(size: 13))
             }
         }
     }
@@ -1723,7 +1799,7 @@ struct SuggestionsTab: View {
                         }
                     if !store.logprobGateUsable {
                         RequirementRow(met: false,
-                                       text: "Base style — it thresholds the base model's own confidence",
+                                       text: "Needs Base style — Instruct has no confidence score to filter on",
                                        fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
                     } else {
                         BadgeRow(badges: [
@@ -1858,9 +1934,9 @@ struct PersonalTab: View {
                 HStack {
                     Caption(store.isAppleIntelligence
                         ? "Auto-filled from your account name and keyboard languages — the primary voice control for Apple Intelligence, passed as its system instructions. It stays on your Mac."
-                        : "Auto-filled from your account name and keyboard languages — steers Instruct style only. It stays on your Mac.")
+                        : "Auto-filled from your account name and keyboard languages — shapes reply drafts always, completions in Instruct style. It stays on your Mac.")
                     Spacer()
-                    Button("Reset to System") { store.resetInstructions() }
+                    Button("Restore Default") { store.resetInstructions() }
                         .controlSize(.small)
                 }
                 if !store.isAppleIntelligence {
@@ -1902,7 +1978,7 @@ struct PersonalTab: View {
                 }
                 Caption(store.isAppleIntelligence
                     ? "Appended to your persona while typing in that app — steers the system model's voice, like the persona itself."
-                    : "Appended to your persona while typing in that app — steers Instruct style only, like the persona itself.")
+                    : "Appended to your persona while typing in that app — shapes reply drafts always, completions in Instruct style.")
             }
 
             // The n-gram boost never reaches Apple Intelligence (FoundationModelsEngine
@@ -1917,8 +1993,8 @@ struct PersonalTab: View {
                         Text("Strong").tag(PersonalizationLevel.strong)
                     }
                     BadgeRow(badges: [
-                        EffectBadge(icon: "flask", text: "directionally positive, needs more data", tone: .neutral,
-                                    source: "Boost = level × ln(1 + times you typed this word after this context, capped), applied to the first token — the n-gram fusion whose time-split replay went 3/0 in its favor (p=0.25, underpowered at n=54; re-measured as your journal grows). The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
+                        EffectBadge(icon: "flask", text: "no measured gain yet", tone: .neutral,
+                                    source: "Boost = level × ln(1 + times you typed this word after this context, capped), applied to the first token. A first time-split replay leaned its way (3/0, p=0.25, n=54); the 2026-07-20 re-measure on a larger replay (n=64, β 0.6 and 1.2) found zero changed outcomes — the bias only fires at clean word boundaries. The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
                     ])
                     HStack {
                         Caption("Boosts the words you habitually type next — learned from your suggestion journal. Clear the journal to forget them.")
@@ -1984,10 +2060,12 @@ struct PersonalTab: View {
                     BadgeRow(badges: [
                         EffectBadge(icon: "checkmark.seal", text: "measured win on Instruct style", tone: .quality,
                                     source: "Few-shot from your own accepted phrases: first-word 4% → 10% on the journal replay, all 7 discordant samples in its favor, exact p=0.016 (Instruct path)."),
-                        EffectBadge(icon: "info.circle", text: "now feeds Base style too — unmeasured", tone: .neutral,
-                                    source: "Base used to ignore examples (confirmed no-op A/B). Since 2026-07-16 they are prefixed to the Base prompt as a label-free block (the screen-context format) — the instruct win motivated the port; the Base-path effect itself is not measured yet."),
+                        EffectBadge(icon: "checkmark.seal", text: "measured win on Base style", tone: .quality,
+                                    source: "Journal replay (n=158, base, gates off): first-word of all 25% → 49% on MiniCPM5-1B and 37% → 51% on Gemma E2B 8-bit, both p<0.001. Replay rewards your own repetitiveness, so expect a smaller live win."),
+                        EffectBadge(icon: "clock", text: "+20–190 ms to the first suggestion", tone: .caution,
+                                    source: "The examples lengthen the prompt: p50 93 → 115 ms on MiniCPM5-1B, 207 → 399 ms on Gemma E2B (the few-shot block about doubles its prefill)."),
                     ])
-                    Caption("A measured win at no latency cost, so there's no switch to lose. Clear the journal above to forget the phrases.")
+                    Caption("A measured win on both styles, so it's always on. Clear the journal above to forget the phrases.")
                 }  // end few-shot rows (hidden for Apple Intelligence)
             }
         }

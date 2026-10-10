@@ -111,7 +111,16 @@ final class FoundationModelsEngine: CompletionEngine {
             let session = LanguageModelSession(instructions: Self.baseInstructions(Self.promptVariant))
             session.prewarm()
         case .unavailable(let reason):
-            stateBox.set(.failed("unavailable: \(String(describing: reason))"))
+            // A sentence, not the enum case: this lands verbatim in the menu
+            // header and the onboarding card ("unavailable: modelNotReady").
+            let why: String
+            switch reason {
+            case .deviceNotEligible: why = "this Mac doesn't support Apple Intelligence"
+            case .appleIntelligenceNotEnabled: why = "turn on Apple Intelligence in System Settings"
+            case .modelNotReady: why = "Apple Intelligence is still downloading — retry in a few minutes"
+            @unknown default: why = "Apple Intelligence is unavailable (\(String(describing: reason)))"
+            }
+            stateBox.set(.failed(why))
         }
     }
 
