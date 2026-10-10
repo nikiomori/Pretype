@@ -120,60 +120,36 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // The long form ("Grant Accessibility permission…") was 25pt wider than
         // the header on its own, so an ungranted Mac met a wider menu than a
         // granted one. The sentence moved to the tooltip.
-        permissionItem = NSMenuItem(
-            title: "Grant Accessibility…",
-            action: #selector(openAccessibilitySettings),
-            keyEquivalent: ""
-        )
+        permissionItem = item("Grant Accessibility…", #selector(openAccessibilitySettings),
+                              symbol: "exclamationmark.triangle.fill")
         permissionItem.toolTip =
             "Pretype needs Accessibility permission to read the field you're typing in."
-        permissionItem.target = self
-        permissionItem.image = symbol("exclamationmark.triangle.fill")
-        menu.addItem(permissionItem)
 
         // A verb, not a checkmark: "Enabled" with a pause icon and no ✓ read
         // as either state. Title and icon flip in menuNeedsUpdate.
-        enabledItem = NSMenuItem(title: "Pause Pretype", action: #selector(toggleEnabled), keyEquivalent: "")
-        enabledItem.target = self
-        menu.addItem(enabledItem)
+        enabledItem = item("Pause Pretype", #selector(toggleEnabled))
 
         // Only while the engine has failed: the background retry is silent and
         // Apple Intelligence never re-checks on its own, so without this the
         // way back from a failure was a relaunch.
-        retryItem = NSMenuItem(title: "Retry Loading the Model", action: #selector(retryEngine), keyEquivalent: "")
-        retryItem.target = self
-        retryItem.image = symbol("arrow.clockwise")
-        menu.addItem(retryItem)
+        retryItem = item("Retry Loading the Model", #selector(retryEngine), symbol: "arrow.clockwise")
 
         // Title filled in menuNeedsUpdate — it names the app the user was last
         // typing in, which isn't known until the menu opens.
-        appBlacklistItem = NSMenuItem(title: "", action: #selector(toggleFrontmostAppBlacklist), keyEquivalent: "")
-        appBlacklistItem.target = self
-        menu.addItem(appBlacklistItem)
+        appBlacklistItem = item("", #selector(toggleFrontmostAppBlacklist))
 
         // Hidden unless the language being typed is one this model is bad at —
         // see refreshLanguageHintItem.
-        languageHintItem = NSMenuItem(title: "", action: #selector(showModelsForTypedLanguage), keyEquivalent: "")
-        languageHintItem.target = self
-        languageHintItem.image = symbol("globe")
-        menu.addItem(languageHintItem)
+        languageHintItem = item("", #selector(showModelsForTypedLanguage), symbol: "globe")
 
-        settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        settingsItem.image = symbol("gearshape")
-        menu.addItem(settingsItem)
+        settingsItem = item("Settings…", #selector(openSettings), key: ",", symbol: "gearshape")
 
         // One item, two states: an offer to download when a newer release is
         // known, a manual check otherwise (title refreshed in menuNeedsUpdate).
-        updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-        updateItem.target = self
-        menu.addItem(updateItem)
+        updateItem = item("Check for Updates…", #selector(checkForUpdates))
 
         diagnosticsMenu = NSMenu()
-        let diagnosticsItem = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
-        diagnosticsItem.submenu = diagnosticsMenu
-        diagnosticsItem.image = symbol("waveform.path.ecg")
-        menu.addItem(diagnosticsItem)
+        item("Diagnostics", nil, symbol: "waveform.path.ecg").submenu = diagnosticsMenu
 
         menu.addItem(.separator())
         // Drawn keycaps rather than a paragraph of grey text, and refreshed in
@@ -232,6 +208,18 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
         image?.isTemplate = true
         return image
+    }
+
+    /// An action row targeting this controller, appended to `menu` (the status
+    /// menu unless given).
+    @discardableResult
+    private func item(_ title: String, _ action: Selector?, key: String = "", symbol name: String? = nil,
+                      in menu: NSMenu? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        item.image = name.flatMap(symbol)
+        (menu ?? self.menu).addItem(item)
+        return item
     }
 
     // MARK: - Live updates
@@ -463,41 +451,27 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// Context + pipeline + debug tools, merged into one submenu.
     private func rebuildDiagnosticsMenu() {
         diagnosticsMenu.removeAllItems()
-
-        diagnosticsMenu.addItem(.sectionHeader(title: "Today"))
-        for line in Stats.diagnosticLines {
-            diagnosticsMenu.addItem(NSMenuItem(title: line, action: nil, keyEquivalent: ""))
+        func section(_ title: String, _ lines: [String]) {
+            diagnosticsMenu.addItem(.sectionHeader(title: title))
+            for line in lines {
+                diagnosticsMenu.addItem(NSMenuItem(title: line, action: nil, keyEquivalent: ""))
+            }
         }
 
-        diagnosticsMenu.addItem(.sectionHeader(title: "Context"))
+        section("Today", Stats.diagnosticLines)
         let context = suggestionController?.typingContext ?? TypingContext()
-        let contextLines = [
+        section("Context", [
             "App: \(context.appName ?? "—")",
             "Window: \(context.windowTitle.map { String($0.prefix(60)) } ?? "—")",
             "Field: \(context.fieldLabel.map { String($0.prefix(40)) } ?? "—")",
             "Screen: \(suggestionController?.screenContextStatus ?? "—")",
-        ]
-        for line in contextLines {
-            diagnosticsMenu.addItem(NSMenuItem(title: line, action: nil, keyEquivalent: ""))
-        }
-
-        diagnosticsMenu.addItem(.sectionHeader(title: "Pipeline"))
-        let lines = suggestionController?.diagnostics ?? ["Pipeline not started yet"]
-        for line in lines {
-            diagnosticsMenu.addItem(NSMenuItem(title: line, action: nil, keyEquivalent: ""))
-        }
+        ])
+        section("Pipeline", suggestionController?.diagnostics ?? ["Pipeline not started yet"])
 
         diagnosticsMenu.addItem(.separator())
-        let show = NSMenuItem(title: "Show Last Prompt…", action: #selector(showLastPrompt), keyEquivalent: "")
-        show.target = self
-        diagnosticsMenu.addItem(show)
-        let unload = NSMenuItem(title: "Unload Model from Memory",
-                                action: #selector(unloadModel), keyEquivalent: "")
-        unload.target = self
-        diagnosticsMenu.addItem(unload)
-        let debug = NSMenuItem(title: "Debug Console…", action: #selector(openDebugConsole), keyEquivalent: "d")
-        debug.target = self
-        diagnosticsMenu.addItem(debug)
+        item("Show Last Prompt…", #selector(showLastPrompt), in: diagnosticsMenu)
+        item("Unload Model from Memory", #selector(unloadModel), in: diagnosticsMenu)
+        item("Debug Console…", #selector(openDebugConsole), key: "d", in: diagnosticsMenu)
     }
 
     // MARK: - Actions

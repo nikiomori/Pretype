@@ -13,6 +13,7 @@ struct ModelTab: View {
     /// Which task the map plots. Local @State — a lens, not a setting: it
     /// changes on a click and resets to completions with the window.
     @State private var mapLens = MapLens.completion
+    @AppStorage("idleUnloadMinutes") private var idleUnloadMinutes = 5
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
@@ -155,19 +156,19 @@ struct ModelTab: View {
             selectedModelSection
 
             Section("Runtime") {
-                Picker("Free memory when idle", selection: $store.idleUnloadMinutes) {
+                Picker("Free memory when idle", selection: $idleUnloadMinutes) {
                     Text("Never").tag(0)
                     Text("After 1 minute").tag(1)
                     Text("After 5 minutes").tag(5)
                     Text("After 15 minutes").tag(15)
                     Text("After 30 minutes").tag(30)
                 }
-                if store.idleUnloadMinutes > 0, store.selectedRamGB > 0 {
+                if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
                     BadgeRow(badges: [
                         EffectBadge(icon: "memorychip",
                                     text: String(format: "frees ~%.1f GB when unused", store.selectedRamGB),
                                     tone: .memory,
-                                    source: "Unloads the resident model after \(store.idleUnloadMinutes) min idle; the next keystroke reloads it from the on-disk cache (a focus change pre-warms it)."),
+                                    source: "Unloads the resident model after \(idleUnloadMinutes) min idle; the next keystroke reloads it from the on-disk cache (a focus change pre-warms it)."),
                     ])
                 }
             }
@@ -190,13 +191,9 @@ struct ModelTab: View {
             }
             Button("Cancel", role: .cancel) { confirmingDelete = nil }
         } message: {
-            Text("Frees \(formattedSize(store.modelDiskBytes[confirmingDelete ?? ""] ?? 0)). "
+            Text("Frees \(ByteCountFormatter.string(fromByteCount: store.modelDiskBytes[confirmingDelete ?? ""] ?? 0, countStyle: .file)). "
                 + "Picking this model again downloads it over the network.")
         }
-    }
-
-    private func formattedSize(_ bytes: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     /// Download size of what a click on `id` would load, while it isn't on
@@ -943,15 +940,8 @@ struct ModelMapView: View {
            let rect = reachableEnvelope(for: store.modelID, plot,
                                         including: chartPoint(for: store.committedConfig, plot: plot)),
            max(rect.width, rect.height) > 60 {
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                .foregroundStyle(Color.primary.opacity(0.35))
-                .background(Color.primary.opacity(0.05),
-                            in: RoundedRectangle(cornerRadius: 18))
-                .frame(width: rect.width, height: rect.height)
-                .position(x: rect.midX, y: rect.midY)
+            zone(rect, .primary, lineWidth: 1, dash: [4, 3], opacity: 0.35)
                 .animation(mapCurve, value: rect)
-                .allowsHitTesting(false)
             Text("reachable with settings")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
@@ -972,15 +962,30 @@ struct ModelMapView: View {
            let rect = reachableEnvelope(for: previewed.modelID, plot,
                                         including: chartPoint(for: previewed, plot: plot)),
            max(rect.width, rect.height) > 60 {
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(style: StrokeStyle(lineWidth: 2.5, dash: [5, 3]))
-                .foregroundStyle(Color.primary.opacity(0.7))
-                .background(Color.primary.opacity(0.05),
-                            in: RoundedRectangle(cornerRadius: 18))
-                .frame(width: rect.width, height: rect.height)
-                .position(x: rect.midX, y: rect.midY)
-                .allowsHitTesting(false)
+            zone(rect, .primary, lineWidth: 2.5, dash: [5, 3], opacity: 0.7)
         }
+    }
+
+    /// A model's settings zone: a dashed, faintly filled box around `rect`.
+    private func zone(_ rect: CGRect, _ tint: Color, lineWidth: CGFloat, dash: [CGFloat],
+                      opacity: Double) -> some View {
+        RoundedRectangle(cornerRadius: 18)
+            .strokeBorder(style: StrokeStyle(lineWidth: lineWidth, dash: dash))
+            .foregroundStyle(tint.opacity(opacity))
+            .background(tint.opacity(0.05), in: RoundedRectangle(cornerRadius: 18))
+            .frame(width: rect.width, height: rect.height)
+            .position(x: rect.midX, y: rect.midY)
+            .allowsHitTesting(false)
+    }
+
+    /// Where a mark's name goes: `offset` below it, flipped above near the
+    /// floor and clamped into the plot horizontally — edge marks must not push
+    /// their name into the axis labels or out of frame.
+    private func labelPosition(_ mark: CGPoint, offset: CGFloat, inset: CGFloat = 34,
+                               _ plot: PlotFrame) -> CGPoint {
+        let below = mark.y + offset
+        return CGPoint(x: min(max(mark.x, plot.minX + inset), plot.maxX - inset),
+                       y: below > plot.maxY - 3 ? mark.y - offset : below)
     }
 
     private func bubbles(_ plot: PlotFrame) -> some View {
@@ -1014,15 +1019,10 @@ struct ModelMapView: View {
             .onHover { store.setHover(.model(m.id), $0) }
             .position(center)
             if selected || previewedModelID == m.id {
-                // Clamp into the plot horizontally and flip above the bubble
-                // near the floor — edge bubbles must not push their name into
-                // the axis labels or out of frame.
-                let below = center.y + r + 9
                 Text(m.shortName)
                     .font(.caption2.weight(selected ? .bold : .medium))
                     .foregroundStyle(selected ? Color.primary : Color.secondary)
-                    .position(x: min(max(center.x, plot.minX + 34), plot.maxX - 34),
-                              y: below > plot.maxY - 3 ? center.y - r - 9 : below)
+                    .position(labelPosition(center, offset: r + 9, plot))
                     .allowsHitTesting(false)
             }
         }
@@ -1054,8 +1054,7 @@ struct ModelMapView: View {
                         .padding(.horizontal, 4)
                         .background(Color(nsColor: .windowBackgroundColor).opacity(0.9),
                                     in: Capsule())
-                        .position(x: min(max(point.x, plot.minX + 34), plot.maxX - 34),
-                                  y: point.y + 13 > plot.maxY - 3 ? point.y - 13 : point.y + 13)
+                        .position(labelPosition(point, offset: 13, plot))
                         .zIndex(6)
                         .allowsHitTesting(false)
                 }
@@ -1072,21 +1071,8 @@ struct ModelMapView: View {
         let committed = axis == "core"
             ? chartPoint(for: store.committedConfig, plot: plot)
             : bubbleCenter(for: store.modelID, plot)
-        ZStack {
-            Circle()
-                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.75))
-            Circle()
-                .strokeBorder(Color.primary, lineWidth: 2.5)
-            Circle()
-                .fill(Color.primary)
-                .frame(width: 5, height: 5)
-        }
-        .frame(width: 18, height: 18)
-        .shadow(color: .black.opacity(0.35), radius: 5)
-        .position(committed)
-        .zIndex(7)
-        .animation(mapCurve, value: committed)
-        .allowsHitTesting(false)
+        ring(at: committed)
+            .animation(mapCurve, value: committed)
         if let previewed = store.previewedConfig {
             let ghost = axis == "core"
                 ? chartPoint(for: previewed, plot: plot)
@@ -1164,20 +1150,14 @@ struct ModelMapView: View {
         CGPoint(x: plot.x(ms: Double(s.p50Ms)), y: plot.y(acc: Double(s.pct)))
     }
 
-    /// The catalog pick a click on a sibling bubble switches to: the first
-    /// (quality-ordered) entry whose chords land on it at recommended
-    /// settings. A sibling isn't itself a catalog row, so the click routes
-    /// back through the mapping the ring and the info card already use.
-    private func chordPickTarget(_ siblingID: String) -> String? {
-        ModelMetrics.taskUserIDs(of: siblingID).first
-    }
-
     private func chordBubbles(_ plot: PlotFrame) -> some View {
         ForEach(chordStats) { s in
             let mine = s.id == currentSiblingID
             let r = radius(s.ramGB)
             let center = chordCenter(s, plot)
-            let target = chordPickTarget(s.id)
+            // The catalog pick a click switches to: the first (quality-ordered)
+            // entry whose chords land on this sibling at recommended settings.
+            let target = ModelMetrics.taskUserIDs(of: s.id).first
             // Interactivity before .position — see the bubbles comment.
             ZStack {
                 Circle().fill(chordTint.opacity(mine ? 0.8 : 0.42))
@@ -1206,12 +1186,10 @@ struct ModelMapView: View {
             // Always labeled: a handful of bubbles doesn't crowd, and unlike
             // the completion lens there is no ranked list of siblings below
             // to name them.
-            let below = center.y + r + 9
             Text(s.name)
                 .font(.caption2.weight(mine ? .bold : .medium))
                 .foregroundStyle(mine ? Color.primary : Color.secondary)
-                .position(x: min(max(center.x, plot.minX + 44), plot.maxX - 44),
-                          y: below > plot.maxY - 3 ? center.y - r - 9 : below)
+                .position(labelPosition(center, offset: r + 9, inset: 44, plot))
                 .allowsHitTesting(false)
         }
     }
@@ -1221,21 +1199,26 @@ struct ModelMapView: View {
     /// previews don't move the chord routing.
     @ViewBuilder private func chordMarker(_ plot: PlotFrame) -> some View {
         if let s = chordStats.first(where: { $0.id == currentSiblingID }) {
-            ZStack {
-                Circle()
-                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.75))
-                Circle()
-                    .strokeBorder(Color.primary, lineWidth: 2.5)
-                Circle()
-                    .fill(Color.primary)
-                    .frame(width: 5, height: 5)
-            }
-            .frame(width: 18, height: 18)
-            .shadow(color: .black.opacity(0.35), radius: 5)
-            .position(chordCenter(s, plot))
-            .zIndex(7)
-            .allowsHitTesting(false)
+            ring(at: chordCenter(s, plot))
         }
+    }
+
+    /// The "you are here" ring, shared by the completion and chord lenses.
+    private func ring(at point: CGPoint) -> some View {
+        ZStack {
+            Circle()
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.75))
+            Circle()
+                .strokeBorder(Color.primary, lineWidth: 2.5)
+            Circle()
+                .fill(Color.primary)
+                .frame(width: 5, height: 5)
+        }
+        .frame(width: 18, height: 18)
+        .shadow(color: .black.opacity(0.35), radius: 5)
+        .position(point)
+        .zIndex(7)
+        .allowsHitTesting(false)
     }
 
     private func chordBubbleHelp(_ s: ChordStat) -> String {

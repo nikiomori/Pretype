@@ -1,5 +1,6 @@
 import AppKit
 import QuartzCore
+import SwiftUI
 
 @MainActor
 final class OnboardingWindow: NSPanel {
@@ -107,42 +108,17 @@ final class OnboardingWindow: NSPanel {
         divider.widthAnchor.constraint(equalToConstant: 340).isActive = true
         mainStack.addArrangedSubview(divider)
         
-        // Tutorial Rows Stack
-        let tutorialStack = NSStackView()
-        tutorialStack.orientation = .vertical
-        tutorialStack.spacing = 12
-        tutorialStack.alignment = .leading
-        tutorialStack.translatesAutoresizingMaskIntoConstraints = false
-        mainStack.addArrangedSubview(tutorialStack)
-        
         // Keycaps follow the configured hotkey — hardcoding Tab taught the wrong
         // keys to anyone on ⌘/⌥/⌃Space. Same labels the menu and overlay use.
         let hotkey = Settings.hotkeyStyle
-        let row1 = makeTutorialRow(
-            key: makeKeycap(hotkey.label),
-            description: "Accept next word"
-        )
-        tutorialStack.addArrangedSubview(row1)
-
-        let row2 = makeTutorialRow(
-            key: makeKeycap(hotkey.shiftLabel),
-            description: "Accept entire suggestion"
-        )
-        tutorialStack.addArrangedSubview(row2)
-
-        let row3 = makeTutorialRow(
-            key: makeKeycap(hotkey.correctionLabel),
-            description: "Fix last word / selection"
-        )
-        tutorialStack.addArrangedSubview(row3)
-
-        // Without this a new user's only way to make a ghost go away is to
-        // type over it — not knowing that is what makes it feel pushy.
-        let row4 = makeTutorialRow(
-            key: makeKeycap("esc"),
-            description: "Dismiss a suggestion"
-        )
-        tutorialStack.addArrangedSubview(row4)
+        mainStack.addArrangedSubview(NSHostingView(rootView: MenuHintsView(hints: [
+            MenuHintsView.Hint(keys: [hotkey.label], action: "Accept next word"),
+            MenuHintsView.Hint(keys: [hotkey.shiftLabel], action: "Accept entire suggestion"),
+            MenuHintsView.Hint(keys: [hotkey.correctionLabel], action: "Fix last word / selection"),
+            // Without this a new user's only way to make a ghost go away is to
+            // type over it — not knowing that is what makes it feel pushy.
+            MenuHintsView.Hint(keys: ["esc"], action: "Dismiss a suggestion"),
+        ], font: .body, width: 340)))
 
         // Footer Stack
         let footerStack = NSStackView()
@@ -187,75 +163,12 @@ final class OnboardingWindow: NSPanel {
             mainStack.leadingAnchor.constraint(equalTo: visualBackdrop.leadingAnchor, constant: 24),
             mainStack.trailingAnchor.constraint(equalTo: visualBackdrop.trailingAnchor, constant: -24),
             
-            tutorialStack.widthAnchor.constraint(equalToConstant: 340),
             statusLabel.widthAnchor.constraint(equalToConstant: 340),
             // Room for two lines in every state, so the card never resizes
             // under the user as the status text changes length.
             statusLabel.heightAnchor.constraint(equalToConstant: 32),
             footerStack.widthAnchor.constraint(equalToConstant: 340)
         ])
-    }
-    
-    private func makeTutorialRow(key: NSView, description: String) -> NSStackView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.spacing = 12
-        row.alignment = .centerY
-        
-        // Keys container stack
-        let keysStack = NSStackView()
-        keysStack.orientation = .horizontal
-        keysStack.spacing = 4
-        keysStack.alignment = .centerY
-        
-        keysStack.addArrangedSubview(key)
-
-        // Wrap keysStack in a fixed-width container so descriptions align nicely
-        let keysContainer = NSView()
-        keysContainer.translatesAutoresizingMaskIntoConstraints = false
-        keysContainer.addSubview(keysStack)
-        keysStack.translatesAutoresizingMaskIntoConstraints = false
-        
-        NSLayoutConstraint.activate([
-            keysContainer.widthAnchor.constraint(equalToConstant: 84),
-            keysContainer.heightAnchor.constraint(equalToConstant: 24),
-            keysStack.leadingAnchor.constraint(equalTo: keysContainer.leadingAnchor),
-            keysStack.centerYAnchor.constraint(equalTo: keysContainer.centerYAnchor)
-        ])
-        
-        row.addArrangedSubview(keysContainer)
-        
-        let descLabel = NSTextField(labelWithString: description)
-        descLabel.font = .systemFont(ofSize: 13, weight: .regular)
-        descLabel.textColor = .labelColor
-        row.addArrangedSubview(descLabel)
-        
-        return row
-    }
-    
-    private func makeKeycap(_ text: String) -> NSView {
-        let keycap = NSView()
-        keycap.wantsLayer = true
-        keycap.layer?.cornerRadius = 5
-        keycap.layer?.borderWidth = 1
-        keycap.layer?.borderColor = NSColor.separatorColor.cgColor
-        keycap.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 10, weight: .semibold)
-        label.textColor = .labelColor
-        label.alignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        keycap.addSubview(label)
-        
-        NSLayoutConstraint.activate([
-            keycap.heightAnchor.constraint(equalToConstant: 20),
-            label.leadingAnchor.constraint(equalTo: keycap.leadingAnchor, constant: 6),
-            label.trailingAnchor.constraint(equalTo: keycap.trailingAnchor, constant: -6),
-            label.centerYAnchor.constraint(equalTo: keycap.centerYAnchor)
-        ])
-        
-        return keycap
     }
     
     func show() {

@@ -15,11 +15,7 @@ struct MenuHeaderView: View {
     /// The gain colour. `systemGreen` clears 4.5:1 on a dark menu but sits near
     /// 2:1 on a light one, and the figure is the one thing here that has to read
     /// instantly — so the light variant is darkened rather than dropped.
-    static let gain = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            ? .systemGreen
-            : NSColor(srgbRed: 0.10, green: 0.50, blue: 0.22, alpha: 1)
-    })
+    static let gain = Color.green.legible
 
     /// Keycap fill, the same weight as the suggestion pill's own keycaps.
     static let keycapFill = Color.primary.opacity(0.08)
@@ -83,28 +79,19 @@ struct MenuHeaderView: View {
     /// The number the user came for: value large, unit and caption small, so the
     /// figure reads at a glance from the menu bar.
     private var figure: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if savings.todayKeystrokes == 0 {
-                // The same figure as any other day, at zero — "Nothing yet
-                // today" over "saved today" read as one garbled sentence.
-                (
-                    Text("0")
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    + Text(" min")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                )
-                .foregroundStyle(.secondary)
-            } else {
-                let figure = savings.todayFigure
-                (
-                    Text(figure.value)
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    + Text(" \(figure.unit)")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                )
-                .foregroundStyle(Self.gain)
-                .monospacedDigit()
-            }
+        // The same figure as any other day at zero, just grey — "Nothing yet
+        // today" over "saved today" read as one garbled sentence.
+        let none = savings.todayKeystrokes == 0
+        let (value, unit) = none ? ("0", "min") : savings.todayFigure
+        return VStack(alignment: .leading, spacing: 0) {
+            (
+                Text(value)
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                + Text(" \(unit)")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            )
+            .foregroundStyle(none ? AnyShapeStyle(.secondary) : AnyShapeStyle(Self.gain))
+            .monospacedDigit()
             Text("saved today")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -144,6 +131,9 @@ struct MenuHintsView: View {
 
     /// In the order they're learned.
     let hints: [Hint]
+    /// Caption-sized in the menu; onboarding, which teaches them, reads larger.
+    var font = Font.caption
+    var width = MenuHeaderView.width
 
     var body: some View {
         Group {
@@ -156,7 +146,7 @@ struct MenuHintsView: View {
                         ForEach(hint.keys, id: \.self) { Self.keycap($0) }
                     }
                     Text(hint.action)
-                        .font(.caption)
+                        .font(font)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -171,7 +161,7 @@ struct MenuHintsView: View {
                                 ForEach(hint.keys, id: \.self) { Self.keycap($0) }
                             }
                             Text(hint.action)
-                                .font(.caption)
+                                .font(font)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,7 +172,7 @@ struct MenuHintsView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
-        .frame(width: MenuHeaderView.width, alignment: .leading)
+        .frame(width: width, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 

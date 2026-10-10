@@ -252,14 +252,7 @@ enum HotkeyStyle: String, CaseIterable {
         }
     }
 
-    var shiftLabel: String {
-        switch self {
-        case .tab: return "⇧Tab"
-        case .cmdSpace: return "⇧⌘Space"
-        case .optSpace: return "⇧⌥Space"
-        case .ctrlSpace: return "⇧⌃Space"
-        }
-    }
+    var shiftLabel: String { "⇧" + label }
 
     var correctionLabel: String {
         switch self {
@@ -287,56 +280,39 @@ enum HotkeyStyle: String, CaseIterable {
         }
     }
 
-    func matchesAcceptWord(keyCode: Int64, flags: CGEventFlags) -> Bool {
-        guard keyCode == self.keyCode else { return false }
-        let actualFlags = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
+    /// The accept chord's modifier; accept-all adds ⇧, the fix chord adds ⌥
+    /// (⌥Space already holds ⌥, so its fix chord is ⌥⌘).
+    private var base: CGEventFlags {
         switch self {
-        case .tab:
-            return actualFlags.isEmpty
-        case .cmdSpace:
-            return actualFlags == [.maskCommand]
-        case .optSpace:
-            return actualFlags == [.maskAlternate]
-        case .ctrlSpace:
-            return actualFlags == [.maskControl]
+        case .tab: return []
+        case .cmdSpace: return .maskCommand
+        case .optSpace: return .maskAlternate
+        case .ctrlSpace: return .maskControl
         }
+    }
+
+    /// Exact-modifier match, so the chords can never collide.
+    private func matches(_ keyCode: Int64, _ flags: CGEventFlags, _ required: CGEventFlags) -> Bool {
+        keyCode == self.keyCode
+            && flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]) == required
+    }
+
+    func matchesAcceptWord(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        matches(keyCode, flags, base)
     }
 
     func matchesAcceptAll(keyCode: Int64, flags: CGEventFlags) -> Bool {
-        guard keyCode == self.keyCode else { return false }
-        let actualFlags = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
-        switch self {
-        case .tab:
-            return actualFlags == [.maskShift]
-        case .cmdSpace:
-            return actualFlags == [.maskCommand, .maskShift]
-        case .optSpace:
-            return actualFlags == [.maskAlternate, .maskShift]
-        case .ctrlSpace:
-            return actualFlags == [.maskControl, .maskShift]
-        }
+        matches(keyCode, flags, base.union(.maskShift))
     }
 
-    /// The fix chord with ⇧ added — derived, so the two can never drift apart
-    /// (and can never collide: the correction matcher demands exact flags).
+    /// The fix chord with ⇧ added — derived, so the two can never drift apart.
     func matchesReply(keyCode: Int64, flags: CGEventFlags) -> Bool {
         flags.contains(.maskShift)
             && matchesCorrection(keyCode: keyCode, flags: flags.subtracting(.maskShift))
     }
 
     func matchesCorrection(keyCode: Int64, flags: CGEventFlags) -> Bool {
-        guard keyCode == self.keyCode else { return false }
-        let actualFlags = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
-        switch self {
-        case .tab:
-            return actualFlags == [.maskAlternate]
-        case .cmdSpace:
-            return actualFlags == [.maskCommand, .maskAlternate]
-        case .optSpace:
-            return actualFlags == [.maskCommand, .maskAlternate]
-        case .ctrlSpace:
-            return actualFlags == [.maskControl, .maskAlternate]
-        }
+        matches(keyCode, flags, self == .optSpace ? [.maskCommand, .maskAlternate] : base.union(.maskAlternate))
     }
 }
 
@@ -411,15 +387,6 @@ enum Settings {
         return names
     }
 
-    /// Base language codes of the enabled keyboard layouts, deduped (e.g.
-    /// {"en", "ru"}) — the signal behind both the persona languages and the
-    /// language-aware `ModelCatalog.defaultID`.
-    static var keyboardLanguageCodes: Set<String> {
-        Set(keyboardLanguages().compactMap {
-            Locale(identifier: $0).language.languageCode?.identifier
-        })
-    }
-
     /// Language of the layout that is selected RIGHT NOW ("ru" while the
     /// Russian keyboard is active). The closest thing to a free signal of which
     /// language the user is about to *speak*, so dictation follows it by
@@ -455,14 +422,11 @@ enum Settings {
         return result
     }
 
-    /// "English", "English and Russian", "English, Russian and German".
+    /// "English", "English and Russian", "English, Russian, and German".
     private static func formatLanguages(_ names: [String]) -> String {
-        switch names.count {
-        case 0: return ""
-        case 1: return names[0]
-        case 2: return "\(names[0]) and \(names[1])"
-        default: return "\(names.dropLast().joined(separator: ", ")) and \(names.last ?? "")"
-        }
+        let formatter = ListFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter.string(from: names) ?? ""
     }
 
     static func registerDefaults() {
@@ -583,14 +547,6 @@ enum Settings {
             "dictationInput": "auto",
             "onboardingCompleted": false,
         ])
-        // The push-to-talk gesture was right-hand-only for its first day
-        // (2026-07-26) and now matches either side — carry the stored pick over
-        // rather than silently resetting someone to the default key.
-        if let stored = defaults.string(forKey: "dictationGesture"), stored.hasPrefix("right") {
-            let modifier = stored.dropFirst("right".count)
-            defaults.set(modifier.prefix(1).lowercased() + modifier.dropFirst(),
-                         forKey: "dictationGesture")
-        }
         // The catalog changes over time; clear stale model picks every launch.
         if let stored = defaults.string(forKey: "mlxModelID"), ModelCatalog.option(for: stored) == nil {
             defaults.removeObject(forKey: "mlxModelID")

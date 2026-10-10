@@ -45,10 +45,6 @@ final class SettingsStore: ObservableObject {
             Settings.hotkeyStyle = hotkeyStyle
             controller?.dismiss() }
     }
-    @Published var replyGesture = ReplyGesture.option {
-        didSet { guard !syncing, oldValue != replyGesture else { return }
-            Settings.replyGesture = replyGesture }
-    }
     /// Hold-to-talk dictation. The write goes through `SettingsUI` because
     /// switching it on is what asks for the microphone — and has to report a
     /// refusal, since macOS only ever prompts once.
@@ -60,24 +56,6 @@ final class SettingsStore: ObservableObject {
                 self.dictation = false
                 self.syncing = false
             } }
-    }
-    @Published var dictationGesture = DictationGesture.option {
-        didSet { guard !syncing, oldValue != dictationGesture else { return }
-            Settings.dictationGesture = dictationGesture }
-    }
-    @Published var dictationLatch = DictationLatch.off {
-        didSet { guard !syncing, oldValue != dictationLatch else { return }
-            Settings.dictationLatch = dictationLatch }
-    }
-    /// Silence budget for a hands-free capture, in seconds; 0 is off. Stored as
-    /// a Double so the picker can offer it directly.
-    @Published var dictationSilence = 5.0 {
-        didSet { guard !syncing, oldValue != dictationSilence else { return }
-            Settings.dictationSilence = dictationSilence }
-    }
-    @Published var dictationPolish = true {
-        didSet { guard !syncing, oldValue != dictationPolish else { return }
-            Settings.dictationPolish = dictationPolish }
     }
     @Published var dictationInput = "auto" {
         didSet { guard !syncing, oldValue != dictationInput else { return }
@@ -99,10 +77,6 @@ final class SettingsStore: ObservableObject {
     /// appears (the lookup is async and never changes within a session).
     @Published var dictationLocales: [Locale] = []
 
-    @Published var ghostOpacity = 0.7 {
-        didSet { guard !syncing else { return }
-            Settings.ghostOpacity = ghostOpacity }
-    }
     @Published var blacklist: [String] = [] {
         didSet { guard !syncing, oldValue != blacklist else { return }
             Settings.userBlacklist = blacklist
@@ -168,21 +142,9 @@ final class SettingsStore: ObservableObject {
         didSet { guard !syncing, oldValue != perAppInstructions else { return }
             Settings.perAppInstructions = perAppInstructions }
     }
-    @Published var idleUnloadMinutes = 5 {
-        didSet { guard !syncing else { return }
-            Settings.idleUnloadMinutes = idleUnloadMinutes }
-    }
     @Published var screenContext = false {
         didSet { guard !syncing, oldValue != screenContext else { return }
             SettingsUI.setScreenContext(screenContext) }
-    }
-    @Published var clipboardContext = false {
-        didSet { guard !syncing, oldValue != clipboardContext else { return }
-            Settings.clipboardContextEnabled = clipboardContext }
-    }
-    @Published var automaticUpdateCheck = true {
-        didSet { guard !syncing, oldValue != automaticUpdateCheck else { return }
-            Settings.automaticUpdateCheck = automaticUpdateCheck }
     }
     /// Login-item state, re-read from launchd on every `sync()` — there is no
     /// stored mirror to keep in step (see `LoginItem`). Writes go through
@@ -470,15 +432,8 @@ final class SettingsStore: ObservableObject {
     /// Add an app to the blacklist via the standard app-picker panel; stores
     /// the lowercased bundle ID (AppPolicy matches by substring of it).
     func addBlacklistApp() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = [.applicationBundle]
-        panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.prompt = "Disable Pretype Here"
-        panel.message = "Choose applications where Pretype should stay silent."
-        SettingsUI.run(panel) { [weak self] urls in
+        pickApps(prompt: "Disable Pretype Here",
+                 message: "Choose applications where Pretype should stay silent.") { [weak self] urls in
             for url in urls {
                 let entry = (Bundle(url: url)?.bundleIdentifier ?? url.deletingPathExtension().lastPathComponent)
                     .lowercased()
@@ -509,15 +464,8 @@ final class SettingsStore: ObservableObject {
     /// unlike the blacklist's substring markers, instructions shouldn't leak
     /// into look-alike apps).
     func addPerAppInstructionApp() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = [.applicationBundle]
-        panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.prompt = "Add Instructions"
-        panel.message = "Choose applications that get their own style instructions."
-        SettingsUI.run(panel) { [weak self] urls in
+        pickApps(prompt: "Add Instructions",
+                 message: "Choose applications that get their own style instructions.") { [weak self] urls in
             guard let self else { return }
             for url in urls {
                 guard let id = Bundle(url: url)?.bundleIdentifier?.lowercased() else { continue }
@@ -528,6 +476,19 @@ final class SettingsStore: ObservableObject {
                 }
             }
         }
+    }
+
+    /// The standard app picker, opened on /Applications.
+    private func pickApps(prompt: String, message: String, picked: @escaping ([URL]) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.prompt = prompt
+        panel.message = message
+        SettingsUI.run(panel, picked: picked)
     }
 
     /// Preset apps installed on this Mac and not configured yet.
@@ -727,7 +688,6 @@ final class SettingsStore: ObservableObject {
         enabled = Settings.enabled
         presentation = Settings.suggestionPresentation
         hotkeyStyle = Settings.hotkeyStyle
-        replyGesture = Settings.replyGesture
         // Permission can be revoked in System Settings while we're running.
         // Clear the stored flag rather than just the switch: a setting that
         // reads on while the microphone is denied is a feature that silently
@@ -740,13 +700,8 @@ final class SettingsStore: ObservableObject {
             Settings.dictationEnabled = false
         }
         dictation = Settings.dictationEnabled
-        dictationGesture = Settings.dictationGesture
-        dictationLatch = Settings.dictationLatch
-        dictationSilence = Settings.dictationSilence
-        dictationPolish = Settings.dictationPolish
         dictationLanguage = Settings.dictationLanguage
         dictationInput = Settings.dictationInput
-        ghostOpacity = Settings.ghostOpacity
         blacklist = Settings.userBlacklist
         useRecommended = Settings.useRecommendedSettings
         style = Settings.completionStyle
@@ -759,10 +714,7 @@ final class SettingsStore: ObservableObject {
         journalEnabled = Settings.suggestionJournalEnabled
         instructions = Settings.customInstructions
         perAppInstructions = Settings.perAppInstructions
-        idleUnloadMinutes = Settings.idleUnloadMinutes
         screenContext = Settings.screenContextEnabled
-        clipboardContext = Settings.clipboardContextEnabled
-        automaticUpdateCheck = Settings.automaticUpdateCheck
         loginStatus = LoginItem.status  // the user may have flipped it in System Settings
         accuracyAxis = Settings.accuracyAxis
         settingsMapMode = Settings.settingsMapMode
@@ -943,8 +895,7 @@ struct BadgeRow: View {
 extension Color {
     /// This tint as small TEXT: darkened under the light appearance, where
     /// system green, orange and teal at caption size sit near 2:1 on a light
-    /// form. Dark is untouched — there they already clear 4.5:1. Same idea as
-    /// the menu's `MenuHeaderView.gain`.
+    /// form. Dark is untouched — there they already clear 4.5:1.
     var legible: Color {
         let base = NSColor(self)
         return Color(nsColor: NSColor(name: nil) { appearance in
@@ -1253,6 +1204,19 @@ struct HoverSegments<T: Hashable>: View {
 struct GeneralTab: View {
     @ObservedObject var store: SettingsStore
     @State private var blacklistDraft = ""
+    @AppStorage("replyGesture") private var replyGesture = ReplyGesture.option
+    @AppStorage("ghostOpacity") private var ghostOpacity = 0.7
+    @AppStorage("dictationGesture") private var dictationGesture = DictationGesture.option
+    @AppStorage("dictationLatch") private var dictationLatch = DictationLatch.off
+    /// Silence budget for a hands-free capture, in seconds; 0 is off.
+    @AppStorage("dictationSilence") private var dictationSilence = 5.0
+    @AppStorage("dictationPolish") private var dictationPolish = true
+    @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = true
+    @AppStorage("clipboardContext") private var clipboardContext = false
+
+    /// Floored like `Settings.ghostOpacity`: a value stored under the old 0.1
+    /// floor must not preview fainter than the ghost actually draws.
+    private var ghost: Double { max(0.4, ghostOpacity) }
 
     var body: some View {
         Form {
@@ -1305,11 +1269,11 @@ struct GeneralTab: View {
                             Text("Faint").font(.caption).foregroundStyle(.secondary)
                             // Floor at 40%: the help text itself calls 45%
                             // near-invisible, and below that the ghost vanished.
-                            Slider(value: $store.ghostOpacity, in: 0.4...1, step: 0.05)
+                            Slider(value: $ghostOpacity, in: 0.4...1, step: 0.05)
                                 .accessibilityLabel("Ghost visibility")
-                                .accessibilityValue("\(Int(store.ghostOpacity * 100)) percent")
+                                .accessibilityValue("\(Int(ghost * 100)) percent")
                             Text("Bold").font(.caption).foregroundStyle(.secondary)
-                            Text("\(Int(store.ghostOpacity * 100))%")
+                            Text("\(Int(ghost * 100))%")
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                                 .frame(width: 36, alignment: .trailing)
@@ -1319,7 +1283,7 @@ struct GeneralTab: View {
                     }
                 }
                 OverlayPreview(presentation: store.presentation,
-                               opacity: store.ghostOpacity,
+                               opacity: ghost,
                                hotkey: store.hotkeyStyle)
             } footer: {
                 Text(store.presentation == .inline
@@ -1328,7 +1292,7 @@ struct GeneralTab: View {
             }
 
             Section {
-                Picker(selection: $store.replyGesture) {
+                Picker(selection: $replyGesture) {
                     ForEach(ReplyGesture.allCases, id: \.self) { Text($0.label).tag($0) }
                 } label: {
                     Text("Write a reply")
@@ -1358,7 +1322,7 @@ struct GeneralTab: View {
                                 source: "Honest status: no eval isolates the OCR context's effect on suggestion accuracy yet."),
                 ])
 
-                Toggle("Use clipboard context", isOn: $store.clipboardContext)
+                Toggle("Use clipboard context", isOn: $clipboardContext)
                 BadgeRow(badges: [
                     EffectBadge(icon: "doc.on.clipboard", text: "helps when replying to copied text", tone: .neutral,
                                 source: "The current clipboard text (capped at 600 chars) is fed to the model as extra context — the thing being replied to is often just-copied. Read only when the clipboard changes; concealed clipboards from password managers are never read; never written to the journal or debug log."),
@@ -1386,31 +1350,31 @@ struct GeneralTab: View {
                             + "is sent anywhere, and nothing records unless you asked it to.")
                     }
                     if store.dictation {
-                        Picker(selection: $store.dictationGesture) {
+                        Picker(selection: $dictationGesture) {
                             ForEach(DictationGesture.allCases, id: \.self) { gesture in
                                 Text(gesture.label).tag(gesture)
                             }
                         } label: {
                             Text("Push-to-talk key")
-                            if store.dictationGesture != .off {
+                            if dictationGesture != .off {
                                 Text("A hold, not a tap"
-                                    + (store.replyGesture == .off ? "" : ", so it never collides with “\(store.replyGesture.label)” for a reply")
+                                    + (replyGesture == .off ? "" : ", so it never collides with “\(replyGesture.label)” for a reply")
                                     + ". Recording starts after about half a second of quiet hold; any other "
                                     + "key, click or scroll before that cancels it, and esc discards one already running.")
                             }
                         }
-                        if store.dictationGesture == .off, store.dictationLatch == .off {
+                        if dictationGesture == .off, dictationLatch == .off {
                             Caption("⚠︎ Dictation is on but no key is assigned, so nothing can "
                                 + "start a capture. Pick a key above or a hands-free chord below, "
                                 + "or switch the feature off.")
                         }
-                        Picker(selection: $store.dictationLatch) {
+                        Picker(selection: $dictationLatch) {
                             ForEach(DictationLatch.allCases, id: \.self) { latch in
                                 Text(latch.label).tag(latch)
                             }
                         } label: {
                             Text("Hands-free chord")
-                            if store.dictationLatch != .off {
+                            if dictationLatch != .off {
                                 Text("Press it once to start, once more to stop — nothing to hold, so "
                                     + "you can scroll, click and think mid-sentence without losing the "
                                     + "capture. It also starts recording on the keypress itself rather "
@@ -1419,20 +1383,20 @@ struct GeneralTab: View {
                                     + "field ends it.")
                             }
                         }
-                        if store.dictationLatch != .off {
-                            if store.dictationLatch.collidesWithFixChord {
-                                Caption("⚠︎ \(store.dictationLatch.label) is already the \(store.hotkeyStyle.correctionLabel) fix's chord "
+                        if dictationLatch != .off {
+                            if dictationLatch.collidesWithFixChord {
+                                Caption("⚠︎ \(dictationLatch.label) is already the \(store.hotkeyStyle.correctionLabel) fix's chord "
                                     + "under your “\(store.hotkeyStyle.label)” hotkey, and the fix wins. "
                                     + "Pick the other chord, or change the accept hotkey above.")
                             }
-                            Picker(selection: $store.dictationSilence) {
+                            Picker(selection: $dictationSilence) {
                                 Text("Never").tag(0.0)
                                 Text("3 seconds").tag(3.0)
                                 Text("5 seconds").tag(5.0)
                                 Text("10 seconds").tag(10.0)
                             } label: {
                                 Text("Stop after silence")
-                                Text(store.dictationSilence == 0
+                                Text(dictationSilence == 0
                                     ? "A hands-free capture runs until you press the chord again — or for "
                                         + "ten minutes, whichever comes first."
                                     : "A hands-free capture that hears nothing for this long types what it "
@@ -1512,7 +1476,7 @@ struct GeneralTab: View {
                         case nil:
                             EmptyView()
                         }
-                        Toggle(isOn: $store.dictationPolish) {
+                        Toggle(isOn: $dictationPolish) {
                             Text("Tidy up with the model")
                             Text("Runs the transcript through the same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses on a "
                                 + "selection — capitalization, punctuation, obvious mishearings — and "
@@ -1536,13 +1500,8 @@ struct GeneralTab: View {
             // spurious refresh costs a device-list read.) The notifications
             // post on an arbitrary thread and the store is main-actor, hence
             // the explicit hop.
-            .onReceive(NotificationCenter.default.publisher(
-                for: AVCaptureDevice.wasConnectedNotification)
-                .receive(on: DispatchQueue.main)) { _ in
-                store.refreshDictationInput()
-            }
-            .onReceive(NotificationCenter.default.publisher(
-                for: AVCaptureDevice.wasDisconnectedNotification)
+            .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
+                .merge(with: NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification))
                 .receive(on: DispatchQueue.main)) { _ in
                 store.refreshDictationInput()
             }
@@ -1617,7 +1576,7 @@ struct GeneralTab: View {
             }
 
             Section("Updates") {
-                Toggle(isOn: $store.automaticUpdateCheck) {
+                Toggle(isOn: $automaticUpdateCheck) {
                     Text("Check for updates automatically")
                     Text("Asks GitHub once a day whether a newer release exists — the only request Pretype makes on its own, and it sends nothing about you. New versions are announced in the menu bar and installed by you; nothing is downloaded or replaced automatically. Off still leaves “Check for Updates…” in the menu.")
                 }
@@ -1643,20 +1602,22 @@ private struct BlacklistRow: View {
                 Text(entry).font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
-            Button {
-                remove()
-            } label: {
-                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            // .help is a hint, not a name — without this every row's remove
-            // button announces identically.
-            .accessibilityLabel("Stop excluding \(resolved.name)")
-            .help("Allow Pretype in this app again")
+            removeButton("Stop excluding \(resolved.name)", help: "Allow Pretype in this app again", action: remove)
         }
     }
+}
+
+/// A list row's trailing minus. The label names the row: .help is a hint, not
+/// a name — without it every row's remove button announces identically.
+@MainActor private func removeButton(_ label: String, help: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+            .frame(width: 22, height: 22)
+            .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
+    .help(help)
 }
 
 /// Exact bundle IDs resolve to the installed app's real icon and name;
@@ -1708,16 +1669,9 @@ private struct PerAppInstructionRow: View {
                 .labelsHidden()
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
-            Button {
+            removeButton("Remove instructions for \(resolved.name)", help: "Remove this app's instructions") {
                 store.perAppInstructions.removeValue(forKey: bundleID)
-            } label: {
-                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove instructions for \(resolved.name)")
-            .help("Remove this app's instructions")
         }
     }
 }
@@ -2164,10 +2118,7 @@ struct PersonalTab: View {
             if !store.isAppleIntelligence {
                 Section("Learning") {
                     Picker("Learn my words", selection: $store.personalization) {
-                        Text("Off").tag(PersonalizationLevel.off)
-                        Text("Subtle").tag(PersonalizationLevel.subtle)
-                        Text("Medium").tag(PersonalizationLevel.medium)
-                        Text("Strong").tag(PersonalizationLevel.strong)
+                        ForEach(PersonalizationLevel.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                     }
                     BadgeRow(badges: [
                         EffectBadge(icon: "flask", text: "no measured gain yet", tone: .neutral,
