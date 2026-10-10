@@ -10,13 +10,13 @@ permissions:
 
 # Matches ci.yml — the pin lives in one place per workflow.
 env:
-  XCODE_VERSION: '26.3'
+  XCODE_VERSION: '26.6'
 
 jobs:
   release:
     name: Build & Package Release
-    # macOS 15 ships Xcode 16.3+ (Swift 6.1) — required by mlx-swift-lm 3.31.4.
-    runs-on: macos-15
+    # mlx-swift 0.32.3 needs swift-tools 6.3: the macOS 26 image's default Xcode 26.6 has it.
+    runs-on: macos-26
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

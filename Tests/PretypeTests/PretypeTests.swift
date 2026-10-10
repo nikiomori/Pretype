@@ -347,6 +347,17 @@ final class PretypeTests: XCTestCase {
 
     // An already-downloaded model loads from its snapshot with no network
     // round trip — but only when everything the loader reads is there.
+    func testEveryGemmaInstructModelHasAnMTPDrafter() {
+        for option in ModelCatalog.options {
+            for id in [option.correctionModelID, option.instructModelID] where id.contains("gemma-4") {
+                XCTAssertNotNil(ModelCatalog.mtpDrafterID(for: id), id)
+            }
+        }
+        // Drafters are trained against the -it models only.
+        XCTAssertNil(ModelCatalog.mtpDrafterID(for: "mlx-community/gemma-4-e2b-4bit"))
+        XCTAssertNil(ModelCatalog.mtpDrafterID(for: "mlx-community/Qwen3.5-2B-4bit"))
+    }
+
     func testLocalSnapshotNeedsWeightsConfigAndTokenizer() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("snap-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

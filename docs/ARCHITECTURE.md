@@ -73,6 +73,12 @@ protocol, datasets and significance tests behind them are in `Eval/BASELINE.md`.
   blocks sit at the head of the prompt, so a refresh of any of them voids the
   cache; the new prompt is prefilled when the refresh lands, not on the next
   keystroke.
+* **Speculative fixes and replies** — whenever a Gemma instruct model runs ⌥⇥
+  or the reply draft (the instruct primary, or base style's fix model), it
+  decodes with Google's multi-token-prediction drafter (~150 MB, fetched in the
+  background on first use): 20–40% faster, same output quality. Streamed
+  completions skip it — the speculative start costs more than it saves before
+  the first word shows.
 * **Debounced and cancellable** — a query starts 60 ms after the last
   keystroke, and fast typing supersedes in-flight work instead of queueing it.
 * **Fast reloads** — a downloaded model loads straight from its local snapshot

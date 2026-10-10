@@ -187,6 +187,19 @@ enum ModelCatalog {
         }
     }
 
+    /// Google's multi-token-prediction drafter for a Gemma 4 instruct model
+    /// (~150 MB, bf16): speculative decoding for fix (⌥⇥) and reply, whose
+    /// results show only once complete — on the instruct primary or on base
+    /// style's -it fix sibling. Drafters exist only for the -it builds.
+    /// eval-correct p50: E2B-it 366/301 → 207/186 ms, E4B-it (fix sibling of
+    /// E4B-8bit) 2031/1601 → 1395/1286 ms; fixed rate unchanged (51%, 64%).
+    static func mtpDrafterID(for primaryID: String) -> String? {
+        let id = primaryID.lowercased()
+        if id.contains("gemma-4-e2b-it") { return "mlx-community/gemma-4-E2B-it-assistant-bf16" }
+        if id.contains("gemma-4-e4b-it") { return "mlx-community/gemma-4-E4B-it-assistant-bf16" }
+        return nil
+    }
+
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):
     /// zero download, zero app memory, runs on the Neural Engine.
     static let appleIntelligenceID = "system.apple-intelligence"

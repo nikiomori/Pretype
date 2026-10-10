@@ -3,6 +3,8 @@ import MLX
 import MLXLLM
 import MLXLMCommon
 import MLXHuggingFace
+import MLXNN
+import MLXVLM
 import HuggingFace
 import Tokenizers
 
@@ -115,6 +117,12 @@ final class MLXEngine: CompletionEngine {
     /// KV-cache + token snapshots reused between keystrokes (LRU; type lives in
     /// `MLXEngine+Generation.swift`).
     private let promptCache = PromptCache()
+
+    /// MTP drafters (see `ModelCatalog.mtpDrafterID`) for the instruct primary
+    /// and for the base style's fix sibling, loaded and released with their
+    /// model; nil = plain decoding.
+    private let drafter = LockedValue<(any MTPDrafterModel)?>(nil)
+    private let correctionDrafter = LockedValue<(any MTPDrafterModel)?>(nil)
 
     /// Parsed tokenizers, kept across idle unloads. Parsing tokenizer.json is
     /// most of a reload — Gemma 1.45 s of ~1.9 s, the weights loading in
@@ -248,6 +256,8 @@ final class MLXEngine: CompletionEngine {
         let id = self.modelID
         let eos = self.extraEOSTokens
         let tokenizers = self.tokenizers
+        let drafterBox = self.drafter
+        let drafterID = style == .instruct ? ModelCatalog.mtpDrafterID(for: id) : nil
         stateBox.set(.preparing("loading…"))
         return Task { [weak self] in
             do {
@@ -263,13 +273,9 @@ final class MLXEngine: CompletionEngine {
                 } else {
                     configuration = ModelConfiguration(id: id, extraEOSTokens: eos)
                 }
-                let container = try await loadModelContainer(
-                    from: #hubDownloader(), using: tokenizers,
-                    configuration: configuration,
-                    progressHandler: { progress in
-                        stateBox.set(.preparing(Self.downloadStatus(progress)))
-                    }
-                )
+                let loaded = try await Self.loadTarget(
+                    configuration, drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
+                    progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
                 // The first generation pays for Metal kernel compilation; do it
                 // now so the first real keystroke doesn't. The prompt is long
                 // enough to take the split-prefill path too — a 2-token warm-up
@@ -283,7 +289,7 @@ final class MLXEngine: CompletionEngine {
                 stateBox.set(.preparing("warming up…"))
                 do {
                     _ = try await Self.generate(
-                        in: container, prompt: Self.warmUpPrompt,
+                        in: loaded, prompt: Self.warmUpPrompt,
                         parameters: GenerateParameters(maxTokens: 3, temperature: 0.0),
                         extraEOSTokens: eos, promptCache: nil
                     )
@@ -292,7 +298,7 @@ final class MLXEngine: CompletionEngine {
                 }
                 stateBox.set(.ready)
                 self?.markLoadSucceeded()
-                return container
+                return loaded
             } catch {
                 stateBox.set(.failed(error.localizedDescription))
                 self?.clearLoadTaskOnFailure()
@@ -302,6 +308,74 @@ final class MLXEngine: CompletionEngine {
     }
 
     private static let warmUpPrompt = String(repeating: "The weekly update covers hiring, the roadmap and next steps. ", count: 7)
+
+    /// Frees the weights of a multimodal build's vision/audio towers: the
+    /// engine only ever sends text (−320 MB on E2B-it).
+    private static func dropUnusedTowers(_ container: ModelContainer) async {
+        await container.perform { (context: ModelContext) in
+            let towers = context.model.parameters().flattened().filter { key, _ in
+                ["vision_tower", "audio_tower", "embed_vision", "embed_audio"].contains { key.hasPrefix($0) }
+            }
+            guard !towers.isEmpty else { return }
+            let empty = Dictionary(uniqueKeysWithValues: towers.map { ($0.0, MLXArray.zeros([0], dtype: $0.1.dtype)) })
+            try? context.model.update(parameters: ModuleParameters.unflattened(empty), verify: [.none])
+        }
+        Memory.clearCache()
+    }
+
+    /// Loads a model, with its MTP drafter into `drafterBox` when `drafterID`
+    /// names one that is already on disk. A missing drafter downloads in the
+    /// background for the next load — 150 MB must not hold up this one.
+    private static func loadTarget(
+        _ configuration: ModelConfiguration, drafterID: String?,
+        into drafterBox: LockedValue<(any MTPDrafterModel)?>, tokenizers: TokenizerCache,
+        progressHandler: @escaping @Sendable (Progress) -> Void
+    ) async throws -> ModelContainer {
+        drafterBox.set(nil)
+        if let drafterID {
+            if let local = ModelStorage.localSnapshot(for: drafterID) {
+                // MTP needs the target's last hidden state, which only the VLM
+                // build of Gemma 4 emits; its unused vision tower is freed right
+                // after, so the drafter is the whole extra cost.
+                do {
+                    let vlm = try await VLMModelFactory.shared.loadContainer(
+                        from: #hubDownloader(), using: tokenizers,
+                        configuration: configuration, progressHandler: progressHandler)
+                    await dropUnusedTowers(vlm)
+                    drafterBox.set(try await loadDrafter(at: local))
+                    return vlm
+                } catch {
+                    drafterBox.set(nil)
+                    DebugLog.shared.log("MLX", "MTP drafter unavailable (\(error.localizedDescription)) — plain decoding")
+                }
+            } else {
+                Task.detached(priority: .utility) {
+                    do {
+                        _ = try await #hubDownloader().download(
+                            id: drafterID, revision: nil, matching: ["*.safetensors", "*.json"],
+                            useLatest: false, progressHandler: { _ in })
+                    } catch {
+                        DebugLog.shared.log("MLX", "MTP drafter download failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+        // LLMModelFactory, not loadModelContainer: with MLXVLM linked the generic
+        // loader picks the VLM classes first (Qwen3.5's lacks the raw-token call
+        // the decode loop uses).
+        return try await LLMModelFactory.shared.loadContainer(
+            from: #hubDownloader(), using: tokenizers,
+            configuration: configuration, progressHandler: progressHandler)
+    }
+
+    private static func loadDrafter(at directory: URL) async throws -> any MTPDrafterModel {
+        let config = try JSONDecoder().decode(
+            Gemma4AssistantConfiguration.self,
+            from: Data(contentsOf: directory.appendingPathComponent("config.json")))
+        let model = Gemma4AssistantDraftModel(config)
+        try await loadWeights(modelDirectory: directory, model: model)
+        return model
+    }
 
     private func clearLoadTaskOnFailure() {
         modelLock.lock()
@@ -403,6 +477,8 @@ final class MLXEngine: CompletionEngine {
         correctionLoadTask?.cancel(); correctionLoadTask = nil
         modelLock.unlock()
 
+        drafter.set(nil)
+        correctionDrafter.set(nil)
         Memory.clearCache()
         promptCache.clear()
         if reason == "memory pressure" { tokenizers.clear() }
@@ -1001,6 +1077,10 @@ final class MLXEngine: CompletionEngine {
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
             prefillOnly: prefillOnly,
+            // No drafter here: starting the speculative iterator costs ~25 ms
+            // before the first token, and a streamed suggestion is judged by
+            // its first word (measured: first-visible p50 +8 ms, final −5%).
+            // The drafter pays off on the longer, non-streamed fix and reply.
             onPartial: Self.makeStreamHandler(onPartial, gate: gate)
         )
         if prefillOnly { return nil }
@@ -1156,6 +1236,7 @@ final class MLXEngine: CompletionEngine {
             // junk on 39% of eval-correct rows ("fix.less than 100 words").
             extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
             promptCache: nil,
+            drafter: style == .instruct ? drafter.get() : correctionDrafter.get(),
             // The generation log prints its own raw output — redacting only the
             // divergence-guard line below would leave the same sentence in the
             // buffer twenty lines earlier, on the SUCCESS path at that.
@@ -1207,7 +1288,8 @@ final class MLXEngine: CompletionEngine {
             },
             parameters: parameters,
             extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
-            promptCache: nil
+            promptCache: nil,
+            drafter: style == .instruct ? drafter.get() : correctionDrafter.get()
         )
         try Task.checkCancellation()
         return request.cleanReply(output)
@@ -1291,14 +1373,15 @@ final class MLXEngine: CompletionEngine {
         let stateBox = self.stateBox
         let correctionFetched = self.correctionFetched
         let tokenizers = self.tokenizers
+        let drafterBox = self.correctionDrafter
         let task = Task<ModelContainer, Error> { [weak self] in
             let previous = stateBox.get()
             stateBox.set(.preparing("loading fix model…"))
             do {
-                let container = try await loadModelContainer(
-                    from: #hubDownloader(), using: tokenizers,
-                    configuration: ModelStorage.localSnapshot(for: id).map { ModelConfiguration(directory: $0) }
+                let container = try await Self.loadTarget(
+                    ModelStorage.localSnapshot(for: id).map { ModelConfiguration(directory: $0) }
                         ?? ModelConfiguration(id: id),
+                    drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in
                         stateBox.set(.preparing(Self.downloadStatus(progress, label: "fix model")))
                     }

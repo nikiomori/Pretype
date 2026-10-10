@@ -170,6 +170,10 @@ extension MLXEngine {
     /// memory-pressure unload. 128 halves it again but costs E2B ~25 ms.
     static let prefillChunk = 256
 
+    /// Tokens per speculative round (1 bonus + 2 drafted): block 3 measured
+    /// best on E2B-it with a cached prompt (block 2 −5%, 4 −11%, 3 −18…−32%).
+    static let mtpBlock = 3
+
     /// The instruct path's per-keystroke tokenization without re-rendering the
     /// chat template: the rendered prompt is head + body(text) + tail, where
     /// only the text changes between keystrokes (directive, persona and turn
@@ -521,6 +525,7 @@ extension MLXEngine {
         gateLogProb: Double? = nil,
         healExpected: String? = nil,
         prefillOnly: Bool = false,
+        drafter: (any MTPDrafterModel)? = nil,
         logRaw: Bool = true,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
@@ -542,6 +547,7 @@ extension MLXEngine {
             gateLogProb: gateLogProb,
             healExpected: healExpected,
             prefillOnly: prefillOnly,
+            drafter: drafter,
             logRaw: logRaw,
             onPartial: onPartial
         )
@@ -568,6 +574,12 @@ extension MLXEngine {
         /// Prefill the prompt into the cache and stop — no decode, returns "".
         /// See `MLXEngine.warmPrompt`.
         prefillOnly: Bool = false,
+        /// A Gemma 4 MTP drafter: decode speculatively (`MTPSpeculativeTokenIterator`,
+        /// greedy-verified by the target) instead of token by token. Used only
+        /// when nothing needs per-token logits — no healing, bias or EOS mask,
+        /// and no logprob gate; the confidence trim and the first-word logprob
+        /// are skipped on this path (the iterator exposes no per-token logits).
+        drafter: (any MTPDrafterModel)? = nil,
         /// False when the generated text is not ours to print: the dictation
         /// tidy-up pass hands this path a SPOKEN sentence, and the debug buffer
         /// is exported into bug reports under a dialog that only warns about
@@ -613,7 +625,7 @@ extension MLXEngine {
                 start = hit.reused
                 priorCheckpoint = hit.checkpoint
             } else {
-                cache = context.model.newCache(parameters: parameters)
+                cache = try context.model.newCache(parameters: parameters)
                 start = 0
                 priorCheckpoint = nil
             }
@@ -720,7 +732,16 @@ extension MLXEngine {
             // coming (EOS, newline, trim/gate verdict) wastes the step already
             // in flight; the token budget never does.
             let firstInput = MLXArray(fullTokens[splitAt...].map { Int32($0) })
-            var current = step(firstInput)
+            // Speculative path: drafts of `mtpBlock` tokens verified by the
+            // target in one forward (block 3 measured best on E2B-it).
+            var mtp: MTPSpeculativeTokenIterator?
+            if let drafter, healExpected == nil, bias == nil, minTokens == 0, gateLogProb == nil {
+                mtp = try MTPSpeculativeTokenIterator(
+                    input: LMInput(tokens: firstInput), mainModel: context.model, drafter: drafter,
+                    mainCache: cache, parameters: parameters, blockSize: mtpBlock)
+                recorder = nil
+            }
+            var current: MLXArray? = mtp == nil ? step(firstInput) : nil
             let decodeStart = Date()
             var generated: [Int] = []       // sampled tokens, in order
             var cachedGenerated = 0         // of those, how many the cache holds
@@ -732,9 +753,17 @@ extension MLXEngine {
             // still return that token's text, not "".
             var text = textTokens.isEmpty ? "" : context.tokenizer.decode(tokenIds: textTokens, skipSpecialTokens: true)
             while true {
-                let next: MLXArray? = generated.count + 1 < maxTokens ? step(current) : nil
-                if next != nil { cachedGenerated = generated.count + 1 }
-                let token = current.item(Int.self)
+                let token: Int
+                var next: MLXArray?
+                if mtp != nil {
+                    guard let t = mtp?.next() else { break }
+                    token = t
+                } else {
+                    guard let cur = current else { break }
+                    next = generated.count + 1 < maxTokens ? step(cur) : nil
+                    if next != nil { cachedGenerated = generated.count + 1 }
+                    token = cur.item(Int.self)
+                }
                 generated.append(token)
                 if Task.isCancelled || eosIDs.contains(token) { break }
                 textTokens.append(token)
@@ -772,8 +801,18 @@ extension MLXEngine {
                 }
                 if gateOpen { onPartial?(text) }
                 if text.contains("\n") { break }
-                guard let next else { break }
-                current = next
+                if mtp == nil {
+                    guard let next else { break }
+                    current = next
+                }
+            }
+            if mtp != nil {
+                // The speculative iterator leaves the cache holding the prompt
+                // plus whatever it committed; bring it back to the prompt so the
+                // live state below describes exactly `fullTokens`.
+                let held = cache.first?.offset ?? n
+                if held > n, canTrimPromptCache(cache) { trimPromptCache(cache, numTokens: held - n) }
+                cachedGenerated = 0
             }
             let decodeSeconds = Date().timeIntervalSince(decodeStart)
             let prefillSeconds = decodeStart.timeIntervalSince(prefillStart)
