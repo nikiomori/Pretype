@@ -21,10 +21,8 @@ enum SpellChecker {
     /// The best correction for `word` if it is a misspelling, else nil. Returns
     /// only a *close* fix (the shared divergence guard rejects a different word),
     /// so a real typo is corrected but a valid-but-unknown word is left alone.
-    static func correction(for word: String, context: String = "") -> String? {
-        guard word.count >= 3, word.count <= 40,
-              word.allSatisfy({ $0.isLetter || $0 == "'" || $0 == "’" || $0 == "-" })
-        else { return nil }
+    static func correction(for word: String, context: String) -> String? {
+        guard word.count >= 3, word.count <= 40, word.allSatisfy(\.isWordChar) else { return nil }
 
         let language = self.language(for: word, context: context)
         let range = NSRange(location: 0, length: (word as NSString).length)
@@ -69,7 +67,7 @@ enum SpellChecker {
     /// user would type next — is safe; mid-prefix it would strand the word.
     /// `after` is the text just past the caret: a letter there means the caret
     /// is *inside* a word ("прив|ет"), so it's never a boundary.
-    static func endsOnCompleteWord(before: String, after: String = "") -> Bool {
+    static func endsOnCompleteWord(before: String, after: String) -> Bool {
         if after.first?.isLetter == true { return false }
         let word = trailingWord(of: before)
         return isCompleteWord(word, context: before)
@@ -78,32 +76,15 @@ enum SpellChecker {
     /// The run of word characters immediately before the caret — the partial
     /// word being typed — or "" when `text` ends on a non-letter.
     static func trailingWord(of text: String) -> String {
-        var reversed: [Character] = []
-        for ch in text.reversed() {
-            guard ch.isLetter || ch == "'" || ch == "’" || ch == "-" else { break }
-            reversed.append(ch)
-        }
-        return String(reversed.reversed())
+        String(text.reversed().prefix(while: \.isWordChar).reversed())
     }
 
     /// True when `word` is itself a complete, correctly-spelled word rather than
     /// a prefix on the way to a longer one. Single letters are treated as
     /// incomplete (too ambiguous: "я"/"I" are words but also word-starts), so a
     /// space is only ever offered after a real ≥2-letter word.
-    static func isCompleteWord(_ word: String, context: String = "") -> Bool {
-        guard word.count >= 2, word.count <= 40,
-              word.allSatisfy({ $0.isLetter || $0 == "'" || $0 == "’" || $0 == "-" })
-        else { return false }
-
-        let language = self.language(for: word, context: context)
-        // A correctly-spelled word yields no misspelling range. Pass the language
-        // explicitly — the language-less check waves Cyrillic through (it looks
-        // fine to the English dictionary), which would call every prefix complete.
-        let misspelled = checker.checkSpelling(
-            of: word, startingAt: 0, language: language, wrap: false,
-            inSpellDocumentWithTag: 0, wordCount: nil
-        )
-        return misspelled.location == NSNotFound
+    static func isCompleteWord(_ word: String, context: String) -> Bool {
+        spelled(word, language: language(for: word, context: context))
     }
 
     /// At a mid-word caret, the engines prepend a separator space to an instruct
@@ -119,7 +100,7 @@ enum SpellChecker {
         let partial = trailingWord(of: before)
         guard partial.count >= 2 else { return suggestion }
         let body = String(suggestion.drop { $0 == " " })
-        let firstWord = String(body.prefix { $0.isLetter || $0 == "'" || $0 == "’" || $0 == "-" })
+        let firstWord = String(body.prefix(while: \.isWordChar))
         guard !firstWord.isEmpty, isKnownWord(partial + firstWord) else { return suggestion }
         return body
     }
@@ -138,9 +119,7 @@ enum SpellChecker {
             return suggestion
         }
         let firstChar = suggestion[letterIndex]
-        let word = String(suggestion[letterIndex...].prefix {
-            $0.isLetter || $0 == "'" || $0 == "’" || $0 == "-"
-        })
+        let word = String(suggestion[letterIndex...].prefix(while: \.isWordChar))
         // Leave acronyms and the English first-person pronoun alone.
         if word.count >= 2, word == word.uppercased() { return suggestion }
         if word == "I" || word.hasPrefix("I'") || word.hasPrefix("I’") { return suggestion }
@@ -162,23 +141,35 @@ enum SpellChecker {
     /// as wrong — so the continuation normalizers judge the word against its own
     /// script, where it's unambiguous. Main-thread only (NSSpellChecker).
     private static func isKnownWord(_ word: String) -> Bool {
-        guard word.count >= 2, word.count <= 40,
-              word.allSatisfy({ $0.isLetter || $0 == "'" || $0 == "’" || $0 == "-" })
-        else { return false }
-        let cyrillic = word.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
-        let want = cyrillic ? "ru" : "en"
-        let language = checker.availableLanguages.first { $0.lowercased().hasPrefix(want) } ?? want
+        spelled(word, language: scriptLanguage(word))
+    }
+
+    /// A correctly-spelled ≥2-letter word yields no misspelling range. Pass the
+    /// language explicitly — the language-less check waves Cyrillic through (it
+    /// looks fine to the English dictionary), which would call every prefix
+    /// complete. `language` is only evaluated for a word that passes the shape
+    /// guard, so the recognizer never runs on an empty trailing word.
+    private static func spelled(_ word: String, language: @autoclosure () -> String) -> Bool {
+        guard word.count >= 2, word.count <= 40, word.allSatisfy(\.isWordChar) else { return false }
         let misspelled = checker.checkSpelling(
-            of: word, startingAt: 0, language: language, wrap: false,
+            of: word, startingAt: 0, language: language(), wrap: false,
             inSpellDocumentWithTag: 0, wordCount: nil
         )
         return misspelled.location == NSNotFound
     }
 
+    /// The available spell-check language for the word's own script:
+    /// Cyrillic → a Russian variant, anything else → English.
+    private static func scriptLanguage(_ word: String) -> String {
+        let cyrillic = word.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
+        let want = cyrillic ? "ru" : "en"
+        return checker.availableLanguages.first { $0.lowercased().hasPrefix(want) } ?? want
+    }
+
     /// Pick a concrete available spell-check language by the word's script and surrounding context:
     /// NaturalLanguage recognizer is run on the preceding context if present.
     /// Otherwise, Cyrillic → a Russian variant, English/other language fallback (checking the word itself).
-    private static func language(for word: String, context: String = "") -> String {
+    private static func language(for word: String, context: String) -> String {
         // 1. Try to recognize language from the context using NLLanguageRecognizer
         if !context.isEmpty {
             let langCode: String? = {
@@ -205,8 +196,12 @@ enum SpellChecker {
         }
 
         // 2. Fallback to Cyrillic / English check based on the word itself
-        let cyrillic = word.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
-        let want = cyrillic ? "ru" : "en"
-        return checker.availableLanguages.first { $0.lowercased().hasPrefix(want) } ?? want
+        return scriptLanguage(word)
     }
+}
+
+extension Character {
+    /// A letter or an in-word apostrophe/hyphen ("don't", "по-русски") — what
+    /// the spell-fix, the mid-word glue guard and the n-gram all count as a word.
+    var isWordChar: Bool { isLetter || self == "'" || self == "’" || self == "-" }
 }

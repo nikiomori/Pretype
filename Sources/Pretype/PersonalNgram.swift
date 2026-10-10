@@ -238,8 +238,7 @@ final class PersonalNgram: @unchecked Sendable {
 
     /// Letter-runs in order, surface case preserved (names must stay "Никита").
     static func words(_ text: String) -> [String] {
-        text.split { !$0.isLetter && $0 != "'" && $0 != "’" && $0 != "-" }
-            .map(String.init)
+        text.split { !$0.isWordChar }.map(String.init)
     }
 
     /// `unigram`'s bucket: completion needs ≥3 typed chars, so every match

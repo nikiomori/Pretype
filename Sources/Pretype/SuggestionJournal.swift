@@ -90,13 +90,7 @@ final class SuggestionJournal: @unchecked Sendable {
     private var wordDocFreq: [String: Int] = [:]
     private let maxPhrases = 2000
 
-    private static let iso: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    static func timestamp() -> String { iso.string(from: Date()) }
+    static func timestamp() -> String { Date().ISO8601Format() }
 
     // 50 MB ≈ years of real typing at the observed few KB/day. The old 5 MB cap
     // was about to trim the live journal — and trim() drops the OLDEST half,
@@ -117,15 +111,7 @@ final class SuggestionJournal: @unchecked Sendable {
 
     func append(_ entry: Entry) {
         queue.async { [self] in
-            guard var data = try? encoder.encode(entry) else { return }
-            data.append(0x0A)
-            if let handle = FileHandle(forWritingAtPath: url.path) {
-                defer { try? handle.close() }
-                _ = try? handle.seekToEnd()
-                try? handle.write(contentsOf: data)
-            } else {
-                try? data.write(to: url)
-            }
+            guard appendLocked([entry]) else { return }
             appended += 1
             if appended % 200 == 0 { trim() }
             if phrases != nil, let phrase = Self.phrase(from: entry) { indexPhrase(phrase) }
@@ -203,27 +189,30 @@ final class SuggestionJournal: @unchecked Sendable {
             // without it, a write racing the toggle recreates the journal file
             // after reset() deleted it — imported text persisting on disk that
             // the setting claims is gone.
-            guard Settings.suggestionJournalEnabled else { return }
-            var data = Data()
-            for entry in entries {
-                guard var line = try? encoder.encode(entry) else { continue }
-                line.append(0x0A)
-                data.append(line)
-            }
-            guard !data.isEmpty else { return }
-            if let handle = FileHandle(forWritingAtPath: url.path) {
-                defer { try? handle.close() }
-                _ = try? handle.seekToEnd()
-                try? handle.write(contentsOf: data)
-            } else {
-                try? data.write(to: url)
-            }
+            guard Settings.suggestionJournalEnabled, appendLocked(entries) else { return }
             // Drop the corpus rather than index each row: the next query reloads
             // it from the file, which also re-applies the maxPhrases cap.
             phrases = nil
             wordDocFreq = [:]
             trim()
         }
+    }
+
+    /// Encode `entries` as JSONL and append them to the file in one write.
+    /// False when nothing encoded (nothing written). Runs on `queue`.
+    private func appendLocked(_ entries: [Entry]) -> Bool {
+        let data = entries.reduce(into: Data()) { data, entry in
+            if let line = try? encoder.encode(entry) { data += line + [0x0A] }
+        }
+        guard !data.isEmpty else { return false }
+        if let handle = FileHandle(forWritingAtPath: url.path) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+        } else {
+            try? data.write(to: url)
+        }
+        return true
     }
 
     func reset() {
@@ -274,14 +263,9 @@ final class SuggestionJournal: @unchecked Sendable {
     /// don't corrupt predictions.
     func typedStreamChunks() -> [String] {
         queue.sync {
-            guard let data = try? Data(contentsOf: url),
-                  let content = String(data: data, encoding: .utf8) else { return [] }
-            let decoder = JSONDecoder()
             var prevByApp: [String: String] = [:]
             var chunks: [String] = []
-            for line in content.split(separator: "\n") {
-                guard let entry = try? decoder.decode(Entry.self, from: Data(line.utf8)),
-                      entry.outcome != .undone, !entry.ctx.isEmpty else { continue }
+            for entry in entriesLocked() where entry.outcome != .undone && !entry.ctx.isEmpty {
                 let app = entry.app ?? "?"
                 let prev = prevByApp[app] ?? ""
                 prevByApp[app] = entry.ctx
@@ -322,21 +306,26 @@ final class SuggestionJournal: @unchecked Sendable {
         guard phrases == nil else { return }
         var loaded: [AcceptedPhrase] = []
         var undone = Set<String>()
-        if let data = try? Data(contentsOf: url),
-           let content = String(data: data, encoding: .utf8) {
-            let decoder = JSONDecoder()
-            for line in content.split(separator: "\n") {
-                guard let entry = try? decoder.decode(Entry.self, from: Data(line.utf8)) else { continue }
-                if entry.outcome == .undone {
-                    undone.insert(entry.suggestion)
-                } else if let phrase = Self.phrase(from: entry) {
-                    loaded.append(phrase)
-                }
+        for entry in entriesLocked() {
+            if entry.outcome == .undone {
+                undone.insert(entry.suggestion)
+            } else if let phrase = Self.phrase(from: entry) {
+                loaded.append(phrase)
             }
         }
         phrases = []
         for phrase in loaded.suffix(maxPhrases) where !undone.contains(phrase.next) {
             indexPhrase(phrase)
+        }
+    }
+
+    /// Every decodable line of the file, oldest first. Runs on `queue`.
+    private func entriesLocked() -> [Entry] {
+        guard let data = try? Data(contentsOf: url),
+              let content = String(data: data, encoding: .utf8) else { return [] }
+        let decoder = JSONDecoder()
+        return content.split(separator: "\n").compactMap {
+            try? decoder.decode(Entry.self, from: Data($0.utf8))
         }
     }
 
@@ -357,12 +346,7 @@ final class SuggestionJournal: @unchecked Sendable {
     /// `queue.sync` is not guarding the stat — it is a FLUSH BARRIER. Appends are
     /// async on this queue, so reading the size off-queue reports a stale count
     /// before pending writes land (four journal tests catch exactly that).
-    var fileSize: Int {
-        queue.sync {
-            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
-            return (attrs?[.size] as? NSNumber)?.intValue ?? 0
-        }
-    }
+    var fileSize: Int { queue.sync { fileSizeLocked() } }
 
     /// Keep the newest half when the file outgrows `maxBytes`, cut on a line
     /// boundary. Runs on `queue`.

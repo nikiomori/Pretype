@@ -1832,11 +1832,11 @@ final class PretypeTests: XCTestCase {
         }
 
         // lastToken is what every revalidation path uses: the shortcode when one
-        // is closed at the caret, the plain word otherwise. lastWord alone stops
-        // at ':' and would read the shortcode back as "".
+        // is closed at the caret, the plain word otherwise. trailingWord alone
+        // stops at ':' and would read the shortcode back as "".
         XCTAssertEqual(CorrectionController.lastToken(of: "hey :shrug:"), ":shrug:")
         XCTAssertEqual(CorrectionController.lastToken(of: "hey teh"), "teh")
-        XCTAssertEqual(CorrectionController.lastWord(of: "hey :shrug:"), "")
+        XCTAssertEqual(SpellChecker.trailingWord(of: "hey :shrug:"), "")
     }
 
     // Imported text must feed BOTH consumers off the one file: the n-gram's ctx

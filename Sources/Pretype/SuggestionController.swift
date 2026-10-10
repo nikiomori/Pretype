@@ -18,29 +18,12 @@ final class SuggestionController: NSObject {
     /// otherwise). Without this the reference lingers after a normal finish and
     /// `isQueryRunning` reads true forever.
     private var refreshSeq = 0
+    /// A completion query is scheduled or streaming (the indicator's dots).
+    var isCompleting: Bool { refreshTask != nil }
 
     /// Engine-state indicator at the caret (download progress, thinking dots,
     /// transient notices). Shares the overlay window with the suggestion.
-    lazy var indicator = CaretIndicator(
-        window: window,
-        engineState: { [weak self] in
-            // The idle-unloaded resting state reports `.preparing` with nothing
-            // running; the keystroke reloads it in well under a second. At the
-            // caret that is just a slow query (dots), not "idle — model
-            // unloaded" flashed over the user's text.
-            guard let engine = self?.engine else { return .ready }
-            if case .preparing = engine.state, !engine.isLoading { return .ready }
-            return engine.state
-        },
-        caretRect: { [weak self] in self?.lastCaretRect },
-        hostStyle: { [weak self] in self?.lastHostStyle ?? HostTextStyle() },
-        hasActiveSuggestion: { [weak self] in self?.active != nil },
-        isQueryRunning: { [weak self] in
-            // The ⌥⇥ fix flows run outside refreshTask; without them the timer
-            // sees .ready + idle at its first tick and kills the thinking dots.
-            self?.refreshTask != nil || self?.correctionController.inFlight == true
-        }
-    )
+    lazy var indicator = CaretIndicator(owner: self)
     /// The text-fixing flows (⌥⇥ fix-selection / last word, inline spell-fix),
     /// kept separate from the completion pipeline below.
     let correctionController = CorrectionController()
@@ -69,34 +52,16 @@ final class SuggestionController: NSObject {
     }
 
     private var active: Active?
+    var hasActiveSuggestion: Bool { active != nil }
 
     /// Journal record for the currently shown suggestion, opened when it first
     /// appears and written out with its outcome when it resolves. Everything is
-    /// local-only (see `SuggestionJournal`).
-    private struct PendingJournal {
-        var ctx: String
-        var after: String
-        var suggestion: String
-        var acceptedChars = 0
-        var hadScreen: Bool
-        /// The app this was offered in, captured at show time. Resolution can
-        /// arrive after focus has already moved (a `.abandoned` on app switch),
-        /// and `typingContext` names the NEW app by then — booking the offer, or
-        /// journaling it, against that one blames the wrong app.
-        var app: String?
-        /// "ngram" for the fast-path, else the engine's name — so the journal
-        /// can compare their acceptance rates.
-        var engine: String
-        /// Config regime at show-time (see `Entry.model`…); `model` is the
-        /// engine's own resolved/loaded model — nil for the ngram fast-path
-        /// and Apple Intelligence.
-        var model: String?
-        var style: String
-        var gate: String
-        var personalization: String
-        var shownAt = Date()
-    }
-    private var pendingJournal: PendingJournal?
+    /// local-only (see `SuggestionJournal`). The entry's `app` is captured at
+    /// show time: resolution can arrive after focus has already moved (a
+    /// `.abandoned` on app switch), and `typingContext` names the NEW app by
+    /// then — booking the offer, or journaling it, against that one blames the
+    /// wrong app.
+    private var pendingJournal: (entry: SuggestionJournal.Entry, shownAt: Date)?
 
     /// True while the visible suggestion came from the personal n-gram
     /// fast-path (shown instantly, before the LLM answers). The LLM stream
@@ -216,13 +181,6 @@ final class SuggestionController: NSObject {
     func start() {
         focusTracker.start()
         ensureKeyTap()
-        // Legacy favored-word store (measured null, removed 2026-07-16): the
-        // learned-word list must not outlive the feature on disk.
-        if let dir = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            try? FileManager.default.removeItem(
-                at: dir.appendingPathComponent("Pretype/personalization.json"))
-        }
         if Settings.personalizationLevel != .off {
             PersonalNgram.shared.prepareIfNeeded()
         }
@@ -278,46 +236,43 @@ final class SuggestionController: NSObject {
     /// first resolution wins; later calls (e.g. the `dismiss()` that follows an
     /// Escape) find nothing pending.
     private func resolveJournal(_ outcome: SuggestionJournal.Outcome, typed: String? = nil) {
-        guard let pending = pendingJournal else { return }
+        guard let (shown, shownAt) = pendingJournal else { return }
         pendingJournal = nil
         // The counters are booked HERE, not where the ghost was drawn: what makes
         // a ghost an offer the user could take is how long it survived and what
         // ended it, and neither is known until now. See `Stats.isChance`.
-        let shownForMs = Int(Date().timeIntervalSince(pending.shownAt) * 1000)
+        let shownForMs = Int(Date().timeIntervalSince(shownAt) * 1000)
         Stats.recordOffer(outcome: outcome, shownForMs: shownForMs,
-                          tookAny: pending.acceptedChars > 0, app: pending.app)
+                          tookAny: shown.acceptedChars > 0, app: shown.app)
         guard Settings.suggestionJournalEnabled else { return }
+        var entry = shown
         // ONE snapshot for both consumers: observe's delta cursor must see
         // exactly the ctx window the journal stores, or the next launch's
         // replay re-splits the stream differently and double-learns.
-        let ctx = String(pending.ctx.suffix(1000))
+        entry.ctx = String(entry.ctx.suffix(1000))
         // Live n-gram learning from the same ctx snapshots the startup build
         // replays — so today's typing predicts today, not from the next launch.
         if Settings.personalizationLevel != .off {
-            PersonalNgram.shared.observe(ctx: ctx, app: pending.app)
+            PersonalNgram.shared.observe(ctx: entry.ctx, app: entry.app)
         }
-        SuggestionJournal.shared.append(SuggestionJournal.Entry(
-            ts: SuggestionJournal.timestamp(),
-            app: pending.app,
-            engine: pending.engine,
-            model: pending.model,
-            style: pending.style,
-            gate: pending.gate,
-            personalization: pending.personalization,
-            // Read at resolve, not show: the engine publishes the value only
-            // after the generation completes, which is after the first streamed
-            // partial is shown. By resolve time it belongs to the shown
-            // suggestion — except `superseded`, where a newer generation has
-            // already overwritten it (see Entry doc: calibration filters those).
-            firstWordLogProb: pending.engine == "ngram" ? nil : engine.lastFirstWordLogProb,
-            ctx: ctx,
-            after: pending.after,
-            suggestion: pending.suggestion,
-            outcome: outcome,
-            acceptedChars: pending.acceptedChars,
-            typed: typed.map { String($0.prefix(20)) },
-            shownForMs: shownForMs,
-            screen: pending.hadScreen))
+        entry.ts = SuggestionJournal.timestamp()
+        entry.outcome = outcome
+        entry.typed = typed.map { String($0.prefix(20)) }
+        entry.shownForMs = shownForMs
+        // Read at resolve, not show: the engine publishes the value only
+        // after the generation completes, which is after the first streamed
+        // partial is shown. By resolve time it belongs to the shown
+        // suggestion — except `superseded`, where a newer generation has
+        // already overwritten it (see Entry doc: calibration filters those).
+        entry.firstWordLogProb = entry.engine == "ngram" ? nil : engine.lastFirstWordLogProb
+        SuggestionJournal.shared.append(entry)
+    }
+
+    /// Resolve the shown suggestion with `outcome` and take it off screen.
+    private func retire(_ outcome: SuggestionJournal.Outcome, typed: String? = nil) {
+        resolveJournal(outcome, typed: typed)
+        active = nil
+        window.hide()
     }
 
     func dismiss() {
@@ -641,14 +596,11 @@ final class SuggestionController: NSObject {
                 }
                 // The typed delta doesn't extend the ghost: either the user typed
                 // it out in full themselves, or they went another way.
-                resolveJournal(delta.hasPrefix(current.text) ? .typedThrough : .diverged,
-                               typed: delta)
+                retire(delta.hasPrefix(current.text) ? .typedThrough : .diverged, typed: delta)
             } else {
                 // Context jumped (backspace, caret move, programmatic edit).
-                resolveJournal(.abandoned)
+                retire(.abandoned)
             }
-            active = nil
-            window.hide()
         }
 
         // Suggestions have been offered here dozens of times and essentially
@@ -845,9 +797,7 @@ final class SuggestionController: NSObject {
             // showed). Close the journal record and clear the stale suggestion
             // so a hidden one can't still be accepted.
             lastEvent = "engine returned no suggestion"
-            resolveJournal(.abandoned)
-            active = nil
-            window.hide()
+            retire(.abandoned)
             return false
         }
         // While an injection settles, every anchor in reach (cache or AX read)
@@ -913,9 +863,7 @@ final class SuggestionController: NSObject {
             // flush, so the gate can't catch this upstream. Drop it — showing
             // nothing beats showing garbage.
             lastEvent = "dropped mid-word glue suggestion"
-            resolveJournal(.abandoned)
-            active = nil
-            window.hide()
+            retire(.abandoned)
             return false
         }
 
@@ -932,11 +880,13 @@ final class SuggestionController: NSObject {
             // this point was replaced before the user reacted to it. The offer
             // itself is booked when this record resolves — resolveJournal.
             resolveJournal(.superseded)
-            pendingJournal = PendingJournal(
-                ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
-                hadScreen: screenSummary != nil
-                    && AppPolicy.allowsScreenContext(typingContext.bundleID),
+            // ts, outcome, typed, shownForMs and the logprob are stamped at
+            // resolve; ctx is capped there.
+            pendingJournal = (entry: SuggestionJournal.Entry(
+                ts: "",
                 app: typingContext.bundleID,
+                // "ngram" for the fast-path, else the engine's name — so the
+                // journal can compare their acceptance rates.
                 engine: instant ? "ngram" : engine.name,
                 // The engine's OWN resolved model — not Settings.mlxModelID,
                 // which diverges from what actually generated (instruct loads
@@ -946,10 +896,15 @@ final class SuggestionController: NSObject {
                 gate: Settings.confidenceGate
                     ? "\(Settings.confidenceGateSamples)@\(Settings.confidenceGateThreshold)" : "off",
                 personalization: Settings.personalizationLevel.rawValue
-                    + (Settings.personalExamplesEnabled ? "+rag" : ""))
+                    + (Settings.personalExamplesEnabled ? "+rag" : ""),
+                ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
+                outcome: .abandoned, acceptedChars: 0, typed: nil, shownForMs: 0,
+                screen: screenSummary != nil
+                    && AppPolicy.allowsScreenContext(typingContext.bundleID)),
+                shownAt: Date())
         } else {
             // Streamed growth of the same suggestion — keep the record current.
-            pendingJournal?.suggestion = suggestion
+            pendingJournal?.entry.suggestion = suggestion
         }
         showSuggestion(suggestion, ctx)
         return true
@@ -965,9 +920,7 @@ final class SuggestionController: NSObject {
     private static func wouldGlueMidWord(current: String, suggestion: String) -> Bool {
         guard current.last?.isLetter == true, !suggestion.hasPrefix(" ") else { return false }
         let partial = SpellChecker.trailingWord(of: current)
-        let firstWord = String(suggestion.prefix {
-            $0.isLetter || $0 == "'" || $0 == "’" || $0 == "-"
-        })
+        let firstWord = String(suggestion.prefix(while: \.isWordChar))
         guard !partial.isEmpty, !firstWord.isEmpty else { return false }
         return SpellChecker.isCompleteWord(firstWord, context: current)
             && !SpellChecker.isCompleteWord(partial + firstWord, context: current)
@@ -988,7 +941,7 @@ final class SuggestionController: NSObject {
                                 trimToLine: active?.trimToLine ?? true) ?? text
         if shown != text {
             active?.text = shown
-            pendingJournal?.suggestion = shown
+            pendingJournal?.entry.suggestion = shown
         }
         lastEvent = "suggesting \"\(shown.prefix(40))\""
         if shown != lastLoggedSuggestion {
@@ -1003,7 +956,7 @@ final class SuggestionController: NSObject {
 
     /// `maxChars` is the hard backstop on what can reach the field: a keystroke
     /// completion is a few words, a composed reply a few sentences.
-    private func sanitize(_ raw: String, maxChars: Int = 120) -> String {
+    private func sanitize(_ raw: String, maxChars: Int) -> String {
         var out = raw.replacingOccurrences(of: "\t", with: " ")
         if let newline = out.firstIndex(where: { $0.isNewline }) {
             out = String(out[..<newline])
@@ -1320,18 +1273,12 @@ final class SuggestionController: NSObject {
         // scheduled AX refresh re-read the truth, exactly like control input.
         guard !flags.contains(.maskCommand), !flags.contains(.maskControl) else {
             latestTextBeforeCaret = nil
-            if active != nil {
-                resolveJournal(.abandoned)
-                active = nil
-                window.hide()
-            }
+            if active != nil { retire(.abandoned) }
             return
         }
         let typed = Self.typedCharacters(event)
         guard !typed.isEmpty else { return }   // dead keys, bare modifiers
-        let isControl = typed.unicodeScalars.contains {
-            $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
-        }
+        let isControl = Self.isControlInput(typed)
         // Keep the cache marker truthful for EVERY pass-through keystroke,
         // ghost or not: a streamed partial landing inside the ≤60 ms refresh
         // window anchors on this cache, and pre-keystroke text would make Tab
@@ -1347,15 +1294,13 @@ final class SuggestionController: NSObject {
         guard let remaining = Self.narrowedSuggestion(current.text, typedCharacters: typed) else {
             // Divergent or control input — the ghost no longer matches the field.
             if isControl {
-                resolveJournal(.abandoned)
+                retire(.abandoned)
             } else if typed.hasPrefix(current.text) {
                 // The keystroke completed the remaining suggestion unaided.
-                resolveJournal(.typedThrough)
+                retire(.typedThrough)
             } else {
-                resolveJournal(.diverged, typed: typed)
+                retire(.diverged, typed: typed)
             }
-            active = nil
-            window.hide()
             return
         }
         current.anchor += typed
@@ -1382,10 +1327,16 @@ final class SuggestionController: NSObject {
     /// input (backspace, arrows, function keys), a diverging character, or
     /// typing through the suggestion's end.
     nonisolated static func narrowedSuggestion(_ text: String, typedCharacters typed: String) -> String? {
-        guard !typed.unicodeScalars.contains(where: {
-            $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
-        }), typed.count < text.count, text.hasPrefix(typed) else { return nil }
+        guard !isControlInput(typed), typed.count < text.count, text.hasPrefix(typed) else { return nil }
         return String(text.dropFirst(typed.count))
+    }
+
+    /// Backspace, arrows, function keys (the private-use F7xx range) and
+    /// other non-text input.
+    nonisolated private static func isControlInput(_ typed: String) -> Bool {
+        typed.unicodeScalars.contains {
+            $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
+        }
     }
 
     /// The characters this key event will insert, as reported by the event.
@@ -1511,17 +1462,15 @@ final class SuggestionController: NSObject {
         current.accepted = true
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
-        pendingJournal?.acceptedChars += chunk.count
+        pendingJournal?.entry.acceptedChars += chunk.count
         if chunk.count >= current.text.count {
-            resolveJournal(.accepted)
-            active = nil
+            retire(.accepted)
             // A fully-accepted suggestion ends its stream. Otherwise a later
             // partial re-mints `active` (with no recordShown), re-showing and
             // re-counting a continuation at the stale caret. The 0.09s refresh
             // below re-queries the extended context and re-streams cleanly.
             refreshTask?.cancel()
             refreshTask = nil
-            window.hide()
         } else {
             current.anchor += chunk
             current.text = String(current.text.dropFirst(chunk.count))
@@ -1713,17 +1662,8 @@ final class SuggestionController: NSObject {
 
     /// Leading spaces plus the first run of non-space characters.
     nonisolated static func firstWordChunk(of text: String) -> String {
-        var chunk = ""
-        var seenNonSpace = false
-        for ch in text {
-            if ch == " " {
-                if seenNonSpace { break }
-            } else {
-                seenNonSpace = true
-            }
-            chunk.append(ch)
-        }
-        return chunk
+        let lead = text.prefix { $0 == " " }
+        return String(lead + text[lead.endIndex...].prefix { $0 != " " })
     }
 
 }
