@@ -77,7 +77,7 @@ protocol, datasets and significance tests behind them are in `Eval/BASELINE.md`.
   keystroke, and fast typing supersedes in-flight work instead of queueing it.
 * **Fast reloads** — a parsed tokenizer survives the idle unload (parsing it
   was most of a reload), so the next keystroke waits for the weights alone.
-* **Idle unload** — after `Settings.idleUnloadMinutes` (5 by default) the engine
+* **Idle unload** — after `Settings.idleUnloadMinutes` (5 by default, 15 on Macs with 32 GB or more) the engine
   releases the weights and gives the RAM back, reloading on the next keystroke.
   Memory pressure from macOS unloads it early.
 

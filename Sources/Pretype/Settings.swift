@@ -513,7 +513,11 @@ enum Settings {
             // 120 ms anyway, so the old value mostly added latency.
             "debounceMs": 60,
             "maxContextChars": 1200,
-            "idleUnloadMinutes": 5,
+            // A reload after the idle unload costs ~0.6–1.2 s even with the
+            // tokenizer kept; on 32 GB+ Macs, where the memory-pressure unload
+            // still frees the model the moment macOS needs the RAM, the model
+            // waits out a longer pause instead. A picked value always wins.
+            "idleUnloadMinutes": ModelCatalog.machineRamGB >= 32 ? 15 : 5,
             "fimEnabled": true,
             // Follows the default model's recommendation (base·short on the
             // Qwen3.5 floor; instruct·short on the Gemma tiers).
