@@ -71,10 +71,11 @@ It's a free, MIT-licensed alternative to [Cotypist](https://cotypist.app) — a 
 ### Homebrew *(recommended)*
 
 ```bash
-brew install --no-quarantine nikiomori/tap/pretype
+brew install nikiomori/tap/pretype
+xattr -dr com.apple.quarantine /Applications/Pretype.app
 ```
 
-**Apple Silicon only** (M1 or newer) — MLX does not run on Intel Macs. `--no-quarantine` skips the Gatekeeper "Open Anyway" dance (releases are ad-hoc signed, not notarized — see step 2 below); to keep skipping it on every `brew upgrade`, put `export HOMEBREW_CASK_OPTS="--no-quarantine"` in your shell profile. Then continue from step 3.
+**Apple Silicon only** (M1 or newer) — MLX does not run on Intel Macs. The `xattr` line skips the Gatekeeper "Open Anyway" dance (releases are ad-hoc signed, not notarized — see step 2 below); run it again after each `brew upgrade`. Homebrew 6 removed the old `--no-quarantine` flag, so it no longer works. Then continue from step 3.
 
 ### Download the app
 
