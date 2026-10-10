@@ -78,7 +78,7 @@ struct ModelTab: View {
                 // The two chord tasks run on a different, smaller set of
                 // models (the instruct siblings), so they are a lens on the
                 // map rather than extra bubbles — same axes, different task.
-                HoverSegments(options: [
+                HoverSegments(title: "Map task", options: [
                     (MapLens.completion, "Completions"),
                     (MapLens.fix, "Fix a line (\(store.hotkeyStyle.correctionLabel))"),
                     (MapLens.reply, "Reply (\(store.hotkeyStyle.replyLabel))"),
@@ -131,7 +131,7 @@ struct ModelTab: View {
                 }
                 HStack {
                     Spacer()
-                    Button("Choose fine-tuned model…") { store.chooseFineTunedModel() }
+                    Button("Choose Fine-Tuned Model…") { store.chooseFineTunedModel() }
                         .controlSize(.small)
                 }
             }
@@ -416,11 +416,13 @@ struct ModelRow: View {
                         .fontWeight(isSelected ? .semibold : .regular)
                         .lineLimit(1).truncationMode(.tail)
                     if id == ModelCatalog.defaultID {
-                        Text("RECOMMENDED")
-                            .font(.system(size: 9, weight: .bold))
+                        // Not accent ink on an accent tint: under Graphite that
+                        // is grey on grey, and the list's one emphasis read disabled.
+                        Text("Recommended")
+                            .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 5).padding(.vertical, 1.5)
-                            .foregroundStyle(Color.accentColor)
-                            .background(Color.accentColor.opacity(0.14), in: Capsule())
+                            .foregroundStyle(.secondary)
+                            .background(.quaternary, in: Capsule())
                             .help(ModelCatalog.defaultRationale)
                     }
                     Spacer()
@@ -820,16 +822,16 @@ struct ModelMapView: View {
                 }
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 Text("\(acc)%")
-                    .font(.system(size: 9).monospacedDigit())
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
                     .position(x: plot.minX - 18, y: y)
             }
             Text("◀ slower")
-                .font(.system(size: 9))
+                .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .position(x: plot.minX + 26, y: plot.maxY + 12)
             Text("faster ▶")
-                .font(.system(size: 9).weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(Color.blue.opacity(0.8))
                 .position(x: plot.maxX - 26, y: plot.maxY + 12)
         }
@@ -908,7 +910,7 @@ struct ModelMapView: View {
                 .animation(mapCurve, value: rect)
                 .allowsHitTesting(false)
             Text("reachable with settings")
-                .font(.system(size: 8.5).weight(.bold))
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
                 .background(Color(nsColor: .windowBackgroundColor).opacity(0.9),
@@ -970,7 +972,7 @@ struct ModelMapView: View {
                 // the axis labels or out of frame.
                 let below = center.y + r + 9
                 Text(m.shortName)
-                    .font(.system(size: 9).weight(selected ? .bold : .medium))
+                    .font(.caption2.weight(selected ? .bold : .medium))
                     .foregroundStyle(selected ? Color.primary : Color.secondary)
                     .position(x: min(max(center.x, plot.minX + 34), plot.maxX - 34),
                               y: below > plot.maxY - 3 ? center.y - r - 9 : below)
@@ -1000,8 +1002,8 @@ struct ModelMapView: View {
                     .zIndex(5)
                 if store.preview == .config(reachable.config) {
                     Text(reachable.label)
-                        .font(.system(size: 9).weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.primary)
                         .padding(.horizontal, 4)
                         .background(Color(nsColor: .windowBackgroundColor).opacity(0.9),
                                     in: Capsule())
@@ -1075,7 +1077,7 @@ struct ModelMapView: View {
 
     private func stat(_ label: String, _ value: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.system(size: 8).weight(.semibold)).foregroundStyle(.tertiary)
+            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
             Text(value).font(.caption2.monospacedDigit().weight(.semibold)).foregroundStyle(tint.legible)
         }
     }
@@ -1158,7 +1160,7 @@ struct ModelMapView: View {
             // to name them.
             let below = center.y + r + 9
             Text(s.name)
-                .font(.system(size: 9).weight(mine ? .bold : .medium))
+                .font(.caption2.weight(mine ? .bold : .medium))
                 .foregroundStyle(mine ? Color.primary : Color.secondary)
                 .position(x: min(max(center.x, plot.minX + 44), plot.maxX - 44),
                           y: below > plot.maxY - 3 ? center.y - r - 9 : below)
@@ -1213,12 +1215,12 @@ struct ModelMapView: View {
                 }
                 if lens == .fix, let t = ModelMetrics.tasks[s.id] {
                     Text("touches \(t.falseFixPct)% of clean lines")
-                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
                 let users = ModelMetrics.taskUsers(of: s.id)
                 if !users.isEmpty {
                     Text("runs the chords for \(users.joined(separator: " · "))")
-                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                        .font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
             }

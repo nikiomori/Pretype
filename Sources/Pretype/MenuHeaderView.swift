@@ -146,23 +146,37 @@ struct MenuHintsView: View {
     let hints: [Hint]
 
     var body: some View {
-        // A grid, so every description starts on one column however wide the
-        // widest cap is ("Double ⌥" outgrew the old fixed 48 pt minimum and
-        // stepped its row out of line).
-        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 5) {
-            ForEach(Array(hints.enumerated()), id: \.offset) { _, hint in
-                GridRow {
+        Group {
+            if hints.count == 1, let hint = hints.first, hint.keys.count > 1 {
+                // The one-row summary: caps first, their verbs on the line
+                // under them. Beside four caps ("Double ⌘", "Hold ⌥") the
+                // verbs had ~50 pt and came out as "accept · fi…".
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 3) {
                         ForEach(hint.keys, id: \.self) { Self.keycap($0) }
                     }
-                    // Two lines, not an ellipsis: the one-row summary next to
-                    // four caps ("Double ⌥", "Hold ⌥") has ~50 pt left.
                     Text(hint.action)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(1)
+                }
+            } else {
+                // A grid, so every description starts on one column however
+                // wide the widest cap is ("Double ⌥" outgrew the old fixed
+                // 48 pt minimum and stepped its row out of line).
+                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 5) {
+                    ForEach(Array(hints.enumerated()), id: \.offset) { _, hint in
+                        GridRow {
+                            HStack(spacing: 3) {
+                                ForEach(hint.keys, id: \.self) { Self.keycap($0) }
+                            }
+                            Text(hint.action)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 }
             }
         }

@@ -43,7 +43,7 @@ struct HostTextStyle {
 }
 
 struct TextContext {
-    /// Text immediately before the caret, capped at `maxChars`.
+    /// Text immediately before the caret, from `AXText.windowStart` on.
     let textBeforeCaret: String
     /// A short window of text after the caret (for duplication checks).
     let textAfterCaret: String
@@ -246,6 +246,24 @@ enum AXText {
         return nil
     }
 
+    /// Where the before-caret window starts, in UTF-16 units: 0 while the
+    /// caret is within `maxChars`, then a multiple of 512 that holds still as
+    /// the user types. End-anchored, the window slid a unit per keystroke past
+    /// `maxChars`, and every `hasPrefix` check on the text downstream (ghost
+    /// anchor, apply, the injection cache) failed on each key of a long
+    /// document; now once per 512 typed. Same idea as `stableTail`.
+    static func windowStart(caret: Int, maxChars: Int) -> Int {
+        caret <= maxChars ? 0 : (caret - maxChars) / 512 * 512
+    }
+
+    /// `text` from `from` on, moved forward off a split surrogate pair or
+    /// composed character — a snapped start can land inside either.
+    static func substring(_ text: NSString, from: Int) -> String {
+        guard from > 0, from < text.length else { return text.substring(from: min(max(0, from), text.length)) }
+        let unit = text.rangeOfComposedCharacterSequence(at: from)
+        return text.substring(from: unit.location == from ? from : NSMaxRange(unit))
+    }
+
     /// `allowEmpty` keeps an EMPTY field readable: the completion pipeline has
     /// nothing to continue there and treats it as no context at all, but the
     /// reply flow's whole case is an empty chat box with a conversation above it.
@@ -270,16 +288,18 @@ enum AXText {
         // Native path: a caret that sits inside the field gives precise geometry
         // and selection-relative text.
         if let caretRect = validCaretRect(in: element, caret: caret, frame: frame) {
-            let start = max(0, caret - maxChars)
-            let windowRange = CFRange(location: start, length: caret - start)
+            let start = windowStart(caret: caret, maxChars: maxChars)
+            // A few units early, so a character the start splits can be stepped over.
+            let readFrom = max(0, start - 16)
             var text: String? = ""
-            if windowRange.length > 0 {
-                text = string(forRange: windowRange, in: element)
+            if caret > readFrom {
+                text = string(forRange: CFRange(location: readFrom, length: caret - readFrom), in: element)
+                    .map { substring($0 as NSString, from: start - readFrom) }
                 if text == nil, let full: String = attribute(element, kAXValueAttribute) {
                     let ns = full as NSString
                     let caretLoc = min(caret, ns.length)
-                    let from = max(0, caretLoc - maxChars)
-                    text = ns.substring(with: NSRange(location: from, length: caretLoc - from))
+                    text = substring(ns.substring(to: caretLoc) as NSString,
+                                     from: windowStart(caret: caretLoc, maxChars: maxChars))
                 }
             }
             guard let textBeforeCaret = text, !looksMasked(textBeforeCaret) else { return nil }
@@ -375,6 +395,7 @@ enum AXText {
         let ns = value as NSString
         let caretLoc = (caret > 0 && caret < ns.length) ? caret : ns.length
         let beforeCaret = ns.substring(to: caretLoc)
+        let window = substring(beforeCaret as NSString, from: windowStart(caret: caretLoc, maxChars: maxChars))
         let afterCaret = String(ns.substring(from: caretLoc).prefix(192))
         let style = attributedStyle(of: element, atIndex: max(0, caretLoc - 1))
         let hostFont = style.font
@@ -388,7 +409,7 @@ enum AXText {
            let anchor = onScreen(cocoaRect(CGRect(x: caret.minX, y: caret.minY, width: 1, height: caret.height))) {
             let size = hostFont?.pointSize ?? caret.height / 1.18
             DebugLog.shared.log("AX", "web/Electron: real caret via text-marker at x=\(Int(caret.minX)), \(Int(size))pt")
-            return TextContext(textBeforeCaret: String(beforeCaret.suffix(maxChars)), textAfterCaret: afterCaret,
+            return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret,
                                caretRect: anchor,
                                host: HostTextStyle(font: hostFont ?? .systemFont(ofSize: size),
                                                    color: style.color, background: style.background,
@@ -435,7 +456,7 @@ enum AXText {
         guard let anchor = onScreen(cocoaRect(caretBox)) else { return nil }
         DebugLog.shared.log("AX", "web/Electron fallback: \(value.count) chars, "
             + "font \(hostFont != nil ? "real " : "guessed ")\(Int(fontSize))pt, caret≈\(caretLoc == ns.length ? "end-of-text" : "mid-text \(caretLoc)")")
-        return TextContext(textBeforeCaret: String(beforeCaret.suffix(maxChars)), textAfterCaret: afterCaret,
+        return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret,
                            caretRect: anchor,
                            host: HostTextStyle(font: font, color: style.color,
                                                background: style.background, fieldRect: box,

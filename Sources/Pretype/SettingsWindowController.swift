@@ -28,6 +28,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.setContentSize(NSSize(width: 1180, height: 720))
         window.minSize = NSSize(width: 1020, height: 620)
         window.center()
+        // Reopens where the user left it (overrides the centring once saved).
+        window.setFrameAutosaveName("PretypeSettings")
     }
 
     @available(*, unavailable)

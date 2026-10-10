@@ -89,7 +89,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // the human status line — the same text the tooltip shows ("Pretype —
         // MiniCPM ready", "Pretype — downloading 42%"). The last pipeline event
         // explains per-app silence on hover, so it stays in the tooltip only.
-        let status = "Pretype — \(statusInfo().text)"
+        let status = "Pretype — \(Self.status(of: suggestionController).text)"
         button.image?.accessibilityDescription = status
         var tip = status
         if let last = suggestionController?.lastEvent { tip += "\nLast: \(last)" }
@@ -277,7 +277,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     private func headerView() -> MenuHeaderView {
-        let (color, text) = statusInfo()
+        let (color, text) = Self.status(of: suggestionController)
         return MenuHeaderView(
             statusColor: Color(nsColor: color),
             statusText: text,
@@ -426,9 +426,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         return hints
     }
 
-    private func statusInfo() -> (color: NSColor, text: String) {
+    /// The one status line — the menu header, the icon's label and the
+    /// Settings sidebar footer all read it.
+    static func status(of controller: SuggestionController?) -> (color: NSColor, text: String) {
         guard Permissions.isTrusted else { return (.systemRed, "Accessibility permission required") }
-        guard let controller = suggestionController else { return (.systemGray, "Starting…") }
+        guard let controller else { return (.systemGray, "Starting…") }
         guard Settings.enabled else { return (.systemGray, "Paused") }
         if controller.dictationController.isCapturing {
             return (.systemRed, "Listening — dictation is capturing")
@@ -501,26 +503,21 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func toggleEnabled() {
-        Settings.enabled.toggle()
-        if !Settings.enabled {
-            // Pause means the microphone too: a capture that survived the
-            // toggle would keep listening — and then type — under an app the
-            // user just switched off.
-            suggestionController?.dictationController.invalidate()
-            suggestionController?.dismiss()
-        }
+        guard let controller = suggestionController else { Settings.enabled.toggle(); return }
+        controller.setEnabled(!Settings.enabled)
+        // An open Settings window mirrors these; it only re-reads on sync().
+        settingsWindow?.store.sync()
     }
 
-    /// No propagation needed: AppPolicy.isBlacklisted reads UserDefaults on the
-    /// keystroke path, so the next keypress already obeys the new list.
-    /// ponytail: an already-open Settings window keeps showing the stale
-    /// blacklist until its next sync() (⌘, again) — an observer for that one
-    /// window isn't worth the wiring.
+    /// The pipeline needs no propagation: AppPolicy.isBlacklisted reads
+    /// UserDefaults on the keystroke path, so the next keypress already obeys
+    /// the new list.
     @objc private func toggleFrontmostAppBlacklist() {
         guard let bundleID = suggestionController?.typingContext.bundleID else { return }
         AppPolicy.toggleUserBlacklist(bundleID)
         // A ghost already on screen for the app we just silenced has to go.
         suggestionController?.dismiss()
+        settingsWindow?.store.sync()
     }
 
     /// Wipe the app's track record, which is the only thing keeping Pretype
@@ -530,6 +527,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         guard let bundleID = suggestionController?.typingContext.bundleID else { return }
         Stats.clearRecord(for: bundleID)
         DebugLog.shared.log("STATS", "resumed suggestions in \(bundleID)")
+        settingsWindow?.store.sync()
     }
 
     @objc private func showLastPrompt() {
@@ -634,6 +632,20 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openAccessibilitySettings() {
+        // Someone who granted it before almost always finds Pretype already
+        // switched ON — a stale entry (see `regrantInstructions`). Once per
+        // launch: the instructions send them back here after removing it,
+        // and that click wants the prompt, not the same alert again.
+        if Settings.onboardingCompleted, !Permissions.explainedRegrant {
+            Permissions.explainedRegrant = true
+            let alert = NSAlert()
+            alert.messageText = "Grant Accessibility again"
+            alert.informativeText = Permissions.regrantInstructions
+            alert.addButton(withTitle: "Open System Settings")
+            alert.addButton(withTitle: "Cancel")
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
         Permissions.prompt()
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)

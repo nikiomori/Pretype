@@ -86,10 +86,16 @@ final class MLXEngine: CompletionEngine {
     /// Forces sampling (temperature) inside the gate's K draws even when the eval
     /// harness pinned greedy. Set only around the gate loop.
     private let gateForceSample = LockedValue(false)
+    /// The PRIMARY model's state, written only by its own load and unload.
     private let stateBox = StateBox()
     private var loadTask: Task<ModelContainer, Error>?
     /// Instruct model for fix-selection; loaded lazily on first ⌥Tab.
     private var correctionLoadTask: Task<ModelContainer, Error>?
+    /// The fix model's load progress while that load runs, else nil. Kept
+    /// apart from `stateBox`: the two loads overlap, and snapshotting the
+    /// primary's state to restore it afterwards put back one that had moved
+    /// on ("loading…" after the primary went ready pinned it busy for good).
+    private let correctionStatus = LockedValue<String?>(nil)
     /// "The fix model's weights are on this machine" — see `isCorrectionReady`.
     /// Outlives an idle unload on purpose: unloading frees memory, not disk.
     private let correctionFetched = LockedValue(false)
@@ -131,17 +137,25 @@ final class MLXEngine: CompletionEngine {
     /// memory pressure forces the unload.
     private let tokenizers = TokenizerCache()
 
-    var state: EngineState { stateBox.get() }
+    /// The fix model's progress while it loads, else the primary's state.
+    var state: EngineState { correctionStatus.get().map(EngineState.preparing) ?? stateBox.get() }
+
+    var isLoading: Bool {
+        modelLock.lock()
+        defer { modelLock.unlock() }
+        return Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
+                              correctionStatus: correctionStatus.get())
+    }
 
     /// `.preparing` with a live task = loading or downloading; `.preparing`
     /// with no task = the idle-unloaded resting state, where nothing runs and
     /// nothing writes — the protocol's default (any `.preparing` is busy)
-    /// would report the app's most common state as busy forever.
-    var isLoading: Bool {
-        guard case .preparing = stateBox.get() else { return false }
-        modelLock.lock()
-        defer { modelLock.unlock() }
-        return loadTask != nil || correctionLoadTask != nil
+    /// would report the app's most common state as busy forever. A finished
+    /// fix model doesn't count: its task outlives its load.
+    static func isLoading(primary: EngineState, primaryTaskLive: Bool, correctionStatus: String?) -> Bool {
+        if correctionStatus != nil { return true }
+        guard case .preparing = primary else { return false }
+        return primaryTaskLive
     }
 
     /// The RESOLVED primary model (instruct sibling in instruct style, local
@@ -179,7 +193,7 @@ final class MLXEngine: CompletionEngine {
 
     var statusLine: String? {
         let model = modelID.split(separator: "/").last.map(String.init) ?? modelID
-        switch stateBox.get() {
+        switch state {
         case .preparing(let detail): return "\(model): \(detail)"
         case .ready: return "\(model): ready"
         case .failed(let detail): return "\(model): failed — \(detail)"
@@ -491,9 +505,14 @@ final class MLXEngine: CompletionEngine {
     private func unload(reason: String, force: Bool = false) {
         modelLock.lock()
         let idleEnough = force || Date().timeIntervalSince(lastActivity) > 3
+        // Not mid-load and not failed; an idle-unloaded primary still lets a
+        // fix model that loaded on its own (prewarmCorrection) be freed.
+        let primary = stateBox.get()
+        if case .failed = primary { modelLock.unlock(); return }
         guard inFlightCount == 0, idleEnough,
               loadTask != nil || correctionLoadTask != nil,
-              case .ready = stateBox.get() else {
+              !Self.isLoading(primary: primary, primaryTaskLive: loadTask != nil,
+                              correctionStatus: correctionStatus.get()) else {
             modelLock.unlock(); return
         }
         let before = Memory.snapshot().activeMemory
@@ -1394,30 +1413,32 @@ final class MLXEngine: CompletionEngine {
         modelLock.lock(); defer { modelLock.unlock() }
         if let correctionLoadTask { return correctionLoadTask }
         let id = correctionModelID
-        let stateBox = self.stateBox
+        let status = self.correctionStatus
         let correctionFetched = self.correctionFetched
         let tokenizers = self.tokenizers
         let drafterBox = self.correctionDrafter
+        // Set under the lock, before the task runs, so `unload` can't cancel
+        // a load that hasn't reported itself yet.
+        status.set("loading fix model…")
         let task = Task<ModelContainer, Error> { [weak self] in
-            let previous = stateBox.get()
-            stateBox.set(.preparing("loading fix model…"))
             do {
                 let container = try await Self.loadTarget(
                     ModelStorage.localSnapshot(for: id).map { ModelConfiguration(directory: $0) }
                         ?? ModelConfiguration(id: id),
                     drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in
-                        stateBox.set(.preparing(Self.downloadStatus(progress, label: "fix model")))
+                        status.set(Self.downloadStatus(progress, label: "fix model"))
                     }
                 )
-                stateBox.set(previous)
+                status.set(nil)
                 // Whatever the disk probe thought, the weights are provably
                 // here now — and after an idle unload nils the task, this is
                 // what keeps the next fix from being skipped as "not fetched".
                 correctionFetched.set(true)
                 return container
             } catch {
-                stateBox.set(previous)
+                // Before the slot frees: a retry's fresh status must not be cleared.
+                status.set(nil)
                 self?.clearCorrectionLoadTaskOnFailure()
                 throw error
             }

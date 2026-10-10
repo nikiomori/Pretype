@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusMenu = StatusMenuController()
+        installMainMenu()
         UpdateChecker.checkInBackground()
 
         if Permissions.isTrusted {
@@ -22,11 +23,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // changed under it (an update). System Settings still shows
                 // Pretype switched ON — a stale entry — so the first-run copy
                 // left them flipping a switch that already looked right.
+                Permissions.explainedRegrant = true
                 alert.informativeText = """
                 Pretype was updated, so macOS needs to grant Accessibility again.
 
-                If Pretype already shows as switched on in System Settings, switch it \
-                off and on again — or remove it with − and add it back.
+                \(Permissions.regrantInstructions)
                 """
             } else {
                 alert.informativeText = """
@@ -55,6 +56,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         suggestionController?.shutdown()
+    }
+
+    /// Settings switches the app to `.regular`, and a regular app with no
+    /// main menu has no Edit menu: ⌘C/⌘V/⌘A/⌘Z in its fields, ⌘W and ⌘Q were
+    /// all dead. Only shown while `.regular` — the menu-bar mode never sees it.
+    private func installMainMenu() {
+        let app = NSMenu()
+        app.addItem(withTitle: "About Pretype",
+                    action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        app.addItem(.separator())
+        app.addItem(withTitle: "Hide Pretype", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        app.addItem(withTitle: "Quit Pretype", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let window = NSMenu(title: "Window")
+        window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let main = NSMenu()
+        for menu in [app, edit, window] {
+            main.addItem(withTitle: menu.title, action: nil, keyEquivalent: "").submenu = menu
+        }
+        NSApp.mainMenu = main
+        NSApp.windowsMenu = window
     }
 
     private func start() {

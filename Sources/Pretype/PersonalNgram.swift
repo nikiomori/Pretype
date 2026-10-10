@@ -18,8 +18,11 @@ final class PersonalNgram: @unchecked Sendable {
     private var bigram: [String: [String: Int]] = [:]
     /// "prev2 prev1" folded → surface next word → count.
     private var trigram: [String: [String: Int]] = [:]
-    /// Surface word → count (mid-word completion vocabulary).
-    private var unigram: [String: Int] = [:]
+    /// Folded 3-char prefix → surface word → count (mid-word completion
+    /// vocabulary). Bucketed so `completeWord`, run on the main thread every
+    /// mid-word keystroke, scans one prefix instead of the whole vocabulary
+    /// (~18 ms at 20k words, ahead of the next key event).
+    private var unigram: [String: [String: Int]] = [:]
     /// Build kicked off (idempotence guard for `prepareIfNeeded`).
     private var started = false
     /// Build finished — gates live learning (`observe`).
@@ -47,14 +50,14 @@ final class PersonalNgram: @unchecked Sendable {
             let chunks = journal.typedStreamChunks()
             var bi: [String: [String: Int]] = [:]
             var tri: [String: [String: Int]] = [:]
-            var uni: [String: Int] = [:]
+            var uni: [String: [String: Int]] = [:]
             for chunk in chunks { Self.learn(chunk, bigram: &bi, trigram: &tri, unigram: &uni) }
             lock.lock()
             defer { lock.unlock() }
             guard epoch == startEpoch else { return }   // reset() raced the build
             for (key, inner) in bi { for (w, c) in inner { bigram[key, default: [:]][w, default: 0] += c } }
             for (key, inner) in tri { for (w, c) in inner { trigram[key, default: [:]][w, default: 0] += c } }
-            for (w, c) in uni { unigram[w, default: 0] += c }
+            for (key, inner) in uni { for (w, c) in inner { unigram[key, default: [:]][w, default: 0] += c } }
             prepared = true
         }
     }
@@ -135,7 +138,7 @@ final class PersonalNgram: @unchecked Sendable {
         defer { lock.unlock() }
         var best: (word: String, count: Int)?
         var runnerUp = 0
-        for (word, count) in unigram where word.count >= partial.count + 2 {
+        for (word, count) in unigram[Self.prefixKey(folded)] ?? [:] where word.count >= partial.count + 2 {
             guard Self.fold(word).hasPrefix(folded) else { continue }
             if count > (best?.count ?? 0) {
                 runnerUp = best?.count ?? 0
@@ -180,7 +183,7 @@ final class PersonalNgram: @unchecked Sendable {
     var wordCount: Int {
         lock.lock()
         defer { lock.unlock() }
-        return unigram.count
+        return unigram.values.reduce(0) { $0 + $1.count }
     }
 
     /// Build finished. Lets tests (and the UI, if it ever wants a spinner)
@@ -210,10 +213,10 @@ final class PersonalNgram: @unchecked Sendable {
     private static func learn(_ text: String,
                               bigram: inout [String: [String: Int]],
                               trigram: inout [String: [String: Int]],
-                              unigram: inout [String: Int]) {
+                              unigram: inout [String: [String: Int]]) {
         let words = words(text)
         for (i, word) in words.enumerated() {
-            if word.count >= 3 { unigram[word, default: 0] += 1 }
+            if word.count >= 3 { unigram[prefixKey(fold(word)), default: [:]][word, default: 0] += 1 }
             if i >= 1 {
                 bigram[fold(words[i - 1]), default: [:]][word, default: 0] += 1
             }
@@ -238,6 +241,10 @@ final class PersonalNgram: @unchecked Sendable {
         text.split { !$0.isLetter && $0 != "'" && $0 != "’" && $0 != "-" }
             .map(String.init)
     }
+
+    /// `unigram`'s bucket: completion needs ≥3 typed chars, so every match
+    /// of a partial shares its first three.
+    private static func prefixKey(_ folded: String) -> String { String(folded.prefix(3)) }
 
     static func fold(_ word: String) -> String {
         word.lowercased().replacingOccurrences(of: "ё", with: "е")

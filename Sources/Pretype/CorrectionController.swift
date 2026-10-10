@@ -105,6 +105,9 @@ final class CorrectionController {
             }
             return true
         }
+        // The "fix" pill goes with its selection: in an app the completion
+        // pipeline has gone quiet in, nothing else would ever repaint it.
+        if case .shortcut = owner.window.currentMode { owner.window.hide() }
         selection = nil
         // A selection-fix preview ends when the selection is gone; a last-word
         // fix preview is re-validated against the caret context in handleCaret.

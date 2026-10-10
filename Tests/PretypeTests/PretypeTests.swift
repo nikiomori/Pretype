@@ -434,6 +434,41 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(CompletionRequest.stableTail(unspaced, maxChars: 1000).count, 1000)
     }
 
+    // The AX read window's start holds while the user types (so the ghost's
+    // anchor and apply's prefix checks survive a long document), moves in 512
+    // steps, and never lands inside a surrogate pair or composed character.
+    func testAXWindowStartHoldsAndStepsOffSplitCharacters() {
+        XCTAssertEqual(AXText.windowStart(caret: 900, maxChars: 1200), 0)
+        XCTAssertEqual(Set((1200 ... 1711).map { AXText.windowStart(caret: $0, maxChars: 1200) }), [0])
+        XCTAssertEqual(AXText.windowStart(caret: 1712, maxChars: 1200), 512)
+        // 7 UTF-16 units a group; the 5-unit pad puts unit 512 on 😀's low half.
+        let doc = ("12345" + String(repeating: "ab😀e\u{301} ", count: 400)) as NSString
+        var previous: String?
+        for caret in stride(from: 1720, to: 2224, by: 35) {   // group boundaries, start = 512
+            let window = AXText.substring(doc.substring(to: caret) as NSString,
+                                          from: AXText.windowStart(caret: caret, maxChars: 1200))
+            XCTAssertTrue(window.hasPrefix("e\u{301} ab"), String(window.prefix(4)))
+            if let previous { XCTAssertTrue(window.hasPrefix(previous)) }
+            previous = window
+        }
+        XCTAssertEqual(AXText.substring("ab😀cd", from: 3), "cd")        // inside the surrogate pair
+        XCTAssertEqual(AXText.substring("ab😀cd", from: 2), "😀cd")
+        XCTAssertEqual(AXText.substring("ae\u{301}x", from: 2), "x")    // inside e + combining acute
+    }
+
+    // The fix model's load progress shows while it runs and then simply goes
+    // away — the primary's own state, whatever it became meanwhile, shows
+    // through (a snapshot/restore once pinned "loading…" over a ready model).
+    func testEngineLoadingIgnoresAFinishedFixModel() {
+        XCTAssertTrue(MLXEngine.isLoading(primary: .ready, primaryTaskLive: true, correctionStatus: "loading fix model…"))
+        XCTAssertFalse(MLXEngine.isLoading(primary: .ready, primaryTaskLive: true, correctionStatus: nil))
+        XCTAssertTrue(MLXEngine.isLoading(primary: .preparing("loading…"), primaryTaskLive: true, correctionStatus: nil))
+        // Idle-unloaded resting state, with or without a resident fix model.
+        XCTAssertFalse(MLXEngine.isLoading(primary: .preparing("idle — model unloaded"), primaryTaskLive: false,
+                                           correctionStatus: nil))
+        XCTAssertFalse(MLXEngine.isLoading(primary: .failed("x"), primaryTaskLive: false, correctionStatus: nil))
+    }
+
     // Confidence trim decides how much of a decoded suggestion the user actually
     // sees — pin the boundary rules (first word protected, stranded word heads
     // dropped, cut lands on a word boundary).
@@ -605,6 +640,9 @@ final class PretypeTests: XCTestCase {
         // A near-tie in the vocabulary is ambiguous → nil.
         ngram.learn("спасение утопающих"); ngram.learn("спасение утопающих")
         XCTAssertNil(ngram.completeWord(partial: "спас"))
+        // Prefix-bucketed vocabulary: case-folded lookup, every word counted once.
+        XCTAssertEqual(ngram.completeWord(partial: "ник"), "ите")
+        XCTAssertEqual(ngram.wordCount, 12)
 
         // Beam-fusion evidence: unthresholded counts, fold-matched (ё→е, case),
         // trigram beats bigram when both hit; unseen → 0.

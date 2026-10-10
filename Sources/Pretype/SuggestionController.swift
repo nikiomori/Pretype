@@ -229,6 +229,17 @@ final class SuggestionController: NSObject {
         }
     }
 
+    /// The master switch — the menu's Pause and the Settings toggle both land
+    /// here. Pause means the microphone too: a capture that survived the
+    /// toggle would keep listening — and then type — under an app the user
+    /// just switched off.
+    func setEnabled(_ on: Bool) {
+        Settings.enabled = on
+        guard !on else { return }
+        dictationController.invalidate()
+        dismiss()
+    }
+
     func clearOnboarding() {
         onboardingWindow = nil
     }
@@ -362,13 +373,14 @@ final class SuggestionController: NSObject {
     }
 
     /// The event tap fails when Accessibility was granted after launch (or to
-    /// the wrong target); keep retrying until it comes up.
+    /// the wrong target), and one the system disabled when the grant was
+    /// revoked stays disabled after the re-grant — so keep watching, and
+    /// rebuild it whenever it's down while trust is there.
     private func ensureKeyTap() {
+        if !keyTap.isActive, Permissions.isTrusted { keyTap.stop() }
         keyTap.start()
-        if !keyTap.isActive {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                self?.ensureKeyTap()
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.ensureKeyTap()
         }
     }
 
@@ -499,7 +511,7 @@ final class SuggestionController: NSObject {
 
     /// Refreshes the window OCR at most every 25 s, off the typing path.
     private func refreshScreenContextIfNeeded(typed: String) {
-        guard Settings.screenContextEnabled, ScreenContext.hasPermission,
+        guard Settings.enabled, Settings.screenContextEnabled, ScreenContext.hasPermission,
               AppPolicy.allowsScreenContext(typingContext.bundleID) else { return }
         guard !screenCaptureInFlight,
               Date().timeIntervalSince(screenCapturedAt) > 25,
@@ -832,7 +844,7 @@ final class SuggestionController: NSObject {
         // While an injection settles, every anchor in reach (cache or AX read)
         // either predates or trails the synthetic keystrokes: narrowing a
         // streamed partial against one resurrects the just-accepted word (and
-        // in a ≥maxContextChars document the window offsets diverge outright).
+        // across a step of the AX window's start the offsets diverge outright).
         // Drop it — the post-settle refresh re-streams from the true context,
         // and the ghost the accept advanced stays up meanwhile.
         if let deadline = injectionSettleDeadline, Date() < deadline {
@@ -1343,17 +1355,13 @@ final class SuggestionController: NSObject {
         }
     }
 
-    /// Append injected/typed text to the cache marker, re-capping it to the AX
-    /// read window: fresh reads return at most `maxContextChars` before the
-    /// caret, and an uncapped cache in a longer document would sit at a
-    /// different offset than every fresh read — structurally failing the
-    /// settle/undo equality gates.
+    /// Append injected/typed text to the cache marker. No re-cap: the AX read
+    /// window's start holds still (`AXText.windowStart`), so a fresh read is
+    /// this plus what was typed — a cap counted in Characters sat at a
+    /// different offset than the UTF-16 window and failed the settle/undo
+    /// equality gates. Every AX read re-syncs it, so it can't grow unbounded.
     private func advanceCache(_ s: String) {
-        guard var cached = latestTextBeforeCaret else { return }
-        cached += s
-        let cap = Settings.maxContextChars
-        if cached.count > cap { cached.removeFirst(cached.count - cap) }
-        latestTextBeforeCaret = cached
+        latestTextBeforeCaret? += s
     }
 
     /// Pure narrowing decision (testable): the suggestion remainder after the
@@ -1721,9 +1729,6 @@ extension SuggestionController: FocusTrackerDelegate {
         if newContext == typingContext, sameElement { return }
 
         focusGeneration += 1
-        // A capture belongs to the field it started in: carried across a focus
-        // change it would type a sentence meant for one app into another.
-        dictationController.invalidate()
         lastFocusedElement = tracker.focusedTextElement
         lastCaretRect = nil
         lastHostStyle = HostTextStyle()
@@ -1757,10 +1762,18 @@ extension SuggestionController: FocusTrackerDelegate {
         personalExamples = []
         examplesRefreshedAt = .distantPast
         dismiss()
+        // A capture belongs to the field it started in: carried across a focus
+        // change it would type a sentence meant for one app into another.
+        // After the teardown above, so its notice is the last thing painted
+        // (and `fieldChanged()` no longer strips its protection either way).
+        dictationController.invalidate()
         // Capture shortly after focus settles: passing through apps with
         // cmd-tab must not trigger screenshots, but a chat's first message
         // should still have context before the first keystroke lands.
-        if let element = tracker.focusedTextElement {
+        // Paused, blacklisted or quiet: no reload, no indicator, no screenshot.
+        if let element = tracker.focusedTextElement, Settings.enabled,
+           !AppPolicy.isBlacklisted(typingContext.bundleID),
+           !Stats.isUnproductive(typingContext.bundleID) {
             // Entered a text field — start reloading the model now (no-op unless
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
             engine.prewarmIfNeeded()
@@ -1792,17 +1805,18 @@ extension SuggestionController: FocusTrackerDelegate {
     }
 
     func focusTrackerDidResignActiveApp(_ tracker: FocusTracker) {
+        // Left the app we were typing in — drop any ghost/indicator left at its
+        // caret. A returning keystroke re-queries from the live context, so this
+        // can't strand a still-wanted suggestion.
+        dropOverlay(why: "left the app")
         // A capture dies with the app it started in. This is the only signal
         // that fires when the app switched *to* is Pretype itself — the tracker
         // never attaches to our own pid, so no focus change bumps
         // `focusGeneration`, and a capture left alive here would pass its
         // stale-focus check and type the transcript into our own menu or
-        // Settings field.
+        // Settings field. After `dropOverlay`, which would strip its notice's
+        // protection and fade it at once.
         dictationController.invalidate()
-        // Left the app we were typing in — drop any ghost/indicator left at its
-        // caret. A returning keystroke re-queries from the live context, so this
-        // can't strand a still-wanted suggestion.
-        dropOverlay(why: "left the app")
     }
 
     func focusTrackerViewportDidChange(_ tracker: FocusTracker) {

@@ -34,8 +34,7 @@ final class SettingsStore: ObservableObject {
 
     @Published var enabled = true {
         didSet { guard !syncing else { return }
-            Settings.enabled = enabled
-            if !enabled { controller?.dismiss() } }
+            controller?.setEnabled(enabled) }
     }
     @Published var presentation = SuggestionPresentation.inline {
         didSet { guard !syncing, oldValue != presentation else { return }
@@ -237,8 +236,6 @@ final class SettingsStore: ObservableObject {
         Settings.useRecommendedSettings = false
     }
 
-    @Published var statusText = ""
-    @Published var statusColor = Color.secondary
     @Published var learnedWords = 0
     @Published var journalBytes = 0
     /// Bytes on disk per catalog id — what deleting that entry would free.
@@ -633,8 +630,9 @@ final class SettingsStore: ObservableObject {
     /// A load or download is in flight — deleting now would race the writer.
     /// Keyed on `isLoading`, not `state`: the idle-unloaded resting state also
     /// reports `.preparing`, and gating on that would disable deletion exactly
-    /// when it is safest (nothing loaded, nothing writing).
-    var engineBusy: Bool { controller?.engine.isLoading ?? false }
+    /// when it is safest (nothing loaded, nothing writing). Polled by the
+    /// status timer and published only when it flips.
+    @Published private(set) var engineBusy = false
 
     func setOpenAtLogin(_ on: Bool) {
         LoginItem.set(on)
@@ -701,7 +699,7 @@ final class SettingsStore: ObservableObject {
         // them itself; anything destructive re-reads live via `journalHasData`.
         syncing = false
         preview = nil  // committed state changed — it is the new baseline
-        refreshStatus()
+        refreshEngineBusy()
     }
 
     /// Cascading changes (model → style/length → gates) land in Settings after
@@ -713,7 +711,7 @@ final class SettingsStore: ObservableObject {
     func startStatusTimer() {
         statusTimer?.invalidate()
         statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refreshStatus() }
+            Task { @MainActor in self?.refreshEngineBusy() }
         }
     }
 
@@ -722,30 +720,13 @@ final class SettingsStore: ObservableObject {
         statusTimer = nil
     }
 
-    private func refreshStatus() {
-        let text: String
-        let color: Color
-        if let engine = controller?.engine {
-            switch engine.state {
-            case .ready:
-                text = "\(engine.name) — ready"
-                color = .green
-            case .preparing(let detail):
-                text = "\(engine.name) — \(detail)"
-                color = .orange
-            case .failed(let detail):
-                text = "\(engine.name) — \(detail)"
-                color = .red
-            }
-        } else {
-            text = ""
-            color = .secondary
-        }
-        // Assign only on change: this runs on a 1 s timer, and a no-op
-        // @Published set still invalidates every observing view — enough to
-        // hitch an in-flight scroll.
-        if statusText != text { statusText = text }
-        if statusColor != color { statusColor = color }
+    /// Assign only on change: this runs on a 1 s timer, and a no-op
+    /// @Published set still invalidates every observing view — enough to
+    /// hitch an in-flight scroll. The status line itself lives in
+    /// `EngineStatusFooter`, off the store for the same reason.
+    private func refreshEngineBusy() {
+        let busy = controller?.engine.isLoading ?? false
+        if engineBusy != busy { engineBusy = busy }
     }
 
     /// Journal stats are display-only and grow slowly, so they refresh when the
@@ -907,6 +888,8 @@ struct RequirementRow: View {
             Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .foregroundStyle(met ? Color.green : Color.orange)
                 .font(.caption)
+                // Not just symbol + color: VoiceOver read the row the same either way.
+                .accessibilityLabel(met ? "Done" : "Missing")
             Text(text)
                 .font(.caption)
                 .foregroundStyle(met ? Color.secondary : Color.primary)
@@ -1011,27 +994,7 @@ struct SettingsRootView: View {
             .padding(.vertical, 10)
         }
         .safeAreaInset(edge: .bottom) {
-            HStack(alignment: .top, spacing: 7) {
-                // Orange == .preparing: a download, a model load or a warm-up.
-                // An indeterminate spinner is honest for all three, and the
-                // detail wraps instead of truncating away in a 176pt column.
-                Group {
-                    if store.statusColor == .orange && !store.statusText.isEmpty {
-                        ProgressView().controlSize(.small).scaleEffect(0.6)
-                    } else {
-                        Circle().fill(store.statusText.isEmpty ? Color.secondary : store.statusColor)
-                    }
-                }
-                .frame(width: 8, height: 8)
-                .padding(.top, 3)   // align with the caption's first baseline
-                Text(store.statusText.isEmpty ? "Engine idle" : store.statusText)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                    .help(store.statusText)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            EngineStatusFooter(controller: store.controller)
         }
     }
 
@@ -1060,6 +1023,40 @@ struct SettingsRootView: View {
     }
 }
 
+/// The sidebar's engine line: the menu's own status, on its own 1 s clock. A
+/// download's byte counts change every tick, and published on the store they
+/// re-rendered every tab's Form with them.
+private struct EngineStatusFooter: View {
+    let controller: SuggestionController?
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            let status = StatusMenuController.status(of: controller)
+            HStack(alignment: .top, spacing: 7) {
+                // A download, a load or a warm-up — never the idle-unloaded
+                // resting state, which the menu (and this) calls ready.
+                // The detail wraps instead of truncating in a 176pt column.
+                Group {
+                    if status.color == .systemOrange, controller?.engine.isLoading == true {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                    } else {
+                        Circle().fill(Color(nsColor: status.color))
+                    }
+                }
+                .frame(width: 8, height: 8)
+                .padding(.top, 3)   // align with the caption's first baseline
+                Text(status.text)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    .help(status.text)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+    }
+}
+
 /// Liquid Glass where available, material fallback earlier. For small
 /// floating layers only (chart info card and the like) — content sections
 /// stay on standard backgrounds.
@@ -1078,6 +1075,8 @@ extension View {
 /// segments (matchedGeometryEffect + spring), rendered as an elevated control
 /// surface so the selection is unmistakable in both light and dark.
 struct HoverSegments<T: Hashable>: View {
+    /// Spoken name — the control is one native segmented picker to VoiceOver.
+    let title: String
     let options: [(value: T, label: String)]
     let selection: T
     let select: (T) -> Void
@@ -1099,9 +1098,7 @@ struct HoverSegments<T: Hashable>: View {
                         .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
-                // Selection is conveyed only by weight + thumb; without the trait
-                // VoiceOver reads every segment identically.
-                .accessibilityAddTraits(isOn ? [.isSelected] : [])
+                .focusable(false)   // one Tab stop for the whole control, below
                 .background {
                     if isOn {
                         thumb.matchedGeometryEffect(id: "thumb", in: thumbSpace)
@@ -1120,6 +1117,21 @@ struct HoverSegments<T: Hashable>: View {
         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: selection)
         .animation(.easeOut(duration: 0.12), value: hovered)
+        // Like the native control: one Tab stop, arrows move the selection,
+        // and VoiceOver reads a segmented picker ("Base, 1 of 2") rather than
+        // a row of loose buttons.
+        .focusable(interactions: .activate)
+        .onMoveCommand { direction in
+            guard let i = options.firstIndex(where: { $0.value == selection }) else { return }
+            let j = direction == .left ? i - 1 : direction == .right ? i + 1 : i
+            if j != i, options.indices.contains(j) { select(options[j].value) }
+        }
+        .accessibilityRepresentation {
+            Picker(title, selection: Binding(get: { selection }, set: select)) {
+                ForEach(options, id: \.value) { Text($0.label).tag($0.value) }
+            }
+            .pickerStyle(.segmented)
+        }
     }
 
     /// The sliding selection thumb — an elevated surface that reads clearly in
@@ -1195,7 +1207,7 @@ struct GeneralTab: View {
                                fixTitle: "Turn On") { store.screenContext = true }
                 RequirementRow(met: ScreenContext.hasPermission,
                                text: "Screen Recording allowed (then relaunch Pretype)",
-                               fixTitle: "Open Settings…") {
+                               fixTitle: "Open System Settings…") {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
                         NSWorkspace.shared.open(url)
                     }
@@ -1248,14 +1260,10 @@ struct GeneralTab: View {
                         + "macOS transcribes it on this Mac: no audio is written to disk, nothing "
                         + "is sent anywhere, and nothing records unless you asked it to.")
                     if store.dictation {
-                        LabeledContent("Push-to-talk key") {
-                            Picker("", selection: $store.dictationGesture) {
-                                ForEach(DictationGesture.allCases, id: \.self) { gesture in
-                                    Text(gesture.label).tag(gesture)
-                                }
+                        Picker("Push-to-talk key", selection: $store.dictationGesture) {
+                            ForEach(DictationGesture.allCases, id: \.self) { gesture in
+                                Text(gesture.label).tag(gesture)
                             }
-                            .labelsHidden()
-                            .frame(width: 190)
                         }
                         if store.dictationGesture == .off, store.dictationLatch == .off {
                             Caption("⚠︎ Dictation is on but no key is assigned, so nothing can "
@@ -1268,14 +1276,10 @@ struct GeneralTab: View {
                                 + ". Recording starts after about half a second of quiet hold; any other "
                                 + "key, click or scroll before that cancels it, and esc discards one already running.")
                         }
-                        LabeledContent("Hands-free chord") {
-                            Picker("", selection: $store.dictationLatch) {
-                                ForEach(DictationLatch.allCases, id: \.self) { latch in
-                                    Text(latch.label).tag(latch)
-                                }
+                        Picker("Hands-free chord", selection: $store.dictationLatch) {
+                            ForEach(DictationLatch.allCases, id: \.self) { latch in
+                                Text(latch.label).tag(latch)
                             }
-                            .labelsHidden()
-                            .frame(width: 190)
                         }
                         if store.dictationLatch != .off {
                             Caption("Press it once to start, once more to stop — nothing to hold, so "
@@ -1289,15 +1293,11 @@ struct GeneralTab: View {
                                     + "under your “\(store.hotkeyStyle.label)” hotkey, and the fix wins. "
                                     + "Pick the other chord, or change the accept hotkey above.")
                             }
-                            LabeledContent("Stop after silence") {
-                                Picker("", selection: $store.dictationSilence) {
-                                    Text("Never").tag(0.0)
-                                    Text("3 seconds").tag(3.0)
-                                    Text("5 seconds").tag(5.0)
-                                    Text("10 seconds").tag(10.0)
-                                }
-                                .labelsHidden()
-                                .frame(width: 190)
+                            Picker("Stop after silence", selection: $store.dictationSilence) {
+                                Text("Never").tag(0.0)
+                                Text("3 seconds").tag(3.0)
+                                Text("5 seconds").tag(5.0)
+                                Text("10 seconds").tag(10.0)
                             }
                             Caption(store.dictationSilence == 0
                                 ? "A hands-free capture runs until you press the chord again — or for "
@@ -1307,28 +1307,24 @@ struct GeneralTab: View {
                                     + "The clock only starts once you've said something: pausing before "
                                     + "the first word gives you half a minute.")
                         }
-                        LabeledContent("Microphone") {
-                            Picker("", selection: $store.dictationInput) {
-                                Text("Automatic").tag("auto")
-                                Text("System default").tag("system")
-                                Divider()
-                                ForEach(store.dictationInputs, id: \.uid) { device in
-                                    Text(device.name).tag(device.uid)
-                                }
-                                // A pinned microphone that is currently
-                                // unplugged has no row above, and a Picker
-                                // whose selection matches no tag renders
-                                // EMPTY — which reads as "no microphone
-                                // chosen" while captures still honor the pin
-                                // the moment it returns.
-                                if store.dictationInput != "auto",
-                                   store.dictationInput != "system",
-                                   !store.dictationInputs.contains(where: { $0.uid == store.dictationInput }) {
-                                    Text("Unplugged microphone").tag(store.dictationInput)
-                                }
+                        Picker("Microphone", selection: $store.dictationInput) {
+                            Text("Automatic").tag("auto")
+                            Text("System default").tag("system")
+                            Divider()
+                            ForEach(store.dictationInputs, id: \.uid) { device in
+                                Text(device.name).tag(device.uid)
                             }
-                            .labelsHidden()
-                            .frame(width: 190)
+                            // A pinned microphone that is currently
+                            // unplugged has no row above, and a Picker
+                            // whose selection matches no tag renders
+                            // EMPTY — which reads as "no microphone
+                            // chosen" while captures still honor the pin
+                            // the moment it returns.
+                            if store.dictationInput != "auto",
+                               store.dictationInput != "system",
+                               !store.dictationInputs.contains(where: { $0.uid == store.dictationInput }) {
+                                Text("Unplugged microphone").tag(store.dictationInput)
+                            }
                         }
                         if let note = store.dictationInputNote {
                             Caption("✓ \(note)")
@@ -1343,18 +1339,14 @@ struct GeneralTab: View {
                             : "Dictation records from this device. Note that recording from a "
                                 + "wireless headset switches it into call mode for the length of the "
                                 + "capture, which makes anything playing sound flat and quiet.")
-                        LabeledContent("Language") {
-                            Picker("", selection: $store.dictationLanguage) {
-                                Text("Follow keyboard").tag("auto")
-                                Divider()
-                                ForEach(store.dictationLocales, id: \.identifier) { locale in
-                                    Text(Locale.current.localizedString(forIdentifier: locale.identifier)
-                                        ?? locale.identifier)
-                                        .tag(locale.identifier)
-                                }
+                        Picker("Language", selection: $store.dictationLanguage) {
+                            Text("Follow keyboard").tag("auto")
+                            Divider()
+                            ForEach(store.dictationLocales, id: \.identifier) { locale in
+                                Text(Locale.current.localizedString(forIdentifier: locale.identifier)
+                                    ?? locale.identifier)
+                                    .tag(locale.identifier)
                             }
-                            .labelsHidden()
-                            .frame(width: 190)
                         }
                         Caption(store.dictationLanguage == "auto"
                             ? "Whichever keyboard layout is active when you press the key — right now "
@@ -1766,7 +1758,8 @@ struct SuggestionsTab: View {
                 }
 
                 Section("Style") {
-                    HoverSegments(options: [(CompletionStyle.base, "Base"),
+                    HoverSegments(title: "Style",
+                                  options: [(CompletionStyle.base, "Base"),
                                             (CompletionStyle.instruct, "Instruct")],
                                   selection: store.style,
                                   select: { style in
@@ -1802,12 +1795,7 @@ struct SuggestionsTab: View {
                                        text: "Needs Base style — Instruct has no confidence score to filter on",
                                        fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
                     } else {
-                        BadgeRow(badges: [
-                            EffectBadge(icon: "scope", text: "62–67% first-word on what it shows", tone: .quality,
-                                        source: "Out-of-sample split-half calibration, τ≈−0.9: 62–67% first-word accuracy at ~30% of suggestions offered — eval-real, n=870, 2026-07-15."),
-                            EffectBadge(icon: "hand.raised", text: "offers ~30% of the time (vs 81%)", tone: .caution,
-                                        source: "The other side of the trade: roughly two of three suggestions are withheld as not-confident-enough — coverage ~30% vs 81% ungated on the default model (eval-real, n=870, 2026-07-15)."),
-                        ])
+                        BadgeRow(badges: gateBadges)
                         BadgeRow(badges: [
                             EffectBadge(icon: "bolt", text: "no added latency", tone: .speed,
                                         source: "Reads the first-word log-probability the decoder already produced — zero extra generation."),
@@ -1820,7 +1808,8 @@ struct SuggestionsTab: View {
             }  // end on-device-only tuning sections (hidden for Apple Intelligence)
 
             Section("Length") {
-                HoverSegments(options: [(CompletionLength.short, "Short"),
+                HoverSegments(title: "Length",
+                              options: [(CompletionLength.short, "Short"),
                                         (CompletionLength.medium, "Medium"),
                                         (CompletionLength.long, "Long")],
                               selection: store.length,
@@ -1833,6 +1822,26 @@ struct SuggestionsTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// The gate's trade for the SELECTED model, from the projection the Live
+    /// Impact rail reads — hard-coded calibration figures contradicted the
+    /// rail beside them on every other model.
+    private var gateBadges: [EffectBadge] {
+        var config = store.committedConfig
+        config.logprobGate = true
+        let on = ConfigProjection.project(config)
+        config.logprobGate = false
+        let off = ConfigProjection.project(config)
+        let offers = on.coveragePct.map { "offers ~\($0)% of the time" } ?? "offers less often"
+        let vs = off.coveragePct.map { " (vs \($0)%)" } ?? ""
+        return [
+            EffectBadge(icon: "scope", text: on.accuracyPct == nil ? "not measured on this model"
+                            : "\(on.accuracyText) first-word on what it shows", tone: .quality,
+                        source: on.accuracySub),
+            EffectBadge(icon: "hand.raised", text: offers + vs, tone: .caution,
+                        source: "The other side of the trade: suggestions below the confidence bar are withheld, not shown — \(on.accuracySub)."),
+        ]
     }
 
     private var styleBadges: [EffectBadge] {

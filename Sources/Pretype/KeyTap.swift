@@ -42,7 +42,10 @@ final class KeyTap {
     private var localScrollMonitor: Any?
     private var localMouseMonitor: Any?
 
-    var isActive: Bool { tapPort != nil }
+    /// Created AND enabled: macOS disables a live tap when Accessibility is
+    /// revoked, and a port that merely exists read "active" over a tap that
+    /// saw nothing.
+    var isActive: Bool { tapPort.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
 
     func start() {
         // Before the tap guard: `start()` is retried every 3 s until the tap

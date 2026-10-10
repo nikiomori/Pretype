@@ -293,10 +293,9 @@ final class SuggestionWindow: NSPanel {
     /// Called on focus changes, not from `hide()`: dismissals within one field
     /// must keep their measured style.
     func fieldChanged() {
-        // A notice belongs to the field it was raised in; carried across a
-        // focus change it would hold the window against the new field's own
-        // overlay for the rest of its protection.
-        clearNoticeProtection()
+        // Notice protection survives on purpose: an app switch raises "dictation
+        // stopped — the focus moved" on resign, a hop before this runs, and it
+        // holds off only thinking/status for ≤1.2 s — a real overlay still wins.
         lastHost = HostTextStyle()
         // The thinking dots inherit the direction of the last suggestion (they
         // have no letters of their own); across a field change that is the wrong
@@ -348,7 +347,7 @@ final class SuggestionWindow: NSPanel {
     private var noticeIsProtected: Bool { Date() < noticeProtectedUntil }
 
     /// Give up the protection early: the caret this notice belongs to has moved
-    /// or gone (focus change, scroll, window move), so holding the window for
+    /// or gone (scroll, window move, app switch), so holding the window for
     /// it would only strand a pill over unrelated text.
     func clearNoticeProtection() { noticeProtectedUntil = .distantPast }
 
@@ -1136,8 +1135,11 @@ final class SuggestionWindow: NSPanel {
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 animator().alphaValue = 1
             }
-        } else if alphaValue < 1 {
+        } else {
             // Caught mid-fade-out: retarget the alpha animation back to opaque.
+            // Unconditional: a hide() earlier in this same pass still reads 1.0
+            // here (AppKit steps alpha on later frames), and its completion is
+            // already cancelled — skipping this left the window ordered in at 0.
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.06
                 animator().alphaValue = 1
