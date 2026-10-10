@@ -9,7 +9,7 @@ import FoundationModels
 final class FoundationModelsEngine: CompletionEngine {
     let name = "Apple Intelligence"
 
-    private let stateBox = StateBox()
+    private let stateBox = LockedValue<EngineState>(.preparing("starting…"))
     /// Single-flight guard: the session API rejects concurrent requests, so a
     /// fresh keystroke's request abstains while one is mid-flight (the caller
     /// cancels the prior task, so latest-wins still holds).
@@ -93,20 +93,20 @@ final class FoundationModelsEngine: CompletionEngine {
         }
         defer { inFlight.set(false) }
 
-        var text = String(request.textBeforeCaret.suffix(1200))
         // Lower the floor mid-word: a partial word ("apprecia…") is a strong,
         // safe constraint, so offer its completion even on short context — that
         // is exactly when whole-word prediction can't help yet.
-        let floor = text.last?.isLetter == true ? 5 : 8
-        guard text.count >= floor else { return nil }
-        var trailingSpaces = 0
-        while text.hasSuffix(" ") {
-            text.removeLast()
-            trailingSpaces += 1
+        guard let prepared = PreparedPrompt(String(request.textBeforeCaret.suffix(1200)), request: request,
+                                            midWordFloor: 5, boundaryFloor: 8) else { return nil }
+        // Screen/app context, when present, rides ahead of the text.
+        var prompt = ""
+        if let screen = request.screenSummary, !screen.isEmpty {
+            prompt += "Screen context:\n\(screen)\n\n"
         }
-        guard !text.isEmpty else { return nil }
-
-        let prompt = userPrompt(text: text, request: request)
+        if let app = request.appName, !app.isEmpty {
+            prompt += "The user is typing in \(app).\n\n"
+        }
+        prompt += "Existing text: \"\(prepared.text)\"\nContinuation:"
 
         // Persona (when set) sharpens voice; length caps the response.
         let persona = request.persona(global: instructionsBox.get())
@@ -120,29 +120,8 @@ final class FoundationModelsEngine: CompletionEngine {
         do {
             let response = try await session.respond(to: prompt, options: generationOptions())
             try Task.checkCancellation()
-
-            var raw = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            for quote in ["\"", "“", "”"] {
-                if raw.hasPrefix(quote) { raw.removeFirst() }
-                if raw.hasSuffix(quote) { raw.removeLast() }
-            }
-            let endsMidWord = trailingSpaces == 0 && text.last?.isLetter == true
-            let endsCompleteWord = endsMidWord
-                && (request.endsOnCompleteWord
-                    ?? SpellChecker.endsOnCompleteWord(before: text, after: request.textAfterCaret))
-            // The model answers flush (no leading space). Restore the separator
-            // the shared gate expects when the user already typed it (trailing
-            // space) OR the caret sits right after a finished word — the latter
-            // is the space the user hasn't typed yet, so the next word doesn't
-            // glue onto the previous one.
-            if trailingSpaces > 0 || endsCompleteWord, !raw.hasPrefix(" ") {
-                raw = " " + raw
-            }
-            return CompletionGates.postProcess(
-                raw, prompt: text, trailingSpaces: trailingSpaces,
-                endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-                textAfterCaret: request.textAfterCaret
-            )
+            // The model answers flush and sometimes quoted, like any instruct model.
+            return prepared.gate(cleanInstruct: true)(response.content)
         } catch let error as LanguageModelSession.GenerationError {
             // Apple's model declines some inputs — safety guardrails, rate limits
             // during fast typing, context-window or unsupported-language limits.
@@ -150,21 +129,9 @@ final class FoundationModelsEngine: CompletionEngine {
             // error: log the reason (visible in the Debug Console) and offer
             // nothing, exactly like any other no-suggestion. (CancellationError is
             // not a GenerationError, so it still propagates and cancels cleanly.)
-            DebugLog.shared.log("FM", "abstain — \(Self.describe(error))")
+            DebugLog.shared.log("FM", "abstain — \(Self.reason(error))")
             return nil
         }
-    }
-
-    /// The user-turn prompt: screen/app context, when present, then the text.
-    private func userPrompt(text: String, request: CompletionRequest) -> String {
-        var prefix = ""
-        if let screen = request.screenSummary, !screen.isEmpty {
-            prefix += "Screen context:\n\(screen)\n\n"
-        }
-        if let app = request.appName, !app.isEmpty {
-            prefix += "The user is typing in \(app).\n\n"
-        }
-        return prefix + "Existing text: \"\(text)\"\nContinuation:"
     }
 
     /// Decoding options: greedy (eval determinism) wins; otherwise an optional
@@ -185,8 +152,6 @@ final class FoundationModelsEngine: CompletionEngine {
         lengthBox.set(length)
         instructionsBox.set(instructions)
     }
-
-    var supportsCorrection: Bool { true }
 
     func correct(selection: String, request: CompletionRequest,
                  redactLog: Bool) async throws -> String? {
@@ -225,7 +190,7 @@ final class FoundationModelsEngine: CompletionEngine {
                 throw error
             default:
                 // A declined fix is a no-op, not an error — same as completion.
-                DebugLog.shared.log("FM", "fix abstain — \(Self.describe(error))")
+                DebugLog.shared.log("FM", "fix abstain — \(Self.reason(error))")
                 return nil
             }
         }
@@ -260,25 +225,16 @@ final class FoundationModelsEngine: CompletionEngine {
             case .rateLimited, .concurrentRequests:
                 throw error
             default:
-                DebugLog.shared.log("FM", "reply abstain — \(Self.describe(error))")
+                DebugLog.shared.log("FM", "reply abstain — \(Self.reason(error))")
                 return nil
             }
         }
     }
 
-    /// Short, log-friendly reason for an Apple Intelligence abstain.
-    private static func describe(_ error: LanguageModelSession.GenerationError) -> String {
-        switch error {
-        case .exceededContextWindowSize: return "context window exceeded"
-        case .assetsUnavailable: return "model assets unavailable"
-        case .guardrailViolation: return "safety guardrail"
-        case .unsupportedGuide: return "unsupported guide"
-        case .unsupportedLanguageOrLocale: return "unsupported language/locale"
-        case .decodingFailure: return "decoding failure"
-        case .rateLimited: return "rate limited"
-        case .concurrentRequests: return "concurrent requests"
-        case .refusal: return "refusal"
-        @unknown default: return "generation error"
-        }
+    /// Short, log-friendly reason for an Apple Intelligence abstain: the case
+    /// name only — the attached context is Apple's, not ours to vouch for in a
+    /// log the dictation path promises never holds the spoken text.
+    private static func reason(_ error: Error) -> Substring {
+        "\(error)".prefix { $0 != "(" }
     }
 }

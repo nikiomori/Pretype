@@ -197,3 +197,90 @@ enum CompletionGates {
         return text
     }
 }
+
+/// Shared prompt preparation for every completion path. Trims the trailing
+/// spaces the user typed (a dangling space derails SentencePiece models into
+/// a stray newline), enforces a per-path context floor, and records the
+/// word-boundary state the output gate needs. nil — abstain — below the floor
+/// or when nothing is left to encode.
+struct PreparedPrompt {
+    /// Context tail (user text + screen block) with trailing spaces removed —
+    /// what the context floor, the output gate and the n-gram lookups see.
+    /// Never contains the personal preamble: retrieved examples must not
+    /// satisfy the floor, flip the language gate, or poison the n-gram
+    /// context with words the user never typed here.
+    let text: String
+    /// What actually gets encoded: the personal-examples preamble (base
+    /// path, when present), then `text`.
+    let generationText: String
+    /// How many trailing spaces the user typed (the gate restores the separator).
+    let trailingSpaces: Int
+    /// The caret sits right after a run of letters with no separator.
+    let endsMidWord: Bool
+    /// …and that run is a finished word — so a leading-space suggestion is the
+    /// separator the user hasn't typed yet, not a stranded fragment.
+    let endsCompleteWord: Bool
+    let textAfterCaret: String
+
+    /// `midWordFloor` applies when the caret is mid-word (a partial word is a
+    /// strong constraint, so a lower floor is safe and surfaces word
+    /// completions earlier); `boundaryFloor` at a word boundary. Screen
+    /// context counts toward the threshold.
+    init?(_ context: String, request: CompletionRequest,
+          midWordFloor: Int, boundaryFloor: Int, preamble: String? = nil) {
+        var text = context
+        let floor = text.last?.isLetter == true ? midWordFloor : boundaryFloor
+        guard text.count >= floor else {
+            DebugLog.shared.log("GATE", "below context floor (\(text.count) chars < \(floor)) — not querying the model")
+            return nil
+        }
+        var trailingSpaces = 0
+        while text.hasSuffix(" ") {
+            text.removeLast()
+            trailingSpaces += 1
+        }
+        guard !text.isEmpty else { return nil }
+
+        let after = request.textAfterCaret
+        self.text = text
+        generationText = preamble.map { "\($0)\n\n\(text)" } ?? text
+        self.trailingSpaces = trailingSpaces
+        endsMidWord = trailingSpaces == 0 && text.last?.isLetter == true
+        endsCompleteWord = endsMidWord
+            && (request.endsOnCompleteWord ?? SpellChecker.endsOnCompleteWord(before: text, after: after))
+        textAfterCaret = after
+    }
+
+    /// The output gate for this prompt: run a raw decode snapshot (partial or
+    /// final) through the shared `CompletionGates`. `cleanInstruct` first
+    /// strips wrapping quotes and restores the separator instruct models
+    /// answer without — base continuations bring their own separator.
+    func gate(cleanInstruct: Bool) -> @Sendable (String) -> String? {
+        let text = self.text
+        let trailing = trailingSpaces
+        let endsMidWord = self.endsMidWord
+        let endsCompleteWord = self.endsCompleteWord
+        let after = textAfterCaret
+        return { output in
+            var raw = output
+            if cleanInstruct {
+                raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                for quote in ["\"", "“", "”"] {
+                    if raw.hasPrefix(quote) { raw.removeFirst() }
+                    if raw.hasSuffix(quote) { raw.removeLast() }
+                }
+                // Instruct models answer flush (no leading space). Restore the
+                // separator the shared gate expects when the user already typed
+                // it (trailing > 0) OR the caret sits right after a finished
+                // word (the space they haven't typed yet), so the new word
+                // doesn't glue onto the previous one.
+                if trailing > 0 || endsCompleteWord, !raw.hasPrefix(" ") { raw = " " + raw }
+            }
+            return CompletionGates.postProcess(
+                raw, prompt: text, trailingSpaces: trailing,
+                endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
+                textAfterCaret: after
+            )
+        }
+    }
+}

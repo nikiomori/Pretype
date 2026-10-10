@@ -26,20 +26,8 @@ extension MLXEngine {
             let cache: [KVCache]
         }
 
-        final class CacheEntry {
-            let keyPrefix: [Int]
-            let live: Snapshot?
-            let checkpoint: Snapshot?
-            let lastUsed = Date()
-
-            init(keyPrefix: [Int], live: Snapshot?, checkpoint: Snapshot?) {
-                self.keyPrefix = keyPrefix
-                self.live = live
-                self.checkpoint = checkpoint
-            }
-        }
-
-        private var entries: [CacheEntry] = []
+        /// Oldest first: `take` removes an entry and `store` re-appends it.
+        private var entries: [(keyPrefix: [Int], live: Snapshot?, checkpoint: Snapshot?)] = []
         private let maxEntries = 4
 
         /// The state sharing the longest usable prefix with `fullTokens`, with its
@@ -83,11 +71,8 @@ extension MLXEngine {
             guard live != nil || checkpoint != nil else { return }
             let prefix = Array(fullTokens.prefix(24))
             entries.removeAll { $0.keyPrefix == prefix }
-            entries.append(CacheEntry(keyPrefix: prefix, live: live, checkpoint: checkpoint))
-            if entries.count > maxEntries {
-                entries.sort { $0.lastUsed < $1.lastUsed }
-                entries.removeFirst()
-            }
+            entries.append((prefix, live, checkpoint))
+            if entries.count > maxEntries { entries.removeFirst() }
         }
 
         func clear() {

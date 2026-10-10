@@ -160,24 +160,6 @@ extension CompletionRequest {
     }
 }
 
-/// Thread-safe engine-state holder shared by engine implementations.
-final class StateBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: EngineState = .preparing("starting…")
-
-    func set(_ newValue: EngineState) {
-        lock.lock()
-        value = newValue
-        lock.unlock()
-    }
-
-    func get() -> EngineState {
-        lock.lock()
-        defer { lock.unlock() }
-        return value
-    }
-}
-
 /// Minimal thread-safe value holder: completion knobs are set on the main
 /// thread (menu) and read on the engine's background task.
 final class LockedValue<Value>: @unchecked Sendable {
@@ -265,9 +247,6 @@ protocol CompletionEngine: AnyObject {
     /// waiting for the whole generation — the dominant cost on slow machines.
     func completions(for request: CompletionRequest) -> AsyncThrowingStream<String, Error>
 
-    /// Whether `correct(selection:request:)` does anything.
-    var supportsCorrection: Bool { get }
-
     /// Whether `correct` can run *now* without first fetching a model. False
     /// means the call would block on a download — which the dictation tidy-up
     /// pass, on a three-second budget, could never wait out anyway.
@@ -319,27 +298,20 @@ protocol CompletionEngine: AnyObject {
 extension CompletionEngine {
     var loadedModelID: String? { nil }
     var lastFirstWordLogProb: Double? { nil }
-    var statusLine: String? { nil }
-    var state: EngineState { .ready }
     /// For engines without an idle-unload cycle, `.preparing` IS active work.
     var isLoading: Bool {
         if case .preparing = state { return true }
         return false
     }
-    var supportsCorrection: Bool { false }
     /// An engine with no separate fix model has nothing to wait for.
-    var isCorrectionReady: Bool { supportsCorrection }
+    var isCorrectionReady: Bool { true }
     func prewarmCorrection() {}
-    func correct(selection: String, request: CompletionRequest,
-                 redactLog: Bool) async throws -> String? { nil }
 
     /// The ⌥⇥ spelling: text the user typed, logged as the debug export
     /// already says it is.
     func correct(selection: String, request: CompletionRequest) async throws -> String? {
         try await correct(selection: selection, request: request, redactLog: false)
     }
-    func reply(to conversation: String, request: CompletionRequest) async throws -> String? { nil }
-    func updateCompletion(length: CompletionLength, instructions: String) {}
     func updatePersonalization(_ level: PersonalizationLevel) {}
     func shutdown() {}
     func prewarmIfNeeded() {}

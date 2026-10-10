@@ -1855,7 +1855,6 @@ extension SuggestionController: DictationHost {
     func hideOverlay() { window.hide() }
 
     func tidyDictation(_ text: String, before context: String) async -> String? {
-        guard engine.supportsCorrection else { return nil }
         // A fix model that still has to be fetched cannot help THIS sentence:
         // the tidy-up budget is three seconds and the download is gigabytes.
         // Waiting would only stall every dictation behind a progress bar it

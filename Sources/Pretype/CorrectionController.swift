@@ -91,8 +91,7 @@ final class CorrectionController {
                 return true
             }
             pendingFix = nil
-            let fixable = owner.engine.supportsCorrection
-                && info.text.count >= 3 && info.text.count <= 500
+            let fixable = info.text.count >= 3 && info.text.count <= 500
                 && !info.text.contains("\n")
             if fixable, !inFlight {
                 selection = SelectionState(text: info.text, rect: info.rect)
@@ -259,7 +258,7 @@ final class CorrectionController {
     /// Runs off the event-tap callback (it does a synchronous AX read); a no-op
     /// when there's nothing fixable at the caret.
     private func correctLastWord() {
-        guard let owner, !inFlight, owner.engine.supportsCorrection,
+        guard let owner, !inFlight,
               let element = owner.currentTextElement(),
               let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars),
               let rect = ctx.caretRect else { return }

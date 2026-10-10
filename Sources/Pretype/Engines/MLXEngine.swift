@@ -61,7 +61,7 @@ final class MLXEngine: CompletionEngine {
     /// PRETYPE_TRIM_LOGPROB pins it (numeric = τ sweep, "off" = force off).
     private let trimLogProbThreshold: Float?
     /// The PRIMARY model's state, written only by its own load and unload.
-    private let stateBox = StateBox()
+    private let stateBox = LockedValue<EngineState>(.preparing("starting…"))
     private var loadTask: Task<ModelContainer, Error>?
     /// Instruct model for fix-selection; loaded lazily on first ⌥Tab.
     private var correctionLoadTask: Task<ModelContainer, Error>?
@@ -610,96 +610,13 @@ final class MLXEngine: CompletionEngine {
         }
     }
 
-    /// Shared prompt preparation for both completion paths. Trims the trailing
-    /// spaces the user typed (a dangling space derails SentencePiece models into
-    /// a stray newline), enforces a per-path context floor, and records the
-    /// word-boundary state the output gate needs. Returns nil — abstain — below
-    /// the floor or when nothing is left to encode.
-    private struct PreparedPrompt {
-        /// Context tail (user text + screen block) with trailing spaces removed —
-        /// what the context floor, the output gate and the n-gram lookups see.
-        /// Never contains the personal preamble: retrieved examples must not
-        /// satisfy the floor, flip the language gate, or poison the n-gram
-        /// context with words the user never typed here.
-        let text: String
-        /// What actually gets encoded: the personal-examples preamble (base
-        /// path, when present), then `text`.
-        let generationText: String
-        /// How many trailing spaces the user typed (the gate restores the separator).
-        let trailingSpaces: Int
-        /// The caret sits right after a run of letters with no separator.
-        let endsMidWord: Bool
-        /// …and that run is a finished word — so a leading-space suggestion is the
-        /// separator the user hasn't typed yet, not a stranded fragment.
-        let endsCompleteWord: Bool
-        let textAfterCaret: String
-
-        /// The output gate for this prompt: run a raw decode snapshot (partial or
-        /// final) through the shared `CompletionGates`. `cleanInstruct` first
-        /// strips wrapping quotes and restores the separator instruct models
-        /// answer without — base continuations bring their own separator.
-        func gate(cleanInstruct: Bool) -> @Sendable (String) -> String? {
-            let text = self.text
-            let trailing = trailingSpaces
-            let endsMidWord = self.endsMidWord
-            let endsCompleteWord = self.endsCompleteWord
-            let after = textAfterCaret
-            return { output in
-                var raw = output
-                if cleanInstruct {
-                    raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                    for quote in ["\"", "“", "”"] {
-                        if raw.hasPrefix(quote) { raw.removeFirst() }
-                        if raw.hasSuffix(quote) { raw.removeLast() }
-                    }
-                    // Instruct models answer flush (no leading space). Restore the
-                    // separator the shared gate expects when the user already typed
-                    // it (trailing > 0) OR the caret sits right after a finished
-                    // word (the space they haven't typed yet), so the new word
-                    // doesn't glue onto the previous one.
-                    if trailing > 0 || endsCompleteWord, !raw.hasPrefix(" ") { raw = " " + raw }
-                }
-                return CompletionGates.postProcess(
-                    raw, prompt: text, trailingSpaces: trailing,
-                    endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-                    textAfterCaret: after
-                )
-            }
-        }
-    }
-
-    /// Builds a `PreparedPrompt`, or nil to abstain. `midWordFloor` applies when
-    /// the caret is mid-word (a partial word is a strong constraint, so a lower
-    /// floor is safe and surfaces word completions earlier); `boundaryFloor`
-    /// applies at a word boundary. Screen context counts toward the threshold.
+    /// Shared prompt preparation for both completion paths (see `PreparedPrompt`).
     private func prepare(_ request: CompletionRequest,
                          midWordFloor: Int, boundaryFloor: Int,
                          personalPreamble: Bool = false) -> PreparedPrompt? {
-        var text = request.completionPrompt(maxChars: Self.maxContextChars)
-        let floor = text.last?.isLetter == true ? midWordFloor : boundaryFloor
-        guard text.count >= floor else {
-            DebugLog.shared.log("GATE", "below context floor (\(text.count) chars < \(floor)) — not querying the model")
-            return nil
-        }
-        var trailingSpaces = 0
-        while text.hasSuffix(" ") {
-            text.removeLast()
-            trailingSpaces += 1
-        }
-        guard !text.isEmpty else { return nil }
-
-        let after = request.textAfterCaret
-        let endsMidWord = trailingSpaces == 0 && text.last?.isLetter == true
-        let endsCompleteWord = endsMidWord
-            && (request.endsOnCompleteWord ?? SpellChecker.endsOnCompleteWord(before: text, after: after))
-        let preamble = personalPreamble ? request.personalPreambleBlock : nil
-        return PreparedPrompt(
-            text: text,
-            generationText: preamble.map { "\($0)\n\n\(text)" } ?? text,
-            trailingSpaces: trailingSpaces,
-            endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-            textAfterCaret: after
-        )
+        PreparedPrompt(request.completionPrompt(maxChars: Self.maxContextChars), request: request,
+                       midWordFloor: midWordFloor, boundaryFloor: boundaryFloor,
+                       preamble: personalPreamble ? request.personalPreambleBlock : nil)
     }
 
     /// Token healing for the mid-word caret state. A prompt that ends inside a
@@ -1041,65 +958,24 @@ final class MLXEngine: CompletionEngine {
 
     // MARK: - Fix selection
 
-    var supportsCorrection: Bool { true }
-
     /// Fixes typos/grammar in a selected line via the instruct sibling model
     /// (loaded lazily, fresh KV cache). Minimal-edit prompt + a divergence guard
     /// keep it from rewriting the selection. The shared prompt/cleanup/guard live
     /// in `CorrectionGates`.
     func correct(selection: String, request: CompletionRequest,
                  redactLog: Bool) async throws -> String? {
-        guard let task = beginRequest() else { return nil }
-        defer { endRequest() }
-        // Instruct style already runs the instruct model as primary; base
-        // style loads the instruct sibling lazily on first ⌥Tab.
-        let container = style == .instruct
-            ? try await task.value
-            : try await correctionContainer()
-        try Task.checkCancellation()
-
         let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n") else { return nil }
-
-        // Instruct model through its OWN chat template — much stronger
-        // instruction following than a raw few-shot prompt.
-        let instruction = """
-        \(CorrectionGates.correctionDirective)
-
-        \(trimmed)
-        """
-        let messages: [[String: any Sendable]] = [["role": "user", "content": instruction]]
-
         // NO repetition penalty here: fixing typos means re-emitting most of
         // the original tokens verbatim, which a penalty actively punishes.
         // Budget scales with the selection so long lines aren't clipped.
-        let parameters = GenerateParameters(
-            maxTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count), temperature: 0.0
-        )
-        let output = try await Self.generate(
-            in: container,
-            makeTokens: { context in
-                // Same template context as reply()/completeInstruct: without
-                // enable_thinking=false the MiniCPM RL template opens a think
-                // turn and the fix path generates NOTHING (eval-correct
-                // 2026-07-25: 0/510 offered); Gemma templates ignore the key.
-                try context.tokenizer.applyChatTemplate(
-                    messages: messages, tools: nil,
-                    additionalContext: ["enable_thinking": false])
-            },
-            parameters: parameters,
-            // Stop on the turn marker, like every other instruct-templated
-            // path. Without it E4B-it-4bit ran past its answer into same-line
-            // junk on 39% of eval-correct rows ("fix.less than 100 words").
-            extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
-            promptCache: nil,
-            drafter: style == .instruct ? drafter.get() : correctionDrafter.get(),
+        guard let output = try await chatGenerate(
+            "\(CorrectionGates.correctionDirective)\n\n\(trimmed)",
+            maxTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count),
             // The generation log prints its own raw output — redacting only the
             // divergence-guard line below would leave the same sentence in the
             // buffer twenty lines earlier, on the SUCCESS path at that.
-            logRaw: !redactLog
-        )
-        try Task.checkCancellation()
+            logRaw: !redactLog) else { return nil }
 
         let fixed = CorrectionGates.trimRunOn(
             CorrectionGates.cleanCorrectionOutput(output), original: trimmed)
@@ -1122,34 +998,48 @@ final class MLXEngine: CompletionEngine {
     /// model can't follow "answer this". One shot, no prompt cache: the prompt is
     /// a fresh screenful every time, so a cache would only ever miss.
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
+        // ponytail: flat 200-token budget — a few sentences, doubled for the
+        // Cyrillic case rather than measured per script. Tighten if replies ever
+        // read as clipped.
+        guard let output = try await chatGenerate(
+            request.replyPrompt(conversation: conversation, instructions: instructionsBox.get()),
+            maxTokens: 200) else { return nil }
+        return request.cleanReply(output)
+    }
+
+    /// One greedy turn through the instruct model's OWN chat template — much
+    /// stronger instruction following than a raw few-shot prompt. Instruct
+    /// style already runs that model as primary; base style loads the instruct
+    /// sibling lazily on first use. No prompt cache: each prompt is fresh.
+    private func chatGenerate(_ content: String, maxTokens: Int, logRaw: Bool = true) async throws -> String? {
         guard let task = beginRequest() else { return nil }
         defer { endRequest() }
         let container = style == .instruct
             ? try await task.value
             : try await correctionContainer()
         try Task.checkCancellation()
-
-        let instruction = request.replyPrompt(
-            conversation: conversation, instructions: instructionsBox.get())
-        let messages: [[String: any Sendable]] = [["role": "user", "content": instruction]]
-        // ponytail: flat 200-token budget — a few sentences, doubled for the
-        // Cyrillic case rather than measured per script. Tighten if replies ever
-        // read as clipped.
-        let parameters = GenerateParameters(maxTokens: 200, temperature: 0.0)
+        let messages: [[String: any Sendable]] = [["role": "user", "content": content]]
         let output = try await Self.generate(
             in: container,
             makeTokens: { context in
+                // Without enable_thinking=false the MiniCPM RL template opens a
+                // think turn and the fix path generates NOTHING (eval-correct
+                // 2026-07-25: 0/510 offered); Gemma templates ignore the key.
                 try context.tokenizer.applyChatTemplate(
                     messages: messages, tools: nil,
                     additionalContext: ["enable_thinking": false])
             },
-            parameters: parameters,
+            parameters: GenerateParameters(maxTokens: maxTokens, temperature: 0.0),
+            // Stop on the turn marker, like every other instruct-templated
+            // path. Without it E4B-it-4bit ran past its answer into same-line
+            // junk on 39% of eval-correct rows ("fix.less than 100 words").
             extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
             promptCache: nil,
-            drafter: style == .instruct ? drafter.get() : correctionDrafter.get()
+            drafter: style == .instruct ? drafter.get() : correctionDrafter.get(),
+            logRaw: logRaw
         )
         try Task.checkCancellation()
-        return request.cleanReply(output)
+        return output
     }
 
     /// FIM emulation is only reliable on E4B-class instruct models; on the smaller
