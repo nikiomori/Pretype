@@ -270,7 +270,7 @@ enum Stats {
     /// ponytail: one dictionary of two ints per app in UserDefaults, rewritten on
     /// each suggestion. At typing rates that is nothing, and it needs no schema,
     /// no store and no migration.
-    private static let appKey = "stats.byApp"
+    nonisolated private static let appKey = "stats.byApp"
     /// Chances (see `isChance`) needed before the record says anything at all.
     static let appVerdictMinShown = 60
     /// Below this share taken, the app is one Pretype is only interrupting.

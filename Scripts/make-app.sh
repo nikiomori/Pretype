@@ -18,9 +18,11 @@ fi
 # refuses to run from the command line without this flag.
 # pipefail makes a compile failure fatal right here — with a warm
 # .build/xcode a swallowed exit code would package the previous binary.
+# "error:", not "error": Swift 6 concurrency WARNINGS read "…this is an error
+# in the Swift 6 language mode" and used to print like failures.
 xcodebuild -scheme Pretype -configuration Release -destination 'platform=macOS' \
     -derivedDataPath .build/xcode -skipMacroValidation -skipPackagePluginValidation \
-    build | grep -E "BUILD|error"
+    build | grep -E "BUILD|error:"
 
 PRODUCTS=.build/xcode/Build/Products/Release
 test -x "$PRODUCTS/Pretype" || { echo "Build failed: $PRODUCTS/Pretype not found"; exit 1; }

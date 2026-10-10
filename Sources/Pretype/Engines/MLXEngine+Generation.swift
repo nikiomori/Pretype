@@ -592,7 +592,10 @@ extension MLXEngine {
         // resolution otherwise prefers the deprecated 2-arg `(LanguageModel,
         // Tokenizer)` perform (its sync closure matches our sync body more
         // tightly than the ModelContext overload's `async`), which then fails.
-        try await container.perform { (context: ModelContext) in
+        // The drafter (an MLX module, not Sendable) is only touched inside this
+        // perform, which serializes it with the target model.
+        nonisolated(unsafe) let drafter = drafter
+        return try await container.perform { (context: ModelContext) in
             let maxTokens = parameters.maxTokens ?? 16
             // Beam branch: the forced candidate rides in as the last PROMPT
             // token (prefilled, not decoded) but is part of the visible text —
