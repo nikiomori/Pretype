@@ -257,6 +257,9 @@ final class MLXEngine: CompletionEngine {
                 var isDir: ObjCBool = false
                 if FileManager.default.fileExists(atPath: id, isDirectory: &isDir), isDir.boolValue {
                     configuration = ModelConfiguration(directory: URL(fileURLWithPath: id), extraEOSTokens: eos)
+                } else if let local = ModelStorage.localSnapshot(for: id) {
+                    // Already downloaded: no network round trip (see localSnapshot).
+                    configuration = ModelConfiguration(directory: local, extraEOSTokens: eos)
                 } else {
                     configuration = ModelConfiguration(id: id, extraEOSTokens: eos)
                 }
@@ -1294,7 +1297,8 @@ final class MLXEngine: CompletionEngine {
             do {
                 let container = try await loadModelContainer(
                     from: #hubDownloader(), using: tokenizers,
-                    configuration: ModelConfiguration(id: id),
+                    configuration: ModelStorage.localSnapshot(for: id).map { ModelConfiguration(directory: $0) }
+                        ?? ModelConfiguration(id: id),
                     progressHandler: { progress in
                         stateBox.set(.preparing(Self.downloadStatus(progress, label: "fix model")))
                     }

@@ -42,10 +42,37 @@ enum ModelStorage {
     /// can point at a fixture, since the id form resolves through the real
     /// shared cache.
     static func isFetched(at directory: URL) -> Bool {
+        completeRevision(at: directory) != nil
+    }
+
+    /// The downloaded snapshot of `id` the engine can load straight from disk:
+    /// weights complete (see `isFetched`), plus the config and tokenizer the
+    /// loader reads. nil — load through the hub, which downloads what's
+    /// missing. Loading through the hub with revision "main" lists the repo
+    /// over the network first, on every load and every idle reload (measured
+    /// 160–580 ms, and longer still on a bad connection), so a model that is
+    /// already here is loaded from here.
+    static func localSnapshot(for id: String) -> URL? {
+        guard let directory = directory(for: id) else { return nil }
+        return localSnapshot(at: directory)
+    }
+
+    static func localSnapshot(at directory: URL) -> URL? {
+        guard let revision = completeRevision(at: directory) else { return nil }
+        let manager = FileManager.default
+        func present(_ name: String) -> Bool {
+            manager.fileExists(atPath: revision.appendingPathComponent(name).path)
+        }
+        guard present("config.json"), present("tokenizer.json") || present("tokenizer_config.json") else { return nil }
+        return revision
+    }
+
+    /// The snapshot revision directory holding the complete model, if any.
+    private static func completeRevision(at directory: URL) -> URL? {
         let manager = FileManager.default
         let snapshots = directory.appendingPathComponent("snapshots")
         guard let revisions = try? manager.contentsOfDirectory(atPath: snapshots.path) else {
-            return false
+            return nil
         }
         let named = revisions.filter { !$0.hasPrefix(".") }
         // WHICH revision matters, and picking whichever the filesystem listed
@@ -60,10 +87,11 @@ enum ModelStorage {
             contentsOf: directory.appendingPathComponent("refs/main"), encoding: .utf8) {
             let sha = head.trimmingCharacters(in: .whitespacesAndNewlines)
             if named.contains(sha) {
-                return isRevisionComplete(snapshots.appendingPathComponent(sha))
+                let revision = snapshots.appendingPathComponent(sha)
+                return isRevisionComplete(revision) ? revision : nil
             }
         }
-        return named.contains { isRevisionComplete(snapshots.appendingPathComponent($0)) }
+        return named.sorted().lazy.map { snapshots.appendingPathComponent($0) }.first(where: isRevisionComplete)
     }
 
     /// Whether one snapshot revision holds the model's weights, not just the

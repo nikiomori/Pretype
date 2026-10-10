@@ -345,6 +345,26 @@ final class PretypeTests: XCTestCase {
         XCTAssertNil(pc.take(for: Array(toks[..<10]) + [50, 51, 52, 53, 54, 55, 56, 57]))
     }
 
+    // An already-downloaded model loads from its snapshot with no network
+    // round trip — but only when everything the loader reads is there.
+    func testLocalSnapshotNeedsWeightsConfigAndTokenizer() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("snap-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        func repo(_ name: String, files: [String]) throws -> URL {
+            let dir = root.appendingPathComponent(name)
+            let rev = dir.appendingPathComponent("snapshots/abc")
+            try FileManager.default.createDirectory(at: rev, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: dir.appendingPathComponent("refs"), withIntermediateDirectories: true)
+            try "abc".write(to: dir.appendingPathComponent("refs/main"), atomically: true, encoding: .utf8)
+            for f in files { try "x".write(to: rev.appendingPathComponent(f), atomically: true, encoding: .utf8) }
+            return dir
+        }
+        let full = try repo("full", files: ["config.json", "tokenizer.json", "model.safetensors"])
+        XCTAssertEqual(ModelStorage.localSnapshot(at: full)?.lastPathComponent, "abc")
+        XCTAssertNil(ModelStorage.localSnapshot(at: try repo("no-tokenizer", files: ["config.json", "model.safetensors"])))
+        XCTAssertNil(ModelStorage.localSnapshot(at: try repo("no-weights", files: ["config.json", "tokenizer.json"])))
+    }
+
     // The incremental prompt encoder must return exactly what a full encode
     // would — and give up for good on a tokenizer whose splices aren't exact.
     func testPromptEncoderMatchesFullEncode() {
