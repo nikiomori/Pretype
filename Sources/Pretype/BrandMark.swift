@@ -14,7 +14,9 @@ enum BrandMark {
     /// Template image for the `NSStatusItem` button. `height` is in points.
     /// `phase` (0…2) animates the typing dots of the `.preparing` state; the
     /// caller advances it on its refresh timer.
-    static func statusItemImage(_ state: State = .ready, phase: Int = 0, height: CGFloat = 13) -> NSImage {
+    /// 10 pt: the bold strokes make the mark read a size up, so 13 outweighed
+    /// the SF Symbols beside it in the menu bar.
+    static func statusItemImage(_ state: State = .ready, phase: Int = 0, height: CGFloat = 10) -> NSImage {
         // Native design bounding box (1024 canvas), padded for the stroke caps.
         let nx: CGFloat = 285, ny: CGFloat = 329, nw: CGFloat = 494, nh: CGFloat = 366
         let size = NSSize(width: (nw / nh) * height, height: height)
