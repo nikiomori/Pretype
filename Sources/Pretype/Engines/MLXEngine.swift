@@ -374,16 +374,15 @@ final class MLXEngine: CompletionEngine {
     }
 
     /// Gemma's tied embedding table is also its 262k-row output projection, read
-    /// in full on every decoded token. An 8-bit table is re-quantized to 4-bit at
-    /// load, for both uses. E4B-8bit: −320 MB resident, reload +15 ms, first
-    /// suggestion p50 52/61 → 49/52 ms; eval-real core 870 first-word 28% = 28%
-    /// (McNemar p = 0.77, ungated), 123/128 typing outputs identical. 6-bit
-    /// tables are not measured and stay as shipped.
+    /// in full on every decoded token. A 6- or 8-bit table is re-quantized to
+    /// 4-bit at load, for both uses. Resident memory: E4B-8bit −320 MB, E4B-6bit
+    /// −160 MB, E2B-8bit −192 MB; reload +15 ms. eval-real core 870 first-word,
+    /// ungated: 28% = 28% (p = 0.77), 28% = 28% (p = 1.0), 27% = 27% (p = 1.0).
     private static func requantizeTiedTable(_ container: ModelContainer) async {
         await container.perform { (context: ModelContext) in
             guard context.model is Gemma4Model || context.model is Gemma4TextModel,
                   let (key, module) = context.model.leafModules().flattened().first(where: { $0.0.hasSuffix(".embed_tokens") }),
-                  let table = module as? QuantizedEmbedding, table.bits == 8 else { return }
+                  let table = module as? QuantizedEmbedding, table.bits > 4 else { return }
             let full = dequantized(table.weight, scales: table.scales, biases: table.biases,
                                    groupSize: table.groupSize, bits: table.bits, mode: table.mode)
             let smaller = QuantizedEmbedding(weight: full, groupSize: 64, bits: 4, mode: .affine)
