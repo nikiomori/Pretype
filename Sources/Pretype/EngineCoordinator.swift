@@ -20,8 +20,8 @@ final class EngineCoordinator {
 
     /// Tear down the current engine and build a fresh one for the current
     /// settings, then notify the owner. The single rebuild path for every
-    /// build-time setting change.
-    private func rebuild() {
+    /// build-time setting change — and the way back from `.failed`.
+    func rebuild() {
         engine.shutdown()
         engine = Self.makeEngine(modelID: Settings.mlxModelID)
         onRebuild?()
@@ -53,18 +53,10 @@ final class EngineCoordinator {
         rebuild()
     }
 
-    func setModel(_ id: String) { apply(current.applying(.model(id))) }
-
-    /// Snap Style + Length to the selected model's recommendation (the "auto"
-    /// switch turning on, or a one-shot re-apply).
-    func applyRecommendedSettings() { apply(current.applying(.useRecommended(true))) }
-
-    /// Base ↔ instruct switches the loaded model, so rebuild; the cascade
-    /// clears the Base-only gates rather than leaving them set-but-inert.
-    func setCompletionStyle(_ style: CompletionStyle) { apply(current.applying(.style(style))) }
-
-    /// The gate is read when the engine is built, so toggling rebuilds.
-    func setLogprobGate(_ enabled: Bool) { apply(current.applying(.logprobGate(enabled))) }
+    /// One build-time change (model, style, gate, "use recommended") cascaded
+    /// from the persisted config, then committed — e.g. a style switch clears
+    /// the Base-only gate rather than leaving it set-but-inert.
+    func apply(_ change: ProjectionConfig.Change) { apply(current.applying(change)) }
 
     /// Length/persona are live — no reload.
     func setCompletionLength(_ length: CompletionLength) {
@@ -80,19 +72,6 @@ final class EngineCoordinator {
     func setPersonalization(_ level: PersonalizationLevel) {
         Settings.personalizationLevel = level
         engine.updatePersonalization(level)
-    }
-
-    /// A fresh engine for the same settings — the way back from `.failed`.
-    func retry() { rebuild() }
-
-    /// Free the engine's resident model now (reloads on next use).
-    func releaseModelNow() {
-        engine.releaseModelNow()
-    }
-
-    /// Flush engine state before the app quits.
-    func shutdown() {
-        engine.shutdown()
     }
 
     private static func makeEngine(modelID: String) -> CompletionEngine {

@@ -264,7 +264,7 @@ final class OnboardingWindow: NSPanel {
     }
 
     @objc private func retryPressed() {
-        controller?.retryEngine()
+        controller?.engineCoordinator.rebuild()
         refreshEngineStatus()
     }
 

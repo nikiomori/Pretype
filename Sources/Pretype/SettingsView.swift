@@ -88,7 +88,7 @@ final class SettingsStore: ObservableObject {
             // Snapping to the recommended style can mean its instruct sibling.
             let now = gateDownload(committedConfig.applying(.useRecommended(on))) { [weak self] in
                 Settings.useRecommendedSettings = on
-                if on { self?.controller?.applyRecommendedSettings() }
+                if on { self?.controller?.engineCoordinator.apply(.useRecommended(true)) }
                 self?.resync()
             }
             // Held for the download confirmation: keep showing what runs.
@@ -100,7 +100,7 @@ final class SettingsStore: ObservableObject {
             // Instruct loads a separate sibling model — 3–7 GB on the Gemma tiers.
             let now = gateDownload(committedConfig.applying(.style(picked))) { [weak self] in
                 self?.unlockManualTuning()
-                self?.controller?.setCompletionStyle(picked)
+                self?.controller?.engineCoordinator.apply(.style(picked))
                 self?.resync()
             }
             if !now { syncing = true; style = oldValue; syncing = false } }
@@ -108,18 +108,18 @@ final class SettingsStore: ObservableObject {
     @Published var length = CompletionLength.short {
         didSet { guard !syncing, oldValue != length else { return }
             unlockManualTuning()
-            controller?.setCompletionLength(length)
+            controller?.engineCoordinator.setCompletionLength(length)
             // Leaving Recommended re-targets the rows: they keep this style now.
             refreshModelDiskUsage() }
     }
     @Published var logprobGate = false {
         didSet { guard !syncing, oldValue != logprobGate else { return }
-            controller?.setLogprobGate(logprobGate)
+            controller?.engineCoordinator.apply(.logprobGate(logprobGate))
             resync() }
     }
     @Published var personalization = PersonalizationLevel.off {
         didSet { guard !syncing, oldValue != personalization else { return }
-            controller?.setPersonalization(personalization)
+            controller?.engineCoordinator.setPersonalization(personalization)
             // Enabling mid-session must start the journal build right away —
             // otherwise live learning stays inert until the next keystroke.
             if personalization != .off { PersonalNgram.shared.prepareIfNeeded() }
@@ -134,7 +134,7 @@ final class SettingsStore: ObservableObject {
     }
     @Published var instructions = "" {
         didSet { guard !syncing, oldValue != instructions else { return }
-            controller?.setCustomInstructions(instructions) }
+            controller?.engineCoordinator.setCustomInstructions(instructions) }
     }
     /// Per-app persona additions (exact lowercased bundle ID → text). Read by
     /// the engines at generation time, so writes apply live — no rebuild.
@@ -399,7 +399,7 @@ final class SettingsStore: ObservableObject {
         gateDownload(committedConfig.applying(.model(id))) { [weak self] in
             guard let self else { return }
             modelID = id
-            controller?.setModel(id)
+            controller?.engineCoordinator.apply(.model(id))
             resync()
         }
     }
@@ -410,7 +410,7 @@ final class SettingsStore: ObservableObject {
     func applyConfig(_ target: ProjectionConfig) {
         guard target != committedConfig else { return }
         gateDownload(target) { [weak self] in
-            self?.controller?.applyConfig(target)
+            self?.controller?.engineCoordinator.apply(target)
             self?.resync()
         }
     }

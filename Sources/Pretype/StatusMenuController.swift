@@ -598,11 +598,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc private func retryEngine() {
-        suggestionController?.retryEngine()
+        suggestionController?.engineCoordinator.rebuild()
     }
 
     @objc private func unloadModel() {
-        suggestionController?.releaseEngineModel()
+        suggestionController?.engine.releaseModelNow()
     }
 
     @objc private func openAccessibilitySettings() {

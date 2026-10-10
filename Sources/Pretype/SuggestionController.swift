@@ -8,7 +8,10 @@ final class SuggestionController: NSObject {
     private let focusTracker = FocusTracker()
     private let keyTap = KeyTap()
     let window = SuggestionWindow()
-    private let engineCoordinator = EngineCoordinator()
+    /// Engine lifecycle + the settings that reshape it; the menu and settings
+    /// window drive it directly. A rebuild calls back into `dismiss()` (wired
+    /// in `init`) to drop the stale suggestion.
+    let engineCoordinator = EngineCoordinator()
     /// The active completion engine, owned by `engineCoordinator`. Read-only here;
     /// model/style/gate changes flow through the coordinator's methods.
     var engine: CompletionEngine { engineCoordinator.engine }
@@ -207,22 +210,8 @@ final class SuggestionController: NSObject {
 
     func shutdown() {
         dictationController.invalidate()
-        engineCoordinator.shutdown()
+        engine.shutdown()
     }
-
-    // Engine lifecycle + the settings that reshape it live in `engineCoordinator`;
-    // these forward the menu/window actions to it. A rebuild calls back into
-    // `dismiss()` (wired in `init`) to drop the stale suggestion.
-    func setModel(_ id: String) { engineCoordinator.setModel(id) }
-    func applyConfig(_ target: ProjectionConfig) { engineCoordinator.apply(target) }
-    func applyRecommendedSettings() { engineCoordinator.applyRecommendedSettings() }
-    func releaseEngineModel() { engineCoordinator.releaseModelNow() }
-    func retryEngine() { engineCoordinator.retry() }
-    func setCompletionStyle(_ style: CompletionStyle) { engineCoordinator.setCompletionStyle(style) }
-    func setLogprobGate(_ enabled: Bool) { engineCoordinator.setLogprobGate(enabled) }
-    func setCompletionLength(_ length: CompletionLength) { engineCoordinator.setCompletionLength(length) }
-    func setCustomInstructions(_ instructions: String) { engineCoordinator.setCustomInstructions(instructions) }
-    func setPersonalization(_ level: PersonalizationLevel) { engineCoordinator.setPersonalization(level) }
 
     /// Inline ghost text vs the classic floating panel. Dismisses any live
     /// suggestion so the next one renders in the chosen mode.
