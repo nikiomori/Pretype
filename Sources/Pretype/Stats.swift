@@ -148,11 +148,6 @@ enum Stats {
         )
     }
 
-    static var dictatedToday: Int {
-        rollDayIfNeeded()
-        return defaults.integer(forKey: "stats.dictatedChars")
-    }
-
     static var dictatedTotal: Int { defaults.integer(forKey: "stats.lifetimeDictatedChars") }
 
     static func recordLatency(_ seconds: TimeInterval) {

@@ -32,15 +32,13 @@ final class KeyTap {
 
     private var tapPort: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var scrollMonitor: Any?
-    private var mouseMonitor: Any?
-    /// Local twins of the two global monitors. A GLOBAL monitor, by definition,
-    /// never sees events delivered to our own app — so a click on Pretype's own
-    /// status item or Settings window mid-hold would cancel nothing, and the
-    /// capture would survive to type its transcript into our own UI. The local
-    /// monitors close exactly that hole; both observe and pass the event on.
-    private var localScrollMonitor: Any?
-    private var localMouseMonitor: Any?
+    /// The scroll and mouse-down monitors, global and local. A GLOBAL monitor,
+    /// by definition, never sees events delivered to our own app — so a click
+    /// on Pretype's own status item or Settings window mid-hold would cancel
+    /// nothing, and the capture would survive to type its transcript into our
+    /// own UI. The local twins close exactly that hole; both observe and pass
+    /// the event on.
+    private var monitors: [Any] = []
 
     /// Created AND enabled: macOS disables a live tap when Accessibility is
     /// revoked, and a port that merely exists read "active" over a tap that
@@ -49,32 +47,25 @@ final class KeyTap {
 
     func start() {
         // Before the tap guard: `start()` is retried every 3 s until the tap
-        // comes up, and the monitor needs installing exactly once either way.
-        if scrollMonitor == nil {
-            scrollMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                self?.scrollHandler?(!event.momentumPhase.isEmpty)
-            }
-        }
-        if mouseMonitor == nil {
-            mouseMonitor = NSEvent.addGlobalMonitorForEvents(
-                matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
-            ) { [weak self] _ in
-                self?.mouseDownHandler?()
-            }
-        }
-        if localScrollMonitor == nil {
-            localScrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                self?.scrollHandler?(!event.momentumPhase.isEmpty)
-                return event
-            }
-        }
-        if localMouseMonitor == nil {
-            localMouseMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
-            ) { [weak self] event in
-                self?.mouseDownHandler?()
-                return event
-            }
+        // comes up, and the monitors need installing exactly once either way.
+        if monitors.isEmpty {
+            let mouseDown: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+            monitors = [
+                NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                    self?.scrollHandler?(!event.momentumPhase.isEmpty)
+                },
+                NSEvent.addGlobalMonitorForEvents(matching: mouseDown) { [weak self] _ in
+                    self?.mouseDownHandler?()
+                },
+                NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                    self?.scrollHandler?(!event.momentumPhase.isEmpty)
+                    return event
+                },
+                NSEvent.addLocalMonitorForEvents(matching: mouseDown) { [weak self] event in
+                    self?.mouseDownHandler?()
+                    return event
+                },
+            ].compactMap { $0 }
         }
         guard tapPort == nil else { return }
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue
@@ -131,13 +122,8 @@ final class KeyTap {
         if let tapPort {
             CFMachPortInvalidate(tapPort)
         }
-        for monitor in [scrollMonitor, mouseMonitor, localScrollMonitor, localMouseMonitor] {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-        }
-        scrollMonitor = nil
-        mouseMonitor = nil
-        localScrollMonitor = nil
-        localMouseMonitor = nil
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors = []
         runLoopSource = nil
         tapPort = nil
     }

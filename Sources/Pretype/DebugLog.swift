@@ -11,7 +11,6 @@ struct DebugEntry {
 /// renders it live. Cheap enough to keep enabled permanently.
 final class DebugLog: @unchecked Sendable {
     static let shared = DebugLog()
-    static let didAppend = Notification.Name("PretypeDebugLogDidAppend")
 
     private let lock = NSLock()
     private var entries: [DebugEntry] = []
@@ -25,12 +24,12 @@ final class DebugLog: @unchecked Sendable {
             entries.removeFirst(entries.count - capacity)
         }
         lock.unlock()
-        // Only pay the NotificationCenter cost when the Debug Console is
-        // actually on screen. At hundreds of entries/second (decode streaming,
-        // AX polling) the cross-thread dispatch is the dominant cost when nobody
-        // is watching — this makes it free.
+        // Only pay the main-queue hop when the Debug Console is actually on
+        // screen. At hundreds of entries/second (decode streaming, AX polling)
+        // the cross-thread dispatch is the dominant cost when nobody is
+        // watching — this makes it free.
         guard DebugWindowController.shared.isVisible else { return }
-        NotificationCenter.default.post(name: Self.didAppend, object: entry)
+        DispatchQueue.main.async { DebugWindowController.shared.didAppend(entry) }
     }
 
     func snapshot() -> [DebugEntry] {
@@ -59,8 +58,8 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     static let shared = DebugWindowController()
 
     /// Whether the debug window is currently on screen. Checked by `DebugLog`
-    /// so the per-entry `NotificationCenter` post — expensive at hundreds of
-    /// entries per second — is skipped when nobody is watching.
+    /// so the per-entry main-queue hop — expensive at hundreds of entries per
+    /// second — is skipped when nobody is watching.
     private(set) var isVisible = false
 
     private var window: NSWindow?
@@ -71,8 +70,9 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     private var autoscroll = true
     private var paused = false
     private var showDetails = true
-    private var observer: NSObjectProtocol?
     private var metricsTimer: Timer?
+    /// Entries currently rendered in the text view, for the "shown/total" count.
+    private var renderedCount = 0
 
     private var enabledCategories: Set<String> = []      // empty = all
     private var searchText: String = ""
@@ -83,20 +83,20 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
         return formatter
     }()
 
-    /// All categories we know about, in display order.
-    private static let allCategories: [(tag: String, label: String)] = [
-        ("PROMPT", "Prompt"),
-        ("GEN",    "Gen"),
-        ("GATE",   "Gate"),
-        ("SHOW",   "Show"),
-        ("ACCEPT", "Accept"),
-        ("FIX",    "Fix"),
-        ("ERROR",  "Error"),
-        ("OCR",    "OCR"),
-        ("AX",     "AX"),
-        ("MLX",    "MLX"),
-        ("FM",     "FM"),
-        ("FOCUS",  "Focus"),
+    /// All categories we know about, in display order, with their colour.
+    private static let allCategories: [(tag: String, label: String, color: NSColor)] = [
+        ("PROMPT", "Prompt", .systemTeal),
+        ("GEN",    "Gen",    .systemBlue),
+        ("GATE",   "Gate",   .systemOrange),
+        ("SHOW",   "Show",   .systemGreen),
+        ("ACCEPT", "Accept", .systemMint),
+        ("FIX",    "Fix",    .systemCyan),
+        ("ERROR",  "Error",  .systemRed),
+        ("OCR",    "OCR",    .systemPurple),
+        ("AX",     "AX",     .systemBrown),
+        ("MLX",    "MLX",    .systemIndigo),
+        ("FM",     "FM",     .systemPink),
+        ("FOCUS",  "Focus",  .secondaryLabelColor),
     ]
 
     func show() {
@@ -200,21 +200,14 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
         self.window = window
         self.textView = textView
         self.metricsLabel = metricsLabel
+    }
 
-        observer = NotificationCenter.default.addObserver(
-            forName: DebugLog.didAppend, object: nil, queue: nil
-        ) { [weak self] note in
-            guard let self, let entry = note.object as? DebugEntry else { return }
-            if self.paused {
-                // While paused we don't render, but we still want the counter.
-                DispatchQueue.main.async { self.updateCount() }
-                return
-            }
-            DispatchQueue.main.async {
-                self.appendIfVisible(entry)
-                self.updateMetrics()
-            }
-        }
+    /// One new entry, on the main queue (see `DebugLog.log`).
+    fileprivate func didAppend(_ entry: DebugEntry) {
+        // While paused we don't render, but we still want the counter.
+        guard !paused else { return updateCount() }
+        appendIfVisible(entry)
+        updateMetrics()
     }
 
     // MARK: - Filter chips
@@ -322,6 +315,7 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     private func reloadAll() {
         guard let textView else { return }
         textView.textStorage?.setAttributedString(NSAttributedString())
+        renderedCount = 0
         for entry in DebugLog.shared.snapshot() where matchesFilters(entry) {
             append(entry)
         }
@@ -344,6 +338,7 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     private func append(_ entry: DebugEntry) {
         guard let textView else { return }
         textView.textStorage?.append(Self.render(entry, showDetails: showDetails))
+        renderedCount += 1
         if autoscroll {
             textView.scrollToEndOfDocument(nil)
         }
@@ -362,34 +357,20 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
         return true
     }
 
-    // Colour per category — more distinctive than the old 6-colour scheme.
-    private static func color(for category: String) -> NSColor {
-        switch category {
-        case "PROMPT": return .systemTeal
-        case "GEN":    return .systemBlue
-        case "GATE":   return .systemOrange
-        case "SHOW":   return .systemGreen
-        case "ACCEPT": return .systemMint
-        case "FIX":    return .systemCyan
-        case "ERROR":  return .systemRed
-        case "OCR":    return .systemPurple
-        case "AX":     return .systemBrown
-        case "MLX":    return .systemIndigo
-        case "FM":     return .systemPink
-        case "FOCUS":  return .secondaryLabelColor
-        default:       return .secondaryLabelColor
-        }
-    }
-
-    private static func render(_ entry: DebugEntry, showDetails: Bool) -> NSAttributedString {
+    /// `detailCap` bounds each detail block (the export's limit); nil = whole.
+    private static func render(_ entry: DebugEntry, showDetails: Bool,
+                               detailCap: Int? = nil) -> NSAttributedString {
         let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         let detailFont = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
-        let color = Self.color(for: entry.category)
+        let color = allCategories.first { $0.tag == entry.category }?.color ?? .secondaryLabelColor
         let result = NSMutableAttributedString(
             string: "\(timeFormatter.string(from: entry.date)) [\(entry.category)] \(entry.message)\n",
             attributes: [.foregroundColor: color, .font: font]
         )
-        if showDetails, let detail = entry.detail, !detail.isEmpty {
+        if showDetails, var detail = entry.detail, !detail.isEmpty {
+            if let detailCap, detail.count > detailCap {
+                detail = String(detail.prefix(detailCap)) + "… (truncated)"
+            }
             let indented = detail
                 .split(separator: "\n", omittingEmptySubsequences: false)
                 .map { "    \($0)" }
@@ -427,23 +408,7 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     }
 
     private func updateCount() {
-        let total = DebugLog.shared.count
-        let shown = textView?.string.isEmpty == false
-            ? countRenderedLines()
-            : 0
-        countLabel?.stringValue = "\(shown)/\(total)"
-    }
-
-    private func countRenderedLines() -> Int {
-        // Approximate: count non-empty rendered entries by counting lines
-        // that start with a timestamp.
-        guard let text = textView?.string else { return 0 }
-        var n = 0
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false)
-            where line.range(of: #"^\d{2}:\d{2}:\d{2}"#, options: .regularExpression) != nil {
-            n += 1
-        }
-        return n
+        countLabel?.stringValue = "\(renderedCount)/\(DebugLog.shared.count)"
     }
 
     // MARK: - Actions
@@ -451,6 +416,7 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
     @objc private func clearLog() {
         DebugLog.shared.clear()
         textView?.textStorage?.setAttributedString(NSAttributedString())
+        renderedCount = 0
         updateMetrics()
         updateCount()
     }
@@ -511,19 +477,9 @@ final class DebugWindowController: NSObject, NSWindowDelegate, NSSearchFieldDele
         panel.prompt = "Export"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        let entries = DebugLog.shared.snapshot()
-        let fmt = Self.timeFormatter
-        let text = entries.map { entry -> String in
-            var line = "\(fmt.string(from: entry.date)) [\(entry.category)] \(entry.message)"
-            if var detail = entry.detail, !detail.isEmpty {
-                if detail.count > Self.exportDetailCap {
-                    detail = String(detail.prefix(Self.exportDetailCap)) + "… (truncated)"
-                }
-                line += "\n" + detail.split(separator: "\n", omittingEmptySubsequences: false)
-                    .map { "    \($0)" }.joined(separator: "\n")
-            }
-            return line
-        }.joined(separator: "\n")
+        let text = DebugLog.shared.snapshot()
+            .map { Self.render($0, showDetails: true, detailCap: Self.exportDetailCap).string }
+            .joined()
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
 

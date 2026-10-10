@@ -10,7 +10,6 @@ struct DebugMetrics {
     let accepted: Int           // ACCEPT events
     let abstains: Int           // GATE rejections
 
-    let latencySamples: Int
     let avgLatencyMs: Double
     let avgDecodeTokPerS: Double
     let avgPrefillTokPerS: Double
@@ -23,11 +22,6 @@ struct DebugMetrics {
         return attempts > 0 ? Double(abstains) / Double(attempts) : 0
     }
 
-    static let empty = DebugMetrics(
-        completions: 0, shown: 0, accepted: 0, abstains: 0,
-        latencySamples: 0, avgLatencyMs: 0, avgDecodeTokPerS: 0, avgPrefillTokPerS: 0
-    )
-
     static func from(_ entries: [DebugEntry]) -> DebugMetrics {
         var gen = 0, shown = 0, accepted = 0, abstains = 0
         var latMsSum = 0.0, latMsN = 0
@@ -38,10 +32,10 @@ struct DebugMetrics {
             switch e.category {
             case "GEN":
                 gen += 1
-                if let ms = parsePrefillMs(e.message) { latMsSum += ms; latMsN += 1 }
-                if let ms = parseDecodeMs(e.message) { latMsSum += ms; }
-                if let v = parseDecode(e.message) { decodeSum += v; decodeN += 1 }
-                if let v = parsePrefill(e.message) { prefillSum += v; prefillN += 1 }
+                if let ms = capture(prefillRe, 2, in: e.message) { latMsSum += ms; latMsN += 1 }
+                if let ms = capture(decodeRe, 2, in: e.message) { latMsSum += ms }
+                if let v = capture(decodeRe, 3, in: e.message) { decodeSum += v; decodeN += 1 }
+                if let v = capture(prefillRe, 3, in: e.message) { prefillSum += v; prefillN += 1 }
             case "SHOW": shown += 1
             case "ACCEPT": accepted += 1
             case "GATE": abstains += 1
@@ -50,7 +44,6 @@ struct DebugMetrics {
         }
         return DebugMetrics(
             completions: gen, shown: shown, accepted: accepted, abstains: abstains,
-            latencySamples: latMsN,
             avgLatencyMs: latMsN > 0 ? latMsSum / Double(latMsN) : 0,
             avgDecodeTokPerS: decodeN > 0 ? decodeSum / Double(decodeN) : 0,
             avgPrefillTokPerS: prefillN > 0 ? prefillSum / Double(prefillN) : 0
@@ -67,31 +60,10 @@ struct DebugMetrics {
         pattern: "decode=(\\d+)tok/([0-9.]+)ms \\(([0-9.]+) tok/s\\)")
     // swiftlint:enable force_try
 
-    private static func parseDecode(_ s: String) -> Double? {
-        guard let m = decodeRe.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
-              let v = Double(s, range: m.range(at: 3)) else { return nil }
-        return v
-    }
-    private static func parsePrefill(_ s: String) -> Double? {
-        guard let m = prefillRe.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
-              let v = Double(s, range: m.range(at: 3)) else { return nil }
-        return v
-    }
-    private static func parsePrefillMs(_ s: String) -> Double? {
-        guard let m = prefillRe.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
-              let v = Double(s, range: m.range(at: 2)) else { return nil }
-        return v
-    }
-    private static func parseDecodeMs(_ s: String) -> Double? {
-        guard let m = decodeRe.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
-              let v = Double(s, range: m.range(at: 2)) else { return nil }
-        return v
-    }
-}
-
-private extension Double {
-    init?(_ s: String, range: NSRange) {
-        guard let r = Range(range, in: s) else { return nil }
-        self.init(s[r])
+    /// Capture group `group` of the first match of `re` in `s`, as a number.
+    private static func capture(_ re: NSRegularExpression, _ group: Int, in s: String) -> Double? {
+        re.firstMatch(in: s, range: NSRange(s.startIndex..., in: s))
+            .flatMap { Range($0.range(at: group), in: s) }
+            .flatMap { Double(s[$0]) }
     }
 }
