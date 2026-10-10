@@ -163,11 +163,17 @@ enum ModelCatalog {
                           "mlx-community/gemma-4-e2b-8bit",
                           "mlx-community/gemma-4-e2b-4bit"]
         for id in gemmaTiers {
-            if let resident = ModelMetrics.instructRamGB(for: id), resident * 4 <= ram {
+            if let resident = ModelMetrics.instructRamGB(for: id), !isHeavy(residentGB: resident, ramGB: ram) {
                 return id
             }
         }
         return "mlx-community/Qwen3.5-2B-4bit"
+    }
+
+    /// The fit rule `defaultID` sizes on, for any resident size: past about a
+    /// quarter of physical memory the model crowds out what else the Mac runs.
+    static func isHeavy(residentGB: Double, ramGB: Double = machineRamGB) -> Bool {
+        residentGB * 4 > ramGB
     }
 
     /// Why the current `defaultID` was picked — keyed to the resolved default

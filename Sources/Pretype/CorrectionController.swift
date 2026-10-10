@@ -199,7 +199,14 @@ final class CorrectionController {
 
         // Check correction trigger based on active hotkey style
         if style.matchesCorrection(keyCode: keyCode, flags: flags) {
-            if pendingFix != nil { applyPendingFix(); return .consumed }
+            // Same gate as ⏎ below: only a preview on screen is applied. One
+            // that was never drawn, or that a notice has since covered, is
+            // shown again instead — the press that looked like it did nothing
+            // must not type an unseen rewrite over the selection.
+            if let fix = pendingFix {
+                if owner.window.showsCorrection { applyPendingFix() } else { showPreview(fix) }
+                return .consumed
+            }
             if selection != nil { correctSelection(); return .consumed }
             // The last-word fix needs a synchronous AX read; it must NOT run here
             // inside the event-tap callback (a hung target app would block the main
@@ -338,9 +345,7 @@ final class CorrectionController {
                     self.pendingFix = fix
                     owner.lastEvent = proposedEvent
                     DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
-                    if let rect = owner.lastCaretRect {
-                        owner.window.show(mode: .fixPreview(original: fix.original, fix: fixed), at: rect)
-                    }
+                    self.showPreview(fix)
                 case .success(nil):
                     owner.lastEvent = "nothing to fix"
                     DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
@@ -352,6 +357,15 @@ final class CorrectionController {
                 }
             }
         }
+    }
+
+    /// Draw `fix`'s preview where its text is — or, when neither selection box
+    /// nor caret could be read (web and Electron selections), under the
+    /// pointer: a preview pending off screen is one ⏎ or ⌥⇥ would apply blind.
+    private func showPreview(_ fix: PendingFix) {
+        guard let owner else { return }
+        owner.window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement),
+                          at: owner.lastCaretRect ?? DictationController.pointerAnchor())
     }
 
     /// Confirm the previewed fix. A selection fix types over the selection; a

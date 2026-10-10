@@ -193,9 +193,13 @@ final class SuggestionWindow: NSPanel {
     /// Returns the suggestion text actually rendered — an inline ghost trims it
     /// to what fits on the line (see `fittingPrefix`), and the caller must trim
     /// what ⇧⇥ accepts to match. nil for every other mode, and for a pill: that
-    /// one floats free of the field and shows the suggestion whole.
+    /// one floats free of the field and wraps to show the suggestion whole.
+    /// `trimToLine: false` never trims: a suggestion that doesn't fit the line
+    /// whole goes to the pill instead (a composed reply — its point is the
+    /// sentences after the first line).
     @discardableResult
-    func show(mode: SuggestionDisplayMode, at caretRect: CGRect, host: HostTextStyle = HostTextStyle()) -> String? {
+    func show(mode: SuggestionDisplayMode, at caretRect: CGRect, host: HostTextStyle = HostTextStyle(),
+              trimToLine: Bool = true) -> String? {
         // A protected notice outranks the pipeline's own chatter. The keystroke
         // that discards a dictation ALSO restarts completion, which blanks or
         // repaints this window within ~60 ms — so the one line explaining where
@@ -211,6 +215,7 @@ final class SuggestionWindow: NSPanel {
         }
         currentMode = mode
         lastCaret = caretRect
+        self.trimToLine = trimToLine
         // Engine notices (CaretIndicator) carry no host info, and the thinking
         // dots are inline ghost text too — keep the style already resolved for
         // this field so they aren't painted in the system theme's ink over a
@@ -262,8 +267,8 @@ final class SuggestionWindow: NSPanel {
                     ? Self.fittingPrefix(of: s, font: ghostFont, width: room - keycapWidth) : ""
                 ghostShowsKeycap = !fitted.isEmpty
                 if fitted.isEmpty { fitted = Self.fittingPrefix(of: s, font: ghostFont, width: room) }
-                if fitted.isEmpty {
-                    ghostMode = false   // not even one word — the pill says it in full
+                if fitted.isEmpty || (!trimToLine && fitted != s) {
+                    ghostMode = false   // not even one word (or not all of it) — the pill says it in full
                 } else {
                     rendered = .suggestion(fitted)
                     shown = fitted
@@ -303,6 +308,9 @@ final class SuggestionWindow: NSPanel {
         ghostRTL = false
         backgroundProbe.invalidate()
     }
+
+    /// The last `show`'s trim rule, so the pill re-render in `advance` keeps it.
+    private var trimToLine = true
 
     /// Monotonic token: a `show` between fade-out start and completion cancels
     /// the pending `orderOut`, so a new suggestion never gets yanked away.
@@ -417,7 +425,7 @@ final class SuggestionWindow: NSPanel {
             // Panel: re-render the box with the remaining text where it sits —
             // and forward the verdict: this is the one path where a pill can
             // become a (trimmed) ghost without the controller calling show.
-            return show(mode: .suggestion(remaining), at: lastCaret, host: lastHost)
+            return show(mode: .suggestion(remaining), at: lastCaret, host: lastHost, trimToLine: trimToLine)
         }
         // The caret moved by the accepted word's width — forward in the ghost's
         // own writing direction, which is leftward for Arabic or Hebrew.
@@ -467,7 +475,10 @@ final class SuggestionWindow: NSPanel {
             if ghostMode {
                 ghost.attributed = suggestionGhost(s)
             } else {
-                setPill(panelSuggestion(s))
+                // Wraps: ⇧⇥ accepts all of it, so all of it must be on screen —
+                // an ellipsized pill offered a tail nobody saw. Ten lines at
+                // 460 pt hold more than the longest reply (400 chars).
+                setPill(panelSuggestion(s), wraps: true)
             }
         case .thinking(let phase):
             if ghostMode {
@@ -1231,9 +1242,9 @@ final class SuggestionWindow: NSPanel {
 
     private func pillSize() -> NSSize {
         // Measured with the same options it draws with, so the box fits the
-        // text exactly. A wrapping fix preview is capped at ten lines — past
-        // that the last visible line ellipsizes rather than the pill growing
-        // over half the screen. A point of slack absorbs rounding.
+        // text exactly. A wrapping pill (fix preview, suggestion) is capped at
+        // ten lines — past that the last visible line ellipsizes rather than
+        // the pill growing over half the screen. A point of slack absorbs rounding.
         let line = Self.pillFont.boundingRectForFont.height
         let text = pillText.fittingSize(maxWidth: 460, maxHeight: pillWraps ? ceil(line * 10) : 10_000)
         pillPadV = text.height > line * 1.5 ? 6 : 4

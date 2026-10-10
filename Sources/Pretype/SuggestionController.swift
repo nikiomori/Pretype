@@ -63,6 +63,9 @@ final class SuggestionController: NSObject {
         /// counts once (not once per word). Carried across in-place mutations;
         /// reset only when a fresh suggestion is shown. See accept().
         var accepted = false
+        /// false for a composed reply: shown whole — in the pill when it
+        /// doesn't fit the line — never trimmed to the line like a completion.
+        var trimToLine = true
     }
 
     private var active: Active?
@@ -714,6 +717,12 @@ final class SuggestionController: NSObject {
             return
         }
 
+        // The engine's own load retry lives in `completions`, which the return
+        // below never reaches — so typing alone would never retry a failed
+        // load. The prewarm keeps the same cooldown (and is a no-op with no
+        // load to retry, e.g. Apple Intelligence); once it restarts the load
+        // this keystroke proceeds like any other while the model comes up.
+        if case .failed = engine.state { engine.prewarmIfNeeded() }
         if case .failed(let why) = engine.state {
             lastEvent = "engine failed: \(why)"
             indicator.flashTransient(.error("engine not working"))
@@ -826,7 +835,7 @@ final class SuggestionController: NSObject {
     private func apply(_ result: String?, requestText: String,
                        cachedContext: TextContext? = nil, countShown: Bool = true,
                        instant: Bool = false, maxChars: Int = 120,
-                       allowEmpty: Bool = false) -> Bool {
+                       allowEmpty: Bool = false, trimToLine: Bool = true) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
         var suggestion = result.map { sanitize($0, maxChars: maxChars) } ?? ""
@@ -915,7 +924,8 @@ final class SuggestionController: NSObject {
         // only for a genuinely fresh suggestion. Keeps accepted ≤ shown even when
         // the user accepts word-by-word while the model is still streaming.
         active = Active(anchor: current, text: suggestion,
-                        accepted: countShown ? false : (active?.accepted ?? false))
+                        accepted: countShown ? false : (active?.accepted ?? false),
+                        trimToLine: trimToLine)
         activeIsInstant = instant
         if countShown {
             // A fresh suggestion opens a journal record; an unresolved one at
@@ -974,7 +984,8 @@ final class SuggestionController: NSObject {
         // what ⇧⇥ accepts has to be exactly what the user was shown — offering
         // an ellipsized tail is offering text sight unseen. Only ever a prefix,
         // so narrowing, accepting and the journal all still line up.
-        let shown = window.show(mode: .suggestion(text), at: rect, host: ctx.host) ?? text
+        let shown = window.show(mode: .suggestion(text), at: rect, host: ctx.host,
+                                trimToLine: active?.trimToLine ?? true) ?? text
         if shown != text {
             active?.text = shown
             pendingJournal?.suggestion = shown
@@ -1112,10 +1123,12 @@ final class SuggestionController: NSObject {
                 switch outcome {
                 case .success(let reply?):
                     // Through the normal apply path: same anchoring, settle and
-                    // journal rules as a completion — only longer, and reading an
-                    // empty field as a real (empty) context.
+                    // journal rules as a completion — only longer, reading an
+                    // empty field as a real (empty) context, and never trimmed to
+                    // the line: a reply cut to its first 70 chars lost the rest.
                     let shown = self.apply(reply, requestText: ctx.textBeforeCaret,
-                                           cachedContext: ctx, maxChars: 400, allowEmpty: true)
+                                           cachedContext: ctx, maxChars: 400, allowEmpty: true,
+                                           trimToLine: false)
                     DebugLog.shared.log("REPLY", shown ? "shown" : "dropped — \(self.lastEvent)")
                 case .success(nil):
                     // Two different silences: nothing readable on screen, or the

@@ -73,18 +73,19 @@ struct ImpactRailView: View {
                 Spacer()
                 // Labeled, not a bare switch: next to the "Live Impact" title an
                 // unlabeled toggle reads as showing/hiding the inspector, when it
-                // actually enables suggestions system-wide.
-                Toggle("Suggestions", isOn: $store.enabled)
+                // is the master pause — fix, reply and dictation stop with it,
+                // so it is named for all of Pretype, not just suggestions.
+                Toggle("Pretype", isOn: $store.enabled)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .font(.subheadline)
-                    .help(store.enabled ? "Suggestions are on system-wide" : "Suggestions are off system-wide")
+                    .help("Off pauses suggestions, fix, reply and dictation — same as Pause Pretype in the menu bar")
             }
             HStack(spacing: 7) {
                 Circle()
                     .fill(store.enabled ? Color.green : Color.secondary)
                     .frame(width: 7, height: 7)
-                Text(store.setupLine)
+                Text(store.enabled ? store.setupLine : "Paused")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -112,11 +113,11 @@ struct ImpactRailView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Click to apply.")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             } else {
                 Text(tipText)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -188,7 +189,7 @@ private struct MeterView: View {
             bar
             Text(sub)
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

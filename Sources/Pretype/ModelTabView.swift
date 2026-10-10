@@ -57,10 +57,11 @@ struct ModelTab: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            } footer: {
                 axisCaption
             }
 
-            Section("What matters most") {
+            Section {
                 HStack(spacing: 10) {
                     ForEach(distinctPriorities, id: \.self) { priority in
                         let pick = priority.pick(axis: axis)
@@ -71,10 +72,15 @@ struct ModelTab: View {
                                      hover: { store.setHover(.preset(pick), $0) })
                     }
                 }
-                Caption("One click switches to the measured-best model for that goal on the axis above, in the exact configuration the card's figures come from (Base · Short). Your precision gates stay on where the model supports them — hover to preview.")
+                // Ideal height of the tallest card, which the others then fill.
+                .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("What matters most")
+            } footer: {
+                Text("One click switches to the measured-best model for that goal on the axis above, in the exact configuration the card's figures come from (Base · Short). Your precision gates stay on where the model supports them — hover to preview.")
             }
 
-            Section("The model map") {
+            Section {
                 // The two chord tasks run on a different, smaller set of
                 // models (the instruct siblings), so they are a lens on the
                 // map rather than extra bubbles — same axes, different task.
@@ -84,28 +90,31 @@ struct ModelTab: View {
                     (MapLens.reply, "Reply (\(store.hotkeyStyle.replyLabel))"),
                 ], selection: mapLens, select: { mapLens = $0 })
                 ModelMapView(store: store, hover: store.hoverState, lens: mapLens)
+            } header: {
+                Text("The model map")
+            } footer: {
                 switch mapLens {
                 case .fix:
-                    Caption("Up = noisy lines restored byte-exactly · right = faster · bubble size = the sibling's memory. "
+                    Text("Up = noisy lines restored byte-exactly · right = faster · bubble size = the sibling's memory. "
                         + "These are the models that actually run the \(store.hotkeyStyle.correctionLabel) fix — the ring marks the one your pick loads; hover a bubble to see who shares it, click to switch to the pick it serves. "
                         + "Catalog-wide totals (510 lines, 17 languages, ±4 pp) — the language picker above doesn't apply here.")
                 case .reply:
-                    Caption("Up = usable reply drafts — right language, no echo of the screen; a floor on usability, not a quality score · right = faster · bubble size = the sibling's memory. "
+                    Text("Up = usable reply drafts — right language, no echo of the screen; a floor on usability, not a quality score · right = faster · bubble size = the sibling's memory. "
                         + "The ring marks the sibling your pick loads for \(store.hotkeyStyle.replyLabel); click a bubble to switch to the pick it serves. "
                         + "Catalog-wide totals (570 conversations, 19 languages, ±4 pp) — the language picker above doesn't apply here.")
                 case .completion:
                     if axis == "core" {
-                        Caption("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource)). "
+                        Text("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource)). "
                             + "The ring is your current configuration; the small dots inside the dashed zone are this model's other settings — hover to preview, click to apply.")
                     } else {
-                        Caption("Up = more accurate for \(ModelMetrics.axisDisplayName(axis)), silence counted as a miss · right = faster · bubble size = memory. "
+                        Text("Up = more accurate for \(ModelMetrics.axisDisplayName(axis)), silence counted as a miss · right = faster · bubble size = memory. "
                             + "Settings dots and the reachable zone are anchored to the pooled English+Russian sample, not to this language — "
                             + "turn on “Show what settings do to the map” above to see them on the sample they were measured on.")
                     }
                 }
             }
 
-            Section("Ranked by measured accuracy") {
+            Section {
                 Caption("Longer bars are better: Speed = how fast it answers, Memory = how light it is. "
                     + "Fix · Reply = the \(store.hotkeyStyle.correctionLabel) and \(store.hotkeyStyle.replyLabel) chords, measured on the sibling the model loads for them — "
                     + "catalog-wide totals that don't follow the language picker. "
@@ -122,17 +131,24 @@ struct ModelTab: View {
                              // click just made undeletable.
                              diskBytes: store.modelDiskBytes[entry.id],
                              delete: { confirmingDelete = entry.id },
-                             deleteDisabled: store.engineBusy)
-                }
-                if !store.modelDiskBytes.isEmpty {
-                    Caption("A size on a row = that model's weights sit in the local Hugging Face cache, "
-                        + "including the separate instruct sibling the \(Settings.hotkeyStyle.correctionLabel) rewrite loads. Deleting frees the space now; "
-                        + "picking the model again re-downloads it. The model you're using is never offered.")
+                             deleteDisabled: store.engineBusy,
+                             downloadGB: downloadGB(for: entry.id),
+                             heavyGB: heavyGB(for: entry.id))
                 }
                 HStack {
                     Spacer()
                     Button("Choose Fine-Tuned Model…") { store.chooseFineTunedModel() }
                         .controlSize(.small)
+                }
+            } header: {
+                Text("Ranked by measured accuracy")
+            } footer: {
+                if !store.modelDiskBytes.isEmpty {
+                    // "on disk", not just "a size": the ↓ figure on a row is the
+                    // download a click would start, the opposite case.
+                    Text("A size “on disk” on a row = that model's weights sit in the local Hugging Face cache, "
+                        + "including the separate instruct sibling the \(Settings.hotkeyStyle.correctionLabel) rewrite loads. Deleting frees the space now; "
+                        + "picking the model again re-downloads it. The model you're using is never offered.")
                 }
             }
 
@@ -154,24 +170,6 @@ struct ModelTab: View {
                                     source: "Unloads the resident model after \(store.idleUnloadMinutes) min idle; the next keystroke reloads it from the on-disk cache (a focus change pre-warms it)."),
                     ])
                 }
-
-                Toggle("Use screen context (OCR)", isOn: $store.screenContext)
-                BadgeRow(badges: [
-                    EffectBadge(icon: "eye", text: "on-device window OCR", tone: .neutral,
-                                source: "OCR of the focused app's window (the conversation above a chat box, the email being replied to) — captured locally, never leaves the Mac, never written to the journal."),
-                    EffectBadge(icon: "circle.lefthalf.filled", text: "adapts to app background", tone: .neutral,
-                                source: "With Screen Recording granted, the suggestion overlay samples the background under the cursor and switches to dark or light text to stay readable on any page."),
-                    EffectBadge(icon: "flask", text: "accuracy gain unmeasured", tone: .neutral,
-                                source: "Honest status: no eval isolates the OCR context's effect on suggestion accuracy yet."),
-                ])
-
-                Toggle("Use clipboard context", isOn: $store.clipboardContext)
-                BadgeRow(badges: [
-                    EffectBadge(icon: "doc.on.clipboard", text: "helps when replying to copied text", tone: .neutral,
-                                source: "The current clipboard text (capped at 600 chars) is fed to the model as extra context — the thing being replied to is often just-copied. Read only when the clipboard changes; concealed clipboards from password managers are never read; never written to the journal or debug log."),
-                    EffectBadge(icon: "flask", text: "accuracy gain unmeasured", tone: .neutral,
-                                source: "Honest status: no eval isolates the clipboard context's effect on suggestion accuracy yet."),
-                ])
             }
 
         }
@@ -201,25 +199,44 @@ struct ModelTab: View {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    /// The axis caption: what the numbers on this tab mean and where they
-    /// come from — swapped with the axis so the citation is never stale.
+    /// Download size of what a click on `id` would load, while it isn't on
+    /// this Mac yet — the selected row is already loading whatever it needs.
+    private func downloadGB(for id: String) -> Double? {
+        guard id != store.modelID, store.needsDownload.contains(id) else { return nil }
+        let c = store.committedConfig.applying(.model(id))
+        let gb = SettingsStore.weights(modelID: c.modelID, style: c.style).gb
+        return gb > 0 ? gb : nil
+    }
+
+    /// What a click on `id` keeps resident, when that breaks the fit rule the
+    /// auto-pick sizes on (`ModelCatalog.isHeavy`) — same figure the rail's
+    /// Memory meter previews on hover.
+    private func heavyGB(for id: String) -> Double? {
+        guard let gb = ConfigProjection.project(store.committedConfig.applying(.model(id))).ramGB,
+              ModelCatalog.isHeavy(residentGB: gb) else { return nil }
+        return gb
+    }
+
+    /// The axis note (the first section's footer): what the numbers on this
+    /// tab mean and where they come from — swapped with the axis so the
+    /// citation is never stale.
     @ViewBuilder private var axisCaption: some View {
         switch axis {
         // The sample size and its tolerance live in the badge above, so these
         // captions say what the numbers MEAN and leave the arithmetic to it.
         case "*":
-            Caption("Every measured language weighted equally; staying silent counts as a miss. "
+            Text("Every measured language weighted equally; staying silent counts as a miss. "
                 + "An average hides per-language cliffs — pick the language you type in to see the whole tab re-measured for it.")
         case "core":
             // The split is the point: this sample pools two languages that
             // measure differently, and every small model is stronger in English
             // than in Russian. Naming both numbers is cheaper than a caveat.
-            Caption("Settings map on: the whole tab is showing the one sample the config projections are "
+            Text("Settings map on: the whole tab is showing the one sample the config projections are "
                 + "anchored to — English and Russian pooled. Accuracy = correct first word of shown suggestions. "
                 + "The two languages do not score alike\(coreSplitText). Turn this off to go back to "
                 + "measuring one language at a time.")
         default:
-            Caption("Everything on this tab — cards, map, ranking — is measured for \(langName(axis)): "
+            Text("Everything on this tab — cards, map, ranking — is measured for \(langName(axis)): "
                 + "first word right with silence counted as a miss, matched text registers. "
                 + "Compare models, not languages against each other (Chinese and Japanese score per character).")
         }
@@ -401,6 +418,10 @@ struct ModelRow: View {
     var diskBytes: Int64?
     var delete: (() -> Void)?
     var deleteDisabled = false
+    /// GB a click downloads first (nil: already on this Mac).
+    var downloadGB: Double?
+    /// GB a click keeps resident, when that is heavy for this Mac.
+    var heavyGB: Double?
     /// Local hover for the row highlight — the rail preview (`hover`) lands
     /// 500 px away in the inspector, so a highlight at the pointer confirms
     /// the row is live. Kept off the observed store.
@@ -425,12 +446,25 @@ struct ModelRow: View {
                             .background(.quaternary, in: Capsule())
                             .help(ModelCatalog.defaultRationale)
                     }
+                    if let heavyGB {
+                        EffectBadge(icon: "exclamationmark.triangle", text: "heavy for this Mac", tone: .caution,
+                                    source: String(format: "Keeps ~%.1f GB resident — over a quarter of this Mac's %.0f GB, the line the auto-picked model stays under. Everything else you run gets that much less room.",
+                                                   heavyGB, ModelCatalog.machineRamGB))
+                    }
                     Spacer()
+                    if let downloadGB {
+                        let size = String(format: "%.1f GB", downloadGB)
+                        Text("↓ \(size)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .help("Not on this Mac yet — picking it downloads about \(size) first, and suggestions pause until it's ready.")
+                            .accessibilityLabel("Not downloaded, \(size)")
+                    }
                     if let diskBytes, let delete {
                         let size = ByteCountFormatter.string(fromByteCount: diskBytes, countStyle: .file)
                         Text("\(size) on disk")
                             .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                         // Borderless, so the click stays on the trash instead of
                         // also selecting the row (the classic nested-Button fix).
                         // Busy is handled in the action, NOT via .disabled: a
@@ -482,7 +516,7 @@ struct ModelRow: View {
                     .padding(.leading, 24)
                 } else {
                     Text("not measured")
-                        .font(.caption).foregroundStyle(.tertiary)
+                        .font(.caption).foregroundStyle(.secondary)
                         .padding(.leading, 24)
                 }
             }
@@ -506,7 +540,7 @@ struct ModelRow: View {
         let chord = ModelMetrics.taskMetrics(
             for: id, style: ModelCatalog.recommended(for: id).style)
         VStack(alignment: .leading, spacing: 3) {
-            Text("Fix · Reply").font(.caption2).foregroundStyle(.tertiary)
+            Text("Fix · Reply").font(.caption2).foregroundStyle(.secondary)
             if let chord {
                 let approx = chord.measuredExactly ? "" : "~"
                 let fixText = Text("\(approx)\(chord.m.fixPct)%").foregroundStyle(Color.orange.legible)
@@ -515,7 +549,7 @@ struct ModelRow: View {
                 (fixText + dotText + replyText)
                     .font(.caption2.monospacedDigit())
             } else {
-                Text("—").font(.caption2).foregroundStyle(.tertiary)
+                Text("—").font(.caption2).foregroundStyle(.secondary)
             }
         }
         .frame(width: 68, alignment: .leading)
@@ -576,10 +610,12 @@ private struct PriorityCard: View {
                     Image(systemName: priority.symbol)
                         .font(.caption)
                         .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                    // Wraps rather than shrinking below the caption floor:
+                    // "Quick & accurate" overflows a card at the minimum width.
                     Text(priority.title)
                         .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                     if isActive {
                         Image(systemName: "checkmark.circle.fill")
@@ -594,23 +630,30 @@ private struct PriorityCard: View {
                     // Metric colors match every other surface (rail meters,
                     // ranked bars, map info card) — green accuracy, blue
                     // speed, teal memory — so the triple scans, not reads.
-                    (Text("\(acc ?? m.firstWordPct)%").foregroundStyle(Color.green.legible)
-                        + Text(" · ").foregroundStyle(.tertiary)
-                        + Text("\(m.p50Ms) ms").foregroundStyle(Color.blue.legible)
-                        + Text(" · ").foregroundStyle(.tertiary)
-                        + Text(String(format: "%.1f GB", m.ramGB)).foregroundStyle(Color.teal.legible))
-                        // Semibold, not a color change: tone-colored ink at 10pt
-                        // is thin on a light form, but the metric color coding is
-                        // deliberate and shared with the rail and ranked bars.
-                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                        // One line at the 1020 pt minimum width, where four
-                        // cards leave ~96 pt for a ~113 pt triple.
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    let accText = Text("\(acc ?? m.firstWordPct)%").foregroundStyle(Color.green.legible)
+                    let dot = Text(" · ").foregroundStyle(.tertiary)
+                    let msText = Text("\(m.p50Ms) ms").foregroundStyle(Color.blue.legible)
+                    let gbText = Text(String(format: "%.1f GB", m.ramGB)).foregroundStyle(Color.teal.legible)
+                    // One line where it fits; at the 1020 pt minimum width four
+                    // cards leave ~96 pt for a ~113 pt triple, so memory takes
+                    // a second line instead of the whole triple shrinking to 8 pt.
+                    ViewThatFits(in: .horizontal) {
+                        (accText + dot + msText + dot + gbText).lineLimit(1)
+                        VStack(alignment: .leading, spacing: 1) {
+                            (accText + dot + msText).lineLimit(1)
+                            gbText
+                        }
+                    }
+                    // Semibold, not a color change: tone-colored ink at 10pt
+                    // is thin on a light form, but the metric color coding is
+                    // deliberate and shared with the rail and ranked bars.
+                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
                 }
             }
             .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Full height of the row: a card whose title or figures wrapped
+            // must not stand taller than its neighbours.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 9)
                     .fill(isActive ? Color.accentColor.opacity(0.08)
@@ -823,12 +866,12 @@ struct ModelMapView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 Text("\(acc)%")
                     .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .position(x: plot.minX - 18, y: y)
             }
             Text("◀ slower")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .position(x: plot.minX + 26, y: plot.maxY + 12)
             Text("faster ▶")
                 .font(.caption2.weight(.semibold))
@@ -921,16 +964,18 @@ struct ModelMapView: View {
                 .allowsHitTesting(false)
         }
         // Hovering another model (bubble, ranked row or preset card) ghosts
-        // ITS settings zone in accent, so zones compare before committing.
+        // ITS settings zone, so zones compare before committing. Told apart
+        // from the current zone by weight, not accent: under Graphite the
+        // accent is grey too, and the two zones read as one.
         if axis == "core",
            let previewed = store.previewedConfig, previewed.modelID != store.modelID,
            let rect = reachableEnvelope(for: previewed.modelID, plot,
                                         including: chartPoint(for: previewed, plot: plot)),
            max(rect.width, rect.height) > 60 {
             RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-                .foregroundStyle(Color.accentColor.opacity(0.75))
-                .background(Color.accentColor.opacity(0.05),
+                .strokeBorder(style: StrokeStyle(lineWidth: 2.5, dash: [5, 3]))
+                .foregroundStyle(Color.primary.opacity(0.7))
+                .background(Color.primary.opacity(0.05),
                             in: RoundedRectangle(cornerRadius: 18))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
@@ -949,8 +994,10 @@ struct ModelMapView: View {
             ZStack {
                 Circle()
                     .fill(selected ? Color.primary : Color.secondary.opacity(0.45))
+                // Window-colored, not white: a white rim glared around every
+                // bubble in Dark mode.
                 Circle()
-                    .strokeBorder(selected ? Color.primary : Color.white.opacity(0.9),
+                    .strokeBorder(selected ? Color.primary : Color(nsColor: .windowBackgroundColor),
                                   style: m.id == ModelCatalog.appleIntelligenceID && !selected
                                       ? StrokeStyle(lineWidth: 1.5, dash: [3, 2])
                                       : StrokeStyle(lineWidth: 1.5))
@@ -1016,7 +1063,8 @@ struct ModelMapView: View {
         }
     }
 
-    /// Where the committed configuration sits: an accent crosshair ring — a
+    /// Where the committed configuration sits: a crosshair ring in primary ink
+    /// like the selected bubble (accent alone is grey under Graphite) — a
     /// different species from both the model bubbles and the settings dots.
     @ViewBuilder private func markers(_ plot: PlotFrame) -> some View {
         // Off the core axis the ring can't be config-projected — it marks the
@@ -1028,13 +1076,13 @@ struct ModelMapView: View {
             Circle()
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(0.75))
             Circle()
-                .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                .strokeBorder(Color.primary, lineWidth: 2.5)
             Circle()
-                .fill(Color.accentColor)
+                .fill(Color.primary)
                 .frame(width: 5, height: 5)
         }
         .frame(width: 18, height: 18)
-        .shadow(color: Color.accentColor.opacity(0.55), radius: 5)
+        .shadow(color: .black.opacity(0.35), radius: 5)
         .position(committed)
         .zIndex(7)
         .animation(mapCurve, value: committed)
@@ -1077,7 +1125,7 @@ struct ModelMapView: View {
 
     private func stat(_ label: String, _ value: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
             Text(value).font(.caption2.monospacedDigit().weight(.semibold)).foregroundStyle(tint.legible)
         }
     }
@@ -1133,7 +1181,7 @@ struct ModelMapView: View {
             // Interactivity before .position — see the bubbles comment.
             ZStack {
                 Circle().fill(chordTint.opacity(mine ? 0.8 : 0.42))
-                Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5)
+                Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5)
             }
             .frame(width: 2 * r, height: 2 * r)
             .shadow(color: .black.opacity(mine ? 0.3 : 0.12), radius: mine ? 4 : 2, y: 1)
@@ -1168,7 +1216,7 @@ struct ModelMapView: View {
         }
     }
 
-    /// "You are here" on a chord lens: the same accent ring as the completion
+    /// "You are here" on a chord lens: the same ring as the completion
     /// marker, on the sibling the current pick loads. No ghost — settings
     /// previews don't move the chord routing.
     @ViewBuilder private func chordMarker(_ plot: PlotFrame) -> some View {
@@ -1177,13 +1225,13 @@ struct ModelMapView: View {
                 Circle()
                     .fill(Color(nsColor: .windowBackgroundColor).opacity(0.75))
                 Circle()
-                    .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                    .strokeBorder(Color.primary, lineWidth: 2.5)
                 Circle()
-                    .fill(Color.accentColor)
+                    .fill(Color.primary)
                     .frame(width: 5, height: 5)
             }
             .frame(width: 18, height: 18)
-            .shadow(color: Color.accentColor.opacity(0.55), radius: 5)
+            .shadow(color: .black.opacity(0.35), radius: 5)
             .position(chordCenter(s, plot))
             .zIndex(7)
             .allowsHitTesting(false)
@@ -1245,7 +1293,7 @@ private struct MetricBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text(label).font(.caption2).foregroundStyle(.tertiary)
+                Text(label).font(.caption2).foregroundStyle(.secondary)
                 Spacer()
                 Text(text).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
             }

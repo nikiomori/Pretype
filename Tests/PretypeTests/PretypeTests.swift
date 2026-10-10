@@ -1119,6 +1119,30 @@ final class PretypeTests: XCTestCase {
         XCTAssertTrue(deltas.contains { $0.label == "Memory" && !$0.improved })
     }
 
+    // The settings download gate asks about the weights a switch actually
+    // loads — the instruct sibling in Instruct style — and names and sizes
+    // that, not the base row the user clicked.
+    @MainActor
+    func testDownloadGateWeights() {
+        let base = SettingsStore.weights(modelID: "mlx-community/gemma-4-e4b-8bit", style: .base)
+        XCTAssertEqual(base.id, "mlx-community/gemma-4-e4b-8bit")
+        XCTAssertEqual(base.name, "Gemma 4 E4B 8-bit")
+        XCTAssertEqual(base.gb, 8.58, accuracy: 0.01)
+        let instruct = SettingsStore.weights(modelID: "mlx-community/gemma-4-e4b-8bit", style: .instruct)
+        XCTAssertEqual(instruct.id, "mlx-community/gemma-4-e4b-it-6bit")
+        XCTAssertEqual(instruct.name, "Gemma 4 E4B 8-bit Instruct")
+        XCTAssertEqual(instruct.gb, 6.8, accuracy: 0.01)
+        // One set of weights for both styles: nothing separate to fetch.
+        XCTAssertEqual(SettingsStore.weights(modelID: "mlx-community/Qwen3.5-2B-4bit", style: .instruct).id,
+                       "mlx-community/Qwen3.5-2B-4bit")
+        // The system model never downloads.
+        XCTAssertTrue(ModelStorage.isFetched(
+            SettingsStore.weights(modelID: ModelCatalog.appleIntelligenceID, style: .instruct).id))
+        // The row caution reuses the auto-pick's quarter-of-memory rule.
+        XCTAssertTrue(ModelCatalog.isHeavy(residentGB: 8.6, ramGB: 16))
+        XCTAssertFalse(ModelCatalog.isHeavy(residentGB: 4, ramGB: 16))
+    }
+
     // Priority presets resolve by dominance rules over the measured catalog,
     // per accuracy axis — pin the current answers so a catalog edit that
     // flips them is noticed.
