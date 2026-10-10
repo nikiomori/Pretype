@@ -66,10 +66,7 @@ enum AXText {
     static func systemFocusedTextElement() -> AXUIElement? {
         let systemWide = AXUIElementCreateSystemWide()
         AXUIElementSetMessagingTimeout(systemWide, FocusTracker.axMessagingTimeout)
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &ref) == .success,
-              let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
-        let element = ref as! AXUIElement
+        guard let element = Self.element(systemWide, kAXFocusedUIElementAttribute) else { return nil }
         AXUIElementSetMessagingTimeout(element, FocusTracker.axMessagingTimeout)
         return isEditableTextElement(element) ? element : nil
     }
@@ -229,7 +226,7 @@ enum AXText {
                !frame.insetBy(dx: -24, dy: -24).contains(CGPoint(x: r.midX, y: r.midY)) {
                 return nil  // selection reported outside its own field → garbage
             }
-            return onScreen(cocoaRect(r))
+            return onScreen(flipped(r))
         }
         return validated(bounds(forRange: range, in: element)) ?? validated(webCaretBounds(element))
     }
@@ -406,7 +403,7 @@ enum AXText {
         // inside the field is the genuine cursor — pixel-accurate, like a native
         // caret, no width estimate needed.
         if let caret = marker, isCollapsedCaret(caret, in: frame),
-           let anchor = onScreen(cocoaRect(CGRect(x: caret.minX, y: caret.minY, width: 1, height: caret.height))) {
+           let anchor = onScreen(flipped(CGRect(x: caret.minX, y: caret.minY, width: 1, height: caret.height))) {
             let size = hostFont?.pointSize ?? caret.height / 1.18
             DebugLog.shared.log("AX", "web/Electron: real caret via text-marker at x=\(Int(caret.minX)), \(Int(size))pt")
             return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret,
@@ -422,7 +419,7 @@ enum AXText {
         // the ghost on the box's LAST line from a value that was decoration.
         // An unusable rect falls through to that estimate rather than refusing.
         if let run = idleRun,
-           let anchor = onScreen(cocoaRect(CGRect(x: run.minX, y: run.minY, width: 1, height: run.height))) {
+           let anchor = onScreen(flipped(CGRect(x: run.minX, y: run.minY, width: 1, height: run.height))) {
             let size = hostFont?.pointSize ?? run.height / 1.18
             DebugLog.shared.log(
                 "AX", "web/Electron: ghost anchored to the placeholder run at x=\(Int(run.minX)), \(Int(size))pt")
@@ -453,7 +450,7 @@ enum AXText {
         let caretBox = CGRect(x: caretX,
                               y: max(frame.minY + 2, frame.maxY - (linesAfter + 1) * lineHeight - 4),
                               width: 1, height: lineHeight)
-        guard let anchor = onScreen(cocoaRect(caretBox)) else { return nil }
+        guard let anchor = onScreen(flipped(caretBox)) else { return nil }
         DebugLog.shared.log("AX", "web/Electron fallback: \(value.count) chars, "
             + "font \(hostFont != nil ? "real " : "guessed ")\(Int(fontSize))pt, caret≈\(caretLoc == ns.length ? "end-of-text" : "mid-text \(caretLoc)")")
         return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret,
@@ -501,7 +498,7 @@ enum AXText {
     /// would clamp the ghost to nothing.
     private static func cocoaFieldRect(_ frame: CGRect?) -> CGRect? {
         guard let frame, frame.width > 20, frame.height > 4 else { return nil }
-        return cocoaRect(frame)
+        return flipped(frame)
     }
 
     // MARK: - Caret geometry
@@ -532,7 +529,7 @@ enum AXText {
         // ghost only draws with nothing after the caret, where there is no
         // next character to mis-measure.
         r.size.width = min(r.width, 2)
-        return onScreen(cocoaRect(r))
+        return onScreen(flipped(r))
     }
 
     /// The caret rect to trust vertically, in AX (top-left origin) coordinates.
@@ -567,9 +564,11 @@ enum AXText {
         return visible ? rect : nil
     }
 
-    /// AX coordinates are top-left-origin; Cocoa screen coordinates are bottom-left.
-    private static func cocoaRect(_ axRect: CGRect) -> CGRect {
-        var r = axRect
+    /// AX (and Quartz/CG global) coordinates are top-left-origin; Cocoa screen
+    /// coordinates are bottom-left. The flip is its own inverse, so this one
+    /// function converts in either direction.
+    static func flipped(_ rect: CGRect) -> CGRect {
+        var r = rect
         // AX measures Y downward from the top of the PRIMARY display — the one
         // whose Cocoa frame origin is (0,0). `screens.first` is usually that, but
         // on a multi-display layout it may not be, so pick the zero-origin screen
@@ -598,11 +597,9 @@ enum AXText {
     /// `--ax-probe` to see why caret geometry fails in some apps (e.g. Electron).
     static func probeDescription() -> String {
         guard AXIsProcessTrusted() else { return "NOT trusted — grant Accessibility to this binary first" }
-        let systemWide = AXUIElementCreateSystemWide()
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &ref) == .success,
-              let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return "no focused element" }
-        let element = ref as! AXUIElement
+        guard let element = Self.element(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute) else {
+            return "no focused element"
+        }
         // Wake Chromium's accessibility tree (Electron) so it exposes inner
         // text nodes / markers — the real pipeline does this too.
         var pid: pid_t = 0
@@ -621,10 +618,6 @@ enum AXText {
             if range.location > 0 {
                 prevBounds = bounds(forRange: CFRange(location: range.location - 1, length: 1), in: element)
             }
-        }
-        func fmt(_ r: CGRect?) -> String {
-            guard let r else { return "nil" }
-            return "(\(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))×\(Int(r.height)))"
         }
         // The three marked-range states are the whole design, and this is the
         // only place they're visible: there is deliberately no per-keystroke
@@ -649,10 +642,7 @@ enum AXText {
         if role == "AXWebArea" {
             // Chromium exposes caret position via private text-marker attributes.
             extra += " markerCaret=\(fmt(webCaretBounds(element)))"
-            var innerRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(element, kAXFocusedUIElementAttribute as CFString, &innerRef) == .success,
-               let innerRef, CFGetTypeID(innerRef) == AXUIElementGetTypeID() {
-                let inner = innerRef as! AXUIElement
+            if let inner = Self.element(element, kAXFocusedUIElementAttribute) {
                 let innerRole: String = attribute(inner, kAXRoleAttribute) ?? "?"
                 let innerSame = CFEqual(inner, element)
                 extra += " inner=\(innerRole)\(innerSame ? "(self)" : "")/\(fmt(elementFrame(inner)))"
@@ -691,20 +681,15 @@ enum AXText {
     /// What `context(for:)` actually computes for the focused element — verifies
     /// the live pipeline (incl. the Electron marker path) end to end via `--ax-probe`.
     static func probeContextLine() -> String {
-        let systemWide = AXUIElementCreateSystemWide()
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &ref) == .success,
-              let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return "ctx: no focus" }
-        let element = ref as! AXUIElement
+        guard let element = Self.element(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute) else {
+            return "ctx: no focus"
+        }
         var pid: pid_t = 0
         if AXUIElementGetPid(element, &pid) == .success, pid > 0 {
             AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), "AXManualAccessibility" as CFString, kCFBooleanTrue)
         }
         guard isEditableTextElement(element) else { return "ctx: focus not editable" }
         guard let ctx = context(for: element, maxChars: 200) else { return "ctx: nil" }
-        func fmt(_ rect: CGRect?) -> String {
-            rect.map { "(\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))×\(Int($0.height)))" } ?? "nil"
-        }
         let font = ctx.host.font.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
         return "ctx: text=\"…\(ctx.textBeforeCaret.suffix(16))\" caret=\(fmt(ctx.caretRect)) "
             + "font=\(font) field=\(fmt(ctx.host.fieldRect))"
@@ -717,10 +702,6 @@ enum AXText {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &ref) == .success,
               let kids = ref as? [AXUIElement], !kids.isEmpty else { return "" }
-        func fmt(_ r: CGRect?) -> String {
-            guard let r else { return "nil" }
-            return "(\(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))×\(Int(r.height)))"
-        }
         var out = ""
         for kid in kids.prefix(6) {
             let role: String = attribute(kid, kAXRoleAttribute) ?? "?"
@@ -730,6 +711,12 @@ enum AXText {
             out += probeChildren(kid, prefix: prefix + "  ", depth: depth - 1)
         }
         return out
+    }
+
+    /// A rect as the probe lines print it.
+    private static func fmt(_ r: CGRect?) -> String {
+        guard let r else { return "nil" }
+        return "(\(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))×\(Int(r.height)))"
     }
 
     /// Caret/selection bounds inside a Chromium web area via the private
@@ -789,10 +776,19 @@ enum AXText {
 
     // MARK: - Low-level helpers
 
-    private static func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {
+    static func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &ref) == .success else { return nil }
         return ref as? T
+    }
+
+    /// An element-valued attribute (focused element, focused window). Type-
+    /// checked, because `as?` to a CF type succeeds on anything.
+    static func element(_ element: AXUIElement, _ name: String) -> AXUIElement? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &ref) == .success,
+              let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
+        return (ref as! AXUIElement)
     }
 
     private static func selectedRange(of element: AXUIElement) -> CFRange? {

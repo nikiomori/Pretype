@@ -50,7 +50,7 @@ final class BackgroundProbe {
         // draws. Text hasn't been typed there yet, so it's clean background.
         let sample = CGRect(x: caretRect.maxX + 2, y: caretRect.minY,
                             width: 60, height: max(4, caretRect.height))
-        let cgRect = Self.quartzRect(sample)
+        let cgRect = AXText.flipped(sample)
         Task { [weak self] in
             let luminance = await Self.sampleLuminance(in: cgRect)
             guard let self else { return }
@@ -65,14 +65,6 @@ final class BackgroundProbe {
             }
             apply(self.appearance)
         }
-    }
-
-    /// Cocoa (bottom-left origin) → CG global (top-left origin) coordinates.
-    private static func quartzRect(_ cocoaRect: CGRect) -> CGRect {
-        var r = cocoaRect
-        let primary = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.screens.first
-        r.origin.y = (primary?.frame.height ?? 0) - r.origin.y - r.height
-        return r
     }
 
     /// Mean relative luminance (0 dark … 1 light) of the screen area, with the

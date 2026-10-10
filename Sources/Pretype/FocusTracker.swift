@@ -187,10 +187,7 @@ final class FocusTracker {
         focusedTextElement = nil
         elementNotificationsAdded = false
 
-        var ref: CFTypeRef?
-        if AXUIElementCopyAttributeValue(appEl, kAXFocusedUIElementAttribute as CFString, &ref) == .success,
-           let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() {
-            let element = ref as! AXUIElement
+        if let element = AXText.element(appEl, kAXFocusedUIElementAttribute) {
             AXUIElementSetMessagingTimeout(element, Self.axMessagingTimeout)
             if AXText.isEditableTextElement(element) {
                 focusedTextElement = element
@@ -199,25 +196,17 @@ final class FocusTracker {
                 elementNotificationsAdded = true
             }
         }
-        let window = focusedWindow()
+        let window = AXText.element(appEl, kAXFocusedWindowAttribute)
         observeWindow(window)
         typingContext = TypingContext(
             appName: observedAppName,
             bundleID: observedBundleID,
-            windowTitle: window.flatMap { attribute($0, kAXTitleAttribute) },
+            windowTitle: window.flatMap { AXText.attribute($0, kAXTitleAttribute) },
             fieldLabel: focusedTextElement.flatMap { AXText.fieldLabel(for: $0) }
         )
         Task { @MainActor in
             delegate?.focusTrackerDidChangeFocus(self)
         }
-    }
-
-    private func focusedWindow() -> AXUIElement? {
-        guard let appEl = appElement else { return nil }
-        var windowRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appEl, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
-              let windowRef, CFGetTypeID(windowRef) == AXUIElementGetTypeID() else { return nil }
-        return (windowRef as! AXUIElement)
     }
 
     /// Watch the window holding the caret for moves and resizes — the overlay is
@@ -237,11 +226,5 @@ final class FocusTracker {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         AXObserverAddNotification(obs, window, kAXWindowMovedNotification as CFString, refcon)
         AXObserverAddNotification(obs, window, kAXWindowResizedNotification as CFString, refcon)
-    }
-
-    private func attribute(_ element: AXUIElement, _ name: String) -> String? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &ref) == .success else { return nil }
-        return ref as? String
     }
 }

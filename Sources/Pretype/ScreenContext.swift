@@ -12,16 +12,11 @@ enum ScreenContext {
         CGPreflightScreenCaptureAccess()
     }
 
-    @discardableResult
-    static func requestPermission() -> Bool {
-        CGRequestScreenCaptureAccess()
-    }
-
     /// Makes Pretype appear in System Settings → Screen Recording: TCC only
     /// lists an app after it actually attempts a capture query, a plain
     /// CGRequestScreenCaptureAccess() is not enough on modern macOS.
     static func registerWithTCC() {
-        requestPermission()
+        CGRequestScreenCaptureAccess()
         Task {
             _ = try? await SCShareableContent.excludingDesktopWindows(
                 true, onScreenWindowsOnly: true
@@ -61,29 +56,16 @@ enum ScreenContext {
                 contentFilter: filter, configuration: config
             )
 
-            // Compute Region of Interest (ROI) if caretRect is available
-            var roi: CGRect? = nil
+            // Region of interest: ±250 pt around the caret line, full window
+            // width, in Vision's normalized bottom-left space. The caret is
+            // flipped into the window frame's top-left-origin space; `top` is
+            // clamped into the window so the rect stays inside the unit square.
+            var roi: CGRect?
             if let caret = caretRect {
-                let windowFrame = window.frame
-                let caretQuartz = quartzRect(caret)
-                
-                // Position of caret relative to the window (both in Quartz coordinate system)
-                let relativeCaretY = caretQuartz.minY - windowFrame.minY
-                
-                // Crop area of ±250 points around the caret's Y position, span full window width
-                let cropHeight: CGFloat = 500
-                let cropY = max(0, relativeCaretY - cropHeight / 2)
-                let actualCropHeight = min(windowFrame.height - cropY, cropHeight)
-                
-                if windowFrame.width > 0 && windowFrame.height > 0 {
-                    // Normalize to Vision's coordinate system (bottom-left origin, normalized 0.0 - 1.0)
-                    let x: CGFloat = 0
-                    let w: CGFloat = 1.0
-                    let h = actualCropHeight / windowFrame.height
-                    let y = (windowFrame.height - (cropY + actualCropHeight)) / windowFrame.height
-                    
-                    roi = CGRect(x: x, y: max(0, min(1, y)), width: w, height: max(0, min(1, h)))
-                }
+                let height = window.frame.height
+                let top = min(max(0, AXText.flipped(caret).minY - window.frame.minY - 250), height)
+                let cropHeight = min(height - top, 500)
+                roi = CGRect(x: 0, y: 1 - (top + cropHeight) / height, width: 1, height: cropHeight / height)
             }
 
             return try recognizeText(in: image, regionOfInterest: roi, excluding: typedText, maxChars: maxChars)
@@ -91,14 +73,6 @@ enum ScreenContext {
             NSLog("Pretype: screen capture failed: %@", error.localizedDescription)
             return nil
         }
-    }
-
-    private static func quartzRect(_ cocoaRect: CGRect) -> CGRect {
-        var r = cocoaRect
-        let primary = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.screens.first
-        let primaryHeight = primary?.frame.height ?? 0
-        r.origin.y = primaryHeight - r.origin.y - r.height
-        return r
     }
 
     private static func recognizeText(
