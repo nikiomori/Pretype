@@ -363,9 +363,34 @@ final class MLXEngine: CompletionEngine {
         // LLMModelFactory, not loadModelContainer: with MLXVLM linked the generic
         // loader picks the VLM classes first (Qwen3.5's lacks the raw-token call
         // the decode loop uses).
-        return try await LLMModelFactory.shared.loadContainer(
+        let container = try await LLMModelFactory.shared.loadContainer(
             from: #hubDownloader(), using: tokenizers,
             configuration: configuration, progressHandler: progressHandler)
+        // PRETYPE_TIED_TABLE_4BIT=off is the A/B arm.
+        if ProcessInfo.processInfo.environment["PRETYPE_TIED_TABLE_4BIT"] != "off" {
+            await requantizeTiedTable(container)
+        }
+        return container
+    }
+
+    /// Gemma's tied embedding table is also its 262k-row output projection, read
+    /// in full on every decoded token. An 8-bit table is re-quantized to 4-bit at
+    /// load, for both uses. E4B-8bit: −320 MB resident, reload +15 ms, first
+    /// suggestion p50 52/61 → 49/52 ms; eval-real core 870 first-word 28% = 28%
+    /// (McNemar p = 0.77, ungated), 123/128 typing outputs identical. 6-bit
+    /// tables are not measured and stay as shipped.
+    private static func requantizeTiedTable(_ container: ModelContainer) async {
+        await container.perform { (context: ModelContext) in
+            guard context.model is Gemma4Model || context.model is Gemma4TextModel,
+                  let (key, module) = context.model.leafModules().flattened().first(where: { $0.0.hasSuffix(".embed_tokens") }),
+                  let table = module as? QuantizedEmbedding, table.bits == 8 else { return }
+            let full = dequantized(table.weight, scales: table.scales, biases: table.biases,
+                                   groupSize: table.groupSize, bits: table.bits, mode: table.mode)
+            let smaller = QuantizedEmbedding(weight: full, groupSize: 64, bits: 4, mode: .affine)
+            eval(smaller)
+            try? context.model.update(modules: ModuleChildren.unflattened([key: smaller]), verify: [.none])
+        }
+        Memory.clearCache()
     }
 
     private static func loadDrafter(at directory: URL) async throws -> any MTPDrafterModel {

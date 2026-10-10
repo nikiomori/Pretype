@@ -73,6 +73,9 @@ protocol, datasets and significance tests behind them are in `Eval/BASELINE.md`.
   blocks sit at the head of the prompt, so a refresh of any of them voids the
   cache; the new prompt is prefilled when the refresh lands, not on the next
   keystroke.
+* **Lighter 8-bit Gemma** — the tied embedding table, which is also the
+  262k-row output projection read on every token, is re-quantized to 4-bit at
+  load: E4B 8-bit holds about 320 MB less, same suggestion accuracy on the eval set.
 * **Speculative fixes and replies** — whenever a Gemma instruct model runs ⌥⇥
   or the reply draft (the instruct primary, or base style's fix model), it
   decodes with Google's multi-token-prediction drafter (~150 MB, fetched in the
