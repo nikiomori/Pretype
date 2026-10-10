@@ -10,9 +10,11 @@ import Tokenizers
 /// from Hugging Face on first use and cached in ~/.cache/huggingface.
 ///
 /// Latency strategy: the KV cache is kept between keystrokes. Each request
-/// trims it back to the common token prefix with the previous prompt and
-/// prefills only the few new tokens, so per-keystroke cost is dominated by
-/// decoding ~14 tokens instead of re-reading the whole context.
+/// resumes from the cached state sharing the longest prefix with its prompt
+/// (trimmed back, or a checkpoint for caches that can't trim) and prefills
+/// only the few new tokens; decoding stops as soon as the gate or trim has
+/// decided the rest would never be shown. Per-keystroke cost is a handful of
+/// decode steps instead of re-reading the whole context.
 ///
 /// The model catalog and runtime support live in `ModelCatalog.swift`; the
 /// token-iteration core, KV-cache and logit processors in
@@ -113,6 +115,13 @@ final class MLXEngine: CompletionEngine {
     /// KV-cache + token snapshots reused between keystrokes (LRU; type lives in
     /// `MLXEngine+Generation.swift`).
     private let promptCache = PromptCache()
+
+    /// Parsed tokenizers, kept across idle unloads. Parsing tokenizer.json is
+    /// most of a reload — Gemma 1.45 s of ~1.9 s, the weights loading in
+    /// parallel finish first — for ~120 MB resident (Qwen3.5 ~86 MB) against
+    /// the gigabytes the unload frees. Dropped with the engine, and when
+    /// memory pressure forces the unload.
+    private let tokenizers = TokenizerCache()
 
     var state: EngineState { stateBox.get() }
 
@@ -222,9 +231,11 @@ final class MLXEngine: CompletionEngine {
             stateBox.set(.failed("Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh"))
             return
         }
-        // Bounded but generous buffer cache: enough for fast decode reuse
-        // without hoarding memory between keystrokes.
-        Memory.cacheLimit = 512 * 1024 * 1024
+        // MLX's freed-buffer pool fills to whatever cap it gets: 512 MB sat
+        // full (~510 MB on top of the weights), while 64 MB measured the same
+        // per-keystroke latency on E4B-8bit and E2B-4bit (16 MB starts to
+        // show in p90). ~450 MB back for the rest of the Mac.
+        Memory.cacheLimit = 64 * 1024 * 1024
         loadTask = makeLoadTask()
         didInitLoad = true
         startIdleMaintenance()
@@ -236,6 +247,7 @@ final class MLXEngine: CompletionEngine {
         let stateBox = self.stateBox
         let id = self.modelID
         let eos = self.extraEOSTokens
+        let tokenizers = self.tokenizers
         stateBox.set(.preparing("loading…"))
         return Task { [weak self] in
             do {
@@ -248,21 +260,28 @@ final class MLXEngine: CompletionEngine {
                 } else {
                     configuration = ModelConfiguration(id: id, extraEOSTokens: eos)
                 }
-                let container = try await #huggingFaceLoadModelContainer(
+                let container = try await loadModelContainer(
+                    from: #hubDownloader(), using: tokenizers,
                     configuration: configuration,
                     progressHandler: { progress in
                         stateBox.set(.preparing(Self.downloadStatus(progress)))
                     }
                 )
                 // The first generation pays for Metal kernel compilation; do it
-                // now so the first real keystroke doesn't. A warm-up failure
-                // shouldn't block readiness (the next real request surfaces it),
-                // but it must not be swallowed silently.
+                // now so the first real keystroke doesn't. The prompt is long
+                // enough to take the split-prefill path too — a 2-token warm-up
+                // left those kernels to the first keystroke (up to +120 ms on a
+                // cold Metal shader cache, measured).
+                // A warm-up failure shouldn't block readiness (the next real
+                // request surfaces it), but it must not be swallowed silently.
+                // Reloads after an idle unload warm up too: kernels survive the
+                // unload, but the fresh weights and buffer pool don't — skipping
+                // it moved +30–140 ms onto the first keystroke (measured).
                 stateBox.set(.preparing("warming up…"))
                 do {
                     _ = try await Self.generate(
-                        in: container, prompt: "Hello",
-                        parameters: GenerateParameters(maxTokens: 2, temperature: 0.0),
+                        in: container, prompt: Self.warmUpPrompt,
+                        parameters: GenerateParameters(maxTokens: 3, temperature: 0.0),
                         extraEOSTokens: eos, promptCache: nil
                     )
                 } catch {
@@ -278,6 +297,8 @@ final class MLXEngine: CompletionEngine {
             }
         }
     }
+
+    private static let warmUpPrompt = String(repeating: "The weekly update covers hiring, the roadmap and next steps. ", count: 7)
 
     private func clearLoadTaskOnFailure() {
         modelLock.lock()
@@ -335,6 +356,29 @@ final class MLXEngine: CompletionEngine {
         loadTask = makeLoadTask()
     }
 
+    /// Prefills `request`'s prompt into the KV cache without decoding. The
+    /// context blocks at the head of the prompt (window OCR, retrieved
+    /// examples) refresh off the typing path, and each refresh invalidates the
+    /// cache from the head on: the next keystroke re-read the whole prompt
+    /// (~0.45 s on E4B-8bit for 460 tokens, measured). Called when such a
+    /// block lands, this moves that read here, ahead of the keystroke. Only
+    /// with the model resident or already loading (it then prefills once the
+    /// load lands) — a context refresh is no reason to start a load.
+    func warmPrompt(for request: CompletionRequest) {
+        guard confidenceGateK <= 1 || style != .base, beamK == 1 else { return }
+        modelLock.lock()
+        let live = loadTask != nil
+        modelLock.unlock()
+        guard live else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            switch self.style {
+            case .base: _ = try? await self.completeBase(request, prefillOnly: true)
+            case .instruct: _ = try? await self.completeInstruct(request, prefillOnly: true)
+            }
+        }
+    }
+
     /// Free the resident model right now (menu action). Reloads on next use.
     func releaseModelNow() {
         unload(reason: "manual", force: true)
@@ -358,6 +402,7 @@ final class MLXEngine: CompletionEngine {
 
         Memory.clearCache()
         promptCache.clear()
+        if reason == "memory pressure" { tokenizers.clear() }
         let freed = Int64(max(0, before - Memory.snapshot().activeMemory))
         let amount = ByteCountFormatter.string(fromByteCount: freed, countStyle: .memory)
         stateBox.set(.preparing("idle — model unloaded"))
@@ -505,16 +550,10 @@ final class MLXEngine: CompletionEngine {
                         continuation.finish()
                         return
                     }
-                    // Same reasoning for the logprob gate: its accept/abstain
-                    // verdict (first-word mean logprob) only exists after the
-                    // full decode, so streaming partials would show a suggestion
-                    // the gate then retracts — a visible flash-and-vanish on
-                    // every abstain. No partials; yield the single gated result.
-                    if logprobGateThreshold != nil, style == .base {
-                        if let result = try await completeBase(request) { continuation.yield(result) }
-                        continuation.finish()
-                        return
-                    }
+                    // The logprob gate streams too: its verdict (first-word mean
+                    // logprob) exists as soon as the first word is decoded, and
+                    // the decode loop holds partials back until then — so no
+                    // gated stream flashes a suggestion the gate retracts.
                     let lastYielded = LockedValue<String?>(nil)
                     let onPartial: @Sendable (String) -> Void = {
                         lastYielded.set($0)
@@ -688,7 +727,8 @@ final class MLXEngine: CompletionEngine {
     /// (verified: "а теперь" → Turkish gibberish), so it floors higher than the
     /// instruct path — except mid-word, where the partial word constrains it.
     private func completeBase(_ request: CompletionRequest,
-                              onPartial: (@Sendable (String) -> Void)? = nil) async throws -> String? {
+                              onPartial: (@Sendable (String) -> Void)? = nil,
+                              prefillOnly: Bool = false) async throws -> String? {
         guard let task = beginRequest() else { return nil }
         defer { endRequest() }
         let container = try await task.value
@@ -707,7 +747,9 @@ final class MLXEngine: CompletionEngine {
         // K-sample gate's draws — those sample at T≈0.6, so their logprobs are
         // not comparable to the live path's, and the gate's own signal is
         // agreement, not logprob.
-        let recording = !gateForceSample.get()
+        // A warm-up prefill must not touch the box: it describes the
+        // suggestion on screen, which this call doesn't replace.
+        let recording = !gateForceSample.get() && !prefillOnly
         if recording { firstWordLogProbBox.set(nil) }
         let logProbSink = recording ? LockedValue<Double?>(nil) : nil
 
@@ -768,10 +810,14 @@ final class MLXEngine: CompletionEngine {
                 // The gate's K draws sample at T≈0.6 — their logprobs aren't
                 // comparable to the live path's, so no trim there either.
                 trimLogProb: recording ? trimLogProbThreshold : nil,
+                // Healed suggestions bypass the gate (see below).
+                gateLogProb: recording && heal == nil ? logprobGateThreshold : nil,
                 healExpected: Self.healConstrain ? heal?.expected : nil,
+                prefillOnly: prefillOnly,
                 onPartial: Self.makeStreamHandler(onPartial, gate: healedGate)
             )
         }
+        if prefillOnly { return nil }
         try Task.checkCancellation()
         if let heal, !output.hasPrefix(heal.expected) {
             DebugLog.shared.log("GATE", "token-healing: decode \(output.prefix(24).debugDescription) contradicts typed fragment \(heal.expected.debugDescription) — abstaining")
@@ -800,7 +846,8 @@ final class MLXEngine: CompletionEngine {
     /// then the text. The KV cache still applies — the directive/persona are a
     /// constant prefix, so only the new characters re-prefill per keystroke.
     private func completeInstruct(_ request: CompletionRequest,
-                                  onPartial: (@Sendable (String) -> Void)? = nil) async throws -> String? {
+                                  onPartial: (@Sendable (String) -> Void)? = nil,
+                                  prefillOnly: Bool = false) async throws -> String? {
         guard let task = beginRequest() else { return nil }
         defer { endRequest() }
         let container = try await task.value
@@ -902,12 +949,13 @@ final class MLXEngine: CompletionEngine {
         // prompt (directive + persona + template), i.e. the distribution the
         // live path actually sampled from — deliberately NOT the raw-context
         // score `logProbMean` computes offline.
-        let recording = !gateForceSample.get()
+        let recording = !gateForceSample.get() && !prefillOnly
         if recording { firstWordLogProbBox.set(nil) }
         let logProbSink = recording ? LockedValue<Double?>(nil) : nil
 
         let parameters = completionParameters(for: request)
         let gate = prepared.gate(cleanInstruct: true)
+        let promptCache = self.promptCache
         let output = try await Self.generate(
             in: container,
             makeTokens: { context in
@@ -918,9 +966,17 @@ final class MLXEngine: CompletionEngine {
                 // Hybrid-reasoning templates (MiniCPM5/Qwen3-style) default to a
                 // <think> block that burns the whole token budget; ask for the
                 // no-think branch. Templates without the variable (Gemma) ignore it.
-                var toks = try context.tokenizer.applyChatTemplate(
-                    messages: messages, tools: nil,
-                    additionalContext: ["enable_thinking": false])
+                let render = {
+                    try context.tokenizer.applyChatTemplate(
+                        messages: messages, tools: nil,
+                        additionalContext: ["enable_thinking": false])
+                }
+                // The text is the user turn's tail here, so only it changes per
+                // keystroke — splice it instead of re-rendering the template.
+                var toks = (prefill || infill)
+                    ? try render()
+                    : try promptCache.templateSplice.tokens(
+                        key: directiveText, text: promptText, tokenizer: context.tokenizer, render: render)
                 if prefill {
                     // Open the assistant turn with the user's text (BOS stripped)
                     // so the model continues it instead of answering about it.
@@ -941,8 +997,10 @@ final class MLXEngine: CompletionEngine {
             minTokens: prefill ? 3 : 0,
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
+            prefillOnly: prefillOnly,
             onPartial: Self.makeStreamHandler(onPartial, gate: gate)
         )
+        if prefillOnly { return nil }
         try Task.checkCancellation()
         let result = gate(output)
         if recording, result != nil { firstWordLogProbBox.set(logProbSink?.get()) }
@@ -1229,11 +1287,13 @@ final class MLXEngine: CompletionEngine {
         let id = correctionModelID
         let stateBox = self.stateBox
         let correctionFetched = self.correctionFetched
+        let tokenizers = self.tokenizers
         let task = Task<ModelContainer, Error> { [weak self] in
             let previous = stateBox.get()
             stateBox.set(.preparing("loading fix model…"))
             do {
-                let container = try await #huggingFaceLoadModelContainer(
+                let container = try await loadModelContainer(
+                    from: #hubDownloader(), using: tokenizers,
                     configuration: ModelConfiguration(id: id),
                     progressHandler: { progress in
                         stateBox.set(.preparing(Self.downloadStatus(progress, label: "fix model")))
@@ -1259,5 +1319,26 @@ final class MLXEngine: CompletionEngine {
         modelLock.lock()
         defer { modelLock.unlock() }
         correctionLoadTask = nil
+    }
+}
+
+/// `TokenizerLoader` that parses each tokenizer directory once per engine.
+final class TokenizerCache: TokenizerLoader, @unchecked Sendable {
+    private let byDirectory = LockedValue<[URL: any MLXLMCommon.Tokenizer]>([:])
+
+    func load(from directory: URL) async throws -> any MLXLMCommon.Tokenizer {
+        if let hit = byDirectory.get()[directory] { return hit }
+        let tokenizer = try await #huggingFaceTokenizerLoader().load(from: directory)
+        // ponytail: two directories loading at once can drop one entry here —
+        // it re-parses on its next load; make LockedValue mutate in place if
+        // that ever shows up.
+        var all = byDirectory.get()
+        all[directory] = tokenizer
+        byDirectory.set(all)
+        return tokenizer
+    }
+
+    func clear() {
+        byDirectory.set([:])
     }
 }

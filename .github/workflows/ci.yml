@@ -29,7 +29,7 @@ env:
 jobs:
   build:
     name: swift build (macOS)
-    # macOS 15 ships Xcode 16.3+ (Swift 6.1) — required by mlx-swift-lm 3.31.3.
+    # macOS 15 ships Xcode 16.3+ (Swift 6.1) — required by mlx-swift-lm 3.31.4.
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4

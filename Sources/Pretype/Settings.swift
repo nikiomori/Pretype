@@ -507,7 +507,11 @@ enum Settings {
         defaults.register(defaults: [
             "enabled": true,
             "mlxModelID": ModelCatalog.defaultID,
-            "debounceMs": 120,
+            // Wait after a keystroke before querying. Replayed typing (lognormal
+            // gaps, median 190 ms): 120 → 60 ms cut pause→ghost p50 by 55–76 ms
+            // across E4B/E2B/Qwen3.5 for +12–18% engine work — most gaps clear
+            // 120 ms anyway, so the old value mostly added latency.
+            "debounceMs": 60,
             "maxContextChars": 1200,
             "idleUnloadMinutes": 5,
             "fimEnabled": true,

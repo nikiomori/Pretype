@@ -44,7 +44,7 @@ extension CompletionRequest {
     /// as text to imitate (which skews the completion) but reads a raw preceding
     /// block as the document to continue.
     func completionPrompt(maxChars: Int) -> String {
-        let text = String(textBeforeCaret.suffix(maxChars))
+        let text = Self.stableTail(textBeforeCaret, maxChars: maxChars)
         guard !text.isEmpty else { return "" }
         // Label-free: for a base model the window text reads as the document
         // being continued (a chat log followed by the reply), which couples
@@ -54,6 +54,31 @@ extension CompletionRequest {
         let blocks = [clipboardContext, screenSummary].compactMap { $0 }.filter { !$0.isEmpty }
         guard !blocks.isEmpty else { return text }
         return (blocks + [text]).joined(separator: "\n\n")
+    }
+
+    /// The last ≤`maxChars` of `text`, started at the first sentence end (else
+    /// word boundary) inside the window's first quarter. A plain suffix slides
+    /// its start one character per keystroke once a document outgrows the
+    /// window — re-tokenizing the prompt from its first token, so the KV cache
+    /// shared nothing and every keystroke re-prefilled the whole context. The
+    /// first boundary past the cut holds still until the cut overtakes it.
+    /// Costs ≤ a quarter of the window (context-length ROI measured flat:
+    /// 1000 vs 250 chars byte-identical on journal replay); a window with no
+    /// boundary at all (unspaced CJK) falls back to the plain suffix.
+    static func stableTail(_ text: String, maxChars: Int) -> String {
+        guard text.count > maxChars else { return text }
+        let tail = text.suffix(maxChars)
+        let head = tail.prefix(maxChars / 4)
+        let sentenceEnds: Set<Character> = [".", "!", "?", "\n", "。", "！", "？"]
+        var cut: Substring.Index?
+        var prev: Character?
+        for i in head.indices {
+            if let prev, sentenceEnds.contains(prev), head[i].isWhitespace || prev == "\n" { cut = i; break }
+            prev = head[i]
+        }
+        if cut == nil { cut = head.firstIndex(where: \.isWhitespace) }
+        guard let cut else { return String(tail) }
+        return String(tail[cut...].drop(while: \.isWhitespace))
     }
 
     /// Retrieved accepted phrases as one label-free block — the base path
@@ -285,6 +310,10 @@ protocol CompletionEngine: AnyObject {
 
     /// Free any resident model now (manual / menu-triggered); reload on next use.
     func releaseModelNow()
+
+    /// Hint that the prompt's context changed while the user isn't waiting on
+    /// a completion: an engine with a prompt cache can prefill it now.
+    func warmPrompt(for request: CompletionRequest)
 }
 
 extension CompletionEngine {
@@ -315,6 +344,7 @@ extension CompletionEngine {
     func shutdown() {}
     func prewarmIfNeeded() {}
     func releaseModelNow() {}
+    func warmPrompt(for request: CompletionRequest) {}
 
     /// One-shot fallback: drive `complete` and yield its single result. Engines
     /// that decode token-by-token override this to stream partials.

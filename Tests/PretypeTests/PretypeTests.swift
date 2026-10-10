@@ -3,6 +3,7 @@ import Carbon
 import CoreGraphics
 import SwiftUI
 @testable import Pretype
+import MLXLMCommon
 
 final class PretypeTests: XCTestCase {
 
@@ -298,6 +299,108 @@ final class PretypeTests: XCTestCase {
 
         journal.reset()
         XCTAssertEqual(journal.fileSize, 0)
+    }
+
+    // Keystroke-to-keystroke KV reuse: a checkpoint is reusable by ANY cache type
+    // as an exact prefix (the only way a recurrent Qwen3.5 layer or a wrapped
+    // Gemma ring can be reused), a live cache only by trimming; the longest
+    // usable prefix wins and short (<16) matches are ignored.
+    func testPromptCacheReuseRules() {
+        typealias PC = MLXEngine.PromptCache
+        let toks = Array(0 ..< 40)
+        func trimmable(offset: Int) -> [KVCache] {
+            let c = KVCacheSimple()
+            c.offset = offset
+            return [c]
+        }
+
+        // Recurrent checkpoint: exact prefix → reused; a prompt diverging inside
+        // it can't rewind a recurrent state → no reuse.
+        var pc = PC()
+        let recurrent = MambaCache()
+        pc.store(forFullTokens: toks, live: nil, checkpoint: .init(tokens: Array(toks[..<20]), cache: [recurrent]))
+        let fromCheckpoint = pc.take(for: toks)
+        XCTAssertEqual(fromCheckpoint?.reused, 20)
+        // Handed out as a copy; the checkpoint itself comes back for re-storing.
+        XCTAssertFalse((fromCheckpoint?.cache.first as AnyObject?) === recurrent)
+        XCTAssertTrue((fromCheckpoint?.checkpoint?.cache.first as AnyObject?) === recurrent)
+        pc = PC()
+        pc.store(forFullTokens: toks, live: nil, checkpoint: .init(tokens: Array(toks[..<20]), cache: [MambaCache()]))
+        XCTAssertNil(pc.take(for: Array(toks[..<18]) + [99, 98, 97]))
+
+        // Trimmable live cache beats an older checkpoint: trimmed to the shared
+        // prefix, capped at count−1 (the decode needs an input token).
+        pc = PC()
+        pc.store(forFullTokens: toks,
+                 live: .init(tokens: toks, cache: trimmable(offset: 40)),
+                 checkpoint: .init(tokens: Array(toks[..<32]), cache: trimmable(offset: 32)))
+        let hit = pc.take(for: Array(toks[..<36]) + [77])
+        XCTAssertEqual(hit?.reused, 36)
+        XCTAssertEqual(hit?.cache.first?.offset, 36)
+        XCTAssertNil(pc.take(for: toks), "a taken entry leaves the pool")
+
+        // Below the 16-token floor nothing is reused.
+        pc = PC()
+        pc.store(forFullTokens: toks, live: .init(tokens: toks, cache: trimmable(offset: 40)), checkpoint: nil)
+        XCTAssertNil(pc.take(for: Array(toks[..<10]) + [50, 51, 52, 53, 54, 55, 56, 57]))
+    }
+
+    // The incremental prompt encoder must return exactly what a full encode
+    // would — and give up for good on a tokenizer whose splices aren't exact.
+    func testPromptEncoderMatchesFullEncode() {
+        let doc = (0 ..< 30).map { "word\($0) is typed here" }.joined(separator: " ")
+        for tokenizer in [FakeTokenizer(), FakeTokenizer(mergeAcross: true)] {
+            let encoder = MLXEngine.PromptEncoder()
+            var text = String(doc.prefix(200))
+            for ch in doc.dropFirst(200).prefix(300) {
+                text.append(ch)
+                XCTAssertEqual(encoder.encode(text, with: tokenizer), tokenizer.encode(text: text))
+            }
+        }
+        XCTAssertEqual(MLXEngine.PromptEncoder.junction(in: "ab cd  ef", atOrBefore: 8), 2)
+        XCTAssertNil(MLXEngine.PromptEncoder.junction(in: "abc", atOrBefore: 2))
+    }
+
+    // The instruct path splices the typed text between the chat template's
+    // head and tail instead of re-rendering it; the result must equal a full
+    // render, including on a tokenizer where splicing isn't exact.
+    func testTemplateSpliceMatchesRender() {
+        let doc = (0 ..< 30).map { "word\($0) is typed here" }.joined(separator: " ")
+        for tokenizer in [FakeTokenizer(), FakeTokenizer(mergeAcross: true)] {
+            let splice = MLXEngine.TemplateSplice()
+            var text = String(doc.prefix(150))
+            var renders = 0
+            for ch in doc.dropFirst(150).prefix(250) {
+                text.append(ch)
+                let expected = [100] + tokenizer.encode(text: "Continue it.\n\nText:\n" + text, addSpecialTokens: false) + [200, 201]
+                let got = splice.tokens(key: "Continue it.", text: text, tokenizer: tokenizer) {
+                    renders += 1
+                    return expected
+                }
+                XCTAssertEqual(got, expected)
+            }
+            // Exact splices stop rendering after the verification window.
+            if !tokenizer.mergeAcross { XCTAssertLessThan(renders, 20) }
+        }
+    }
+
+    // Once a document outgrows the context window, typing must not slide the
+    // prompt's START (that re-tokenizes everything and voids the KV cache):
+    // the cut sits on a sentence boundary and holds while the user types.
+    func testStableTailHoldsItsStart() {
+        let doc = (0 ..< 40).map { "Sentence number \($0) is here." }.joined(separator: " ")
+        let a = CompletionRequest.stableTail(doc, maxChars: 1000)
+        XCTAssertTrue(a.hasPrefix("Sentence number"), a.prefix(30).description)
+        XCTAssertLessThanOrEqual(a.count, 1000)
+        var typed = doc
+        for ch in " And more" {
+            typed.append(ch)
+            XCTAssertEqual(CompletionRequest.stableTail(typed, maxChars: 1000), a + typed.dropFirst(doc.count))
+        }
+        XCTAssertEqual(CompletionRequest.stableTail("short text", maxChars: 1000), "short text")
+        // No boundary at all → plain suffix.
+        let unspaced = String(repeating: "字", count: 1200)
+        XCTAssertEqual(CompletionRequest.stableTail(unspaced, maxChars: 1000).count, 1000)
     }
 
     // Confidence trim decides how much of a decoded suggestion the user actually
@@ -1980,4 +2083,34 @@ final class PretypeTests: XCTestCase {
         XCTAssertFalse(AXText.markerMeansIdleBox(allowEmpty: true, selectedText: nil, caret: 12))
         XCTAssertFalse(AXText.markerMeansIdleBox(allowEmpty: false, selectedText: nil, caret: 0))
     }
+}
+
+/// Word-level fake: a BOS, then one id per space-led word, a newline being a
+/// word of its own (exact at space and newline junctions, like the real
+/// BPEs at their pre-token boundaries). `mergeAcross` fuses every word pair
+/// instead, so a split encode differs — the unvetted-tokenizer case.
+private struct FakeTokenizer: MLXLMCommon.Tokenizer {
+    var mergeAcross = false
+    func encode(text: String, addSpecialTokens: Bool) -> [Int] {
+        var words: [String] = []
+        for ch in text {
+            if ch == " " || ch == "\n" || words.isEmpty || words.last == "\n" {
+                words.append(String(ch))
+            } else {
+                words[words.count - 1].append(ch)
+            }
+        }
+        if mergeAcross {
+            words = stride(from: 0, to: words.count, by: 2).map { words[$0] + (words.indices.contains($0 + 1) ? words[$0 + 1] : "") }
+        }
+        return (addSpecialTokens ? [0] : []) + words.map { abs($0.hashValue % 100_000) + 1 }
+    }
+    func decode(tokenIds: [Int], skipSpecialTokens: Bool) -> String { "" }
+    func convertTokenToId(_ token: String) -> Int? { nil }
+    func convertIdToToken(_ id: Int) -> String? { nil }
+    var bosToken: String? { nil }
+    var eosToken: String? { nil }
+    var unknownToken: String? { nil }
+    func applyChatTemplate(messages: [[String: any Sendable]], tools: [[String: any Sendable]]?,
+                           additionalContext: [String: any Sendable]?) throws -> [Int] { [] }
 }

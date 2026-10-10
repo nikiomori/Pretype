@@ -417,6 +417,7 @@ final class SuggestionController: NSObject {
                 self.examplesRefreshedAt = Date()
                 guard found != self.personalExamples else { return }
                 self.personalExamples = found
+                self.warmPromptForCurrentText()
                 DebugLog.shared.log(
                     "PROMPT", "personal examples: \(found.count)",
                     detail: found.map { "…\($0.ctx) ⟶\($0.next)" }.joined(separator: "\n"))
@@ -441,6 +442,37 @@ final class SuggestionController: NSObject {
             clipboardSnippet = text.flatMap { $0.isEmpty ? nil : String($0.prefix(600)) }
         }
         return clipboardSnippet
+    }
+
+    /// The screen block and the retrieved examples sit at the HEAD of the
+    /// prompt, so their refresh invalidates the engine's whole KV cache. Have
+    /// the engine re-read the prompt now, in the background, rather than on
+    /// the next keystroke (where a cold prefill measured ~0.45 s on E4B-8bit).
+    private func warmPromptForCurrentText(_ typed: String? = nil) {
+        guard Settings.enabled, !isOwnUIFrontmost, !dictationController.isBusy,
+              !AppPolicy.isBlacklisted(typingContext.bundleID),
+              !Stats.isUnproductive(typingContext.bundleID),
+              let text = typed ?? latestTextBeforeCaret,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        engine.warmPrompt(for: makeRequest(text: text))
+    }
+
+    /// A ⌘-chord may have been a copy (⌘C/⌘X, any layout): the clipboard block
+    /// also sits at the prompt's head, so a changed clipboard is warmed the
+    /// same way as a screen refresh. The check is a counter compare; the
+    /// pasteboard is only read (by `makeRequest`) when it moved.
+    private func warmPromptIfClipboardChanges() {
+        guard Settings.clipboardContextEnabled, AppPolicy.allowsScreenContext(typingContext.bundleID) else { return }
+        let before = NSPasteboard.general.changeCount
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self, NSPasteboard.general.changeCount != before else { return }
+            // A ⌘-chord drops the synchronous text cache; read the field for
+            // this warm-up only (the cache keeps its own refresh rules).
+            let text = self.latestTextBeforeCaret ?? self.currentTextElement().flatMap {
+                AXText.context(for: $0, maxChars: Settings.maxContextChars)?.textBeforeCaret
+            }
+            self.warmPromptForCurrentText(text)
+        }
     }
 
     /// Surfaced in the Context submenu.
@@ -477,8 +509,12 @@ final class SuggestionController: NSObject {
                     DebugLog.shared.log("OCR", "discarded stale capture of \(appName) (focus changed)")
                     return
                 }
+                // The first capture after a focus change warms even when it
+                // found nothing: the new field's prompt is cold either way.
+                let changed = summary != self.screenSummary || self.screenCapturedAt == .distantPast
                 self.screenCapturedAt = Date()
                 self.screenSummary = summary
+                if changed { self.warmPromptForCurrentText() }
                 // Count only, never the text: the log is exportable and this is
                 // OTHER people's on-screen text. Passing it as `detail` here
                 // leaked it straight past the redaction the prompt log does
@@ -1105,6 +1141,7 @@ final class SuggestionController: NSObject {
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let flags = event.flags
+        if flags.contains(.maskCommand) { warmPromptIfClipboardChanges() }
 
         // Hands-free dictation, started and ended by the same chord.
         //
@@ -1722,6 +1759,14 @@ extension SuggestionController: FocusTrackerDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 guard let self, self.focusGeneration == generation else { return }
                 self.refreshScreenContextIfNeeded(typed: "")
+                // No capture coming (context off, no permission, blocked app):
+                // warm the new field's prompt now — its first keystroke would
+                // otherwise prefill the whole text. A capture warms on landing.
+                if !self.screenCaptureInFlight {
+                    self.warmPromptForCurrentText(self.currentTextElement().flatMap {
+                        AXText.context(for: $0, maxChars: Settings.maxContextChars)?.textBeforeCaret
+                    })
+                }
             }
         }
     }

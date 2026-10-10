@@ -7,80 +7,215 @@ import Tokenizers
 // MARK: - Generation core (KV-cache reuse, logit processors, token iteration)
 
 extension MLXEngine {
+    /// KV states reused between keystrokes. Two kinds per prompt:
+    /// - `live` — the cache as decode left it (prompt + generated tokens).
+    ///   Reusable only by TRIMMING back to the shared prefix, so only kept when
+    ///   every layer's cache can trim.
+    /// - `checkpoint` — a copy taken a few tokens before the prompt's end.
+    ///   Reusable whenever the next prompt starts with exactly those tokens,
+    ///   with NO trim — the only reuse a recurrent state (Qwen3.5's
+    ///   gated-delta layers: `MambaCache` can't rewind) or a wrapped
+    ///   sliding-window ring (Gemma past 512 tokens) admits. Without it both
+    ///   re-prefilled the whole prompt on every keystroke (measured: Qwen3.5
+    ///   reused 0% of keystrokes).
     /// Mutated only inside `container.perform`, which serializes access.
     final class PromptCache: @unchecked Sendable {
+        /// A KV state covering exactly `tokens`.
+        struct Snapshot {
+            let tokens: [Int]
+            let cache: [KVCache]
+        }
+
         final class CacheEntry {
             let keyPrefix: [Int]
-            var cache: [KVCache]
-            var tokens: [Int]
-            var lastUsed: Date
+            let live: Snapshot?
+            let checkpoint: Snapshot?
+            let lastUsed = Date()
 
-            init(keyPrefix: [Int], cache: [KVCache], tokens: [Int]) {
+            init(keyPrefix: [Int], live: Snapshot?, checkpoint: Snapshot?) {
                 self.keyPrefix = keyPrefix
-                self.cache = cache
-                self.tokens = tokens
-                self.lastUsed = Date()
+                self.live = live
+                self.checkpoint = checkpoint
             }
         }
 
         private var entries: [CacheEntry] = []
         private let maxEntries = 4
 
-        /// Finds the entry sharing the longest token prefix with `fullTokens` and
-        /// **removes it from the pool**, handing ownership to the caller. The reuse
-        /// path mutates the entry's KV cache in place (trim, then extend during
-        /// decode), so it must never stay in `entries` aliasing those live cache
-        /// objects: when the shared prefix is `16 ≤ common < 24`, the entry's
-        /// 24-token `keyPrefix` differs from the new prompt's, so `update` would not
-        /// evict it — leaving a stale entry pointing at a mutated cache, which a
-        /// later match would trim against the wrong token count and silently corrupt.
-        /// Taking it out up front means the caller re-inserts the correct state via
-        /// `update`, or drops the entry entirely on a failed trim.
-        func takeBestEntry(for fullTokens: [Int]) -> (entry: CacheEntry, common: Int)? {
-            var bestIndex: Int?
-            var bestCommon = 0
-
-            for (index, entry) in entries.enumerated() {
-                guard !entry.cache.isEmpty, canTrimPromptCache(entry.cache) else { continue }
+        /// The state sharing the longest usable prefix with `fullTokens`, with its
+        /// entry **removed from the pool** — the caller owns (and mutates) the
+        /// returned cache and re-inserts fresh states via `store`. A live cache is
+        /// handed over itself (trimmed in place); a checkpoint only as a COPY, and
+        /// the checkpoint comes back as `checkpoint` (when still a prefix of this
+        /// prompt) for the caller to re-store — one checkpoint serves keystroke
+        /// after keystroke. `reused` is how many leading tokens the returned cache
+        /// holds (≤ count−1: the decode needs an input token). nil = nothing
+        /// worth reusing.
+        func take(for fullTokens: [Int]) -> (cache: [KVCache], reused: Int, checkpoint: Snapshot?)? {
+            func common(_ snap: Snapshot) -> Int {
                 var common = 0
-                let limit = min(entry.tokens.count, fullTokens.count)
-                while common < limit, entry.tokens[common] == fullTokens[common] {
-                    common += 1
-                }
-                if common >= 16, common > bestCommon {
-                    bestCommon = common
-                    bestIndex = index
+                let limit = min(snap.tokens.count, fullTokens.count - 1)
+                while common < limit, snap.tokens[common] == fullTokens[common] { common += 1 }
+                return common
+            }
+            var best: (index: Int, snap: Snapshot, usable: Int, isLive: Bool)?
+            for (index, entry) in entries.enumerated() {
+                for (snap, isLive) in [(entry.live, true), (entry.checkpoint, false)] {
+                    guard let snap, !snap.cache.isEmpty else { continue }
+                    let usable = common(snap)
+                    // Exact prefix: usable as-is by any cache type. Otherwise
+                    // the cache must trim back to the shared prefix.
+                    let exact = usable == snap.tokens.count
+                    guard usable >= 16, exact || canTrimPromptCache(snap.cache) else { continue }
+                    if usable > (best?.usable ?? 0) { best = (index, snap, usable, isLive) }
                 }
             }
-
-            guard let bestIndex else { return nil }
-            return (entries.remove(at: bestIndex), bestCommon)
+            guard let best else { return nil }
+            let entry = entries.remove(at: best.index)
+            let kept = entry.checkpoint.flatMap { common($0) == $0.tokens.count ? $0 : nil }
+            let cache = best.isLive ? best.snap.cache : best.snap.cache.map { $0.copy() }
+            let toTrim = best.snap.tokens.count - best.usable
+            guard toTrim == 0 || trimPromptCache(cache, numTokens: toTrim) == toTrim else { return nil }
+            return (cache, best.usable, kept)
         }
 
-        func update(cache: [KVCache], tokens: [Int], forFullTokens fullTokens: [Int]) {
-            let prefixLen = min(24, fullTokens.count)
-            let prefix = Array(fullTokens.prefix(prefixLen))
-
-            // Remove any existing entry with the exact same prefix
+        func store(forFullTokens fullTokens: [Int], live: Snapshot?, checkpoint: Snapshot?) {
+            guard live != nil || checkpoint != nil else { return }
+            let prefix = Array(fullTokens.prefix(24))
             entries.removeAll { $0.keyPrefix == prefix }
-
-            // Add new entry
-            let newEntry = CacheEntry(keyPrefix: prefix, cache: cache, tokens: tokens)
-            entries.append(newEntry)
-
-            // If we exceed capacity, sort by lastUsed and evict/clean the oldest
+            entries.append(CacheEntry(keyPrefix: prefix, live: live, checkpoint: checkpoint))
             if entries.count > maxEntries {
                 entries.sort { $0.lastUsed < $1.lastUsed }
-                let oldest = entries.removeFirst()
-                oldest.cache = [] // Clear KV-cache values eagerly
+                entries.removeFirst()
             }
         }
 
         func clear() {
-            for entry in entries {
-                entry.cache = []
-            }
             entries.removeAll()
+            encoder = PromptEncoder()
+            templateSplice = TemplateSplice()
+        }
+
+        /// Raw-prompt tokenizer state; lives here because the cache is already
+        /// the per-engine, `perform`-serialized home for keystroke-to-keystroke state.
+        private(set) var encoder = PromptEncoder()
+        /// Instruct-path counterpart of `encoder`.
+        private(set) var templateSplice = TemplateSplice()
+    }
+
+    /// Re-tokenizes only the part of a raw prompt that changed. Consecutive
+    /// keystroke prompts share all but their tail, yet a full encode re-ran
+    /// BPE over the whole ~2.5k-char prompt each time (measured 9.5 ms on
+    /// Qwen3.5, 2.6 ms on Gemma, per keystroke). Splits at a "safe junction" —
+    /// a space between a non-space and a letter — where the pre-tokenizer
+    /// boundary makes tokens(head) + tokens(tail) == tokens(head + tail)
+    /// (0 mismatches over 5,530 junctions × 3 tokenizers × 17 languages). The
+    /// first few splices are still checked against a full encode; one mismatch
+    /// (an unvetted tokenizer, e.g. a fine-tune) switches this encoder to full
+    /// encodes for good.
+    final class PromptEncoder {
+        private var anchor = ""
+        private var anchorTokens: [Int] = []
+        private var verified = 0
+        private var disabled = false
+
+        /// `addSpecialTokens: false` encodes a span that sits inside a larger
+        /// prompt (the chat-template body), so no BOS lands mid-sequence.
+        func encode(_ text: String, with tokenizer: MLXLMCommon.Tokenizer,
+                    addSpecialTokens: Bool = true) -> [Int] {
+            if !disabled, !anchor.isEmpty, text.hasPrefix(anchor) {
+                let tail = text.dropFirst(anchor.count)
+                // The junction must still be one in THIS text, and a long tail
+                // means it's time to move the anchor forward.
+                if tail.count <= 400, tail.first == " ", tail.dropFirst().first?.isLetter == true {
+                    let tokens = anchorTokens + tokenizer.encode(text: String(tail), addSpecialTokens: false)
+                    guard verified < 8 else { return tokens }
+                    let full = tokenizer.encode(text: text, addSpecialTokens: addSpecialTokens)
+                    if full == tokens { verified += 1 } else { disabled = true }
+                    return full
+                }
+            }
+            let full = tokenizer.encode(text: text, addSpecialTokens: addSpecialTokens)
+            guard !disabled, let junction = Self.junction(in: text, atOrBefore: text.count - 64) else { return full }
+            anchor = String(text.prefix(junction))
+            anchorTokens = tokenizer.encode(text: anchor, addSpecialTokens: addSpecialTokens)
+            return full
+        }
+
+        /// The last offset ≤ `limit` holding a space preceded by a non-space
+        /// and followed by a letter.
+        static func junction(in text: String, atOrBefore limit: Int) -> Int? {
+            guard limit > 0 else { return nil }
+            let chars = Array(text.prefix(limit + 2))
+            var j = min(limit, chars.count - 2)
+            while j >= 1 {
+                if chars[j] == " ", !chars[j - 1].isWhitespace, chars[j + 1].isLetter { return j }
+                j -= 1
+            }
+            return nil
+        }
+    }
+
+    /// Prompt tokens a checkpoint sits before the prompt's end. Typing changes
+    /// the tail: a char re-merges the trailing BPE token(s) of the word being
+    /// typed, a backspace deletes them — a checkpoint this far back survives
+    /// both, at the price of re-prefilling ~this many tokens per keystroke
+    /// (one batched forward, ≈ one decode step on a memory-bound GPU).
+    static let checkpointMargin = 8
+
+    /// Prompt tokens per prefill forward. MLX's generic 512 doubled the
+    /// transient memory spike over the resident model (+546 → +337 MB on
+    /// E4B-8bit, +494 → +241 MB on E2B-4bit for a 460-token cold prompt) for
+    /// no speed gain — and on an 8–16 GB Mac that spike is what trips the
+    /// memory-pressure unload. 128 halves it again but costs E2B ~25 ms.
+    static let prefillChunk = 256
+
+    /// The instruct path's per-keystroke tokenization without re-rendering the
+    /// chat template: the rendered prompt is head + body(text) + tail, where
+    /// only the text changes between keystrokes (directive, persona and turn
+    /// markers hold still). The split is learned from one full render — the
+    /// body's own tokens located inside it — and the body goes through the
+    /// incremental `PromptEncoder`. Render + full encode measured ~2 ms per
+    /// keystroke (Gemma-it, Qwen3.5); the first splices are checked against a
+    /// full render and one mismatch falls back to rendering for good.
+    final class TemplateSplice {
+        private var key = ""
+        private var head: [Int] = []
+        private var tail: [Int] = []
+        private let body = PromptEncoder()
+        private var verified = 0
+        private var disabled = false
+
+        /// `key` identifies everything around the text (the directive); `render`
+        /// is the full chat-template path, the ground truth.
+        func tokens(key: String, text: String, tokenizer: MLXLMCommon.Tokenizer,
+                    render: () throws -> [Int]) rethrows -> [Int] {
+            if !disabled, key == self.key, !head.isEmpty {
+                let spliced = head + body.encode(text, with: tokenizer, addSpecialTokens: false) + tail
+                guard verified < 8 else { return spliced }
+                let full = try render()
+                if full == spliced { verified += 1 } else { disabled = true }
+                return full
+            }
+            let full = try render()
+            guard !disabled else { return full }
+            let bodyTokens = body.encode(text, with: tokenizer, addSpecialTokens: false)
+            // The text closes the user turn, so its tokens sit just before the
+            // short turn-marker tail: search back from the end.
+            self.key = ""
+            guard !bodyTokens.isEmpty, full.count > bodyTokens.count else { return full }
+            let latest = full.count - bodyTokens.count
+            for start in stride(from: latest, through: max(0, latest - 32), by: -1)
+            where full[start ..< start + bodyTokens.count].elementsEqual(bodyTokens) {
+                head = Array(full[..<start])
+                tail = Array(full[(start + bodyTokens.count)...])
+                self.key = key
+                return full
+            }
+            // The text doesn't tokenize standalone the way it does in place
+            // (a merge across the template boundary): never splice here.
+            disabled = true
+            return full
         }
     }
 
@@ -169,10 +304,14 @@ extension MLXEngine {
         func process(logits: MLXArray) -> MLXArray {
             let processed = inner?.process(logits: logits) ?? logits
             guard step == 0 else { return processed }
+            // Scatter the ≤32 boosts on the GPU — a vocab-sized host array
+            // (262k floats for Gemma) per keystroke was pure overhead.
             let vocab = logits.shape.last ?? 0
-            var values = [Float](repeating: 0, count: vocab)
-            for (id, weight) in boosts where id >= 0 && id < vocab { values[id] = weight }
-            return processed + MLXArray(values).reshaped([1, vocab])
+            let valid = boosts.filter { $0.key >= 0 && $0.key < vocab }
+            guard !valid.isEmpty else { return processed }
+            let delta = MLXArray.zeros(processed.shape, dtype: processed.dtype)
+            delta[0..., MLXArray(valid.map { Int32($0.key) })] = MLXArray(valid.map { $0.value }).asType(processed.dtype)
+            return processed + delta
         }
 
         func didSample(token: MLXArray) {
@@ -183,18 +322,20 @@ extension MLXEngine {
 
     // MARK: First-word confidence (live decode-loop capture)
 
-    /// Records, for every sampled token, the (processed) logits it was sampled
-    /// from — the raw material for the journal's `firstWordLogProb`. Costs no
-    /// extra forward passes and, crucially, no per-step GPU sync: it only
-    /// RETAINS the lazy logits arrays ([1, vocab] each, ≈0.5 MB fp16 × ≤~40
-    /// steps) and defers all scalar extraction to `finish()`, after the decode
-    /// loop, so the iterator's asyncEval pipelining is untouched.
-    /// Created and consumed entirely inside `container.perform` (not Sendable,
-    /// like the other processors here).
+    /// Records, for every sampled token, log P(token) under the (processed)
+    /// logits it was sampled from — the raw material for the journal's
+    /// `firstWordLogProb`, the logprob gate and the confidence trim. No extra
+    /// forward passes and no extra GPU sync: each step's value is a LAZY scalar
+    /// built next to the sampled token, which the decode loop evaluates in the
+    /// same `asyncEval` as the token — so it is already materialized when the
+    /// token is, and the loop can act on it (early stop) without stalling the
+    /// pipeline. Created and consumed entirely inside `container.perform` (not
+    /// Sendable, like the other processors here).
     final class LogProbRecorder: LogitProcessor {
         private var inner: LogitProcessor?
         private var last: MLXArray?
-        private var steps: [(logits: MLXArray, token: MLXArray)] = []
+        /// One lazy scalar per sampled token, index-aligned with sampling order.
+        private(set) var pending: [MLXArray] = []
 
         init(inner: LogitProcessor?) { self.inner = inner }
 
@@ -207,38 +348,14 @@ extension MLXEngine {
         }
 
         func didSample(token: MLXArray) {
-            if let logits = last { steps.append((logits, token)) }
+            if let row = last?.reshaped([-1]) {
+                let picked = takeAlong(row, token.reshaped([1]).asType(.int32), axis: 0)
+                // logSumExp in the logits' own dtype, difference in float32 —
+                // bit-for-bit the arithmetic the τ thresholds were calibrated on.
+                pending.append((picked.asType(.float32) - row.logSumExp().asType(.float32)).reshaped([]))
+            }
             inner?.didSample(token: token)
         }
-
-        /// Per-step log P(sampled token) under the recorded (processed) logits,
-        /// index-aligned with the tokens the iterator returned. Call once, after
-        /// the decode loop.
-        func finish() -> [Float] {
-            steps.map { step in
-                let row = step.logits.reshaped([-1])   // [vocab]
-                let id = step.token.reshaped([-1]).item(Int.self)
-                return row[id].item(Float.self) - row.logSumExp().item(Float.self)
-            }
-        }
-    }
-
-    /// How many leading tokens of `textTokens` make up the first word: the
-    /// smallest prefix whose decoded text, after any leading separators,
-    /// already contains an in-word boundary (same non-alphanumeric convention
-    /// as `gateFirstWord`, so calibration matches the gate's unit). Falls back
-    /// to all tokens when the whole suggestion is a single word. Approximation:
-    /// the boundary token itself is included in the mean — one separator token
-    /// of overshoot at most.
-    static func firstWordTokenCount(textTokens: [Int], tokenizer: MLXLMCommon.Tokenizer) -> Int {
-        guard !textTokens.isEmpty else { return 0 }
-        for k in 1 ..< textTokens.count {
-            let decoded = tokenizer.decode(tokenIds: Array(textTokens.prefix(k)), skipSpecialTokens: true)
-            let core = decoded.drop { !$0.isLetter && !$0.isNumber }
-            guard !core.isEmpty else { continue }
-            if core.contains(where: { !$0.isLetter && !$0.isNumber }) { return k }
-        }
-        return textTokens.count
     }
 
     /// Confidence trim: the decoded prefix cut just before the first token at
@@ -341,20 +458,26 @@ extension MLXEngine {
                 active = false   // fragment covered (or overshot) — decode freely
                 return processed
             }
+            // The host scan beats a GPU top-k here: argPartition over a 262k row
+            // measured ~30 ms/step slower than one row copy + this CPU pass.
             let row = processed.reshaped([-1]).asArray(Float.self)
             let ranked = MLXEngine.topIndices(row, k: 50)
             let chosen = MLXEngine.healCompatibleToken(
                 expected: expected, sampled: sampled, candidates: ranked, decode: decode)
-            var mask = [Float](repeating: -1e9, count: row.count)
+            let keep: Int
             if let chosen {
-                mask[chosen] = 0
+                keep = chosen
             } else if let eosID {
-                mask[eosID] = 0   // dead end: end the turn → fragment gate abstains
+                keep = eosID   // dead end: end the turn → fragment gate abstains
                 active = false
             } else {
                 return processed  // no EOS to force — stop constraining
             }
-            return processed + MLXArray(mask).reshaped(processed.shape)
+            // One-hot on the GPU: everything at −1e9 but the kept token's logit
+            // (was a host-built vocab-sized mask uploaded per step).
+            let masked = MLXArray.full(processed.shape, values: MLXArray(Float(-1e9)), dtype: processed.dtype)
+            masked[0..., keep] = processed[0..., keep]
+            return masked
         }
 
         func didSample(token: MLXArray) {
@@ -395,13 +518,18 @@ extension MLXEngine {
         firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
         forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
+        gateLogProb: Double? = nil,
         healExpected: String? = nil,
+        prefillOnly: Bool = false,
         logRaw: Bool = true,
         onPartial: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
         try await generate(
             in: container,
-            makeTokens: { context in context.tokenizer.encode(text: prompt) },
+            makeTokens: { context in
+                promptCache?.encoder.encode(prompt, with: context.tokenizer)
+                    ?? context.tokenizer.encode(text: prompt)
+            },
             parameters: parameters,
             extraEOSTokens: extraEOSTokens,
             promptCache: promptCache,
@@ -411,7 +539,9 @@ extension MLXEngine {
             firstWordStats: firstWordStats,
             forcedFirst: forcedFirst,
             trimLogProb: trimLogProb,
+            gateLogProb: gateLogProb,
             healExpected: healExpected,
+            prefillOnly: prefillOnly,
             logRaw: logRaw,
             onPartial: onPartial
         )
@@ -429,7 +559,15 @@ extension MLXEngine {
         firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
         forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
+        /// Logprob-gate τ: abstain as soon as the first word's mean logprob is
+        /// known to fall below it (the caller re-checks on the final result),
+        /// and hold back partials until it is known to pass — so a gated
+        /// stream never shows a suggestion the gate then retracts.
+        gateLogProb: Double? = nil,
         healExpected: String? = nil,
+        /// Prefill the prompt into the cache and stop — no decode, returns "".
+        /// See `MLXEngine.warmPrompt`.
+        prefillOnly: Bool = false,
         /// False when the generated text is not ours to print: the dictation
         /// tidy-up pass hands this path a SPOKEN sentence, and the debug buffer
         /// is exported into bug reports under a dialog that only warns about
@@ -463,60 +601,96 @@ extension MLXEngine {
                 }
             }
 
-            // Reuse the KV cache ONLY for true incremental typing: a
-            // substantial shared prefix with a small new tail. Tiny or
-            // divergent prefixes (field/app switches) get a fresh prefill —
-            // cheap for short prompts and immune to trim edge cases.
-            var cache: [KVCache]
-            var inputTokens: [Int]
-            var reused = false
-            if let pc = promptCache, let match = pc.takeBestEntry(for: fullTokens) {
-                // The iterator needs at least one input token.
-                let common = min(match.common, fullTokens.count - 1)
-                let tail = fullTokens.count - common
-                if common >= 16, tail <= 32 {
-                    let toTrim = match.entry.tokens.count - common
-                    if trimPromptCache(match.entry.cache, numTokens: toTrim) == toTrim {
-                        cache = match.entry.cache
-                        inputTokens = Array(fullTokens[common...])
-                        reused = true
-                    } else {
-                        cache = context.model.newCache(parameters: parameters)
-                        inputTokens = fullTokens
-                    }
-                } else {
-                    cache = context.model.newCache(parameters: parameters)
-                    inputTokens = fullTokens
-                }
+            // Reuse a cached KV state for incremental typing (see PromptCache):
+            // the longest shared prefix wins, however long the new tail — a
+            // tail prefill always beats re-reading the whole prompt.
+            let n = fullTokens.count
+            let cache: [KVCache]
+            var start: Int
+            let priorCheckpoint: PromptCache.Snapshot?
+            if let pc = promptCache, let hit = pc.take(for: fullTokens) {
+                cache = hit.cache
+                start = hit.reused
+                priorCheckpoint = hit.checkpoint
             } else {
                 cache = context.model.newCache(parameters: parameters)
-                inputTokens = fullTokens
+                start = 0
+                priorCheckpoint = nil
+            }
+            // A checkpoint is needed when the cache this decode leaves behind
+            // could not be trimmed back next keystroke: a recurrent layer, or a
+            // sliding ring the prompt + decode will wrap.
+            let needsCheckpoint = promptCache != nil && cache.contains { layer in
+                !layer.isTrimmable || (layer.maxSize.map { n + maxTokens + 1 >= $0 } ?? false)
+            }
+            // Where the prompt splits into a cache-only head and the tail the
+            // first decode step reads. Every split costs a second pass over the
+            // weights, so short tails go through in one forward; a long head is
+            // split off to skip its vocab projection (262k-wide on Gemma, which
+            // the decode step computes for every position it's fed); and a new
+            // checkpoint is taken only once the tail since the last one outgrows
+            // that same budget.
+            let oneForward = 32
+            let splitAt: Int
+            var takeCheckpoint = false
+            if needsCheckpoint, priorCheckpoint.map({ n - $0.tokens.count > oneForward }) ?? true {
+                // Give the new checkpoint its margin: a trimmable cache that
+                // already holds more than that is rewound to it (free — the
+                // tokens are re-read in the same forward as the tail).
+                let target = n - checkpointMargin
+                if start > target, target >= 16, canTrimPromptCache(cache),
+                   trimPromptCache(cache, numTokens: start - target) == start - target {
+                    start = target
+                }
+                splitAt = min(n - 1, max(start, target))
+                takeCheckpoint = splitAt >= 16
+            } else {
+                splitAt = n - start > oneForward ? n - 1 : start
             }
 
             let prefillStart = Date()
-            let lmInput = LMInput(tokens: MLXArray(inputTokens))
+            var pos = start
+            while pos < splitAt {
+                let end = min(splitAt, pos + prefillChunk)
+                _ = context.model(MLXArray(fullTokens[pos ..< end].map { Int32($0) })[.newAxis], cache: cache)
+                // Settle each full chunk (bounds memory on a long cold prompt);
+                // the last one runs on asynchronously ahead of the first step.
+                if end < splitAt { eval(cache) } else { asyncEval(cache) }
+                pos = end
+            }
+            let checkpoint = takeCheckpoint
+                ? PromptCache.Snapshot(tokens: Array(fullTokens[..<splitAt]), cache: cache.map { $0.copy() })
+                : needsCheckpoint ? priorCheckpoint : nil
+            if prefillOnly {
+                eval(cache)
+                promptCache?.store(
+                    forFullTokens: fullTokens,
+                    live: canTrimPromptCache(cache)
+                        ? PromptCache.Snapshot(tokens: Array(fullTokens[..<splitAt]), cache: cache) : nil,
+                    checkpoint: checkpoint)
+                DebugLog.shared.log("GEN", String(
+                    format: "prefill-only: %d of %d tok in %.0fms (reused %d)",
+                    splitAt - start, n, Date().timeIntervalSince(prefillStart) * 1000, start))
+                return ""
+            }
+
             // Compose the logit-processor chain: penalties → personal first-token boost →
-            // min-token EOS mask. Only take the custom path when something was
-            // added; otherwise the plain parameters init (unchanged behaviour).
+            // min-token EOS mask.
             var processor: LogitProcessor? = parameters.processor()
-            var customized = false
             if let bias, let biased = makeBiasProcessor(bias, context: context, inner: processor) {
                 processor = biased
-                customized = true
             }
             if minTokens > 0, !eosIDs.isEmpty {
                 processor = MinTokensProcessor(inner: processor, eosIDs: Array(eosIDs), minTokens: minTokens)
-                customized = true
             }
             // Outermost, so it sees the logits the sampler actually samples from
             // (post-penalties, post-bias, post-EOS-mask) — that distribution is
             // what "the engine's confidence in what it showed" means.
             var recorder: LogProbRecorder?
-            if logProbSink != nil || trimLogProb != nil || firstWordStats != nil {
+            if logProbSink != nil || trimLogProb != nil || firstWordStats != nil || gateLogProb != nil {
                 let r = LogProbRecorder(inner: processor)
                 processor = r
                 recorder = r
-                customized = true
             }
             // Healing constraint OUTERMOST — the recorder beneath must record the
             // honest pre-mask logits (see HealConstraintProcessor).
@@ -524,51 +698,93 @@ extension MLXEngine {
                 processor = HealConstraintProcessor(
                     inner: processor, expected: healExpected, eosID: eosIDs.first,
                     decode: { context.tokenizer.decode(tokenIds: $0, skipSpecialTokens: true) })
-                customized = true
             }
-            var iterator: TokenIterator
-            if customized {
-                iterator = try TokenIterator(
-                    input: lmInput, model: context.model, cache: cache,
-                    processor: processor, sampler: parameters.sampler(),
-                    prefillStepSize: parameters.prefillStepSize, maxTokens: parameters.maxTokens
-                )
-            } else {
-                iterator = try TokenIterator(
-                    input: lmInput, model: context.model, cache: cache, parameters: parameters
-                )
-            }
-            let prefillSeconds = Date().timeIntervalSince(prefillStart)
+            processor?.prompt(MLXArray(fullTokens.map { Int32($0) }))
+            let sampler = parameters.sampler()
 
-            // `fed` mirrors exactly what entered the cache (incl. a final EOS),
-            // keeping the trim arithmetic exact on the next request.
+            /// One forward + sample, enqueued on the GPU together with the
+            /// token's logprob; nothing here waits.
+            func step(_ input: MLXArray) -> MLXArray {
+                let logits = context.model(input[.newAxis], cache: cache)
+                var last = logits[0..., -1, 0...]
+                last = processor?.process(logits: last) ?? last
+                let token = sampler.sample(logits: last)
+                processor?.didSample(token: token)
+                asyncEval([token] + (recorder?.pending.last.map { [$0] } ?? []))
+                return token
+            }
+
+            // Pipelined decode: step t+1 is encoded while the GPU still runs
+            // step t (the CPU's graph build + Metal encoding is the dominant
+            // per-token cost on these small models). Only a stop we can't see
+            // coming (EOS, newline, trim/gate verdict) wastes the step already
+            // in flight; the token budget never does.
+            let firstInput = MLXArray(fullTokens[splitAt...].map { Int32($0) })
+            var current = step(firstInput)
             let decodeStart = Date()
-            var fed: [Int] = []
+            var generated: [Int] = []       // sampled tokens, in order
+            var cachedGenerated = 0         // of those, how many the cache holds
             var textTokens: [Int] = forcedFirst.map { [$0.token] } ?? []
+            var perToken: [Float] = forcedFirst.map { [$0.logProb] } ?? []
+            var firstWordCount: Int?
+            var gateOpen = gateLogProb == nil
             // Seed the text too: an immediate EOS after a forced token must
             // still return that token's text, not "".
             var text = textTokens.isEmpty ? "" : context.tokenizer.decode(tokenIds: textTokens, skipSpecialTokens: true)
-            while fed.count < maxTokens, let token = iterator.next() {
-                fed.append(token)
+            while true {
+                let next: MLXArray? = generated.count + 1 < maxTokens ? step(current) : nil
+                if next != nil { cachedGenerated = generated.count + 1 }
+                let token = current.item(Int.self)
+                generated.append(token)
                 if Task.isCancelled || eosIDs.contains(token) { break }
                 textTokens.append(token)
+                if let recorder, generated.count <= recorder.pending.count {
+                    perToken.append(recorder.pending[generated.count - 1].item(Float.self))
+                }
                 text = context.tokenizer.decode(tokenIds: textTokens, skipSpecialTokens: true)
-                onPartial?(text)
+
+                // First word complete: the smallest token prefix whose text,
+                // after leading separators, already holds an in-word boundary
+                // (gateFirstWord's convention, so calibration matches the gate's
+                // unit; the boundary token itself counts — one separator token of
+                // overshoot at most). No boundary by the end ⇒ every token. The
+                // gate's verdict exists now — abstaining here skips the rest of a
+                // decode whose result would be discarded anyway.
+                if firstWordCount == nil {
+                    let core = text.drop { !$0.isLetter && !$0.isNumber }
+                    if !core.isEmpty, core.contains(where: { !$0.isLetter && !$0.isNumber }) {
+                        firstWordCount = textTokens.count
+                        if let gateLogProb, perToken.count >= textTokens.count {
+                            // Same arithmetic as the sink below, so the caller's
+                            // final re-check can't disagree with this verdict.
+                            let mean = perToken.prefix(textTokens.count).reduce(0.0) { $0 + Double($1) }
+                                / Double(textTokens.count)
+                            if mean < gateLogProb { break }
+                            gateOpen = true
+                        }
+                    }
+                }
+                // Confidence trim's cut point (see confidenceTrimmed): nothing
+                // from this token on is ever shown, so stop decoding here.
+                if let trimLogProb, let fw = firstWordCount, textTokens.count - 1 >= fw,
+                   let lp = perToken.last, perToken.count == textTokens.count, lp < trimLogProb {
+                    break
+                }
+                if gateOpen { onPartial?(text) }
                 if text.contains("\n") { break }
+                guard let next else { break }
+                current = next
             }
             let decodeSeconds = Date().timeIntervalSince(decodeStart)
+            let prefillSeconds = decodeStart.timeIntervalSince(prefillStart)
 
-            // Reduce the recorded per-step log-probs to the first-word mean.
-            // `fed` and the recorder's steps are index-aligned (one didSample per
-            // next()), and textTokens is a prefix of fed (EOS breaks before
-            // appending) — so entries 0..<textTokens.count score exactly the
-            // visible text. A forced first token was prefilled, not decoded:
-            // prepend its logprob to realign (raw scale vs the recorder's
-            // post-processor scale — identical unless penalties/bias are on).
-            if let recorder {
-                var perToken = recorder.finish()
-                if let forcedFirst { perToken.insert(forcedFirst.logProb, at: 0) }
-                let firstWord = firstWordTokenCount(textTokens: textTokens, tokenizer: context.tokenizer)
+            // Reduce the per-step log-probs to the first-word mean. perToken is
+            // index-aligned with textTokens (EOS breaks before appending); a
+            // forced first token was prefilled, not decoded, and its logprob
+            // was prepended above (raw scale vs the recorder's post-processor
+            // scale — identical unless penalties/bias are on).
+            if recorder != nil {
+                let firstWord = firstWordCount ?? textTokens.count
                 let n = min(firstWord, perToken.count)
                 let firstWordSum = perToken.prefix(n).reduce(0.0) { $0 + Double($1) }
                 if let logProbSink {
@@ -580,7 +796,7 @@ extension MLXEngine {
                     firstWordStats.set(n > 0 ? (sum: firstWordSum, mean: firstWordSum / Double(n)) : nil)
                 }
                 // Confidence trim: show only the prefix before the first weak
-                // token. Display-only — `fed` (and thus the KV cache) is untouched.
+                // token. Display-only — the KV cache is untouched.
                 if let threshold = trimLogProb,
                    let trimmed = confidenceTrimmed(
                        text: text, textTokens: textTokens, perToken: perToken,
@@ -599,14 +815,21 @@ extension MLXEngine {
             }
 
             if let pc = promptCache {
-                pc.update(cache: cache, tokens: fullTokens + fed, forFullTokens: fullTokens)
+                // The cache now holds the prompt + every sampled token that was
+                // fed back in. Keep it only if it can trim back next time.
+                let live = canTrimPromptCache(cache)
+                    ? PromptCache.Snapshot(tokens: fullTokens + generated.prefix(cachedGenerated), cache: cache)
+                    : nil
+                pc.store(forFullTokens: fullTokens, live: live, checkpoint: checkpoint)
             }
-            let prefillRate = prefillSeconds > 0 ? Double(inputTokens.count) / prefillSeconds : 0
-            let decodeRate = decodeSeconds > 0 ? Double(fed.count) / decodeSeconds : 0
+            let prefilled = n - start
             let summary = String(
-                format: "reused=%@ prefill=%dtok/%.0fms (%.0f tok/s) decode=%dtok/%.0fms (%.0f tok/s)",
-                String(reused), inputTokens.count, prefillSeconds * 1000, prefillRate,
-                fed.count, decodeSeconds * 1000, decodeRate
+                format: "reused=%@ prefill=%dtok/%.0fms (%.0f tok/s) decode=%dtok/%.0fms (%.0f tok/s) ckpt=%d",
+                String(start > 0), prefilled, prefillSeconds * 1000,
+                prefillSeconds > 0 ? Double(prefilled) / prefillSeconds : 0,
+                generated.count, decodeSeconds * 1000,
+                decodeSeconds > 0 ? Double(generated.count) / decodeSeconds : 0,
+                checkpoint?.tokens.count ?? 0
             )
             DebugLog.shared.log(
                 "GEN", summary,

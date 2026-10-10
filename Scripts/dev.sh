@@ -7,7 +7,9 @@ cd "$(dirname "$0")/.."
 
 swift build
 
-BIN_DIR=.build/arm64-apple-macosx/debug
+# Ask SwiftPM: newer toolchains build into .build/out/Products/Debug, and a
+# hardcoded arch path would silently run a stale binary from an older build.
+BIN_DIR=$(swift build --show-bin-path)
 if [ ! -f "$BIN_DIR/mlx.metallib" ]; then
     METALLIB=$(find .build/xcode/Build/Products -name "default.metallib" -path "*Cmlx*" 2>/dev/null | head -1)
     if [ -n "$METALLIB" ]; then

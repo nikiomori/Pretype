@@ -61,9 +61,22 @@ protocol, datasets and significance tests behind them are in `Eval/BASELINE.md`.
 * **KV-cache reuse** — each keystroke prefills only the newly typed tokens and
   reuses the existing cache, which is what keeps warm completions inside the
   49–145 ms band the catalog measures (`ModelMetrics.p50Ms`; Apple Intelligence
-  is the outlier at 430 ms).
-* **Debounced and cancellable** — fast typing supersedes in-flight work instead
-  of queueing it.
+  is the outlier at 430 ms). Caches that can't rewind — Qwen3.5's recurrent
+  layers, a Gemma sliding window the prompt has outgrown — are reused from a
+  checkpoint taken a few tokens before the prompt's end. Past the context
+  window, the prompt starts at a sentence boundary so its first tokens hold
+  still while you type.
+* **Stop early** — decoding ends at the confidence trim's cut, and a gated
+  suggestion is dropped as soon as its first word fails the gate; a gated
+  suggestion still streams once that first word passes.
+* **Warm in the background** — the screen, clipboard and retrieved-example
+  blocks sit at the head of the prompt, so a refresh of any of them voids the
+  cache; the new prompt is prefilled when the refresh lands, not on the next
+  keystroke.
+* **Debounced and cancellable** — a query starts 60 ms after the last
+  keystroke, and fast typing supersedes in-flight work instead of queueing it.
+* **Fast reloads** — a parsed tokenizer survives the idle unload (parsing it
+  was most of a reload), so the next keystroke waits for the weights alone.
 * **Idle unload** — after `Settings.idleUnloadMinutes` (5 by default) the engine
   releases the weights and gives the RAM back, reloading on the next keystroke.
   Memory pressure from macOS unloads it early.
