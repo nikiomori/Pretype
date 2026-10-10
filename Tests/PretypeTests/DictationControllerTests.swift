@@ -523,18 +523,18 @@ final class DictationControllerTests: XCTestCase {
     func testAutomaticInputAvoidsTheHeadsetItIsPlayingThrough() {
         // Exactly the shape of the reporting machine: macOS publishes AirPods
         // as two objects whose UIDs share everything before the colon.
-        let builtIn = AudioDevices.Device(id: 98, uid: "BuiltInMicrophoneDevice",
+        let builtIn = AudioDevices.Device(uid: "BuiltInMicrophoneDevice",
                                           name: "MacBook Pro Microphone",
                                           transport: kAudioDeviceTransportTypeBuiltIn)
-        let podsIn = AudioDevices.Device(id: 111, uid: "F8-D3-F0-79-64-02:input",
+        let podsIn = AudioDevices.Device(uid: "F8-D3-F0-79-64-02:input",
                                          name: "AirPods Pro",
                                          transport: kAudioDeviceTransportTypeBluetooth)
-        let podsOut = AudioDevices.Device(id: 105, uid: "F8-D3-F0-79-64-02:output",
+        let podsOut = AudioDevices.Device(uid: "F8-D3-F0-79-64-02:output",
                                           name: "AirPods Pro",
                                           transport: kAudioDeviceTransportTypeBluetooth)
-        let usbMic = AudioDevices.Device(id: 120, uid: "USB-Yeti", name: "Yeti",
+        let usbMic = AudioDevices.Device(uid: "USB-Yeti", name: "Yeti",
                                          transport: kAudioDeviceTransportTypeUSB)
-        let speakers = AudioDevices.Device(id: 91, uid: "BuiltInSpeakerDevice",
+        let speakers = AudioDevices.Device(uid: "BuiltInSpeakerDevice",
                                            name: "MacBook Pro Speakers",
                                            transport: kAudioDeviceTransportTypeBuiltIn)
         let inputs = [builtIn, podsIn, usbMic]

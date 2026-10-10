@@ -1,5 +1,5 @@
+import AVFoundation
 import CoreAudio
-import Foundation
 
 /// The input devices a capture can open, and which one it should.
 ///
@@ -18,7 +18,6 @@ import Foundation
 /// transcriber gets the same resampled buffers from whichever device fed them.
 enum AudioDevices {
     struct Device: Equatable {
-        var id: AudioDeviceID
         var uid: String
         var name: String
         var transport: UInt32
@@ -96,24 +95,26 @@ enum AudioDevices {
     /// caption and the Diagnostics menu, so the substitution is never a
     /// surprise ("I picked AirPods in System Settings, why is it recording from
     /// the laptop").
-    static func automaticExplanation(defaultInput: Device?, defaultOutput: Device?,
-                                     chosen: Device?) -> String? {
+    static func automaticExplanation(defaultInput: Device?, chosen: Device?) -> String? {
         guard let defaultInput, let chosen, chosen.uid != defaultInput.uid else { return nil }
-        _ = defaultOutput
         return "\(defaultInput.name) is playing your audio too — recording from it would drop "
             + "it into call quality, so dictation uses \(chosen.name)."
     }
 
-    // MARK: - CoreAudio
+    // MARK: - Devices
 
     static func inputs() -> [Device] {
-        all().filter { channels(of: $0.id, scope: kAudioObjectPropertyScopeInput) > 0 }
+        AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .external], mediaType: .audio, position: .unspecified
+        ).devices.map(device)
     }
 
+    /// The same default a capture with no device named opens.
     static func defaultInput() -> Device? {
-        device(id: defaultDeviceID(kAudioHardwarePropertyDefaultInputDevice))
+        AVCaptureDevice.default(for: .audio).map(device)
     }
 
+    /// From CoreAudio: the capture side has no notion of an output device.
     static func defaultOutput() -> Device? {
         device(id: defaultDeviceID(kAudioHardwarePropertyDefaultOutputDevice))
     }
@@ -124,78 +125,21 @@ enum AudioDevices {
                 defaultInput: defaultInput(), defaultOutput: defaultOutput())
     }
 
-    /// Human-readable name for a device the engine reports back — used to say,
-    /// in the log, which microphone a capture ACTUALLY opened.
-    static func name(of id: AudioDeviceID) -> String {
-        device(id: id).map(\.name) ?? "unknown(\(id))"
-    }
-
-    /// One line about what the user is listening through: device, volume, and
-    /// whether anything is driving it. Logged on both sides of a capture, so
-    /// "the sound changed and stayed changed" is a pair of numbers in the log
-    /// rather than a thing the user has to catch in the act. Numbers and a
-    /// device name only — no audio, nothing private.
-    static func outputStateLine() -> String {
-        let id = defaultDeviceID(kAudioHardwarePropertyDefaultOutputDevice)
-        guard id != kAudioObjectUnknown else { return "no default output" }
-        let volume = outputVolume(of: id)
-        return "\(name(of: id)) vol="
-            + (volume < 0 ? "n/a" : String(format: "%.3f", volume))
-            + " running=\(isRunning(id) ? "yes" : "no")"
-    }
-
-    /// Scalar output volume, per-channel aware.
-    ///
-    /// The size argument MUST be reset before each attempt: a failed read
-    /// clobbers it, so a fallback reusing it fails for the wrong reason. That
-    /// exact bug (in a throwaway probe, not here) produced a confident and
-    /// completely wrong reading of "this device has no volume control at all".
-    static func outputVolume(of id: AudioDeviceID) -> Float {
-        for element in [kAudioObjectPropertyElementMain, UInt32(1), UInt32(2)] {
-            var address = property(kAudioDevicePropertyVolumeScalar,
-                                   scope: kAudioObjectPropertyScopeOutput)
-            address.mElement = element
-            var value: Float32 = -1
-            var size = UInt32(MemoryLayout<Float32>.size)
-            if AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr {
-                return value
-            }
-        }
-        return -1
-    }
-
-    static func isRunning(_ id: AudioDeviceID) -> Bool {
-        var address = property(kAudioDevicePropertyDeviceIsRunningSomewhere)
-        var value: UInt32 = 0
-        var size = UInt32(MemoryLayout<UInt32>.size)
-        AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value)
-        return value != 0
-    }
-
-    private static func all() -> [Device] {
-        var address = property(kAudioHardwarePropertyDevices)
-        var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(
-            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size) == noErr else { return [] }
-        var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
-        guard !ids.isEmpty, AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &ids) == noErr else { return [] }
-        return ids.compactMap { device(id: $0) }
+    private static func device(_ capture: AVCaptureDevice) -> Device {
+        Device(uid: capture.uniqueID, name: capture.localizedName,
+               transport: UInt32(bitPattern: capture.transportType))
     }
 
     private static func device(id: AudioDeviceID) -> Device? {
         guard id != kAudioObjectUnknown,
               let uid = string(id, kAudioDevicePropertyDeviceUID) else { return nil }
-        return Device(id: id, uid: uid,
+        return Device(uid: uid,
                       name: string(id, kAudioObjectPropertyName) ?? uid,
                       transport: uint32(id, kAudioDevicePropertyTransportType))
     }
 
-    private static func property(
-        _ selector: AudioObjectPropertySelector,
-        scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal
-    ) -> AudioObjectPropertyAddress {
-        AudioObjectPropertyAddress(mSelector: selector, mScope: scope,
+    private static func property(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
                                    mElement: kAudioObjectPropertyElementMain)
     }
 
@@ -223,22 +167,5 @@ enum AudioDevices {
         var size = UInt32(MemoryLayout<UInt32>.size)
         AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value)
         return value
-    }
-
-    /// Channel count in one scope — how an input device is told from an output
-    /// one, since a device object exists for both directions either way.
-    private static func channels(of id: AudioDeviceID, scope: AudioObjectPropertyScope) -> Int {
-        var address = property(kAudioDevicePropertyStreamConfiguration, scope: scope)
-        var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(id, &address, 0, nil, &size) == noErr, size > 0 else {
-            return 0
-        }
-        let raw = UnsafeMutableRawPointer.allocate(
-            byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
-        defer { raw.deallocate() }
-        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, raw) == noErr else { return 0 }
-        let list = UnsafeMutableAudioBufferListPointer(
-            raw.assumingMemoryBound(to: AudioBufferList.self))
-        return list.reduce(0) { $0 + Int($1.mNumberChannels) }
     }
 }

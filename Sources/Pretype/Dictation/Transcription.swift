@@ -24,6 +24,8 @@ enum TranscriptionError: LocalizedError {
     case unsupportedSystem
     /// Neither speech model has this language.
     case unsupportedLanguage(String)
+    /// The analyzer's finalization outran its watchdog.
+    case timedOut
 
     var errorDescription: String? {
         switch self {
@@ -31,6 +33,8 @@ enum TranscriptionError: LocalizedError {
             return "dictation needs macOS 26 or later"
         case .unsupportedLanguage(let name):
             return "macOS can't dictate \(name)"
+        case .timedOut:
+            return "transcription timed out"
         }
     }
 }

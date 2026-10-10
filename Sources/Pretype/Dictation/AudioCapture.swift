@@ -93,13 +93,6 @@ final class AudioCapture {
     /// `kCGEventTapDisabledByTimeout`. Serial, so a start and the stop that
     /// follows it can never run out of order.
     private let sessionQueue = DispatchQueue(label: "app.pretype.dictation.session")
-    /// Bumped by every `start` and `stop`, so the delayed "after release"
-    /// output-state log fires only when no newer capture has begun — the line
-    /// exists to catch "the volume stayed changed", and measured mid-next-
-    /// capture it would report exactly the wrong moment.
-    private var logToken = 0
-
-    var isRunning: Bool { session?.isRunning ?? false }
 
     /// Nonisolated so `DictationController.init`'s default argument — which
     /// Swift evaluates outside the actor — can build one; every stored
@@ -123,7 +116,6 @@ final class AudioCapture {
         onBuffer: @escaping @Sendable (AVAudioPCMBuffer) -> Void
     ) async throws {
         stop()
-        logToken += 1
         // `AVCaptureDevice.uniqueID` IS the CoreAudio device UID for audio
         // devices (verified against the HAL device list), so the resolver's
         // pick names a capture device directly. A pinned UID that no longer
@@ -148,6 +140,14 @@ final class AudioCapture {
         guard session.canAddInput(input) else { throw Failure.noInputDevice }
         session.addInput(input)
         let output = AVCaptureAudioDataOutput()
+        // The output resamples into the transcriber's format itself, so every
+        // buffer arrives ready to feed. Resampling is typically downward
+        // (48 kHz device → 16 kHz model); max quality costs nothing at this
+        // scale and avoids the aliasing the default leaves on sibilants.
+        if let outputFormat {
+            output.audioSettings = outputFormat.settings.merging(
+                [AVSampleRateConverterAudioQualityKey: AVAudioQuality.max.rawValue]) { current, _ in current }
+        }
         guard session.canAddOutput(output) else { throw Failure.unusableFormat }
         session.addOutput(output)
         let sink = Sink(target: outputFormat, onBuffer: onBuffer)
@@ -217,10 +217,6 @@ final class AudioCapture {
         guard self.session === session else {
             throw Failure.sessionFailed("the capture was stopped while starting")
         }
-        // Both sides of a capture, so "the sound changed and stayed changed"
-        // becomes a pair of numbers in the log rather than something the user
-        // has to catch in the act.
-        DictationController.note("listening through — \(AudioDevices.outputStateLine())")
     }
 
     /// Stops the session, unhooks delivery, and releases everything — which is
@@ -239,11 +235,11 @@ final class AudioCapture {
             for output in session.outputs {
                 (output as? AVCaptureAudioDataOutput)?.setSampleBufferDelegate(nil, queue: nil)
             }
-            // Flush the resampler's buffered tail into the stream — queued
-            // behind any frame still in flight (same serial queue), and BEFORE
-            // the caller finalizes the analyzer, which `stop` returning is the
-            // signal for. A few milliseconds, but they are the last thing said.
-            if let sink { sink.queue.sync { sink.drain() } }
+            // Wait out any frame still in flight on the sink's serial queue, so
+            // it reaches the stream BEFORE the caller finalizes the analyzer,
+            // which `stop` returning is the signal for — it is the last thing
+            // said.
+            sink?.queue.sync {}
             // The block-and-wait happens off the main thread; the closure's
             // strong reference keeps the session alive until it has stopped.
             // Same `nonisolated(unsafe)` grounds as in `start`.
@@ -251,88 +247,30 @@ final class AudioCapture {
             sessionQueue.async {
                 if closing.isRunning { closing.stopRunning() }
             }
-            // Read a moment later — late enough for a Bluetooth output to have
-            // finished renegotiating anything a capture disturbed. Token-
-            // guarded: a newer capture running when this fires would make the
-            // line report mid-capture state as "after release".
-            logToken += 1
-            let token = logToken
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-                guard let self, self.logToken == token, self.session == nil else { return }
-                DictationController.note("after release — \(AudioDevices.outputStateLine())")
-            }
         }
         session = nil
         sink = nil
     }
-
-    /// One input buffer resampled into the target format. Returns nil when the
-    /// converter has nothing to give (it buffers internally across calls) —
-    /// and also on a real conversion error, which `failed` distinguishes so
-    /// the sink can say so once instead of dropping audio in silence.
-    ///
-    /// Static, and handed everything it works on, so that the delivery queue
-    /// never reads state another thread could be writing.
-    nonisolated static func convert(
-        _ buffer: AVAudioPCMBuffer, using converter: AVAudioConverter, to target: AVAudioFormat,
-        failed: inout Bool
-    ) -> AVAudioPCMBuffer? {
-        // When the device already speaks the format the transcriber asked for,
-        // the converter is never touched and the buffer goes straight through.
-        guard target != buffer.format else { return buffer }
-        // Capacity from the sample-rate ratio plus slack: the converter emits
-        // whole packets, so an exact ratio can come up one packet short and
-        // `convert` then fails with `.insufficientDataFromInputBlock`.
-        let ratio = target.sampleRate / buffer.format.sampleRate
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1024
-        guard let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return nil }
-        var consumed = false
-        var error: NSError?
-        // `nonisolated(unsafe)`: the input block runs synchronously inside
-        // `convert`, on this same thread — the Sendable requirement on the
-        // block is broader than this use.
-        nonisolated(unsafe) let input = buffer
-        let status = converter.convert(to: out, error: &error) { _, inputStatus in
-            // One shot per call: claiming more data would make the converter
-            // block waiting for a buffer that only the next callback brings.
-            if consumed {
-                inputStatus.pointee = .noDataNow
-                return nil
-            }
-            consumed = true
-            inputStatus.pointee = .haveData
-            return input
-        }
-        if status == .error {
-            failed = true
-            return nil
-        }
-        guard out.frameLength > 0 else { return nil }
-        return out
-    }
 }
 
-/// One capture's delivery path: `CMSampleBuffer` in, resampled
-/// `AVAudioPCMBuffer` out to the transcription stream.
+/// One capture's delivery path: `CMSampleBuffer` in, `AVAudioPCMBuffer` out to
+/// the transcription stream.
 ///
-/// Everything it owns is either immutable or confined to `queue` — the
-/// converter is built lazily on first delivery and rebuilt if the device
-/// format shifts mid-capture — so `stop()` on the main thread never races a
-/// frame in flight: the frame completes against the sink's own strong
-/// reference, reading state only its own serial queue ever writes.
+/// Everything it owns is either immutable or confined to `queue`, so `stop()`
+/// on the main thread never races a frame in flight: the frame completes
+/// against the sink's own strong reference, reading state only its own serial
+/// queue ever writes.
 private final class Sink: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
     /// Serial delivery queue. One per capture, so a late frame from the old
-    /// session never runs converter state the new capture's sink owns. (It is
-    /// NOT a cross-capture ordering guarantee — at a mid-capture device swap
-    /// the old sink's last in-flight buffer can reach the stream a beat after
-    /// the new sink's first, about one buffer's worth of audio; inaudible.)
+    /// session never runs state the new capture's sink owns. (It is NOT a
+    /// cross-capture ordering guarantee — at a mid-capture device swap the old
+    /// sink's last in-flight buffer can reach the stream a beat after the new
+    /// sink's first, about one buffer's worth of audio; inaudible.)
     let queue = DispatchQueue(label: "app.pretype.dictation.capture")
     private let target: AVAudioFormat?
     private let onBuffer: @Sendable (AVAudioPCMBuffer) -> Void
-    private var converter: AVAudioConverter?
-    private var converterInput: AVAudioFormat?
-    /// One line per broken format, not one per buffer: without it, a converter
-    /// that cannot be built (or errors on every call) drops all audio forever
+    /// One line per capture, not one per buffer: without it, an output that
+    /// delivers something other than the analyzer's format drops all audio
     /// while the pill says "listening" — the exact "held the key, heard
     /// nothing" report, with an empty log.
     private var reportedBadFormat = false
@@ -350,54 +288,29 @@ private final class Sink: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate
               CMFormatDescriptionGetMediaSubType(description) == kAudioFormatLinearPCM else {
             return
         }
-        let format = AVAudioFormat(cmAudioFormatDescription: description)
+        let delivered = AVAudioFormat(cmAudioFormatDescription: description)
+        // `start` asked the output to convert into `target`; this checks that
+        // it did. Compared field by field rather than with `==`, which also
+        // compares channel layouts — a layout tag on the same mono samples is
+        // no reason to drop them.
+        if let target, delivered.sampleRate != target.sampleRate
+            || delivered.channelCount != target.channelCount
+            || delivered.commonFormat != target.commonFormat
+            || delivered.isInterleaved != target.isInterleaved {
+            if !reportedBadFormat {
+                reportedBadFormat = true
+                DictationController.note("microphone delivered \(Int(delivered.sampleRate)) Hz "
+                    + "\(delivered.channelCount)ch, not the analyzer's format — audio dropped")
+            }
+            return
+        }
         let frames = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
         guard frames > 0,
-              let pcm = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
+              let pcm = AVAudioPCMBuffer(pcmFormat: target ?? delivered, frameCapacity: frames) else { return }
         pcm.frameLength = frames
         guard CMSampleBufferCopyPCMDataIntoAudioBufferList(
             sampleBuffer, at: 0, frameCount: Int32(frames),
             into: pcm.mutableAudioBufferList) == noErr else { return }
-        // A nil target means the session accepted whatever the device speaks.
-        guard let target, target != format else { return onBuffer(pcm) }
-        if converter == nil || converterInput != format {
-            converter = AVAudioConverter(from: format, to: target)
-            // Resampling is typically downward (48 kHz device → 16 kHz
-            // model). `mastering` costs nothing at this scale and avoids the
-            // aliasing the default quality leaves on sibilants.
-            converter?.sampleRateConverterQuality = AVAudioQuality.max.rawValue
-            converterInput = format
-            // A fresh format deserves a fresh report either way.
-            reportedBadFormat = false
-            if converter == nil {
-                reportedBadFormat = true
-                DictationController.note("can't resample \(Int(format.sampleRate)) Hz "
-                    + "\(format.channelCount)ch into the analyzer's format — audio dropped")
-            }
-        }
-        guard let converter else { return }
-        var failed = false
-        let converted = AudioCapture.convert(pcm, using: converter, to: target, failed: &failed)
-        if failed, !reportedBadFormat {
-            reportedBadFormat = true
-            DictationController.note("resampler error on \(Int(format.sampleRate)) Hz "
-                + "\(format.channelCount)ch input — audio dropped")
-        }
-        guard let converted else { return }
-        onBuffer(converted)
-    }
-
-    /// Flush the converter's internally buffered tail into the stream — the
-    /// last few milliseconds said, which otherwise never leave the resampler.
-    /// The owner dispatches this onto `queue`, after the final delivery.
-    func drain() {
-        guard let converter, let target else { return }
-        guard let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: 4096) else { return }
-        var error: NSError?
-        let status = converter.convert(to: out, error: &error) { _, inputStatus in
-            inputStatus.pointee = .endOfStream
-            return nil
-        }
-        if status != .error, out.frameLength > 0 { onBuffer(out) }
+        onBuffer(pcm)
     }
 }

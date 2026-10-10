@@ -1029,15 +1029,6 @@ final class DictationController {
     /// The silence budget BEFORE anything has been said — see `checkSilence`.
     static var openingSilenceSeconds: TimeInterval = 30
 
-    enum Failure: LocalizedError {
-        case timedOut
-        var errorDescription: String? {
-            switch self {
-            case .timedOut: return "transcription timed out"
-            }
-        }
-    }
-
     /// `body` raced against a deadline. NOT a task group, deliberately: a
     /// group's scope awaits its children even after `cancelAll()`, so a body
     /// that ignores cancellation — a genuinely deadlocked finalize, the very
@@ -1066,7 +1057,7 @@ final class DictationController {
             Task {
                 try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
                 work.cancel()
-                resumeOnce(.failure(Failure.timedOut))
+                resumeOnce(.failure(TranscriptionError.timedOut))
             }
         }
     }
@@ -1199,14 +1190,8 @@ final class DictationController {
     /// message in half the apps this types into, and trailing whitespace is
     /// never wanted at a caret.
     nonisolated static func clean(_ raw: String) -> String {
-        var text = raw
-        for newline in ["\r\n", "\n", "\r", "\u{2028}", "\u{2029}"] {
-            text = text.replacingOccurrences(of: newline, with: " ")
-        }
-        while text.contains("  ") {
-            text = text.replacingOccurrences(of: "  ", with: " ")
-        }
-        return text.trimmingCharacters(in: .whitespaces)
+        raw.split(whereSeparator: { $0.isNewline || $0 == " " }).joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
     }
 }
 

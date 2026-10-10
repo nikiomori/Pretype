@@ -324,8 +324,7 @@ final class SettingsStore: ObservableObject {
             preference: AudioDevices.Preference(stored: Settings.dictationInput),
             inputs: inputs, defaultInput: defaultInput,
             defaultOutput: AudioDevices.defaultOutput())
-        dictationInputNote = AudioDevices.automaticExplanation(
-            defaultInput: defaultInput, defaultOutput: AudioDevices.defaultOutput(), chosen: chosen)
+        dictationInputNote = AudioDevices.automaticExplanation(defaultInput: defaultInput, chosen: chosen)
     }
 
     /// Re-ask which model serves the language a capture would use right now.
