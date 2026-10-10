@@ -897,7 +897,7 @@ struct ModelMapView: View {
         func cfg(_ style: CompletionStyle, _ length: CompletionLength,
                  logprob: Bool = false) -> ProjectionConfig {
             ProjectionConfig(modelID: id, style: style, length: length,
-                             logprobGate: logprob, confidenceGate: false,
+                             logprobGate: logprob,
                              useRecommended: false)
         }
         if id == ModelCatalog.appleIntelligenceID {

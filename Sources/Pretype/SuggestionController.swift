@@ -359,9 +359,7 @@ final class SuggestionController: NSObject {
         // Decided here, on the main thread, where NSSpellChecker is safe: lets the
         // engine offer a space + next word right after a finished word.
         request.endsOnCompleteWord = SpellChecker.endsOnCompleteWord(before: text, after: after)
-        if Settings.personalExamplesEnabled {
-            request.personalExamples = personalExamples
-        }
+        request.personalExamples = personalExamples
         return request
     }
 
@@ -370,7 +368,7 @@ final class SuggestionController: NSObject {
     /// frozen between refreshes so the instruct prompt prefix — and with it the
     /// KV cache — survives incremental typing.
     private func refreshPersonalExamplesIfNeeded(typed: String) {
-        guard Settings.personalExamplesEnabled, !examplesRefreshInFlight,
+        guard !examplesRefreshInFlight,
               typed.count >= 12,
               Date().timeIntervalSince(examplesRefreshedAt) > 25 else { return }
         examplesRefreshInFlight = true
@@ -882,10 +880,8 @@ final class SuggestionController: NSObject {
                 // the it-sibling; Apple Intelligence has no MLX model at all).
                 model: instant ? nil : engine.loadedModelID,
                 style: Settings.completionStyle.rawValue,
-                gate: Settings.confidenceGate
-                    ? "\(Settings.confidenceGateSamples)@\(Settings.confidenceGateThreshold)" : "off",
-                personalization: Settings.personalizationLevel.rawValue
-                    + (Settings.personalExamplesEnabled ? "+rag" : ""),
+                gate: "off",
+                personalization: Settings.personalizationLevel.rawValue + "+rag",
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 outcome: .abandoned, acceptedChars: 0, typed: nil, shownForMs: 0,
                 screen: screenSummary != nil

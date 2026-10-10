@@ -23,7 +23,7 @@ import Tokenizers
 /// `MLXEngine+Generation.swift`; the shared output/correction gates in
 /// `CompletionGates`/`CorrectionGates`.
 final class MLXEngine: CompletionEngine {
-    // These three are process-wide knobs the dev/eval harness sets ONCE at
+    // These two are process-wide knobs the dev/eval harness sets ONCE at
     // startup, before any engine spins up, and the generation tasks then only
     // read them. A `LockedValue` makes the shared mutable state explicit and
     // thread-safe under the Swift 6 language mode.
@@ -33,9 +33,6 @@ final class MLXEngine: CompletionEngine {
     /// (see `completionParameters`). `PRETYPE_EVAL_SAMPLING=1` clears it and
     /// restores the pre-2026-07-20 sampled decoder (T=0.1), which is the A/B arm.
     static let greedy = LockedValue<Bool>(true)
-    /// Instruct prompt format, A/B-swept on eval-v2 (PRETYPE_PROMPT_VARIANT
-    /// overrides). One of: userturn · prefill · localized · prefill-localized.
-    static let defaultPromptVariant = LockedValue<String>("userturn")
     /// Pre-caret context-tail cap (chars). PRETYPE_MAX_CHARS sweeps context ROI
     /// offline; default 1000, unchanged in production. Read once, process-wide.
     static let maxContextChars = Int(ProcessInfo.processInfo.environment["PRETYPE_MAX_CHARS"] ?? "") ?? 1000
@@ -50,42 +47,19 @@ final class MLXEngine: CompletionEngine {
     private let lengthBox: LockedValue<CompletionLength>
     private let instructionsBox: LockedValue<String>
     private let personalizationBox: LockedValue<PersonalizationLevel>
-    /// Self-consistency confidence gate (opt-in): when K>1 the engine samples the
-    /// completion K times and only returns one if its first word agrees on
-    /// ≥threshold of the draws — otherwise it abstains. Trades coverage for
-    /// precision (much higher first-word accuracy on real text; validated in
-    /// Eval/BASELINE.md). Off by default (it costs ~K× decode); enabled via
-    /// Settings.confidenceGate / PRETYPE_CONFIDENCE_GATE.
-    private let confidenceGateK: Int
-    private let confidenceGateThreshold: Double
     /// Logprob confidence gate (base only): abstain when the shown suggestion's
-    /// first-word logprob < this. nil = off. Fixed at init like the K-sample gate;
-    /// enabled via Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode —
-    /// the value is already captured by the live decode loop (firstWordLogProbBox).
+    /// first-word logprob < this. nil = off. Fixed at init; enabled via
+    /// Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode — the value
+    /// is already captured by the live decode loop (firstWordLogProbBox).
     private let logprobGateThreshold: Double?
     /// Confidence trim: cut the shown suggestion just before the first decode
-    /// token whose logprob < this (never inside the first word). nil = off.
-    /// Same live recorder as the logprob gate — 0× extra decode; unlike the
-    /// gates it trims instead of abstaining. PRETYPE_TRIM_LOGPROB pins it
-    /// (numeric = τ sweep, non-numeric "off" = force off, unset = Settings).
-    /// Read live (unlike the gates it's style/model-independent), so the
-    /// Settings toggle applies without an engine rebuild.
-    private var trimLogProbThreshold: Float? {
-        if let e = trimLogProbEnv { return Float(e) }
-        return Settings.confidenceTrim ? Float(Settings.confidenceTrimThreshold) : nil
-    }
-    private let trimLogProbEnv: String?
-    /// First-word beam rerank (dev/eval, PRETYPE_BEAM=k): decode k branches
-    /// off the top-k first tokens, show the branch with the best-summed
-    /// first-word logprob. 1 = off (plain greedy). PRETYPE_BEAM_NGRAM=β adds
-    /// β·ln(1+count) of personal-ngram evidence to each branch's first word.
-    private let beamK: Int
-    private let beamNgramWeight: Double
-    /// PRETYPE_BEAM_SCORE=mean|sum — branch statistic (see `beamGenerate`).
-    private let beamScoreByMean: Bool
-    /// Forces sampling (temperature) inside the gate's K draws even when the eval
-    /// harness pinned greedy. Set only around the gate loop.
-    private let gateForceSample = LockedValue(false)
+    /// token whose logprob < this (never inside the first word). Same live
+    /// recorder as the logprob gate — 0× extra decode; unlike the gate it trims
+    /// instead of abstaining, so it's always on. −1.5 calibrated 2026-07-20
+    /// (even-half sweep −4…−1, odd-half verified, MiniCPM + E2B-8bit): cuts ~8
+    /// of ~14 garbage-tail chars per row at zero correct-char loss.
+    /// PRETYPE_TRIM_LOGPROB pins it (numeric = τ sweep, "off" = force off).
+    private let trimLogProbThreshold: Float?
     /// The PRIMARY model's state, written only by its own load and unload.
     private let stateBox = StateBox()
     private var loadTask: Task<ModelContainer, Error>?
@@ -177,12 +151,7 @@ final class MLXEngine: CompletionEngine {
     var gateSummary: String {
         let lp = logprobGateThreshold.map { String(format: "%.2f", $0) } ?? "off"
         let tr = trimLogProbThreshold.map { String(format: "%.2f", $0) } ?? "off"
-        let sc = confidenceGateK > 1
-            ? "K=\(confidenceGateK)@\(String(format: "%.2f", confidenceGateThreshold))" : "off"
-        let beam = beamK > 1
-            ? "\(beamK)·\(beamScoreByMean ? "mean" : "sum")\(beamNgramWeight > 0 ? "+ngram·\(beamNgramWeight)" : "")"
-            : "off"
-        return "logprobGate=\(lp) · trim=\(tr) · selfConsist=\(sc) · beam=\(beam) · heal=\(Self.healConstrain ? "constrain" : "match")"
+        return "logprobGate=\(lp) · trim=\(tr) · heal=\(Self.healConstrain ? "constrain" : "match")"
     }
 
     /// Mid-word healing mode: constrained decoding (force the fragment path,
@@ -211,13 +180,6 @@ final class MLXEngine: CompletionEngine {
         // A SET env var pins the knob regardless of Settings — non-numeric
         // ("off") disables. Falling back to Settings on a set-but-non-numeric
         // value would let eval runs silently inherit the app's live config.
-        if let e = env["PRETYPE_CONFIDENCE_GATE"] {
-            self.confidenceGateK = Int(e) ?? 0
-        } else {
-            self.confidenceGateK = Settings.confidenceGate ? Settings.confidenceGateSamples : 0
-        }
-        self.confidenceGateThreshold = Double(env["PRETYPE_CONFIDENCE_THRESHOLD"] ?? "")
-            ?? Settings.confidenceGateThreshold
         if let e = env["PRETYPE_LOGPROB_GATE"] {
             self.logprobGateThreshold = Double(e)
         } else if Settings.logprobGate {
@@ -230,10 +192,7 @@ final class MLXEngine: CompletionEngine {
         } else {
             self.logprobGateThreshold = nil
         }
-        self.trimLogProbEnv = env["PRETYPE_TRIM_LOGPROB"]
-        self.beamK = max(1, Int(env["PRETYPE_BEAM"] ?? "") ?? 1)
-        self.beamNgramWeight = Double(env["PRETYPE_BEAM_NGRAM"] ?? "") ?? 0
-        self.beamScoreByMean = env["PRETYPE_BEAM_SCORE"] != "sum"
+        self.trimLogProbThreshold = env["PRETYPE_TRIM_LOGPROB"].map { Float($0) } ?? -1.5
 
         // Instruct style runs completion *and* correction on the instruct
         // sibling, so load that as the primary model (no second model in RAM).
@@ -303,7 +262,7 @@ final class MLXEngine: CompletionEngine {
                 stateBox.set(.preparing("warming up…"))
                 do {
                     _ = try await Self.generate(
-                        in: loaded, prompt: Self.warmUpPrompt,
+                        in: loaded, makeTokens: { $0.tokenizer.encode(text: Self.warmUpPrompt) },
                         parameters: GenerateParameters(maxTokens: 3, temperature: 0.0),
                         extraEOSTokens: eos, promptCache: nil
                     )
@@ -480,7 +439,6 @@ final class MLXEngine: CompletionEngine {
     /// with the model resident or already loading (it then prefills once the
     /// load lands) — a context refresh is no reason to start a load.
     func warmPrompt(for request: CompletionRequest) {
-        guard confidenceGateK <= 1 || style != .base, beamK == 1 else { return }
         modelLock.lock()
         let live = loadTask != nil
         modelLock.unlock()
@@ -571,57 +529,10 @@ final class MLXEngine: CompletionEngine {
     // MARK: - Completion
 
     func complete(_ request: CompletionRequest) async throws -> String? {
-        // The gate's agreement→correctness signal only holds for base continuation
-        // (instruct confidently paraphrases), so it's a base-style-only feature.
-        if confidenceGateK > 1, style == .base { return try await completeGated(request) }
-        return try await completeOnce(request)
-    }
-
-    /// One ungated decode of the active style.
-    private func completeOnce(_ request: CompletionRequest) async throws -> String? {
         switch style {
         case .base: return try await completeBase(request)
         case .instruct: return try await completeInstruct(request)
         }
-    }
-
-    /// Self-consistency confidence gate: draw the completion `confidenceGateK`
-    /// times (sampling), keep the suggestion only if its first word is the modal
-    /// one on ≥`confidenceGateThreshold` of the draws — otherwise abstain. The
-    /// returned suggestion is the modal-first-word draw seen most, so the user
-    /// gets a high-agreement continuation. Higher precision, lower coverage.
-    private func completeGated(_ request: CompletionRequest) async throws -> String? {
-        gateForceSample.set(true)
-        defer { gateForceSample.set(false) }
-        // Gated draws don't record first-word confidence (they sample at T≈0.6;
-        // agreement is the gate's own signal) — clear the box so a resolve-time
-        // read can't surface a value from before the gate was enabled.
-        firstWordLogProbBox.set(nil)
-        var byFirstWord: [String: (count: Int, sample: String)] = [:]
-        var draws = 0
-        for _ in 0..<confidenceGateK {
-            try Task.checkCancellation()
-            guard let sug = try await completeOnce(request),
-                  let fw = Self.gateFirstWord(sug) else { continue }
-            draws += 1
-            let prev = byFirstWord[fw]
-            byFirstWord[fw] = (count: (prev?.count ?? 0) + 1, sample: prev?.sample ?? sug)
-        }
-        guard draws > 0, let best = byFirstWord.max(by: { $0.value.count < $1.value.count }) else { return nil }
-        // Agreement is measured over the K attempts (abstentions count against it,
-        // so a model that only answers once isn't spuriously "consistent").
-        guard Double(best.value.count) / Double(confidenceGateK) >= confidenceGateThreshold else {
-            DebugLog.shared.log("GATE", "low self-consistency (\(best.value.count)/\(confidenceGateK)) — abstaining")
-            return nil
-        }
-        return best.value.sample
-    }
-
-    /// First word of a suggestion, folded to match across draws (lowercased,
-    /// ё→е, split on non-alphanumerics).
-    private static func gateFirstWord(_ s: String) -> String? {
-        s.lowercased().replacingOccurrences(of: "ё", with: "е")
-            .split { !$0.isLetter && !$0.isNumber }.first.map(String.init)
     }
 
     /// Mean per-token log P(continuation | context) via one forward pass (see
@@ -661,17 +572,6 @@ final class MLXEngine: CompletionEngine {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    // The self-consistency gate needs K full draws to measure
-                    // first-word agreement, so it can't stream partials. When it's
-                    // active (Base style only — instruct confidently paraphrases),
-                    // run the gated decode and yield its single result. This is the
-                    // live path, so the Settings/menu "High-precision mode" toggle
-                    // now actually changes what the user sees.
-                    if confidenceGateK > 1, style == .base {
-                        if let gated = try await completeGated(request) { continuation.yield(gated) }
-                        continuation.finish()
-                        return
-                    }
                     // The logprob gate streams too: its verdict (first-word mean
                     // logprob) exists as soon as the first word is decoded, and
                     // the decode loop holds partials back until then — so no
@@ -733,7 +633,6 @@ final class MLXEngine: CompletionEngine {
         /// separator the user hasn't typed yet, not a stranded fragment.
         let endsCompleteWord: Bool
         let textAfterCaret: String
-        let singleWord: Bool
 
         /// The output gate for this prompt: run a raw decode snapshot (partial or
         /// final) through the shared `CompletionGates`. `cleanInstruct` first
@@ -745,7 +644,6 @@ final class MLXEngine: CompletionEngine {
             let endsMidWord = self.endsMidWord
             let endsCompleteWord = self.endsCompleteWord
             let after = textAfterCaret
-            let singleWord = self.singleWord
             return { output in
                 var raw = output
                 if cleanInstruct {
@@ -764,7 +662,7 @@ final class MLXEngine: CompletionEngine {
                 return CompletionGates.postProcess(
                     raw, prompt: text, trailingSpaces: trailing,
                     endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-                    textAfterCaret: after, singleWord: singleWord
+                    textAfterCaret: after
                 )
             }
         }
@@ -800,7 +698,7 @@ final class MLXEngine: CompletionEngine {
             generationText: preamble.map { "\($0)\n\n\(text)" } ?? text,
             trailingSpaces: trailingSpaces,
             endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-            textAfterCaret: after, singleWord: lengthBox.get().isSingleWord
+            textAfterCaret: after
         )
     }
 
@@ -865,23 +763,18 @@ final class MLXEngine: CompletionEngine {
         // First-word confidence capture: reset up front so a stale value from a
         // previous generation can never be journaled against this one; publish
         // below only when the result survives the output gate, so a resolve-time
-        // read refers to the suggestion that was shown. Skipped inside the
-        // K-sample gate's draws — those sample at T≈0.6, so their logprobs are
-        // not comparable to the live path's, and the gate's own signal is
-        // agreement, not logprob.
-        // A warm-up prefill must not touch the box: it describes the
-        // suggestion on screen, which this call doesn't replace.
-        let recording = !gateForceSample.get() && !prefillOnly
+        // read refers to the suggestion that was shown. A warm-up prefill must
+        // not touch the box: it describes the suggestion on screen, which this
+        // call doesn't replace.
+        let recording = !prefillOnly
         if recording { firstWordLogProbBox.set(nil) }
         let logProbSink = recording ? LockedValue<Double?>(nil) : nil
 
         let parameters = completionParameters(for: request)
         let gate = prepared.gate(cleanInstruct: false)
         // Mid-word: decode from the word boundary and strip the re-generated
-        // fragment (see tokenHealing). Beam keeps the raw prompt — its branches
-        // force first tokens, which healing's fragment match would fight.
-        let heal = beamK == 1 && prepared.endsMidWord
-            ? Self.tokenHealing(text: prepared.text) : nil
+        // fragment (see tokenHealing).
+        let heal = prepared.endsMidWord ? Self.tokenHealing(text: prepared.text) : nil
         let healedGate: @Sendable (String) -> String?
         if let heal {
             let expected = heal.expected
@@ -891,54 +784,26 @@ final class MLXEngine: CompletionEngine {
         } else {
             healedGate = gate
         }
-        let output: String
-        if beamK > 1 {
-            // Beam can't stream — the winner only exists after the last branch
-            // (partials from a losing branch would visibly flash-and-switch).
-            // The n-gram context is the USER text (prepared.text), never the
-            // preamble-carrying generation prompt.
-            let ngramContext = prepared.text
-            let weight = beamNgramWeight
-            var boost: (@Sendable (String) -> Double)?
-            if weight > 0 {
-                boost = { word in
-                    weight * PersonalNgram.fusionBoost(
-                        count: PersonalNgram.shared.count(of: word, after: ngramContext))
-                }
-            }
-            // No first-token bias here: branches force their first token, so
-            // the boost would land on the wrong step — beam fusion is the
-            // explicit ngramBoost above.
-            output = try await Self.beamGenerate(
-                in: container, prompt: prepared.generationText, k: beamK, parameters: parameters,
-                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
-                logProbSink: logProbSink,
-                trimLogProb: recording ? trimLogProbThreshold : nil,
-                scoreByMean: beamScoreByMean,
-                ngramBoost: boost
-            )
-        } else {
-            output = try await Self.generate(
-                in: container,
-                prompt: heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
-                    ?? prepared.generationText,
-                parameters: parameters,
-                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
-                // Under healing the first decoded word is the CURRENT word being
-                // re-generated, not the next one — the next-word bias would
-                // fight the fragment match.
-                bias: heal == nil ? ngramBias(for: prepared) : nil,
-                logProbSink: logProbSink,
-                // The gate's K draws sample at T≈0.6 — their logprobs aren't
-                // comparable to the live path's, so no trim there either.
-                trimLogProb: recording ? trimLogProbThreshold : nil,
-                // Healed suggestions bypass the gate (see below).
-                gateLogProb: recording && heal == nil ? logprobGateThreshold : nil,
-                healExpected: Self.healConstrain ? heal?.expected : nil,
-                prefillOnly: prefillOnly,
-                onPartial: Self.makeStreamHandler(onPartial, gate: healedGate)
-            )
-        }
+        let generationText = heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
+            ?? prepared.generationText
+        let promptCache = self.promptCache
+        let output = try await Self.generate(
+            in: container,
+            makeTokens: { promptCache.encoder.encode(generationText, with: $0.tokenizer) },
+            parameters: parameters,
+            extraEOSTokens: extraEOSTokens, promptCache: promptCache,
+            // Under healing the first decoded word is the CURRENT word being
+            // re-generated, not the next one — the next-word bias would
+            // fight the fragment match.
+            bias: heal == nil ? ngramBias(for: prepared) : nil,
+            logProbSink: logProbSink,
+            trimLogProb: recording ? trimLogProbThreshold : nil,
+            // Healed suggestions bypass the gate (see below).
+            gateLogProb: recording && heal == nil ? logprobGateThreshold : nil,
+            healExpected: Self.healConstrain ? heal?.expected : nil,
+            prefillOnly: prefillOnly,
+            onPartial: Self.makeStreamHandler(onPartial, gate: healedGate)
+        )
         if prefillOnly { return nil }
         try Task.checkCancellation()
         if let heal, !output.hasPrefix(heal.expected) {
@@ -981,36 +846,27 @@ final class MLXEngine: CompletionEngine {
         guard let prepared = prepare(request, midWordFloor: 6, boundaryFloor: 10) else { return nil }
         let promptText = prepared.text
 
-        // Prompt format is A/B-tunable via PRETYPE_PROMPT_VARIANT (swept on
-        // eval-v2). Gemma has no system role, so the directive rides in the user
-        // turn. "prefill" instead opens the assistant turn with the text so the
-        // model literally continues it; "localized" writes the directive in the
-        // text's language.
+        // Gemma has no system role, so the directive rides in the user turn.
         let length = lengthBox.get()
         let persona = request.persona(global: instructionsBox.get())
-        let envVariant = ProcessInfo.processInfo.environment["PRETYPE_PROMPT_VARIANT"]
-        let variant = envVariant ?? Self.defaultPromptVariant.get()
-        let localized = variant.contains("localized") && Self.isCyrillicHeavy(promptText)
-        let prefill = variant.hasPrefix("prefill")
         // Fill-in-the-Middle: emulate suffix-conditioning via the prompt (Gemma 4
-        // has no FIM tokens). An explicit PRETYPE_PROMPT_VARIANT fully controls it
-        // (A/B); otherwise auto-enable only when the user's toggle is on AND the
-        // model is E4B-class — it's unreliable on the smaller E2B (measured), where
-        // we log the skip. Needs a non-trivial suffix, so it's a no-op at end-of-line.
+        // has no FIM tokens). A set PRETYPE_PROMPT_VARIANT pins it ("infill" on,
+        // anything else off) for the A/B; otherwise it applies only on E4B-class
+        // models — it's unreliable on the smaller E2B (measured), where we log
+        // the skip. Needs a non-trivial suffix, so it's a no-op at end-of-line.
+        let envVariant = ProcessInfo.processInfo.environment["PRETYPE_PROMPT_VARIANT"]
         let suffixForPrompt = String(request.textAfterCaret.prefix(200))
         let hasSuffix = !suffixForPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let infill: Bool = {
             guard hasSuffix else { return false }
             if let envVariant { return envVariant.contains("infill") }
-            guard Settings.fimEnabled else { return false }
             if Self.isFIMCapable(modelID) { return true }
             DebugLog.shared.log("GATE", "fill-in-the-middle off — \(modelID) is not E4B-class (unreliable here)")
             return false
         }()
 
-        var directive: String
-        if infill {
-            directive = """
+        var directive = infill
+            ? """
             You are filling a gap in the user's text where the cursor sits between BEFORE \
             and AFTER. Output ONLY the specific missing words that belong in the gap — the \
             content itself (an object, name, time, place or action), NEVER a linking word \
@@ -1021,43 +877,20 @@ final class MLXEngine: CompletionEngine {
             BEFORE: \(promptText)
             AFTER: \(suffixForPrompt)
             """
-            if !persona.isEmpty {
-                directive += "\n\nAuthor profile (for voice only, never quote it):\n\(persona)"
-            }
-        } else if localized {
-            let hint: String
-            switch length.directiveLength {
-            case .word: hint = "только одно следующее слово"  // unreachable: word → short
-            case .short: hint = "не больше 2–3 слов"
-            case .medium: hint = "короткой фразой, до ~6 слов"
-            case .long: hint = "не больше одного предложения"
-            }
-            directive = """
-            Продолжи текст на том же языке, в том же тоне и регистре. Ответь ТОЛЬКО \
-            следующими словами (\(hint)) — не повторяй уже написанное, без кавычек и \
-            пояснений.
-            """
-            if !persona.isEmpty {
-                directive += "\n\nО пользователе (для стиля, не цитировать):\n\(persona)"
-            }
-        } else {
-            directive = """
+            : """
             Continue the text in the same language, tone and register. Reply with \
-            ONLY the words that come next (\(length.directiveLength.wordsHint)) — do \
+            ONLY the words that come next (\(length.wordsHint)) — do \
             not repeat the existing text, no quotes, no explanation.
             """
-            if !persona.isEmpty {
-                directive += "\n\nAuthor profile (for voice only, never quote it):\n\(persona)"
-            }
+        if !persona.isEmpty {
+            directive += "\n\nAuthor profile (for voice only, never quote it):\n\(persona)"
         }
         // Retrieval-augmented few-shot: the user's own past continuations, most
         // similar to the current context (LaMP-style personalization). Rides in
         // the directive AFTER persona so the changing text stays the prompt tail
         // (KV-cache-friendly: examples only change on their off-path refresh).
         if !request.personalExamples.isEmpty {
-            directive += localized
-                ? "\n\nКак автор продолжал похожий текст раньше (только для стиля, не копировать дословно):"
-                : "\n\nHow the author continued similar text before (style reference only, do not copy verbatim):"
+            directive += "\n\nHow the author continued similar text before (style reference only, do not copy verbatim):"
             for example in request.personalExamples.prefix(3) {
                 directive += "\nText: …\(example.ctx)\nNext:\(example.next.hasPrefix(" ") ? "" : " ")\(example.next)"
             }
@@ -1071,7 +904,7 @@ final class MLXEngine: CompletionEngine {
         // prompt (directive + persona + template), i.e. the distribution the
         // live path actually sampled from — deliberately NOT the raw-context
         // score `logProbMean` computes offline.
-        let recording = !gateForceSample.get() && !prefillOnly
+        let recording = !prefillOnly
         if recording { firstWordLogProbBox.set(nil) }
         let logProbSink = recording ? LockedValue<Double?>(nil) : nil
 
@@ -1081,9 +914,8 @@ final class MLXEngine: CompletionEngine {
         let output = try await Self.generate(
             in: container,
             makeTokens: { context in
-                // prefill opens the assistant turn with the text; infill already
-                // embeds BEFORE/AFTER in the directive — both send the directive alone.
-                let userContent = (prefill || infill) ? directiveText : "\(directiveText)\n\nText:\n\(promptText)"
+                // infill already embeds BEFORE/AFTER in the directive.
+                let userContent = infill ? directiveText : "\(directiveText)\n\nText:\n\(promptText)"
                 let messages: [[String: any Sendable]] = [["role": "user", "content": userContent]]
                 // Hybrid-reasoning templates (MiniCPM5/Qwen3-style) default to a
                 // <think> block that burns the whole token budget; ask for the
@@ -1095,17 +927,10 @@ final class MLXEngine: CompletionEngine {
                 }
                 // The text is the user turn's tail here, so only it changes per
                 // keystroke — splice it instead of re-rendering the template.
-                var toks = (prefill || infill)
+                return infill
                     ? try render()
                     : try promptCache.templateSplice.tokens(
                         key: directiveText, text: promptText, tokenizer: context.tokenizer, render: render)
-                if prefill {
-                    // Open the assistant turn with the user's text (BOS stripped)
-                    // so the model continues it instead of answering about it.
-                    let bos = context.tokenizer.convertTokenToId("<bos>")
-                    toks.append(contentsOf: context.tokenizer.encode(text: promptText).filter { $0 != bos })
-                }
-                return toks
             },
             parameters: parameters,
             // Instruct replies end on the turn marker; add it defensively.
@@ -1114,9 +939,6 @@ final class MLXEngine: CompletionEngine {
             // (persona + RAG examples) here instead.
             extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
             promptCache: promptCache,
-            // Prefill needs ≥a few real tokens before EOS is allowed, or Gemma
-            // ends the turn immediately after the prefilled text.
-            minTokens: prefill ? 3 : 0,
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
             prefillOnly: prefillOnly,
@@ -1159,15 +981,9 @@ final class MLXEngine: CompletionEngine {
     /// `PRETYPE_EVAL_SAMPLING=1 PRETYPE_REP_PENALTY=1.05`.
     private func completionParameters(for request: CompletionRequest) -> GenerateParameters {
         let env = ProcessInfo.processInfo.environment
-        let envTemp = Float(env["PRETYPE_TEMPERATURE"] ?? "")
-        // The confidence gate is the one caller that needs diverse draws — under
-        // greedy all K samples are identical and it would pass everything.
-        let temperature: Float = gateForceSample.get()
-            ? (envTemp ?? 0.6)
-            : (envTemp ?? (Self.greedy.get() ? 0.0 : 0.1))
         return GenerateParameters(
             maxTokens: tokenBudget(for: request),
-            temperature: temperature,
+            temperature: Float(env["PRETYPE_TEMPERATURE"] ?? "") ?? (Self.greedy.get() ? 0.0 : 0.1),
             topP: 0.7,
             topK: 20,
             minP: 0.08,
@@ -1186,9 +1002,8 @@ final class MLXEngine: CompletionEngine {
 
     /// Context-conditioned personal boost for the first generated token: the
     /// words the user has typed after this very context (personal n-gram),
-    /// weighted by evidence — level.bias × `PersonalNgram.fusionBoost`, the
-    /// beam-fusion formula (measured directionally positive, discordants 3/0)
-    /// applied to the greedy path at zero extra decode cost. Replaces the flat
+    /// weighted by evidence — level.bias × `PersonalNgram.fusionBoost` (measured
+    /// directionally positive, discordants 3/0), at zero extra decode cost. Replaces the flat
     /// favored-word bias, which measured null (p=1.0): context-free frequent
     /// words are already probable, so biasing them moves nothing. nil when
     /// personalization is off or the context is unseen.
@@ -1209,8 +1024,7 @@ final class MLXEngine: CompletionEngine {
     }
 
     /// True when the recent text is majority-Cyrillic — used to widen the token
-    /// budget so Russian word-count targets aren't clipped, and to localize the
-    /// instruct directive.
+    /// budget so Russian word-count targets aren't clipped.
     private static func isCyrillicHeavy(_ text: String) -> Bool {
         var cyrillic = 0
         var letters = 0

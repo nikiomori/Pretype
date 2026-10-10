@@ -2,7 +2,7 @@ import Foundation
 
 /// Owns the completion engine's lifecycle and the settings that reshape it, so
 /// `SuggestionController` can focus on the input→overlay pipeline. Style, model,
-/// and the confidence gate are build-time choices — changing any of them rebuilds
+/// and the logprob gate are build-time choices — changing any of them rebuilds
 /// the engine; length, persona and personalization apply live. The repeated
 /// "shutdown → rebuild → drop the stale suggestion" pattern lives here once.
 @MainActor
@@ -34,7 +34,6 @@ final class EngineCoordinator {
                          style: Settings.completionStyle,
                          length: Settings.completionLength,
                          logprobGate: Settings.logprobGate,
-                         confidenceGate: Settings.confidenceGate,
                          useRecommended: Settings.useRecommendedSettings)
     }
 
@@ -48,7 +47,6 @@ final class EngineCoordinator {
         Settings.useRecommendedSettings = target.useRecommended
         Settings.completionStyle = target.style
         Settings.completionLength = target.length
-        Settings.confidenceGate = target.confidenceGate
         Settings.logprobGate = target.logprobGate
         rebuild()
     }

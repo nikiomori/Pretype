@@ -318,7 +318,7 @@ final class SettingsStore: ObservableObject {
     /// The committed configuration as a pure value, for `ConfigProjection`.
     var committedConfig: ProjectionConfig {
         ProjectionConfig(modelID: modelID, style: style, length: length,
-                         logprobGate: logprobGate, confidenceGate: false,
+                         logprobGate: logprobGate,
                          useRecommended: useRecommended)
     }
     /// What the committed configuration measures to.
@@ -705,7 +705,7 @@ final class SettingsStore: ObservableObject {
         blacklist = Settings.userBlacklist
         useRecommended = Settings.useRecommendedSettings
         style = Settings.completionStyle
-        length = Settings.completionLength  // .word migrated away in registerDefaults
+        length = Settings.completionLength
         // Mask inapplicable persisted flags: a gate restored from a state the
         // coordinator's hygiene never saw must not render as
         // on-but-doing-nothing.
@@ -2009,7 +2009,7 @@ struct SuggestionsTab: View {
         let reach: EffectBadge
         let speed: EffectBadge
         switch store.length {
-        case .short, .word:
+        case .short:
             reach = EffectBadge(icon: "text.word.spacing", text: "runs 2–3 words ahead", tone: .neutral,
                                 source: "How far one suggestion runs. Short is the sweep's best net-value point for inline ghost text — same accuracy as longer settings at a fraction of the wait.")
             speed = EffectBadge(icon: "bolt",

@@ -9,7 +9,6 @@ struct ProjectionConfig: Equatable {
     var style: CompletionStyle
     var length: CompletionLength
     var logprobGate: Bool
-    var confidenceGate: Bool
     var useRecommended: Bool
 
     /// One user gesture on one control.
@@ -18,11 +17,10 @@ struct ProjectionConfig: Equatable {
         case style(CompletionStyle)
         case length(CompletionLength)
         case logprobGate(Bool)
-        case confidenceGate(Bool)
         case useRecommended(Bool)
         /// A priority preset: this model in its measured-protocol config
         /// (Base · Short — the exact figures the preset card advertises),
-        /// keeping the user's precision gates where the model supports them.
+        /// keeping the user's precision gate.
         case preset(String)
         /// Jump to an exact configuration — a settings dot on the model map.
         case config(ProjectionConfig)
@@ -32,13 +30,12 @@ struct ProjectionConfig: Equatable {
     /// marker and settings dots compare by.
     func sameRuntime(as other: ProjectionConfig) -> Bool {
         modelID == other.modelID && style == other.style && length == other.length
-            && logprobGate == other.logprobGate && confidenceGate == other.confidenceGate
+            && logprobGate == other.logprobGate
     }
 
     /// The same dependency cascades the pipeline applies on commit:
-    /// recommended mode snaps style/length and clears gates; instruct has no
-    /// gate path; the two gates are mutually exclusive; the consensus gate
-    /// needs a gate-capable model.
+    /// recommended mode snaps style/length and clears the gate; instruct has no
+    /// gate path.
     func applying(_ change: Change) -> ProjectionConfig {
         var c = self
         switch change {
@@ -49,33 +46,21 @@ struct ProjectionConfig: Equatable {
                 c.style = rec.style
                 c.length = rec.length
                 c.logprobGate = false
-                c.confidenceGate = false
             }
             // A switch to a base-only model never keeps the measured-broken
             // Instruct style; and if the landing style is still Instruct
-            // (stale persisted state), the Base-only gates cannot survive.
+            // (stale persisted state), the Base-only gate cannot survive.
             if rec.style == .base, c.style == .instruct { c.style = .base }
-            if c.style != .base {
-                c.logprobGate = false
-                c.confidenceGate = false
-            }
-            if !rec.gateCapable { c.confidenceGate = false }
+            if c.style != .base { c.logprobGate = false }
         case .style(let s):
             c.style = s
             c.useRecommended = false
-            if s == .instruct {
-                c.logprobGate = false
-                c.confidenceGate = false
-            }
+            if s == .instruct { c.logprobGate = false }
         case .length(let l):
             c.length = l
             c.useRecommended = false
         case .logprobGate(let on):
             c.logprobGate = on
-            if on { c.confidenceGate = false }
-        case .confidenceGate(let on):
-            c.confidenceGate = on
-            if on { c.logprobGate = false }
         case .useRecommended(let on):
             c.useRecommended = on
             if on {
@@ -83,7 +68,6 @@ struct ProjectionConfig: Equatable {
                 c.style = rec.style
                 c.length = rec.length
                 c.logprobGate = false
-                c.confidenceGate = false
             }
         case .preset(let id):
             c.modelID = id
@@ -93,7 +77,6 @@ struct ProjectionConfig: Equatable {
             c.style = .base
             c.length = .short
             let rec = ModelCatalog.recommended(for: id)
-            if !rec.gateCapable { c.confidenceGate = false }
             // Auto mode stays only where the recommendation IS this landing
             // state; otherwise it would immediately re-snap style to Instruct.
             c.useRecommended = rec.style == .base && rec.length == .short
@@ -216,7 +199,7 @@ struct ConfigProjection {
     /// 550 ms p50, eval-real 2026-07-13).
     static func latencyFactor(_ length: CompletionLength) -> Double {
         switch length {
-        case .word, .short: return 1.0
+        case .short: return 1.0
         case .medium: return 1.85
         case .long: return 3.5
         }
@@ -288,19 +271,7 @@ struct ConfigProjection {
                 computeSub: "chip load per keystroke vs default (est.)")
         }
 
-        // Base style. Gates apply only here; callers keep them mutually
-        // exclusive, but project defensively in confidence-first order.
-        if c.confidenceGate && rec.gateCapable {
-            let ms = Int((Double(m.p50Ms) * lf * 5).rounded())
-            return ConfigProjection(
-                accuracyPct: 39, accuracyText: "≈39%",
-                accuracySub: "offers 54% of the time — 5-sample consensus (eval-real 2026-06-26, E4B-8bit)",
-                coveragePct: 54, broken: false, authoredPct: nil,
-                p50Ms: ms, latencyIsApprox: true, latencySub: "×5 samples per keystroke",
-                ramGB: m.ramGB, memorySub: "resident model weights",
-                computeRel: m.ramGB * tokenFactor(c.length) * 5 / computeReferenceGB,
-                computeSub: "chip load per keystroke vs default (est.)")
-        }
+        // Base style — the only path the gate applies to.
         if c.logprobGate {
             let ms = Int((Double(m.p50Ms) * lf).rounded())
             // The calibration (62–67% shown at ~30% offered) was measured on
@@ -345,8 +316,8 @@ struct ConfigProjection {
 
     /// Shared axis bounds so bars and the model map agree. Accuracy tops out
     /// just above the best gated projection; speed/compute are log-scaled like
-    /// the map. msMax hugs the reachable envelope (base ×3.5 length, consensus
-    /// ×5 at short, the system model) — exotic manual combos clamp at the edge
+    /// the map. msMax hugs the reachable envelope (base ×3.5 length, the
+    /// system model) — exotic manual combos clamp at the edge
     /// rather than squeezing every model into the right third of the chart.
     enum Scale {
         static let accMin = 15.0

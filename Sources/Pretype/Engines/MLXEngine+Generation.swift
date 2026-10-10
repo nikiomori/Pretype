@@ -253,44 +253,6 @@ extension MLXEngine {
         return PersonalizationProcessor(inner: inner, boosts: boosts)
     }
 
-    /// Masks the EOS tokens for the first `minTokens` decode steps so the model
-    /// can't end the turn immediately — needed for the "prefill" prompt format,
-    /// where Gemma otherwise emits end_of_turn right after the prefilled text.
-    private final class MinTokensProcessor: LogitProcessor {
-        private var inner: LogitProcessor?
-        private let eosIDs: [Int]
-        private let minTokens: Int
-        private var step = 0
-        private var mask: MLXArray?
-
-        init(inner: LogitProcessor?, eosIDs: [Int], minTokens: Int) {
-            self.inner = inner
-            self.eosIDs = eosIDs
-            self.minTokens = minTokens
-        }
-
-        func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
-
-        func process(logits: MLXArray) -> MLXArray {
-            var l = inner?.process(logits: logits) ?? logits
-            if step < minTokens {
-                if mask == nil {
-                    let vocab = logits.shape.last ?? 0
-                    var v = [Float](repeating: 0, count: vocab)
-                    for id in eosIDs where id >= 0 && id < vocab { v[id] = -1e9 }
-                    mask = MLXArray(v).reshaped([1, vocab])
-                }
-                if let mask { l += mask }
-            }
-            return l
-        }
-
-        func didSample(token: MLXArray) {
-            step += 1
-            inner?.didSample(token: token)
-        }
-    }
-
     /// Runs the default penalty processor, then adds the per-token boosts to
     /// the first decode step's logits; later steps pass through untouched.
     private final class PersonalizationProcessor: LogitProcessor {
@@ -508,51 +470,6 @@ extension MLXEngine {
         }
     }
 
-    /// Raw continuation: encode the text directly, bypassing the chat
-    /// template — the model just continues what's on screen.
-    static func generate(
-        in container: ModelContainer,
-        prompt: String,
-        parameters: GenerateParameters,
-        extraEOSTokens: Set<String>,
-        promptCache: PromptCache?,
-        bias: PersonalizationBias? = nil,
-        minTokens: Int = 0,
-        logProbSink: LockedValue<Double?>? = nil,
-        firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
-        forcedFirst: (token: Int, logProb: Float)? = nil,
-        trimLogProb: Float? = nil,
-        gateLogProb: Double? = nil,
-        healExpected: String? = nil,
-        prefillOnly: Bool = false,
-        drafter: (any MTPDrafterModel)? = nil,
-        logRaw: Bool = true,
-        onPartial: (@Sendable (String) -> Void)? = nil
-    ) async throws -> String {
-        try await generate(
-            in: container,
-            makeTokens: { context in
-                promptCache?.encoder.encode(prompt, with: context.tokenizer)
-                    ?? context.tokenizer.encode(text: prompt)
-            },
-            parameters: parameters,
-            extraEOSTokens: extraEOSTokens,
-            promptCache: promptCache,
-            bias: bias,
-            minTokens: minTokens,
-            logProbSink: logProbSink,
-            firstWordStats: firstWordStats,
-            forcedFirst: forcedFirst,
-            trimLogProb: trimLogProb,
-            gateLogProb: gateLogProb,
-            healExpected: healExpected,
-            prefillOnly: prefillOnly,
-            drafter: drafter,
-            logRaw: logRaw,
-            onPartial: onPartial
-        )
-    }
-
     static func generate(
         in container: ModelContainer,
         makeTokens: @Sendable @escaping (ModelContext) throws -> [Int],
@@ -560,10 +477,7 @@ extension MLXEngine {
         extraEOSTokens: Set<String>,
         promptCache: PromptCache?,
         bias: PersonalizationBias? = nil,
-        minTokens: Int = 0,
         logProbSink: LockedValue<Double?>? = nil,
-        firstWordStats: LockedValue<(sum: Double, mean: Double)?>? = nil,
-        forcedFirst: (token: Int, logProb: Float)? = nil,
         trimLogProb: Float? = nil,
         /// Logprob-gate τ: abstain as soon as the first word's mean logprob is
         /// known to fall below it (the caller re-checks on the final result),
@@ -576,8 +490,8 @@ extension MLXEngine {
         prefillOnly: Bool = false,
         /// A Gemma 4 MTP drafter: decode speculatively (`MTPSpeculativeTokenIterator`,
         /// greedy-verified by the target) instead of token by token. Used only
-        /// when nothing needs per-token logits — no healing, bias or EOS mask,
-        /// and no logprob gate; the confidence trim and the first-word logprob
+        /// when nothing needs per-token logits — no healing or bias, and no
+        /// logprob gate; the confidence trim and the first-word logprob
         /// are skipped on this path (the iterator exposes no per-token logits).
         drafter: (any MTPDrafterModel)? = nil,
         /// False when the generated text is not ours to print: the dictation
@@ -597,12 +511,7 @@ extension MLXEngine {
         nonisolated(unsafe) let drafter = drafter
         return try await container.perform { (context: ModelContext) in
             let maxTokens = parameters.maxTokens ?? 16
-            // Beam branch: the forced candidate rides in as the last PROMPT
-            // token (prefilled, not decoded) but is part of the visible text —
-            // textTokens is seeded with it and its logprob is prepended to the
-            // recorder's, so first-word scoring covers the whole word.
-            var fullTokens = try makeTokens(context)
-            if let forcedFirst { fullTokens.append(forcedFirst.token) }
+            let fullTokens = try makeTokens(context)
             guard !fullTokens.isEmpty else { return "" }
 
             var eosIDs = Set<Int>()
@@ -689,20 +598,16 @@ extension MLXEngine {
                 return ""
             }
 
-            // Compose the logit-processor chain: penalties → personal first-token boost →
-            // min-token EOS mask.
+            // Compose the logit-processor chain: penalties → personal first-token boost.
             var processor: LogitProcessor? = parameters.processor()
             if let bias, let biased = makeBiasProcessor(bias, context: context, inner: processor) {
                 processor = biased
             }
-            if minTokens > 0, !eosIDs.isEmpty {
-                processor = MinTokensProcessor(inner: processor, eosIDs: Array(eosIDs), minTokens: minTokens)
-            }
             // Outermost, so it sees the logits the sampler actually samples from
-            // (post-penalties, post-bias, post-EOS-mask) — that distribution is
-            // what "the engine's confidence in what it showed" means.
+            // (post-penalties, post-bias) — that distribution is what "the
+            // engine's confidence in what it showed" means.
             var recorder: LogProbRecorder?
-            if logProbSink != nil || trimLogProb != nil || firstWordStats != nil || gateLogProb != nil {
+            if logProbSink != nil || trimLogProb != nil || gateLogProb != nil {
                 let r = LogProbRecorder(inner: processor)
                 processor = r
                 recorder = r
@@ -738,7 +643,7 @@ extension MLXEngine {
             // Speculative path: drafts of `mtpBlock` tokens verified by the
             // target in one forward (block 3 measured best on E2B-it).
             var mtp: MTPSpeculativeTokenIterator?
-            if let drafter, healExpected == nil, bias == nil, minTokens == 0, gateLogProb == nil {
+            if let drafter, healExpected == nil, bias == nil, gateLogProb == nil {
                 mtp = try MTPSpeculativeTokenIterator(
                     input: LMInput(tokens: firstInput), mainModel: context.model, drafter: drafter,
                     mainCache: cache, parameters: parameters, blockSize: mtpBlock)
@@ -748,13 +653,11 @@ extension MLXEngine {
             let decodeStart = Date()
             var generated: [Int] = []       // sampled tokens, in order
             var cachedGenerated = 0         // of those, how many the cache holds
-            var textTokens: [Int] = forcedFirst.map { [$0.token] } ?? []
-            var perToken: [Float] = forcedFirst.map { [$0.logProb] } ?? []
+            var textTokens: [Int] = []
+            var perToken: [Float] = []
             var firstWordCount: Int?
             var gateOpen = gateLogProb == nil
-            // Seed the text too: an immediate EOS after a forced token must
-            // still return that token's text, not "".
-            var text = textTokens.isEmpty ? "" : context.tokenizer.decode(tokenIds: textTokens, skipSpecialTokens: true)
+            var text = ""
             while true {
                 let token: Int
                 var next: MLXArray?
@@ -776,10 +679,9 @@ extension MLXEngine {
                 text = context.tokenizer.decode(tokenIds: textTokens, skipSpecialTokens: true)
 
                 // First word complete: the smallest token prefix whose text,
-                // after leading separators, already holds an in-word boundary
-                // (gateFirstWord's convention, so calibration matches the gate's
-                // unit; the boundary token itself counts — one separator token of
-                // overshoot at most). No boundary by the end ⇒ every token. The
+                // after leading separators, already holds a boundary after a
+                // letter/number run (the gate's calibration unit; the boundary
+                // token itself counts — one separator token of overshoot at most). No boundary by the end ⇒ every token. The
                 // gate's verdict exists now — abstaining here skips the rest of a
                 // decode whose result would be discarded anyway.
                 if firstWordCount == nil {
@@ -821,22 +723,12 @@ extension MLXEngine {
             let prefillSeconds = decodeStart.timeIntervalSince(prefillStart)
 
             // Reduce the per-step log-probs to the first-word mean. perToken is
-            // index-aligned with textTokens (EOS breaks before appending); a
-            // forced first token was prefilled, not decoded, and its logprob
-            // was prepended above (raw scale vs the recorder's post-processor
-            // scale — identical unless penalties/bias are on).
+            // index-aligned with textTokens (EOS breaks before appending).
             if recorder != nil {
                 let firstWord = firstWordCount ?? textTokens.count
                 let n = min(firstWord, perToken.count)
                 let firstWordSum = perToken.prefix(n).reduce(0.0) { $0 + Double($1) }
-                if let logProbSink {
-                    logProbSink.set(n > 0 ? firstWordSum / Double(n) : nil)
-                }
-                // Beam scoring: sum = log P(first word | ctx) — comparable
-                // across candidate words; mean is the gate's calibrated scale.
-                if let firstWordStats {
-                    firstWordStats.set(n > 0 ? (sum: firstWordSum, mean: firstWordSum / Double(n)) : nil)
-                }
+                logProbSink?.set(n > 0 ? firstWordSum / Double(n) : nil)
                 // Confidence trim: show only the prefix before the first weak
                 // token. Display-only — the KV cache is untouched.
                 if let threshold = trimLogProb,
@@ -947,100 +839,5 @@ extension MLXEngine {
             // rank = number of tokens strictly more likely than the true one.
             return (row .> target).sum().item(Int.self)
         }
-    }
-
-    // MARK: First-word beam rerank (PRETYPE_BEAM)
-
-    /// Top-k first-token candidates at the end of `prompt` — one raw forward
-    /// pass (the decode-time processors — penalties, personalization bias —
-    /// don't apply here, same scale caveat as `logProbScore`). EOS, special and
-    /// newline-bearing tokens are skipped: a branch must start visible text.
-    /// Best-first.
-    static func topFirstTokens(in container: ModelContainer, prompt: String, k: Int,
-                               extraEOSTokens: Set<String>) async -> [(token: Int, logProb: Float)] {
-        await container.perform { (ctx: ModelContext) in
-            let tokens = ctx.tokenizer.encode(text: prompt)
-            guard !tokens.isEmpty else { return [] }
-            var eosIDs = Set<Int>()
-            if let eos = ctx.tokenizer.eosToken, let id = ctx.tokenizer.convertTokenToId(eos) {
-                eosIDs.insert(id)
-            }
-            for token in extraEOSTokens {
-                if let id = ctx.tokenizer.convertTokenToId(token) { eosIDs.insert(id) }
-            }
-            let logits = ctx.model(MLXArray(tokens, [1, tokens.count]), cache: nil)
-            let row = logits[0, tokens.count - 1]
-            let logProbs = row - row.logSumExp()
-            eval(logProbs)
-            // argSort is ascending; walk the tail (most likely first). The +8
-            // headroom absorbs skipped EOS/special/newline candidates.
-            let order = argSort(logProbs, axis: -1).asArray(Int32.self)
-            var out: [(token: Int, logProb: Float)] = []
-            for id32 in order.suffix(k + 8).reversed() {
-                let id = Int(id32)
-                guard !eosIDs.contains(id) else { continue }
-                let piece = ctx.tokenizer.decode(tokenIds: [id], skipSpecialTokens: true)
-                guard !piece.isEmpty, !piece.contains("\n") else { continue }
-                out.append((token: id, logProb: logProbs[id].item(Float.self)))
-                if out.count == k { break }
-            }
-            return out
-        }
-    }
-
-    /// First-word beam rerank: decode one short branch per top-k first token
-    /// and return the branch whose first WORD the model believes most, plus an
-    /// optional personal-ngram boost (the fusion lever: "the user has typed
-    /// this word here before").
-    ///
-    /// `scoreByMean` picks the branch statistic. Both cover the first word PLUS
-    /// its boundary token (`firstWordTokenCount`'s one-token overshoot), so
-    /// sum = log P(word · next-token-start) — a 1-step lookahead, length-biased
-    /// against multi-token words; mean is the τ-gate's calibrated scale
-    /// (measured monotone in correctness), length-normalized. Which ranks
-    /// better is an empirical knob: sweep on the even half, verify on odd.
-    ///
-    /// Cost: one candidate forward + k short decodes; branches after the first
-    /// reuse the shared prompt KV via `promptCache` (common=prompt, tail=1 —
-    /// the incremental-typing path), so prompts ≥16 tokens prefill once.
-    /// No streaming — the winner only exists after the last branch. The output
-    /// gate runs on the winner only; a gated-out winner abstains even if a
-    /// runner-up would have passed (rare, accepted).
-    static func beamGenerate(
-        in container: ModelContainer, prompt: String, k: Int,
-        parameters: GenerateParameters, extraEOSTokens: Set<String>,
-        promptCache: PromptCache?, bias: PersonalizationBias? = nil,
-        logProbSink: LockedValue<Double?>? = nil, trimLogProb: Float? = nil,
-        scoreByMean: Bool = true,
-        ngramBoost: (@Sendable (String) -> Double)? = nil
-    ) async throws -> String {
-        let candidates = await topFirstTokens(
-            in: container, prompt: prompt, k: k, extraEOSTokens: extraEOSTokens)
-        guard candidates.count > 1 else {
-            return try await generate(
-                in: container, prompt: prompt, parameters: parameters,
-                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
-                bias: bias, logProbSink: logProbSink, trimLogProb: trimLogProb)
-        }
-        var best: (score: Double, text: String, mean: Double)?
-        for candidate in candidates {
-            try Task.checkCancellation()
-            let stats = LockedValue<(sum: Double, mean: Double)?>(nil)
-            let text = try await generate(
-                in: container, prompt: prompt, parameters: parameters,
-                extraEOSTokens: extraEOSTokens, promptCache: promptCache,
-                bias: bias, firstWordStats: stats, forcedFirst: candidate,
-                trimLogProb: trimLogProb)
-            guard let stat = stats.get(), !text.isEmpty else { continue }
-            // Same fold as gateFirstWord (private to the other file).
-            let word = text.lowercased().replacingOccurrences(of: "ё", with: "е")
-                .split { !$0.isLetter && !$0.isNumber }.first.map(String.init) ?? ""
-            let score = (scoreByMean ? stat.mean : stat.sum)
-                + (word.isEmpty ? 0 : (ngramBoost?(word) ?? 0))
-            if score > (best?.score ?? -.infinity) { best = (score, text, stat.mean) }
-        }
-        // Publish the winner's first-word mean — the gate/journal scale.
-        logProbSink?.set(best?.mean)
-        return best?.text ?? ""
     }
 }

@@ -234,8 +234,8 @@ protocol CompletionEngine: AnyObject {
     /// log-probability per token of the suggestion's first word, captured from
     /// the decode loop (no extra forward passes). Best-effort telemetry for the
     /// journal's calibration curve — read it when a suggestion resolves, not
-    /// mid-stream. nil while a generation is in flight, under the K-sample
-    /// gate, or when the engine doesn't capture it.
+    /// mid-stream. nil while a generation is in flight, or when the engine
+    /// doesn't capture it.
     var lastFirstWordLogProb: Double? { get }
 
     /// Short live status for the diagnostics menu (model download progress,

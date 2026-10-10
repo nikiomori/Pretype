@@ -12,11 +12,11 @@ final class PretypeTests: XCTestCase {
     func testCompletionGatesPostProcess() {
         func pp(_ raw: String, prompt: String = "hello world", trailingSpaces: Int = 0,
                 endsMidWord: Bool = false, endsCompleteWord: Bool = false,
-                after: String = "", singleWord: Bool = false) -> String? {
+                after: String = "") -> String? {
             CompletionGates.postProcess(
                 raw, prompt: prompt, trailingSpaces: trailingSpaces,
                 endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-                textAfterCaret: after, singleWord: singleWord)
+                textAfterCaret: after)
         }
 
         // Control characters / the replacement char must never be typed back.
@@ -44,8 +44,6 @@ final class PretypeTests: XCTestCase {
         XCTAssertNil(pp("world", prompt: "hello", after: "world tour"))
         // Trim at the first sentence boundary.
         XCTAssertEqual(pp("sure. and more", prompt: "ok"), "sure.")
-        // Single-word mode keeps only the leading separator + first word.
-        XCTAssertEqual(pp(" tomorrow at noon", prompt: "i will see you", singleWord: true), " tomorrow")
     }
 
     // The hotkey matchers gate every text injection; lock their modifier rules.
@@ -997,35 +995,21 @@ final class PretypeTests: XCTestCase {
         let e4b6 = "mlx-community/gemma-4-e4b-6bit"
         let mini = "openbmb/MiniCPM5-1B-Base"
         var c = ProjectionConfig(modelID: e4b6, style: .base, length: .short,
-                                 logprobGate: false, confidenceGate: true,
-                                 useRecommended: false)
-
-        // The gates are mutually exclusive, both ways.
-        c = c.applying(.logprobGate(true))
-        XCTAssertTrue(c.logprobGate); XCTAssertFalse(c.confidenceGate)
-        c = c.applying(.confidenceGate(true))
-        XCTAssertTrue(c.confidenceGate); XCTAssertFalse(c.logprobGate)
+                                 logprobGate: true, useRecommended: false)
 
         // Instruct has no gate path.
         c = c.applying(.style(.instruct))
-        XCTAssertFalse(c.confidenceGate); XCTAssertFalse(c.logprobGate)
+        XCTAssertFalse(c.logprobGate)
         XCTAssertFalse(c.useRecommended)
 
         // Recommended mode snaps style/length to the model's measured best.
         c = c.applying(.useRecommended(true))
         XCTAssertEqual(c.style, ModelCatalog.recommended(for: e4b6).style)
 
-        // Switching to a non-gate-capable model drops the consensus gate.
-        var manual = ProjectionConfig(modelID: e4b6, style: .base, length: .short,
-                                      logprobGate: false, confidenceGate: true,
-                                      useRecommended: false)
-        manual = manual.applying(.model(mini))
-        XCTAssertFalse(manual.confidenceGate)
-
         // A model switch never carries Instruct onto a base-only model where
         // it's measured-broken — style snaps to Base even in manual mode.
         var instructed = ProjectionConfig(modelID: e4b6, style: .instruct, length: .short,
-                                          logprobGate: false, confidenceGate: false,
+                                          logprobGate: false,
                                           useRecommended: false)
         instructed = instructed.applying(.model(mini))
         XCTAssertEqual(instructed.style, .base)
@@ -1035,7 +1019,7 @@ final class PretypeTests: XCTestCase {
         // survive an Instruct landing. The coordinator commits through this
         // same cascade, so preview and pipeline agree by construction.
         var stale = ProjectionConfig(modelID: e4b6, style: .instruct, length: .short,
-                                     logprobGate: true, confidenceGate: false,
+                                     logprobGate: true,
                                      useRecommended: false)
         stale = stale.applying(.model("mlx-community/gemma-4-e4b-8bit"))
         XCTAssertEqual(stale.style, .instruct)   // usable here, kept
@@ -1043,7 +1027,7 @@ final class PretypeTests: XCTestCase {
 
         // In recommended mode a model switch re-snaps everything.
         var auto = ProjectionConfig(modelID: mini, style: .base, length: .long,
-                                    logprobGate: true, confidenceGate: false,
+                                    logprobGate: true,
                                     useRecommended: true)
         auto = auto.applying(.model(e4b6))
         XCTAssertEqual(auto.style, .instruct)  // E4B's measured best
@@ -1055,10 +1039,10 @@ final class PretypeTests: XCTestCase {
         let e4b6 = "mlx-community/gemma-4-e4b-6bit"
         let mini = "openbmb/MiniCPM5-1B-Base"
         func cfg(_ id: String, _ style: CompletionStyle, _ length: CompletionLength = .short,
-                 logprob: Bool = false, confidence: Bool = false) -> ConfigProjection {
+                 logprob: Bool = false) -> ConfigProjection {
             ConfigProjection.project(ProjectionConfig(
                 modelID: id, style: style, length: length,
-                logprobGate: logprob, confidenceGate: confidence, useRecommended: false))
+                logprobGate: logprob, useRecommended: false))
         }
 
         // Plain base = the model's own eval row.
@@ -1084,12 +1068,6 @@ final class PretypeTests: XCTestCase {
         let instructE2B = cfg("mlx-community/gemma-4-e2b-8bit", .instruct)
         XCTAssertEqual(instructE2B.p50Ms, 75)
         XCTAssertTrue(instructE2B.latencyText.hasPrefix("≈"))
-
-        // Consensus gate: 39% @ 54% coverage, ×5 latency.
-        let consensus = cfg(e4b6, .base, confidence: true)
-        XCTAssertEqual(consensus.accuracyPct, 39)
-        XCTAssertEqual(consensus.coveragePct, 54)
-        XCTAssertEqual(consensus.p50Ms, 129 * 5)
 
         // Logprob gate on the calibration (default) model: the measured band.
         let gated = cfg(mini, .base, logprob: true)
@@ -1208,8 +1186,7 @@ final class PretypeTests: XCTestCase {
         // (Base · Short — NOT the Gemma recommendation, which is Instruct and
         // measures 22% on real text), and preserves compatible gates.
         let custom = ProjectionConfig(modelID: ModelCatalog.defaultID, style: .instruct,
-                                      length: .long, logprobGate: true,
-                                      confidenceGate: false, useRecommended: false)
+                                      length: .long, logprobGate: true, useRecommended: false)
         let landed = custom.applying(.preset(ModelPriority.accurate.pick(axis: "core")))
         XCTAssertEqual(landed.modelID, ModelPriority.accurate.pick(axis: "core"))
         XCTAssertEqual(landed.style, .base)
@@ -1223,7 +1200,7 @@ final class PretypeTests: XCTestCase {
 
         // A map settings-dot jumps to its exact configuration, verbatim.
         let dot = ProjectionConfig(modelID: custom.modelID, style: .base, length: .medium,
-                                   logprobGate: false, confidenceGate: false,
+                                   logprobGate: false,
                                    useRecommended: false)
         XCTAssertEqual(custom.applying(.config(dot)), dot)
         // Runtime equivalence ignores only the auto-mode flag.

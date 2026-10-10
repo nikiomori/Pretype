@@ -1,18 +1,6 @@
 import Foundation
 import FoundationModels
 
-/// Prompt recipe for the Apple Intelligence path, A/B-swept on eval-v2 via
-/// `PRETYPE_FM_PROMPT_VARIANT`. Apple's model — unlike Gemma — exposes a real
-/// system-instructions slot, so the sweep is over how much to put in the
-/// instructions vs the user turn, and whether to scaffold the text:
-/// - `fewshot`   rich instructions + worked examples (the original recipe)
-/// - `terse`     lean instructions, same Existing-text / Continuation framing
-/// - `plain`     lean instructions, the raw text as the prompt (no scaffold)
-/// - `directive` minimal system line, a "continue, ~N words" directive in-prompt
-enum FMPromptVariant: String, CaseIterable {
-    case fewshot, terse, plain, directive
-}
-
 /// Completion via the system Apple Intelligence model (macOS 26+).
 /// Zero download, zero app memory — the ~3B model is OS-managed and runs on
 /// the Neural Engine. Quality differs from Gemma; it's the lightweight option.
@@ -30,14 +18,6 @@ final class FoundationModelsEngine: CompletionEngine {
     private let instructionsBox = LockedValue<String>("")
 
     static let greedy = LockedValue<Bool>(false)
-
-    /// Prompt recipe: env `PRETYPE_FM_PROMPT_VARIANT` (for harness A/B) wins,
-    /// else the menu-selected `Settings.fmPromptVariant`, else `fewshot`. Read
-    /// live per request, so a menu change applies on the next keystroke.
-    static var promptVariant: FMPromptVariant {
-        ProcessInfo.processInfo.environment["PRETYPE_FM_PROMPT_VARIANT"]
-            .flatMap(FMPromptVariant.init(rawValue:)) ?? Settings.fmPromptVariant
-    }
 
     /// Live-path sampling temperature (env `PRETYPE_FM_TEMPERATURE`); nil ⇒
     /// Apple's default sampler. Ignored under `greedy`.
@@ -65,34 +45,6 @@ final class FoundationModelsEngine: CompletionEngine {
     Continuation: тебе завтра утром.
     """
 
-    /// Lean instructions for `terse`/`plain` — no worked examples. The few-shot
-    /// pair can over-anchor Apple's instruction-tuned model onto the example's
-    /// exact answer, so this strips them back to the rules.
-    private static let leanInstructions = """
-    You complete partially-typed text. Output only the next few words the user \
-    would type, in their voice — no greeting, no sign-off, no quotes, no \
-    markdown, no labels, no explanation.
-
-    Do not repeat or quote the existing text. Match its language, register, \
-    casing and punctuation, and continue the current sentence or thought \
-    rather than restarting it.
-    """
-
-    /// Minimal system line for `directive` — the steering rides in the prompt.
-    private static let directiveInstructions = """
-    You are an autocomplete engine. You output only the raw continuation of \
-    the user's text — nothing else.
-    """
-
-    /// System instructions for the active prompt recipe.
-    private static func baseInstructions(_ variant: FMPromptVariant) -> String {
-        switch variant {
-        case .fewshot: return instructions
-        case .terse, .plain: return leanInstructions
-        case .directive: return directiveInstructions
-        }
-    }
-
     var state: EngineState { stateBox.get() }
 
     var statusLine: String? {
@@ -108,7 +60,7 @@ final class FoundationModelsEngine: CompletionEngine {
         case .available:
             stateBox.set(.ready)
             // Warm the system model so the first keystroke doesn't pay.
-            let session = LanguageModelSession(instructions: Self.baseInstructions(Self.promptVariant))
+            let session = LanguageModelSession(instructions: Self.instructions)
             session.prewarm()
         case .unavailable(let reason):
             // A sentence, not the enum case: this lands verbatim in the menu
@@ -154,15 +106,13 @@ final class FoundationModelsEngine: CompletionEngine {
         }
         guard !text.isEmpty else { return nil }
 
-        let variant = Self.promptVariant
-        let prompt = userPrompt(variant, text: text, request: request)
+        let prompt = userPrompt(text: text, request: request)
 
         // Persona (when set) sharpens voice; length caps the response.
         let persona = request.persona(global: instructionsBox.get())
-        let base = Self.baseInstructions(variant)
         let instructions = persona.isEmpty
-            ? base
-            : base + "\n\nAbout the author (for voice only, never quote it):\n\(persona)"
+            ? Self.instructions
+            : Self.instructions + "\n\nAbout the author (for voice only, never quote it):\n\(persona)"
 
         // A fresh session per request: autocomplete must not accumulate a
         // multi-turn transcript.
@@ -191,7 +141,7 @@ final class FoundationModelsEngine: CompletionEngine {
             return CompletionGates.postProcess(
                 raw, prompt: text, trailingSpaces: trailingSpaces,
                 endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-                textAfterCaret: request.textAfterCaret, singleWord: lengthBox.get().isSingleWord
+                textAfterCaret: request.textAfterCaret
             )
         } catch let error as LanguageModelSession.GenerationError {
             // Apple's model declines some inputs — safety guardrails, rate limits
@@ -205,9 +155,8 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
-    /// The user-turn prompt for the active recipe. Screen/app context, when
-    /// present, is prepended identically for every variant.
-    private func userPrompt(_ variant: FMPromptVariant, text: String, request: CompletionRequest) -> String {
+    /// The user-turn prompt: screen/app context, when present, then the text.
+    private func userPrompt(text: String, request: CompletionRequest) -> String {
         var prefix = ""
         if let screen = request.screenSummary, !screen.isEmpty {
             prefix += "Screen context:\n\(screen)\n\n"
@@ -215,21 +164,7 @@ final class FoundationModelsEngine: CompletionEngine {
         if let app = request.appName, !app.isEmpty {
             prefix += "The user is typing in \(app).\n\n"
         }
-        switch variant {
-        case .fewshot, .terse:
-            return prefix + "Existing text: \"\(text)\"\nContinuation:"
-        case .plain:
-            return prefix + text
-        case .directive:
-            return prefix + """
-            Continue the text below in the same language, tone and register. \
-            Reply with ONLY the words that come next (\(lengthBox.get().directiveLength.wordsHint)) — \
-            do not repeat it, no quotes, no explanation.
-
-            Text:
-            \(text)
-            """
-        }
+        return prefix + "Existing text: \"\(text)\"\nContinuation:"
     }
 
     /// Decoding options: greedy (eval determinism) wins; otherwise an optional

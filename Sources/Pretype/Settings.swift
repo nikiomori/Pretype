@@ -15,21 +15,16 @@ enum CompletionStyle: String, CaseIterable {
 }
 
 /// Caps how much the engine generates per keystroke. Shorter = faster, less
-/// drift (Cotypist defaults to ~2–4 words for exactly this reason). `word`
-/// predicts a single next word — minimal and low-distraction, and the most
-/// reliable use of the lighter Apple Intelligence model (it is weak on longer
-/// multi-word / Russian continuations; one word it gets right far more often).
+/// drift (Cotypist defaults to ~2–4 words for exactly this reason).
 enum CompletionLength: String, CaseIterable {
-    case word
     case short
     case medium
     case long
 
-    /// Token budget handed to the sampler. `word` is tight but leaves room for
-    /// a long single word (the Cyrillic widener stretches it for Russian).
+    /// Token budget handed to the sampler (the Cyrillic widener stretches it
+    /// for Russian).
     var maxTokens: Int {
         switch self {
-        case .word: return 5
         case .short: return 6
         case .medium: return 12
         case .long: return 22
@@ -39,21 +34,11 @@ enum CompletionLength: String, CaseIterable {
     /// Phrase injected into the instruct directive so the model self-limits.
     var wordsHint: String {
         switch self {
-        case .word: return "only the single next word"
         case .short: return "at most 2–3 words"
         case .medium: return "a short phrase of at most ~6 words"
         case .long: return "at most one sentence"
         }
     }
-
-    /// Whether the suggestion should be cut to one word after generation.
-    var isSingleWord: Bool { self == .word }
-
-    /// Length whose word-count hint goes into the instruct directive. `word`
-    /// borrows `short`'s phrasing: telling the model "exactly one word" measurably
-    /// worsened its first-word pick (eval-v2: Gemma 84→75, Russian 76→63). Ask for
-    /// a short phrase and let `postProcess` trim to one word instead.
-    var directiveLength: CompletionLength { self == .word ? .short : self }
 }
 
 /// How strongly to bias the model toward the user's previously-accepted words.
@@ -432,26 +417,6 @@ enum Settings {
     static func registerDefaults() {
         // Per-app "this is useless here" verdicts predate the fair denominator.
         Stats.migrateAppRecordsIfNeeded()
-        // Migrate the retired `.word` length (pre-redesign UI offered it) to
-        // its successor, so the stored value always matches what the settings
-        // surface can display and the projection describes.
-        if defaults.string(forKey: "completionLength") == CompletionLength.word.rawValue {
-            defaults.set(CompletionLength.short.rawValue, forKey: "completionLength")
-        }
-        // Controls retired from the UI 2026-07-16/17: the consensus gate (same
-        // precision trade as the free logprob gate, at ~5× the decode), the
-        // trim toggle (a measured no-cost win — now always on), the FM
-        // recipe picker (fewshot measured best; env override still works for
-        // the harness), fill-in-the-middle (already auto-gated to the E4B
-        // class where it's reliable — the off position only degraded quality)
-        // and personal examples (measured instruct win at zero latency cost;
-        // journal off / cleared already covers the privacy angle). Clear
-        // stored values so the registered defaults rule and nobody is stuck
-        // with invisible state.
-        for retired in ["confidenceGate", "confidenceTrim", "fmPromptVariant",
-                        "fimEnabled", "personalExamples"] {
-            defaults.removeObject(forKey: retired)
-        }
         // "core" stopped being a choice in the language picker 2026-07-25: it
         // pooled English and Russian, which measure differently, into one entry
         // sitting among real languages. The sample still exists — it is the only
@@ -482,7 +447,6 @@ enum Settings {
             // still frees the model the moment macOS needs the RAM, the model
             // waits out a longer pause instead. A picked value always wins.
             "idleUnloadMinutes": ModelCatalog.machineRamGB >= 32 ? 15 : 5,
-            "fimEnabled": true,
             // Follows the default model's recommendation (base·short on the
             // Qwen3.5 floor; instruct·short on the Gemma tiers).
             "completionStyle": rec.style.rawValue,
@@ -492,32 +456,15 @@ enum Settings {
             // personal n-gram fast-path; everything stays on-device.
             "personalizationLevel": PersonalizationLevel.subtle.rawValue,
             "suggestionPresentation": SuggestionPresentation.inline.rawValue,
-            "fmPromptVariant": FMPromptVariant.fewshot.rawValue,
             "useRecommendedSettings": true,
             "automaticUpdateCheck": true,
-            "confidenceGate": false,
-            "confidenceGateSamples": 5,
-            // 0.6 (≥3/5 draws agree) clears a 35% first-word bar on real text at
-            // the most coverage (~54%); 0.8/1.0 trade coverage for precision.
-            "confidenceGateThreshold": 0.6,
             "logprobGate": false,
             // Mean first-word logprob floor. Q3 boundary from the eval-real
             // calibration (~11% Net-KSS at ~49% coverage); tune from the journal's
             // captured firstWordLogProb. More negative = laxer, toward 0 = stricter.
             "logprobGateThreshold": -1.5,
-            // Confidence trim: cut the suggestion just before the first decode
-            // token whose logprob drops below the threshold (never inside the
-            // first word) — the fixed-budget tail is a completion's weakest
-            // part. Unlike the gates it never abstains, so it's on by default.
-            // −1.5 calibrated 2026-07-20 (even-half sweep −4…−1, odd-half
-            // verified, MiniCPM + E2B-8bit): cuts ~8 of ~14 garbage-tail chars
-            // per row at zero correct-char loss; −1.2/−1 add <1 char and start
-            // eating signal. Old −3.0 cut only ~2.7. Eval/runs-2026-07-20.
-            "confidenceTrim": true,
-            "confidenceTrimThreshold": -1.5,
             "userBlacklist": [String](),
             "suggestionJournal": true,
-            "personalExamples": true,
             // 0.45 read as near-invisible over real app backgrounds; 0.7 is
             // still clearly "ghost" next to the host text but survives noise.
             "ghostOpacity": 0.7,
@@ -584,16 +531,6 @@ enum Settings {
         set { defaults.set(newValue, forKey: "automaticUpdateCheck") }
     }
 
-    /// Retrieval-augmented few-shot: inject the user's own most-similar past
-    /// accepted phrases into the prompt. A no-op until the journal has data;
-    /// the eval harness A/Bs it via PRETYPE_RAG. Always on since 2026-07-17
-    /// (UI toggle retired — a measured win at zero cost; clearing the journal
-    /// is the way to forget the phrases).
-    static var personalExamplesEnabled: Bool {
-        get { defaults.bool(forKey: "personalExamples") }
-        set { defaults.set(newValue, forKey: "personalExamples") }
-    }
-
     /// Opt-in OCR of the focused window for richer model context.
     static var screenContextEnabled: Bool {
         get { defaults.bool(forKey: "screenContext") }
@@ -642,28 +579,9 @@ enum Settings {
         set { defaults.set(newValue, forKey: "useRecommendedSettings") }
     }
 
-    /// Self-consistency confidence gate: when on, the MLX engine samples each
-    /// completion `confidenceGateSamples` times and only suggests when the first
-    /// word agrees on ≥`confidenceGateThreshold` of the draws (else abstains).
-    /// Much higher first-word precision on real text at a coverage + ~K× latency
-    /// cost (see Eval/BASELINE.md). Off by default.
-    static var confidenceGate: Bool {
-        get { defaults.bool(forKey: "confidenceGate") }
-        set { defaults.set(newValue, forKey: "confidenceGate") }
-    }
-    static var confidenceGateSamples: Int {
-        get { max(2, defaults.integer(forKey: "confidenceGateSamples")) }
-        set { defaults.set(newValue, forKey: "confidenceGateSamples") }
-    }
-    static var confidenceGateThreshold: Double {
-        get { let v = defaults.double(forKey: "confidenceGateThreshold"); return v > 0 ? v : 0.6 }
-        set { defaults.set(newValue, forKey: "confidenceGateThreshold") }
-    }
-
     /// Logprob confidence gate (base only): abstain when the shown suggestion's
-    /// mean first-word logprob is below `logprobGateThreshold`. Same
-    /// precision-for-coverage trade as the self-consistency gate but at **0×**
-    /// extra decode — the first-word logprob is already captured live by the
+    /// mean first-word logprob is below `logprobGateThreshold`. Trades coverage
+    /// for precision at **0×** extra decode — the first-word logprob is already captured live by the
     /// decode loop (validated in Eval/BASELINE.md). Off by default.
     static var logprobGate: Bool {
         get { defaults.bool(forKey: "logprobGate") }
@@ -674,34 +592,12 @@ enum Settings {
         set { defaults.set(newValue, forKey: "logprobGateThreshold") }
     }
 
-    /// Confidence trim: cut the shown suggestion just before the first decode
-    /// token whose logprob falls below `confidenceTrimThreshold` (never inside
-    /// the first word). Higher shown-tail precision at 0× extra decode; unlike
-    /// the gates it trims instead of abstaining, so it's on by default.
-    static var confidenceTrim: Bool {
-        get { defaults.bool(forKey: "confidenceTrim") }
-        set { defaults.set(newValue, forKey: "confidenceTrim") }
-    }
-    static var confidenceTrimThreshold: Double {
-        get { let v = defaults.double(forKey: "confidenceTrimThreshold"); return v != 0 ? v : -1.5 }
-        set { defaults.set(newValue, forKey: "confidenceTrimThreshold") }
-    }
-
     /// Free the resident MLX model after this many minutes idle (0 = never). A
     /// background menu-bar app shouldn't hold several GB while unused; the next
     /// focus/keystroke reloads it from the on-disk cache.
     static var idleUnloadMinutes: Int {
         get { defaults.integer(forKey: "idleUnloadMinutes") }
         set { defaults.set(newValue, forKey: "idleUnloadMinutes") }
-    }
-
-    /// Fill-in-the-middle: when editing mid-sentence, condition the completion on
-    /// the text after the cursor too. Auto-applies only on E4B-class models (it's
-    /// unreliable on the smaller E2B). Always on since 2026-07-17 (UI toggle
-    /// retired — the model-class auto-gate is the only decision that matters).
-    static var fimEnabled: Bool {
-        get { defaults.bool(forKey: "fimEnabled") }
-        set { defaults.set(newValue, forKey: "fimEnabled") }
     }
 
     /// Which measured axis the Model tab's accuracy surfaces show: "*" =
@@ -721,7 +617,7 @@ enum Settings {
     /// zone and the projected ring. Its own switch rather than an entry in the
     /// language picker: those projections are anchored to the pooled
     /// English+Russian booking and to constants from single experiments (the
-    /// consensus-gate figures come from one model), so they are not a language's
+    /// logprob-gate figures come from one calibration model), so they are not a language's
     /// numbers and can't be redrawn against one. Turning it on moves the whole
     /// tab onto that sample and says so; the language you picked is remembered
     /// and comes back when you turn it off.
@@ -759,14 +655,6 @@ enum Settings {
     static var suggestionPresentation: SuggestionPresentation {
         get { SuggestionPresentation(rawValue: defaults.string(forKey: "suggestionPresentation") ?? "") ?? .inline }
         set { defaults.set(newValue.rawValue, forKey: "suggestionPresentation") }
-    }
-
-    /// Prompt recipe for the Apple Intelligence engine (no effect on the MLX
-    /// path). `fewshot` measured best on eval-v2; `directive` is fastest. The
-    /// env override `PRETYPE_FM_PROMPT_VARIANT` still wins for A/B in the harness.
-    static var fmPromptVariant: FMPromptVariant {
-        get { FMPromptVariant(rawValue: defaults.string(forKey: "fmPromptVariant") ?? "") ?? .fewshot }
-        set { defaults.set(newValue.rawValue, forKey: "fmPromptVariant") }
     }
 
     static var ghostOpacity: Double {

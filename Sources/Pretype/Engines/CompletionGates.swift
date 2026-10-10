@@ -12,7 +12,7 @@ enum CompletionGates {
     static func postProcess(
         _ raw: String, prompt: String, trailingSpaces: Int,
         endsMidWord: Bool, endsCompleteWord: Bool = false,
-        textAfterCaret: String, singleWord: Bool = false
+        textAfterCaret: String
     ) -> String? {
         func reject(_ reason: String) -> String? {
             DebugLog.shared.log("GATE", "rejected: \(reason)", detail: "raw: \(raw.debugDescription)")
@@ -84,30 +84,10 @@ enum CompletionGates {
         }
 
         content = trimAtSentenceEnd(content)
-        // Single-word mode: keep only the leading separator + first word.
-        if singleWord {
-            content = firstWord(of: content)
-        }
         if content.trimmingCharacters(in: .whitespaces).isEmpty {
             return reject("empty after trimming")
         }
         return content
-    }
-
-    /// Leading whitespace plus the first run of non-space characters (e.g.
-    /// " tomorrow" from " tomorrow at noon"). Punctuation stays attached.
-    private static func firstWord(of text: String) -> String {
-        var result = ""
-        var seenNonSpace = false
-        for ch in text {
-            if ch == " " {
-                if seenNonSpace { break }
-            } else {
-                seenNonSpace = true
-            }
-            result.append(ch)
-        }
-        return result
     }
 
     /// Word-by-word overlap between the prompt tail and the suggestion head:

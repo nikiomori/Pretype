@@ -31,8 +31,8 @@ final class SuggestionJournal: @unchecked Sendable {
         /// events. `model` is the ACTUALLY LOADED model (instruct sibling in
         /// instruct style, fine-tune dir name for local models); nil for the
         /// ngram fast-path and Apple Intelligence (`engine` disambiguates).
-        /// Compact by design — `gate` is "K@thr" or "off", `personalization`
-        /// is "level[+rag]". Defaults keep the memberwise init source-compatible
+        /// Compact by design — `gate` is "off" (older rows: "K@thr", from the
+        /// retired consensus gate), `personalization` is "level[+rag]". Defaults keep the memberwise init source-compatible
         /// with pre-stamp call sites (undo events, tests).
         var model: String? = nil
         var style: String? = nil
@@ -40,8 +40,8 @@ final class SuggestionJournal: @unchecked Sendable {
         var personalization: String? = nil
         /// Mean per-token log-probability of the FIRST word of `suggestion`,
         /// captured from the live decode loop (zero extra forward passes) — the
-        /// raw material for the confidence→correctness calibration curve that
-        /// decides whether a logprob threshold can replace the K-sample gate.
+        /// raw material for the confidence→correctness calibration curve the
+        /// logprob gate's threshold is tuned on.
         /// Best-effort: nil for ngram/FM/gated/undo entries and legacy rows;
         /// read at resolve time, so a `superseded` entry may carry the value of
         /// the generation that superseded it — filter calibration to

@@ -245,10 +245,6 @@ enum ModelCatalog {
     struct Recommendation {
         let style: CompletionStyle
         let length: CompletionLength
-        /// Whether the self-consistency confidence gate is worth offering: it
-        /// needs a competent BASE path — E4B at ≥6-bit. On 4-bit / E2B / instruct
-        /// / Apple Intelligence there's nothing reliable for agreement to gate on.
-        let gateCapable: Bool
         /// Mid-line fill-in is reliable only on E4B-class models.
         let fim: Bool
         /// Logprob-gate τ calibrated PER MODEL: the same mean first-word logprob
@@ -259,11 +255,10 @@ enum ModelCatalog {
         /// for big Gemma. nil = no logprob available (Apple Intelligence).
         let logprobGateTau: Double?
         /// One-line human summary for the settings UI, e.g.
-        /// "Instruct · Short · High-precision available · Fill-in".
+        /// "Instruct · Short · Fill-in".
         var summary: String {
             var parts = [style == .instruct ? "Instruct" : "Base",
                          length.rawValue.capitalized]
-            if gateCapable { parts.append("High-precision available") }
             if fim { parts.append("Fill-in") }
             return parts.joined(separator: " · ")
         }
@@ -273,7 +268,7 @@ enum ModelCatalog {
         if id == appleIntelligenceID {
             // System model: short is its sweet spot (weak on long / Russian
             // tails); style is moot; no base path for the gate, no fill-in.
-            return Recommendation(style: .instruct, length: .short, gateCapable: false, fim: false,
+            return Recommendation(style: .instruct, length: .short, fim: false,
                                   logprobGateTau: nil)
         }
         // MiniCPM5: base continuation only — instruct answers instead of
@@ -284,31 +279,28 @@ enum ModelCatalog {
         // 291 / long 550 ms p50 on eval-real) — so short wins for inline ghost
         // text. No gate (not E4B-class), no fill-in.
         if id.contains("MiniCPM5") {
-            return Recommendation(style: .base, length: .short, gateCapable: false, fim: false,
+            return Recommendation(style: .base, length: .short, fim: false,
                                   logprobGateTau: -1.00)
         }
         // Small base-continuation picks from the 07-15 sweep (Qwen2.5-0.5B,
         // Qwen3.5-2B, ternary Bonsai-4B): base only — instruct echoes; short
         // (first-word is length-independent here); not E4B-class so no
-        // self-consistency gate / fill-in. The shipped logprob gate still
-        // works (monotone calibration), independent of gateCapable.
+        // fill-in. The logprob gate still works (monotone calibration).
         if id.contains("Qwen2.5-0.5B") || id.contains("Qwen3.5-2B")
             || id.contains("Ternary-Bonsai") {
             let tau = id.contains("Qwen2.5-0.5B") ? -1.12 : id.contains("Ternary-Bonsai") ? -0.95 : -1.00
-            return Recommendation(style: .base, length: .short, gateCapable: false, fim: false,
+            return Recommendation(style: .base, length: .short, fim: false,
                                   logprobGateTau: tau)
         }
         // Gemma E-series: instruct + short + persona is the validated default
-        // (~85% first-word on authored text). Base + gate is the real-text
-        // high-precision mode — only meaningful on E4B at ≥6-bit; fill-in is
-        // E4B-class only.
+        // (~85% first-word on authored text); fill-in is E4B-class only.
         let isE4B = id.contains("e4b")
         let is4bit = id.contains("4bit")
         let tau: Double = isE4B
             ? (is4bit ? -1.00 : id.contains("6bit") ? -0.79 : -0.75)
             : (is4bit ? -0.94 : -0.88)
         return Recommendation(style: .instruct, length: .short,
-                              gateCapable: isE4B && !is4bit, fim: isE4B,
+                              fim: isE4B,
                               logprobGateTau: tau)
     }
 }
