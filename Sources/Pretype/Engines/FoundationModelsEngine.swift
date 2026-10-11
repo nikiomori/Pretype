@@ -21,9 +21,8 @@ final class FoundationModelsEngine: CompletionEngine {
 
     /// Live-path sampling temperature (env `PRETYPE_FM_TEMPERATURE`); nil ⇒
     /// Apple's default sampler. Ignored under `greedy`.
-    private static var temperatureOverride: Double? {
+    private static let temperatureOverride: Double? =
         ProcessInfo.processInfo.environment["PRETYPE_FM_TEMPERATURE"].flatMap(Double.init)
-    }
 
     private static let instructions = """
     You complete partially-typed text. The user is the author; you produce \
