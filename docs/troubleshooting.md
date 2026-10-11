@@ -60,11 +60,11 @@ Still silent? **Diagnostics → `Dictation:`** states the app's own view in one 
 
 ### What does it cost in battery and memory?
 
-The model stays resident while you're typing — that's what makes warm completions fast — holding ≈1.6–2.2 GB for the defaults. After **five idle minutes it unloads itself** and frees that memory, reloading on your next keystroke; it also unloads early if macOS reports memory pressure. It only computes while you're typing in a field it's allowed to read, and suggestions are debounced and cancellable, so fast typing supersedes in-flight work instead of queueing it.
+The model stays resident while you're typing — that's what makes warm completions fast — holding ≈1.1–5.6 GB for the default, which is sized to about a quarter of your Mac's memory. After **five idle minutes (fifteen on Macs with 32 GB or more) it unloads itself** and frees that memory, reloading on your next keystroke; it also unloads early if macOS reports memory pressure. It only computes while you're typing in a field it's allowed to read, and suggestions are debounced and cancellable, so fast typing supersedes in-flight work instead of queueing it.
 
 ### Which languages work?
 
-Completions are evaluated across 19 languages, each measured on its own rather than averaged with its neighbours — see [Choosing a model](models.md); the default is picked from your keyboard layouts and the Gemma 4 builds have the broadest coverage. In **Settings → Model** you can set the accuracy axis to the language you actually type in, and every figure on that tab is re-measured for it, with its sample size and tolerance printed alongside. Inline typo fixes use the macOS spell-checker in whichever language it detects, so any dictionary macOS has installed works (English and Russian are the most-tested pair).
+Completions are evaluated across 19 languages, each measured on its own rather than averaged with its neighbours — see [Choosing a model](models.md); the default is sized to your Mac's memory: a Gemma 4 tier (the broadest language coverage) from 16 GB up, Qwen3.5 2B (the strongest small model outside English) on 8 GB. In **Settings → Model** you can set the accuracy axis to the language you actually type in, and every figure on that tab is re-measured for it, with its sample size and tolerance printed alongside. Inline typo fixes use the macOS spell-checker in whichever language it detects, so any dictionary macOS has installed works (English and Russian are the most-tested pair).
 
 ### Where does my data go?
 

@@ -46,12 +46,13 @@ produce the metallib). Plain `swift build` compiles, but MLX can't run from a
 SwiftPM binary — Pretype detects the missing shaders and disables the MLX
 engine gracefully rather than crashing.
 
-> **Permissions.** Pretype needs Accessibility (always) and Screen Recording
-> (only for OCR screen context). `make-app.sh` signs with your *Apple
+> **Permissions.** Pretype needs Accessibility (always), Screen Recording
+> (only for OCR screen context) and Microphone (only for dictation).
+> `make-app.sh` signs with your *Apple
 > Development* certificate when one exists, so grants survive rebuilds;
 > otherwise it falls back to ad-hoc signing and you'll need to re-grant after
-> each rebuild (`tccutil reset Accessibility app.pretype.Pretype`). See the
-> README's *Troubleshooting* section.
+> each rebuild (`tccutil reset Accessibility app.pretype.Pretype`). See
+> [Troubleshooting](docs/troubleshooting.md).
 
 ## Headless harnesses
 
@@ -86,11 +87,11 @@ paraphrases.
 
 - Match the surrounding code: 4-space indentation, no trailing whitespace.
 - SwiftLint runs in CI (`swiftlint --strict`, config in `.swiftlint.yml`); a
-  `.swiftformat` config covers formatting. Run `swiftlint` locally before
-  pushing if you have it installed.
+  `.swiftformat` config covers formatting. Run `swiftlint --strict` locally
+  before pushing if you have it installed.
 - Comments explain *why*, not *what*; the codebase favors short, high-signal
-  comments (see the output-gate comments in `MLXEngine.swift` for the house
-  style).
+  comments (see the output-gate comments in `Engines/CompletionGates.swift`
+  and `Engines/CorrectionGates.swift` for the house style).
 - Don't add dependencies without discussing it first in an issue.
 
 ## Adding an engine
@@ -104,7 +105,8 @@ is a compact reference implementation.
 
 ## Pull request checklist
 
-- [ ] `swift build` succeeds.
+- [ ] `swift build` and `swift test` pass, and `swiftlint --strict` is clean —
+      CI runs all three.
 - [ ] The app launches and the change works against a real text field (TextEdit
       and Notes have the best Accessibility support).
 - [ ] For prompt/model/gate changes: eval numbers requested (a maintainer runs

@@ -3,8 +3,7 @@
 ## Pages
 
 [Architecture](ARCHITECTURE.md) · [Choosing a model](models.md) ·
-[Privacy & permissions](privacy.md) · [Troubleshooting & FAQ](troubleshooting.md) ·
-[Fine-tuning](finetuning.md)
+[Privacy & permissions](privacy.md) · [Troubleshooting & FAQ](troubleshooting.md)
 
 Every `.md` here except this file is published at
 [pretype.app/docs](https://pretype.app/docs) — the landing repo pulls this

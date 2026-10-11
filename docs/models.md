@@ -61,4 +61,4 @@ The Gemma tiers download slim re-packs of the mlx-community builds ([nikimori/*-
 
 That resident figure is what a model holds *while you type*, not all day: it unloads itself after five idle minutes and reloads on your next keystroke, and unloads early if macOS reports memory pressure. Using <kbd>⌥Tab</kbd> rewrites can add a one-time instruct sibling on some models — ≈2.2 GB on MiniCPM5, ≈1.6 GB on Qwen3.5 (its post-trained build), up to ≈5 GB on a Gemma running Base style; none on Bonsai, which corrects with itself, and none on a Gemma tier in its recommended Instruct style, where the loaded model already is the instruct build.
 
-Quantization tiers, the engine split and the confidence gate are in [Architecture](ARCHITECTURE.md). Training a model on your own writing is in [Fine-tuning](finetuning.md).
+Quantization tiers, the engine split and the confidence gate are in [Architecture](ARCHITECTURE.md).
