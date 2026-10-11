@@ -1,59 +1,143 @@
 # Privacy & permissions
 
-Pretype needs the **Accessibility** permission — the same grant a keylogger would ask for — to read the focused text field, catch the accept key, and type suggestions back. Nothing you type is ever uploaded.
+Pretype needs the **Accessibility** permission. A keylogger asks for the same permission. Pretype uses it to read the focused text field, catch the accept key, and type suggestions back. Pretype never uploads the text that you type.
 
-Don't take that on faith. The entire input path is three files worth reading: [`AXText.swift`](../Sources/Pretype/AXText.swift) reads the field, [`KeyTap.swift`](../Sources/Pretype/KeyTap.swift) watches for the accept key, [`TextInjector.swift`](../Sources/Pretype/TextInjector.swift) types back.
+<div align="center">
+<img src="diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. Your text is never sent to the internet." />
+</div>
+
+## Read the code yourself
+
+Do not trust this page without proof. Three files contain the full input path:
+
+| File | What it does |
+|---|---|
+| [`AXText.swift`](../Sources/Pretype/AXText.swift) | Reads the text field. |
+| [`KeyTap.swift`](../Sources/Pretype/KeyTap.swift) | Watches for the accept key. |
+| [`TextInjector.swift`](../Sources/Pretype/TextInjector.swift) | Types the text back. |
+
+## What Pretype does with your data
 
 | | |
 |---|---|
-| **Your text** | Never uploaded. Every completion is computed on-device, by a local MLX model or the Apple Intelligence system model. |
-| **Network** | Downloads and one version check — none of them carry your text: model weights from Hugging Face (on first launch; once, in the background, the current build of a model an install downloaded before 2026-10-11 — the smaller Gemma re-pack, or Qwen3.5's Base build — skipped on cellular, hotspot and Low Data Mode networks, the old build serving until the replacement is in place; plus — on models that need it — an instruct sibling the first time you use <kbd>⌥Tab</kbd> **or dictate with “Tidy up” on**, since both run the same fix pass — and, on the Gemma tiers, a ~150 MB speculative-decoding drafter that speeds those two up, fetched in the background when it's missing, tried once per launch); a once-a-day GitHub Releases version check that sends nothing about you — turn it off in **Settings → General**; and Apple's on-device speech model for the language you dictate in, fetched from Apple's servers when you turn dictation on or pick a new language — the same system download the built-in keyboard dictation uses. If you opt into Parakeet dictation (Settings → General → Dictation), its ~610 MB CoreML model is fetched once from Hugging Face (`FluidInference/parakeet-ultra-coreml`; an install that opted in before it swaps its earlier `parakeet-tdt-0.6b-v3-coreml` for it once, in the background, on an unmetered network) into `~/Library/Application Support/FluidAudio`. A dictation never waits for the instruct sibling: it types what was heard and fetches in the background — on an unmetered network only; on a metered one the first <kbd>⌥Tab</kbd> fetches it — and the tidy-up starts once the download has finished. Sharing a per-app style with the community opens GitHub's new-file page in your browser, prefilled with that one style — the style text travels in that page's URL, so GitHub and your browser history see it as soon as the page opens; nothing is posted until you submit it there. |
-| **Accessibility** *(required)* | How Pretype reads the focused field, catches the accept key, and types text back. There is no way to do this without it. In a web page it also reads the page's host name (`mail.google.com`, never the full address) when the focus changes, so per-website settings can apply; it is held in memory only — never logged, journaled or sent — and only a website you add or switch off yourself is remembered, in Settings, like an app. On macOS 27 this permission is listed as **Device Control and Data Access**. |
-| **Screen Recording** *(optional, off)* | Only for on-screen OCR context, and only for the focused window. OCR'd text and clipboard contents are redacted from the debug log — an exported log carries a character count in their place, never the text. |
-| **Microphone** *(optional, off)* | Only for dictation, and only while a capture runs: while the key is physically held down — releasing it, pressing any other key, or switching apps stops the capture on the spot — or, with the hands-free chord, between its two presses, ending by itself after a few seconds of silence. Audio is never written to disk and never sent anywhere: it is resampled in memory, handed to the system's own on-device speech models (or, opted in, to Parakeet running on this Mac), and dropped. Names and terms already typed in the field are handed to the same on-device recognizer as spelling hints for that one capture. The dictation flow itself never journals the transcript, and it is redacted from the debug log exactly as OCR'd and clipboard text are — an exported log carries a character count in its place. If a transcript can't be typed (focus moved to a password field or to Pretype's own window), it is put on the clipboard instead of being lost — this Mac's only (no Universal Clipboard), marked transient so clipboard managers leave it out of their history. (Once typed, it is ordinary text in the field: a later suggestion may see it as surrounding context, the same as anything you type by hand.) |
-| **Stored locally** | A journal in `~/Library/Application Support/Pretype`, used for on-device personalization: every suggestion you were shown and how it ended, each with the text around the caret at that moment — up to 1,000 characters before it and 192 after — as plain text, capped at 50 MB (years of typing), plus any text you import yourself via **Settings → Personalization → Import Text…**. It is on by default; turning it off (**Settings → Personalization**) deletes all of it, imported passages included. OCR'd screen text is never journaled, and dictation writes no journal entries of its own (dictated text already in the field is ordinary surrounding text, as the Microphone row says). |
-| **Terminals** | Completions only inside an AI agent's prompt box (Claude Code) — in Terminal, iTerm2 and the terminal panel of VS Code-based editors. To find that box Pretype reads the terminal's text near the cursor; only what you typed into the box reaches the model, and the rest — the shell, command output — is dropped in memory, never journaled or logged. In Terminal and iTerm2 the fix and reply chords, dictation and screen OCR stay off. |
-| **Never runs** | In password managers, in a terminal's shell command line, while macOS reports secure input, and while an input method is mid-composition (Pinyin, kana, Telex, Hangul). Add your own apps to the blacklist in **Settings → General**, or silence the app you're in straight from the menu bar. |
+| **Your text** | Pretype never uploads it. A local MLX model or the Apple Intelligence system model computes every completion on the Mac. |
+| **Network** | Only downloads and one version check. No request contains your text. See [Network requests](#network-requests). |
+| **Accessibility** *(required)* | Pretype uses it to read the focused field, catch the accept key, and type text back. Pretype cannot do this without it. On macOS 27, this permission has the name **Device Control and Data Access**. See [Websites](#websites). |
+| **Screen Recording** *(optional, off)* | Pretype uses it only for on-screen OCR context, and only for the focused window. The debug log does not contain OCR text or clipboard contents. An exported log shows a character count in their place, never the text. |
+| **Microphone** *(optional, off)* | Pretype uses it only for dictation, and only while a capture runs. See [Microphone](#microphone). |
+| **Stored locally** | A journal for on-device personalization. See [Journal](#journal). |
+| **Terminals** | Pretype completes text only in the prompt box of an AI agent, such as Claude Code. See [Terminals](#terminals). |
+| **Never runs** | In password managers. In the shell command line of a terminal. While macOS reports secure input. While an input method is in mid-composition (Pinyin, kana, Telex, Hangul). |
+
+To stop Pretype in more apps, add them to the blacklist in **Settings → General**. To stop it in the current app, use the menu bar.
+
+### Network requests
+
+None of these requests contains your text.
+
+| Request | Source | When | Notes |
+|---|---|---|---|
+| Model weights | Hugging Face | First launch. | Needed for every local model. |
+| Current build of an older model | Hugging Face | One time, in the background. Only for an install that downloaded its model before 2026-10-11. | This is the smaller Gemma re-pack, or the Base build of Qwen3.5. Never on a cellular, hotspot or Low Data Mode network. The old build continues to serve until the new build is in place. |
+| Instruct sibling | Hugging Face | The first time that you use <kbd>⌥Tab</kbd>, **or dictate with “Tidy up” on**. Only on models that need it. | Both features use the same fix pass. A dictation does not wait for the download. It types what it heard and downloads in the background, on an unmetered network only. On a metered network, the first <kbd>⌥Tab</kbd> downloads it. The tidy-up starts after the download is complete. |
+| Speculative-decoding drafter, ~150 MB | Hugging Face | Gemma tiers only. In the background, when the drafter is missing. One attempt for each launch. | It makes the fix and reply chords faster. |
+| Version check | GitHub Releases API | One time each day. | It sends no data about you. To stop it, go to **Settings → General**. |
+| Speech model for your dictation language | Apple servers | When you turn on dictation, or select a new language. | This is the same system download that the built-in keyboard dictation uses. |
+| Parakeet dictation model, ~610 MB (CoreML) | Hugging Face (`FluidInference/parakeet-ultra-coreml`) | One time, only if you opt in (**Settings → General → Dictation**). | Stored in `~/Library/Application Support/FluidAudio`. An install that opted in before this model replaces its earlier `parakeet-tdt-0.6b-v3-coreml` one time, in the background, on an unmetered network. |
+| Share a per-app style | GitHub, in your browser | Only when you click the share button. | GitHub's new-file page opens with that one style. The style text is in the URL of the page. Thus GitHub and your browser history see it when the page opens. GitHub gets nothing more until you submit the page. |
+
+### Websites
+
+In a web page, Pretype reads the host name of the page when the focus changes. For example, it reads `mail.google.com`, never the full address. Per-website settings use this host name.
+
+* Pretype keeps the host name in memory only. It never logs, journals or sends it.
+* Pretype remembers only the websites that you add or switch off yourself. It keeps them in Settings, as it does for an app.
+
+### Microphone
+
+A capture runs only in these conditions:
+
+| Gesture | Capture starts | Capture stops |
+|---|---|---|
+| Hold | You hold the key down. | You release the key, press a different key, or switch apps. |
+| Hands-free chord | First press. | Second press, or after a few seconds of silence. |
+
+* Pretype never writes audio to disk and never sends it. It resamples the audio in memory, gives it to the system's on-device speech models, and then discards it. If you opt in to Parakeet, Parakeet does the transcription on this Mac.
+* Pretype gives the names and terms that are already in the field to the same on-device recognizer. These are spelling hints for that one capture.
+* The dictation flow never journals the transcript. The debug log does not contain it, as for OCR and clipboard text. An exported log shows a character count in its place.
+* Sometimes Pretype cannot type a transcript, for example when the focus moved to a password field or to a Pretype window. Then Pretype puts the transcript on the clipboard.
+  * This clipboard is for this Mac only (no Universal Clipboard).
+  * Pretype marks it as transient, so clipboard managers do not keep it in their history.
+* After Pretype types the transcript, it is ordinary text in the field. A later suggestion can see it as surrounding context, as it sees text that you type by hand.
+
+### Journal
+
+Pretype keeps a journal in `~/Library/Application Support/Pretype` for on-device personalization.
+
+| | |
+|---|---|
+| **Contents** | Every suggestion that Pretype showed you, and its result. Each entry has the text around the caret at that time: up to 1,000 characters before it and 192 after it. Plus any text that you import with **Settings → Personalization → Import Text…**. |
+| **Format** | Plain text. |
+| **Maximum size** | 50 MB (years of typing). |
+| **Default** | On. |
+| **To delete** | Switch it off in **Settings → Personalization**. This deletes all of the journal, imported text included. |
+| **Never in the journal** | OCR screen text. Dictation writes no journal entries of its own. Dictated text that is already in the field is ordinary surrounding text (see [Microphone](#microphone)). |
+
+### Terminals
+
+Pretype completes text only in the prompt box of an AI agent, such as Claude Code. This works in Terminal, iTerm2 and the terminal panel of VS Code-based editors.
+
+* To find the prompt box, Pretype reads the terminal text near the cursor.
+* Only the text that you typed into the box goes to the model.
+* Pretype discards all other text (the shell, the command output) in memory. It never journals or logs this text.
+* In Terminal and iTerm2, these features stay off: the fix and reply chords, dictation and screen OCR.
 
 ## Uninstall
 
-Pretype keeps everything in the places below — remove them all and nothing Pretype wrote remains (the speech models dictation uses belong to macOS, shared with its own dictation, and stay):
+Pretype keeps its data in the locations below. Remove all of them, and nothing that Pretype wrote stays on the Mac. The speech models that dictation uses belong to macOS. macOS shares them with its own dictation, so they stay.
 
-```bash
-# 1. The app. If you turned on "Open at login", switch it off FIRST (Settings →
-#    General, or System Settings → General → Login Items) — that registration
-#    lives in macOS, not in the app, and deleting the bundle leaves it behind.
-rm -rf /Applications/Pretype.app
+> **CAUTION:** If you turned on "Open at login", switch it off before you delete the app. Use **Settings → General**, or **System Settings → General → Login Items**. macOS keeps this registration outside the app. If you delete the app first, the registration stays.
 
-# 2. Downloaded models (several GB). Settings → Model lists each one with its
-#    size and a Delete button, which only ever touches Pretype's own catalog —
-#    but it never offers the model you're currently using, so for a FULL wipe
-#    when uninstalling, use the globs. They are the blunt version: they match
-#    the WHOLE mlx-community / openbmb / prism-ml orgs in the shared Hugging
-#    Face cache. Skip those three if any other MLX tool (LM Studio, mlx_lm, …)
-#    uses it; nikimori holds only Pretype's own re-packs (Qwen3.5 2B Base, the
-#    default on 8 GB Macs, and the slim Gemma tiers).
-rm -rf ~/.cache/huggingface/hub/models--nikimori--* \
-       ~/.cache/huggingface/hub/models--openbmb--* \
-       ~/.cache/huggingface/hub/models--mlx-community--* \
-       ~/.cache/huggingface/hub/models--prism-ml--*
+1. Delete the app. If you installed Pretype with Homebrew, use `brew uninstall pretype` in place of this command.
 
-# 3. The Parakeet dictation model (~610 MB), only if you opted into it. The
-#    folder belongs to the FluidAudio library — skip this if another app on
-#    your Mac uses it too.
-rm -rf ~/Library/Application\ Support/FluidAudio
+   ```bash
+   rm -rf /Applications/Pretype.app
+   ```
 
-# 4. Local personalization data (suggestion journal, learned n-grams)
-rm -rf ~/Library/Application\ Support/Pretype
+2. Delete the downloaded models (several GB).
 
-# 5. Settings and the permission grants (drop the last two if you never
-#    turned on screen context or dictation)
-defaults delete app.pretype.Pretype
-tccutil reset Accessibility app.pretype.Pretype
-tccutil reset ScreenCapture app.pretype.Pretype
-tccutil reset Microphone app.pretype.Pretype
-```
+   **Settings → Model** shows each model with its size and a Delete button. This button deletes only models from the Pretype catalog. But it does not show the model that you use now. Thus, for a full removal, use the command below.
 
-Installed with Homebrew? `brew uninstall pretype` replaces step 1; steps 2–5 still apply.
+   > **WARNING:** This command deletes the full `mlx-community`, `openbmb` and `prism-ml` organizations from the shared Hugging Face cache. If a different MLX tool (LM Studio, mlx_lm, …) uses this cache, do not delete those three lines. The `nikimori` organization contains only Pretype's own re-packs (Qwen3.5 2B Base, the default on 8 GB Macs, and the slim Gemma tiers).
 
-Report a security issue privately per [SECURITY.md](../SECURITY.md).
+   ```bash
+   rm -rf ~/.cache/huggingface/hub/models--nikimori--* \
+          ~/.cache/huggingface/hub/models--openbmb--* \
+          ~/.cache/huggingface/hub/models--mlx-community--* \
+          ~/.cache/huggingface/hub/models--prism-ml--*
+   ```
+
+3. Delete the Parakeet dictation model (~610 MB). Do this step only if you opted in to Parakeet.
+
+   > **CAUTION:** This folder belongs to the FluidAudio library. If a different app on your Mac also uses it, do not delete it.
+
+   ```bash
+   rm -rf ~/Library/Application\ Support/FluidAudio
+   ```
+
+4. Delete the local personalization data (the suggestion journal and the learned n-grams).
+
+   ```bash
+   rm -rf ~/Library/Application\ Support/Pretype
+   ```
+
+5. Delete the settings and reset the permission grants. If you never turned on screen context or dictation, you do not need the last two commands.
+
+   ```bash
+   defaults delete app.pretype.Pretype
+   tccutil reset Accessibility app.pretype.Pretype
+   tccutil reset ScreenCapture app.pretype.Pretype
+   tccutil reset Microphone app.pretype.Pretype
+   ```
+
+To report a security problem, use the private procedure in [SECURITY.md](../SECURITY.md).

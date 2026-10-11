@@ -1,0 +1,31 @@
+%% Data flow: what stays on the Mac, what the app downloads.
+%% Every arrow from the internet points in: downloads and one version number.
+flowchart TB
+  subgraph mac["Your Mac"]
+    direction TB
+    field["Text field<br/>in any app"]
+    app["Pretype"]
+    model[("Local model<br/>MLX or Apple Intelligence")]
+    journal[("Journal<br/>(local file)")]
+    mic["Microphone<br/>(dictation, optional)"]
+    speech[("On-device<br/>speech model")]
+    field -- "text at the caret" --> app
+    app -- "suggestion" --> field
+    app <--> model
+    app --> journal
+    mic -- "audio, in memory only" --> speech
+    speech -- "transcript" --> app
+  end
+  subgraph net["Internet"]
+    direction TB
+    hf["Hugging Face"]
+    apple["Apple servers"]
+    gh["GitHub Releases API"]
+  end
+  hf -- "model weights (download)" --> model
+  apple -- "speech model (download)" --> speech
+  gh -- "latest version number" --> app
+  app -. "your text: never sent" .-x net
+  classDef ext fill:#f2f2f5,stroke:#8e8e93,color:#1d1d1f
+  class hf,apple,gh ext
+  linkStyle 9 stroke:#ff3b30,color:#d70015
