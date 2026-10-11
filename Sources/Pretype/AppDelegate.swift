@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Accessibility is how Pretype reads the text field you're typing in, \
                 catches the \(Settings.hotkeyStyle.label) key, and types accepted suggestions back.
 
-                macOS will ask you to grant it next. Everything you type stays on this Mac.
+                macOS will ask you to grant it next, under Privacy & Security → \(Permissions.paneName). \
+                Everything you type stays on this Mac.
                 """
             }
             alert.addButton(withTitle: "Continue")
