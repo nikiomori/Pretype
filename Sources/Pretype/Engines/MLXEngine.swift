@@ -65,7 +65,10 @@ final class MLXEngine: CompletionEngine {
     /// On top of the −1.5 logprob trim it cuts another ~1.1–1.3 garbage chars
     /// per suggestion (−17…−19%) at no measurable cost in correct chars or
     /// latency — eval-real EN+RU core, even-picked / odd-verified on E2B 8-bit
-    /// and Qwen3.5 2B (Eval/runs-2026-10-11, analyze-entropy.py).
+    /// and Qwen3.5 2B (Eval/runs-2026-10-11, analyze-entropy.py). Instruct
+    /// primaries too: E2B-it / E4B-it 4-bit −0.14 / −0.37 garbage chars per
+    /// row, correct chars unchanged, p50 a tie in interleaved pairs
+    /// (Eval/runs-2026-10-11-audit, analyze-ient.py).
     /// `PRETYPE_TRIM_ENTROPY=<nats>|off` is the A/B knob.
     private static let trimEntropyThreshold: Float? =
         ProcessInfo.processInfo.environment["PRETYPE_TRIM_ENTROPY"].map { Float($0) } ?? 2.5
