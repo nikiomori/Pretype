@@ -268,6 +268,27 @@ enum AXText {
     /// an empty (or placeholder-showing) value.
     static func context(for element: AXUIElement, maxChars: Int,
                         allowEmpty: Bool = false) -> TextContext? {
+        // A terminal is text only inside an AI agent's input box — the whole
+        // screen otherwise, and the shell's command line is never ours. Read
+        // wider there: the box sits under its rule, a full terminal row up.
+        // An xterm.js panel sits in an editor, not a terminal app: outside an
+        // agent box it reads as before (an empty field — dictation still
+        // types there; completions find nothing).
+        if (attribute(element, "AXDOMClassList") as [String]?)?.contains("xterm-helper-textarea") == true {
+            return xtermContext(element).flatMap(AgentPrompt.context)
+                ?? fieldContext(for: element, maxChars: maxChars, allowEmpty: allowEmpty)
+        }
+        var pid: pid_t = 0
+        if AXUIElementGetPid(element, &pid) == .success,
+           AppPolicy.isTerminal(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier) {
+            return fieldContext(for: element, maxChars: max(maxChars, 4000), allowEmpty: allowEmpty)
+                .flatMap(AgentPrompt.context)
+        }
+        return fieldContext(for: element, maxChars: maxChars, allowEmpty: allowEmpty)
+    }
+
+    private static func fieldContext(for element: AXUIElement, maxChars: Int,
+                                     allowEmpty: Bool) -> TextContext? {
         // Privacy floor: never read field text while a password field is active
         // anywhere (covers web/Electron password inputs the subrole check misses).
         if isSecureInputActive() { return nil }
@@ -458,6 +479,47 @@ enum AXText {
                            host: HostTextStyle(font: font, color: style.color,
                                                background: style.background, fieldRect: box,
                                                textFollowsCaret: linePopulatedAfterCaret(afterCaret)))
+    }
+
+    /// An xterm.js terminal (VS Code's, Cursor's, Hyper): the focused element
+    /// is a hidden textarea parked on the cursor cell, and the screen's text
+    /// lives in a separate accessibility tree, one element per viewport row.
+    /// Rebuilds the text around the cursor from the rows near it — enough for
+    /// `AgentPrompt` to find an input box — at two AX reads a row.
+    private static func xtermContext(_ helper: AXUIElement) -> TextContext? {
+        guard let screen = element(helper, kAXParentAttribute).flatMap({ element($0, kAXParentAttribute) }),
+              let root = element(screen, kAXParentAttribute),
+              let cursor = elementFrame(helper), let screenFrame = elementFrame(screen), cursor.height >= 4,
+              let a11y = (attribute(root, kAXChildrenAttribute) as [AXUIElement]?)?
+                .first(where: { domClasses($0).contains("xterm-accessibility") }),
+              let tree = (attribute(a11y, kAXChildrenAttribute) as [AXUIElement]?)?.first,
+              let rows: [AXUIElement] = attribute(tree, kAXChildrenAttribute) else { return nil }
+        let cursorRow = Int(((cursor.minY - screenFrame.minY) / cursor.height).rounded())
+        guard rows.indices.contains(cursorRow) else { return nil }
+        let window = max(0, cursorRow - 20) ... min(rows.count - 1, cursorRow + 2)
+        let text = window.map { i in
+            (attribute(rows[i], kAXChildrenAttribute) as [AXUIElement]?)?.first
+                .flatMap { attribute($0, kAXValueAttribute) as String? } ?? ""
+        }
+        // Rows are right-trimmed, so the full-width ones (an agent box's
+        // rules) give the column count; no full row, no box to find anyway.
+        guard let columns = text.map(\.count).max(), columns > 0 else { return nil }
+        let column = max(0, Int(((cursor.minX - screenFrame.minX) / (screenFrame.width / CGFloat(columns))).rounded()))
+        // ponytail: one cell per character — a wide (CJK, emoji) cell before
+        // the cursor shifts the split; fine for the box's end-of-input caret.
+        let row = cursorRow - window.lowerBound, line = Array(text[row])
+        let typed = String(line.prefix(column)) + String(repeating: " ", count: max(0, column - line.count))
+        guard let caret = onScreen(flipped(CGRect(x: cursor.minX, y: cursor.minY, width: 1, height: cursor.height)))
+        else { return nil }
+        return TextContext(textBeforeCaret: (text[..<row] + [typed]).joined(separator: "\n"),
+                           textAfterCaret: ([String(line.dropFirst(column))] + text[(row + 1)...]).joined(separator: "\n"),
+                           caretRect: caret,
+                           host: HostTextStyle(font: nil, color: nil, background: nil,
+                                               fieldRect: cocoaFieldRect(screenFrame), textFollowsCaret: false))
+    }
+
+    private static func domClasses(_ element: AXUIElement) -> [String] {
+        attribute(element, "AXDOMClassList") ?? []
     }
 
     /// Is this text-marker rect the genuine cursor? A caret is a hairline of

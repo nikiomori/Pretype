@@ -759,7 +759,7 @@ struct GeneralTab: View {
 
             Section {
                 if store.blacklist.isEmpty {
-                    Caption("Suggestions currently run everywhere except terminals and password managers, which are always excluded. Add apps where Pretype should stay silent.")
+                    Caption("Suggestions currently run everywhere except password managers, which are always excluded, and terminals, where they run only in an AI agent's prompt. Add apps where Pretype should stay silent.")
                 }
                 ForEach(store.blacklist, id: \.self) { entry in
                     BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }

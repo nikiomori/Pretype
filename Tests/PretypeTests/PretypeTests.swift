@@ -469,6 +469,35 @@ final class PretypeTests: XCTestCase {
 
     // Prompt lookup drafts the fix from its own input: longest n-gram first,
     // newest prompt occurrence, never past the prompt or the key itself.
+    // Terminal.app's AX text around the caret, as read from a live Claude
+    // Code session (v2.1): the input box is the only place a terminal gets
+    // completions, and its soft wraps must rejoin into the typed prompt.
+    func testAgentPromptInTerminal() {
+        let rule = String(repeating: "─", count: 80)
+        let screen = "nikimori@mac ~ % claude\n▗ ▗   ▖ ▖  Claude Code v2.1.296\n\(rule)\n"
+        let below = "\n\(rule)\n  ⏵⏵ auto mode on"
+        let wrapped = screen + "❯\u{a0}please check why the build fails on CI and fix the flaky test in the \n"
+            + "  dictation controller so it stops timing out when the machine is"
+        XCTAssertEqual(AgentPrompt.input(before: wrapped, after: below),
+                       "please check why the build fails on CI and fix the flaky test in the "
+                       + "dictation controller so it stops timing out when the machine is")
+        XCTAssertEqual(AgentPrompt.input(before: screen + "❯ ", after: below), "")
+        // VS Code: the editor-selection chip is not part of the prompt.
+        XCTAssertEqual(AgentPrompt.input(before: screen + "❯\u{a0}[⧉ In README.md] explain", after: below), "explain")
+        // A newline the user typed: the line ended short, without a wrap space.
+        XCTAssertEqual(AgentPrompt.input(before: screen + "❯ first line\n  second", after: below),
+                       "first line\nsecond")
+        // Caret mid-input, or the placeholder Claude Code draws in an empty box.
+        XCTAssertNil(AgentPrompt.input(before: screen + "❯ fix the", after: " test" + below))
+        // A shell prompt — starship's ❯ included — has no rule under it.
+        XCTAssertNil(AgentPrompt.input(before: screen + "❯ git sta", after: "\n\n"))
+        XCTAssertNil(AgentPrompt.input(before: "~ % ls\nREADME.md\n❯ git sta", after: below))
+        // Agent output above the box is not the box.
+        XCTAssertNil(AgentPrompt.input(before: screen + "⏺ Done. The build passes", after: below))
+        // Claude Code's `!` bash mode stays a shell.
+        XCTAssertNil(AgentPrompt.input(before: screen + "! git push", after: below))
+    }
+
     func testPromptLookupDraft() {
         typealias L = MLXEngine.PromptLookupIterator
         // prompt = 1 2 3 4 5 | 9 1 2 3 4 5 6 7 8 | 0 ; output so far: 2 3

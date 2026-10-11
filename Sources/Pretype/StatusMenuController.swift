@@ -295,12 +295,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // left: one long app name must not set the menu's width.
         let name = String((context.appName ?? bundleID).prefix(40))
         appBlacklistItem.toolTip = nil
-        if AppPolicy.isTerminal(bundleID) || AppPolicy.isCredentialApp(bundleID) {
+        if AppPolicy.isCredentialApp(bundleID) {
             // Built-in blocks can't be lifted, so the item states the fact and
             // greys itself out (nil action + NSMenu autoenabling) rather than
             // offering a toggle that would silently do nothing. Code editors are
             // deliberately not here: they only lose screen OCR, and stay
-            // toggleable.
+            // toggleable — as do terminals, whose agent-prompt completions are
+            // the one thing the toggle governs there.
             appBlacklistItem.title = fitting("Always off in \(name)")
             appBlacklistItem.action = nil
             appBlacklistItem.image = symbol("hand.raised")

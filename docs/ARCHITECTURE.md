@@ -212,8 +212,10 @@ Hold-to-talk, off by default, macOS 26+ (`Sources/Pretype/Dictation/`).
 ## Context
 
 * **App awareness** — prompt style adapts to the active app (short completions
-  in chat apps, disabled entirely in terminals and password managers), and all
-  reading stops while macOS reports secure input.
+  in chat apps, disabled entirely in password managers, and in terminals
+  everywhere but an AI agent's prompt box — `AgentPrompt` finds it in the
+  terminal's AX text, `AXText.xtermContext` rebuilds that text for xterm.js
+  terminals), and all reading stops while macOS reports secure input.
 * **Screen context** — optional, off by default. Runs Apple's Vision OCR on the
   focused window to pull in nearby text, such as the email thread you're
   replying to. Requires Screen Recording. OCR'd text never enters the debug

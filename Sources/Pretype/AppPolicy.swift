@@ -1,8 +1,9 @@
 import Foundation
 import IOKit.ps
 
-/// Per-app behavior policy. Terminals get no suggestions at all (ghost text
-/// next to shell commands is dangerous noise); password managers get neither
+/// Per-app behavior policy. Terminals get suggestions only inside an AI
+/// agent's input box (`AgentPrompt`) — ghost text next to shell commands is
+/// dangerous noise, and the fix/reply chords stay off there; password managers get neither
 /// suggestions nor screen OCR (their windows are full of secrets, and the
 /// secure-input guard only covers focused password *fields*, not item lists,
 /// search boxes or secure notes); code editors keep suggestions but never
@@ -20,6 +21,14 @@ enum AppPolicy {
 
     static func isTerminal(_ bundleID: String?) -> Bool {
         matches(bundleID, ["terminal", "iterm", "warp", "alacritty", "kitty", "hyper", "ghostty"])
+    }
+
+    /// Completions may run here: anywhere not switched off — and in a
+    /// terminal, off for everything else, while the user hasn't switched it
+    /// off too (`AXText.context` reads only an agent's input box there).
+    static func allowsCompletions(_ context: TypingContext) -> Bool {
+        !isBlacklisted(context)
+            || (isTerminal(context.bundleID) && userBlacklistEntries(for: context.bundleID).isEmpty)
     }
 
     static func isCredentialApp(_ bundleID: String?) -> Bool {

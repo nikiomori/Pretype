@@ -1,0 +1,2 @@
+# iTerm2 — completions here run only inside an AI coding agent's prompt (Claude Code)
+These are prompts to an AI coding agent. Write direct, technical instructions: what to change and why, with files, functions, commands and error messages named exactly. No greetings or pleasantries.

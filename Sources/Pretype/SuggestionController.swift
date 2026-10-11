@@ -491,7 +491,7 @@ final class SuggestionController: NSObject {
     /// the next keystroke (where a cold prefill measured ~0.45 s on E4B-8bit).
     private func warmPromptForCurrentText(_ typed: String? = nil) {
         guard Settings.enabled, !isOwnUIFrontmost, !dictationController.isBusy,
-              !AppPolicy.pausedForBattery, !AppPolicy.isBlacklisted(typingContext),
+              !AppPolicy.pausedForBattery, AppPolicy.allowsCompletions(typingContext),
               !Stats.isUnproductive(typingContext.bundleID),
               let text = typed ?? latestTextBeforeCaret,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -583,7 +583,7 @@ final class SuggestionController: NSObject {
         // Checked on both sides of the lookup: before it, the app (no AX
         // reads in a terminal); after it, also a site that only resolving a
         // field the tracker missed could read.
-        if AppPolicy.isBlacklisted(typingContext) {
+        if !AppPolicy.allowsCompletions(typingContext) {
             lastEvent = "suggestions are off in blacklisted apps"
             dismiss()
             return
@@ -607,8 +607,9 @@ final class SuggestionController: NSObject {
             return
         }
         // A selection switches into fix-selection mode (⌥⇥); the correction
-        // controller owns the overlay while it's up.
-        if correctionController.handleSelection(element) { return }
+        // controller owns the overlay while it's up. Not in a terminal, where
+        // a selection is screen output and the chord is off.
+        if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleSelection(element) { return }
 
         guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) else {
             if active != nil { lastEvent = "lost text element" }
@@ -1834,8 +1835,8 @@ extension SuggestionController: FocusTrackerDelegate {
         trackedContext = newContext
         fallbackSiteElement = nil
         fallbackSite = nil
-        let policy = AppPolicy.isBlacklisted(typingContext)
-            ? " — suggestions off (blacklisted)"
+        let policy = !AppPolicy.allowsCompletions(typingContext) ? " — suggestions off (blacklisted)"
+            : AppPolicy.isTerminal(typingContext.bundleID) ? " — terminal, AI agent prompts only"
             : (AppPolicy.isCodeEditor(typingContext.bundleID) ? " — code editor, no screen context" : "")
         DebugLog.shared.log(
             "FOCUS",
@@ -1867,7 +1868,7 @@ extension SuggestionController: FocusTrackerDelegate {
         // Paused (or on battery), blacklisted or quiet: no reload, no
         // indicator, no screenshot.
         if let element = tracker.focusedTextElement, Settings.enabled,
-           !AppPolicy.pausedForBattery, !AppPolicy.isBlacklisted(typingContext),
+           !AppPolicy.pausedForBattery, AppPolicy.allowsCompletions(typingContext),
            !Stats.isUnproductive(typingContext.bundleID) {
             // Entered a text field — start reloading the model now (no-op unless
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
