@@ -1651,7 +1651,7 @@ final class SuggestionController: NSObject {
         guard !AXText.isSecureInputActive() else {
             return drop("secure input engaged", hint: "a password field took focus")
         }
-        guard currentTextElement() != nil else {
+        guard dictationElement() != nil else {
             return drop("no text field", hint: "no text field in focus")
         }
         // Remade at injection time like the rest: a composition opened during
@@ -1678,9 +1678,11 @@ final class SuggestionController: NSObject {
         let chunk = context.map {
             Self.spacedForInsertion(text, after: $0.textBeforeCaret, before: $0.textAfterCaret)
         } ?? text
-        // Without a read the cache is unknown, not the old field's text.
-        let snapshot = inject(chunk, over: before)
-        if before != nil {
+        // Without a read the cache is unknown, not the old field's text — and a
+        // launcher's text is no cache of the tracked field's, nor a ⌘Z of ours.
+        let inLauncher = keyboardFocusIsElsewhere
+        let snapshot = inject(chunk, over: inLauncher ? nil : before)
+        if before != nil, !inLauncher {
             lastAcceptedChunk = chunk
             // ⌘Z removes it exactly like an accepted suggestion — but the undo
             // path books what it removed, and this chunk was spoken.
@@ -1913,16 +1915,24 @@ extension SuggestionController: DictationHost {
     var fallbackCaretRect: CGRect? { lastCaretRect }
     var fallbackHostStyle: HostTextStyle { lastHostStyle }
 
-    func hasFocusedTextField() -> Bool { currentTextElement() != nil }
+    func hasFocusedTextField() -> Bool { dictationElement() != nil }
+
+    var focusIsInLauncher: Bool { keyboardFocusIsElsewhere }
+
+    /// The field a dictation types into. Unlike the pipeline's, a launcher's
+    /// counts (Spotlight, Raycast): the transcript is typed into whatever holds
+    /// keyboard focus, and a search spoken into Spotlight is a fine use — it is
+    /// only a ghost from the app underneath that must never land there.
+    private func dictationElement() -> AXUIElement? {
+        keyboardFocusIsElsewhere ? AXText.systemFocusedTextElement() : currentTextElement()
+    }
 
     /// Precise marked-text only — `AXText.hasMarkedText`, not `isComposing` —
     /// so a CJK input source merely being SELECTED (the coarse fallback's
     /// answer in Electron/Chromium) doesn't ban dictation wholesale where it
     /// demonstrably works today.
     func isComposingInFocusedField() -> Bool {
-        guard let element = focusTracker.focusedTextElement
-            ?? AXText.systemFocusedTextElement() else { return false }
-        return AXText.hasMarkedText(element)
+        dictationElement().map(AXText.hasMarkedText) ?? false
     }
 
     func cancelPendingFix() { correctionController.reset() }
@@ -1931,7 +1941,7 @@ extension SuggestionController: DictationHost {
         guard let ctx = dictationFieldContext() else { return nil }
         // Only read when it can matter: the selection is a voice command's target.
         let selected = Settings.dictationCommands
-            ? currentTextElement().flatMap { AXText.selectionInfo(for: $0)?.text } ?? "" : ""
+            ? dictationElement().flatMap { AXText.selectionInfo(for: $0)?.text } ?? "" : ""
         return DictationAnchor(caretRect: ctx.caretRect, host: ctx.host,
                                textBeforeCaret: ctx.textBeforeCaret, selectedText: selected)
     }
@@ -1954,7 +1964,10 @@ extension SuggestionController: DictationHost {
         func read(_ element: AXUIElement) -> TextContext? {
             AXText.context(for: element, maxChars: Settings.maxContextChars, allowEmpty: true)
         }
-        if let element = focusTracker.focusedTextElement, let ctx = read(element) { return ctx }
+        // In a launcher the tracked field is the app underneath; the system's
+        // focused element is the launcher's own field.
+        if !keyboardFocusIsElsewhere, let element = focusTracker.focusedTextElement,
+           let ctx = read(element) { return ctx }
         guard let fresh = AXText.systemFocusedTextElement() else { return nil }
         return read(fresh)
     }

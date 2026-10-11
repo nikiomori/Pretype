@@ -192,6 +192,7 @@ final class DictationController {
     /// Where the capture started — the field the words belong to. A result is
     /// only ever inserted while the focus generation still matches.
     private var focusGeneration = 0
+    private var startedInLauncher = false
     private var caretRect: CGRect?
     private var hostStyle = HostTextStyle()
     /// Text before the caret when the key went down, so the tidy-up pass can
@@ -609,6 +610,7 @@ final class DictationController {
         restarts = 0
         firstRestartAt = Date()
         focusGeneration = owner.focusGeneration
+        startedInLauncher = owner.focusIsInLauncher
         caretRect = rect
         hostStyle = anchor?.host ?? HostTextStyle()
         contextBefore = anchor?.textBeforeCaret ?? ""
@@ -944,6 +946,8 @@ final class DictationController {
         render()
         let gen = generation
         let targetFocus = focusGeneration
+        let inLauncher = startedInLauncher
+        let focusHeld = { owner.focusGeneration == targetFocus && owner.focusIsInLauncher == inLauncher }
         sessionTask = Task { @MainActor [weak self] in
             do {
                 // Behind a deadline, because `finish` awaits the analyzer's own
@@ -975,7 +979,7 @@ final class DictationController {
                     self.phase = .idle
                     self.session = nil
                     owner.hideOverlay()
-                    if owner.focusGeneration == targetFocus {
+                    if focusHeld() {
                         owner.applyVoiceCommand(transcript, to: selection)
                     } else {
                         Self.note("dropped a voice command — focus changed")
@@ -994,7 +998,7 @@ final class DictationController {
                 self.phase = .idle
                 self.session = nil
                 owner.hideOverlay()
-                if owner.focusGeneration == targetFocus {
+                if focusHeld() {
                     owner.insertDictated(text)
                 } else {
                     Self.note("rescued \(text.count) chars to the clipboard — focus changed")

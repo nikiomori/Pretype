@@ -31,6 +31,10 @@ protocol DictationHost: AnyObject {
     /// Bumped by the host on every real focus change; a transcript is only
     /// inserted while the value still matches the one captured at `begin`.
     var focusGeneration: Int { get }
+    /// Keyboard focus is in a launcher (Spotlight, Raycast) over the tracked
+    /// app. Opening or closing one fires no focus change, so a transcript
+    /// started on one side of it is rescued, not typed, on the other.
+    var focusIsInLauncher: Bool { get }
     /// The last caret the host drew at — where a refusal notice goes when this
     /// capture never got far enough to read a caret of its own.
     var fallbackCaretRect: CGRect? { get }
@@ -94,3 +98,7 @@ protocol AudioCapturing: AnyObject {
 }
 
 extension AudioCapture: AudioCapturing {}
+
+extension DictationHost {
+    var focusIsInLauncher: Bool { false }
+}

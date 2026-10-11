@@ -65,6 +65,7 @@ private final class MockDictationHost: DictationHost {
     var lastEvent = ""
     var typingContext = TypingContext()
     var focusGeneration = 0
+    var focusIsInLauncher = false
     var fallbackCaretRect: CGRect?
     var fallbackHostStyle = HostTextStyle()
     var onDictationActivity: (() -> Void)?
@@ -940,6 +941,30 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.inserted.isEmpty)
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// A launcher (Spotlight) closed during the capture fires no focus change,
+    /// so the transcript meant for its search field would type into the
+    /// document underneath — it goes to the clipboard instead. Spoken and
+    /// finished inside the launcher, it is typed there.
+    func testLauncherClosingMidCaptureRescuesTheTranscript() async {
+        let rig = makeRig()
+        rig.host.focusIsInLauncher = true
+        await startCapture(rig)
+        await hear("weather tomorrow", in: rig)
+        rig.host.focusIsInLauncher = false
+        await release(rig.controller)
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+
+        let stays = makeRig()
+        stays.host.focusIsInLauncher = true
+        await startCapture(stays)
+        await hear("weather tomorrow", in: stays)
+        await release(stays.controller)
+        await pump(until: { !stays.host.inserted.isEmpty })
+        XCTAssertEqual(stays.host.inserted, ["hello world"])
     }
 
     /// Voice command mode: with text selected, the transcript is an instruction
