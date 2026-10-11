@@ -197,6 +197,9 @@ final class DictationController {
     /// Text before the caret when the key went down, so the tidy-up pass can
     /// see what the sentence is continuing.
     private var contextBefore = ""
+    /// The selection this capture's words are an instruction for (voice
+    /// command mode), or nil for ordinary dictation.
+    private var commandSelection: String?
 
     /// Dictation events go to the *unified* log as well as the in-app console.
     ///
@@ -604,6 +607,8 @@ final class DictationController {
         caretRect = rect
         hostStyle = anchor?.host ?? HostTextStyle()
         contextBefore = anchor?.textBeforeCaret ?? ""
+        commandSelection = Settings.dictationCommands
+            ? anchor.flatMap { $0.selectedText.isEmpty ? nil : $0.selectedText } : nil
         Transcription.contextualWords.set(Transcription.biasWords(in: contextBefore))
         if let rect, let anchor { owner.noteCaret(rect: rect, host: anchor.host) }
         generation += 1
@@ -956,6 +961,21 @@ final class DictationController {
                 let transcript = Self.clean(raw)
                 guard !transcript.isEmpty else {
                     self.discard(notice: .hint("nothing heard"))
+                    return
+                }
+                if let selection = self.commandSelection {
+                    // A spoken instruction, not text to type: no tidy-up (its
+                    // punctuation doesn't matter), and nothing to rescue if the
+                    // focus moved — the selection it was about is gone.
+                    self.phase = .idle
+                    self.session = nil
+                    owner.hideOverlay()
+                    if owner.focusGeneration == targetFocus {
+                        owner.applyVoiceCommand(transcript, to: selection)
+                    } else {
+                        Self.note("dropped a voice command — focus changed")
+                    }
+                    self.resumePendingHold(noticeIfMissed: true)
                     return
                 }
                 var text = transcript

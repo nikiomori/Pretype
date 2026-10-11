@@ -491,6 +491,7 @@ enum Settings {
             // waiting for, and it is what makes this Pretype's dictation
             // rather than a second copy of the system's.
             "dictationPolish": true,
+            "dictationCommands": false,
             "dictationLanguage": "auto",
             "dictationInput": "auto",
             "onboardingCompleted": false,
@@ -730,6 +731,15 @@ enum Settings {
     static var dictationPolish: Bool {
         get { defaults.bool(forKey: "dictationPolish") }
         set { defaults.set(newValue, forKey: "dictationPolish") }
+    }
+
+    /// Voice command mode: dictating while text is selected speaks an
+    /// INSTRUCTION for that selection ("make it shorter", "translate to
+    /// English"), previewed like a ⌥⇥ fix. Off by default — it changes what
+    /// dictating over a selection means (otherwise: replace it).
+    static var dictationCommands: Bool {
+        get { defaults.bool(forKey: "dictationCommands") }
+        set { defaults.set(newValue, forKey: "dictationCommands") }
     }
 
     /// Which microphone a capture opens: "auto" (keep a Bluetooth headset out

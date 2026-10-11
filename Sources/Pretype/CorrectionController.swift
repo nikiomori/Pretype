@@ -255,6 +255,27 @@ final class CorrectionController {
         )
     }
 
+    /// Voice command mode: the spoken `instruction` applied to `selection`,
+    /// previewed and confirmed exactly like a ⌥⇥ fix — so ⏎/⇥ applies it over
+    /// the selection (re-validated live), ⎋ keeps the original.
+    func runVoiceCommand(_ instruction: String, selection text: String) {
+        guard let owner, !inFlight else { return }
+        if let element = owner.currentTextElement(), let rect = AXText.selectionInfo(for: element)?.rect {
+            owner.lastCaretRect = rect
+        }
+        owner.clearActiveCompletion()
+        runFix(
+            selectionText: text,
+            request: owner.makeRequest(text: ""),
+            makePending: { PendingFix(original: text, replacement: $0) },
+            proposedEvent: "voice command — ⏎ to apply, esc to keep",
+            unchangedNotice: "no change",
+            perform: { engine, request in
+                try await engine.rewrite(selection: text, instruction: instruction, request: request)
+            }
+        )
+    }
+
     /// ⌥⇥ with no selection: propose a fix for the just-typed last word. The
     /// caret must sit at the end of a word (mid-word is the completion's job).
     /// Runs off the event-tap callback (it does a synchronous AX read); a no-op
@@ -286,7 +307,9 @@ final class CorrectionController {
         selectionText: String,
         request: CompletionRequest,
         makePending: @escaping (String) -> PendingFix,
-        proposedEvent: String
+        proposedEvent: String,
+        unchangedNotice: String = "✓ looks fine",
+        perform: (@Sendable (any CompletionEngine, CompletionRequest) async throws -> String?)? = nil
     ) {
         guard let owner else { return }
         inFlight = true
@@ -297,7 +320,11 @@ final class CorrectionController {
             let started = Date()
             let outcome: Result<String?, Error>
             do {
-                outcome = .success(try await engine.correct(selection: selectionText, request: request))
+                if let perform {
+                    outcome = .success(try await perform(engine, request))
+                } else {
+                    outcome = .success(try await engine.correct(selection: selectionText, request: request))
+                }
             } catch is CancellationError {
                 return
             } catch {
@@ -338,7 +365,7 @@ final class CorrectionController {
             case .success(nil):
                 owner.lastEvent = "nothing to fix"
                 DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
-                owner.indicator.flashTransient(.hint("✓ looks fine"))
+                owner.indicator.flashTransient(.hint(unchangedNotice))
             case .failure(let error):
                 owner.lastEvent = "fix failed: \(error.localizedDescription)"
                 DebugLog.shared.log("ERROR", "correction failed: \(error.localizedDescription)")

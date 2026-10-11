@@ -239,6 +239,31 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
+    func rewrite(selection: String, instruction: String,
+                 request: CompletionRequest) async throws -> String? {
+        try requireReady()
+        let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        let spoken = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty else { return nil }
+        do {
+            let response = try await LanguageModelSession().respond(
+                to: CorrectionGates.commandPrompt(instruction: spoken, text: text),
+                options: GenerationOptions(sampling: .greedy,
+                                           maximumResponseTokens: min(1024, max(64, text.count))))
+            try Task.checkCancellation()
+            let result = CorrectionGates.cleanCommandOutput(response.content)
+            return result.isEmpty || result == text ? nil : result
+        } catch let error as LanguageModelSession.GenerationError {
+            switch error {
+            case .rateLimited, .concurrentRequests:
+                throw error
+            default:
+                DebugLog.shared.log("FM", "voice command abstain — \(Self.reason(error))")
+                return nil
+            }
+        }
+    }
+
     /// Short, log-friendly reason for an Apple Intelligence abstain: the case
     /// name only — the attached context is Apple's, not ours to vouch for in a
     /// log the dictation path promises never holds the spoken text.

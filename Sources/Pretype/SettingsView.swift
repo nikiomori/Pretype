@@ -1258,6 +1258,7 @@ struct GeneralTab: View {
     /// Silence budget for a hands-free capture, in seconds; 0 is off.
     @AppStorage("dictationSilence") private var dictationSilence = 5.0
     @AppStorage("dictationPolish") private var dictationPolish = true
+    @AppStorage("dictationCommands") private var dictationCommands = false
     @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = true
     @AppStorage("clipboardContext") private var clipboardContext = false
 
@@ -1532,6 +1533,14 @@ struct GeneralTab: View {
                                 + "what was heard. On models that fix with a separate instruct sibling, "
                                 + "the first use downloads it — dictations land as heard rather than "
                                 + "waiting for that, and the tidy-up starts once it has finished.")
+                        }
+                        Toggle(isOn: $dictationCommands) {
+                            Text("Voice commands on selected text")
+                            Text("With text selected, what you say is an instruction for it instead of "
+                                + "words to type — \u{201C}make this shorter\u{201D}, \u{201C}more formal\u{201D}, "
+                                + "\u{201C}translate to English\u{201D}. The rewrite is previewed like a "
+                                + "\(store.hotkeyStyle.correctionLabel) fix: ⏎ applies it over the selection, "
+                                + "⎋ keeps the original. Off, dictating over a selection replaces it.")
                         }
                     }
                 }

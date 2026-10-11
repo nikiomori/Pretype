@@ -1877,8 +1877,11 @@ extension SuggestionController: DictationHost {
 
     func dictationAnchor() -> DictationAnchor? {
         guard let ctx = dictationFieldContext() else { return nil }
+        // Only read when it can matter: the selection is a voice command's target.
+        let selected = Settings.dictationCommands
+            ? currentTextElement().flatMap { AXText.selectionInfo(for: $0)?.text } ?? "" : ""
         return DictationAnchor(caretRect: ctx.caretRect, host: ctx.host,
-                               textBeforeCaret: ctx.textBeforeCaret)
+                               textBeforeCaret: ctx.textBeforeCaret, selectedText: selected)
     }
 
     /// The focused field, read for a dictation — with one re-resolve when the
@@ -1945,6 +1948,10 @@ extension SuggestionController: DictationHost {
 
     func rescueDictated(_ text: String) {
         parkDictation(text, why: "the focus moved", hint: "focus moved")
+    }
+
+    func applyVoiceCommand(_ instruction: String, to selection: String) {
+        correctionController.runVoiceCommand(instruction, selection: selection)
     }
 
     func tidyDictation(_ text: String, before context: String) async -> String? {

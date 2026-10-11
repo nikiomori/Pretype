@@ -337,6 +337,12 @@ protocol CompletionEngine: AnyObject {
     /// engine declines — or can't do it at all.
     func reply(to conversation: String, request: CompletionRequest) async throws -> String?
 
+    /// Voice command mode: `selection` rewritten the way the spoken
+    /// `instruction` asks. nil when the engine declines or can't. The
+    /// instruction is speech, so engines keep it (and the text) out of the log.
+    func rewrite(selection: String, instruction: String,
+                 request: CompletionRequest) async throws -> String?
+
     /// Live update of the user-tunable completion knobs (length, persona).
     /// Style/model changes rebuild the engine instead; these don't.
     func updateCompletion(length: CompletionLength, instructions: String)
@@ -377,6 +383,8 @@ extension CompletionEngine {
         try await correct(selection: selection, request: request, redactLog: false)
     }
     func updatePersonalization(_ level: PersonalizationLevel) {}
+    func rewrite(selection: String, instruction: String,
+                 request: CompletionRequest) async throws -> String? { nil }
     func shutdown() {}
     func prewarmIfNeeded() {}
     func releaseModelNow() {}

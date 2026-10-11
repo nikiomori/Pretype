@@ -1077,6 +1077,20 @@ final class MLXEngine: CompletionEngine {
         return fixed
     }
 
+    // MARK: - Voice command
+
+    func rewrite(selection: String, instruction: String,
+                 request: CompletionRequest) async throws -> String? {
+        let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        let spoken = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty else { return nil }
+        let output = try await chatGenerate(
+            CorrectionGates.commandPrompt(instruction: spoken, text: text),
+            maxTokens: min(1024, max(64, text.count)), logRaw: false)
+        let result = CorrectionGates.cleanCommandOutput(output)
+        return result.isEmpty || result == text ? nil : result
+    }
+
     // MARK: - Reply
 
     /// Writes the user's next message from the conversation on screen, through

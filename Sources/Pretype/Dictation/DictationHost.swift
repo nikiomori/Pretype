@@ -13,6 +13,9 @@ struct DictationAnchor {
     /// Text before the caret, so the tidy-up pass can see what the sentence is
     /// continuing.
     var textBeforeCaret: String
+    /// The field's selection when the capture began — the target of a voice
+    /// command (`Settings.dictationCommands`). Empty when nothing is selected.
+    var selectedText: String = ""
 }
 
 /// What `DictationController` needs from the app around it — a protocol, not
@@ -64,6 +67,9 @@ protocol DictationHost: AnyObject {
     /// while it was being captured or written down. Put it on the clipboard and
     /// say so: a latched capture can be minutes of speech.
     func rescueDictated(_ text: String)
+    /// Voice command mode: rewrite `selection` as the spoken `instruction`
+    /// asks, previewed like a ⌥⇥ fix (⏎/⇥ applies, ⎋ keeps the original).
+    func applyVoiceCommand(_ instruction: String, to selection: String)
     /// The engine's minimal-edit fix over the transcript, or nil to keep it
     /// exactly as heard. May be slow — the caller owns the time budget.
     func tidyDictation(_ text: String, before context: String) async -> String?

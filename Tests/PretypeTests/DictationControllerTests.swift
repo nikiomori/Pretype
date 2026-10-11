@@ -99,6 +99,10 @@ private final class MockDictationHost: DictationHost {
     func hideOverlay() { hideCount += 1 }
     func insertDictated(_ text: String) { inserted.append(text) }
     func rescueDictated(_ text: String) { rescued.append(text) }
+    private(set) var commands: [(instruction: String, selection: String)] = []
+    func applyVoiceCommand(_ instruction: String, to selection: String) {
+        commands.append((instruction, selection))
+    }
     func tidyDictation(_ text: String, before context: String) async -> String? {
         if tidyDelay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(tidyDelay * 1_000_000_000))
@@ -138,6 +142,7 @@ final class DictationControllerTests: XCTestCase {
         Settings.dictationEnabled = true
         Settings.dictationGesture = .option
         Settings.dictationPolish = false
+        Settings.dictationCommands = false
         Settings.dictationLatch = .controlOptionD
         // Off unless a test asks for it: the silence clock is real wall time,
         // and a default budget ticking under every latch test would end
@@ -935,6 +940,36 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.inserted.isEmpty)
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// Voice command mode: with text selected, the transcript is an instruction
+    /// for it — handed to the host (which previews a rewrite), never typed and
+    /// never tidied up.
+    func testVoiceCommandOverASelectionIsAnInstructionNotText() async {
+        Settings.dictationCommands = true
+        Settings.dictationPolish = true
+        defer { Settings.dictationCommands = false; Settings.dictationPolish = false }
+        let rig = makeRig()
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("make it shorter", in: rig)
+        await release(rig.controller)
+        await pump(until: { !rig.host.commands.isEmpty })
+        XCTAssertEqual(rig.host.commands.map(\.instruction), ["hello world"])
+        XCTAssertEqual(rig.host.commands.map(\.selection), ["the draft paragraph"])
+        XCTAssertTrue(rig.host.inserted.isEmpty, "an instruction is never typed")
+    }
+
+    /// Off (the default), dictating over a selection types — replacing it.
+    func testWithoutVoiceCommandsASelectionIsDictatedOver() async {
+        let rig = makeRig()
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("hello world", in: rig)
+        await release(rig.controller)
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertTrue(rig.host.commands.isEmpty)
     }
 
     /// An app switch fires two invalidations milliseconds apart (focus change,

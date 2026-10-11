@@ -18,6 +18,31 @@ enum CorrectionGates {
     ONLY the corrected text — no quotes, no explanations.
     """
 
+    /// Voice command mode: a spoken instruction applied to the selected text
+    /// ("make it more formal", "translate to English"). Unlike the fix, the
+    /// rewrite is the point — no minimal-edit guard follows it.
+    static func commandPrompt(instruction: String, text: String) -> String {
+        """
+        Rewrite the text below following this instruction: \(instruction)
+        Keep the text's language unless the instruction asks for another one. \
+        Reply with ONLY the rewritten text — no quotes, no explanations, no preamble.
+
+        \(text)
+        """
+    }
+
+    /// A command's output keeps its line breaks (a rewritten paragraph is
+    /// still a paragraph); only surrounding whitespace and a wrapping quote
+    /// pair go.
+    static func cleanCommandOutput(_ raw: String) -> String {
+        var out = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        for (open, close) in [("\"", "\""), ("«", "»"), ("“", "”")]
+        where out.hasPrefix(open) && out.hasSuffix(close) && out.count > 2 {
+            out = String(out.dropFirst().dropLast())
+        }
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// A generous output-token budget for a correction: the fix is about the
     /// length of the input, but tokens run shorter than characters (≈2× denser
     /// for Russian), so budget the worst case to stop long selections clipping
