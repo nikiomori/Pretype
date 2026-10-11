@@ -23,6 +23,43 @@ enum AppPolicy {
         matches(bundleID, ["vscode", "vscodium", "cursor", "todesktop", "xcode", "jetbrains", "sublime", "zed", "nova"])
     }
 
+    /// Website entries share the per-app lists (`Settings.userBlacklist`,
+    /// `Settings.perAppInstructions`) under this prefix: "site:mail.google.com".
+    static let sitePrefix = "site:"
+
+    static func siteEntry(_ host: String) -> String { sitePrefix + host.lowercased() }
+
+    /// The host a list entry names, or nil for an app entry.
+    static func siteHost(fromEntry entry: String) -> String? {
+        entry.hasPrefix(sitePrefix) ? String(entry.dropFirst(sitePrefix.count)) : nil
+    }
+
+    /// "site:google.com" covers mail.google.com too; "site:mail.google.com"
+    /// doesn't cover docs.google.com.
+    static func site(_ host: String, matches entry: String) -> Bool {
+        guard let entryHost = siteHost(fromEntry: entry), !entryHost.isEmpty else { return false }
+        return host == entryHost || host.hasSuffix("." + entryHost)
+    }
+
+    /// Off in this app, or on this website.
+    static func isBlacklisted(_ context: TypingContext) -> Bool {
+        if let host = context.site, Settings.userBlacklist.contains(where: { site(host, matches: $0) }) {
+            return true
+        }
+        return isBlacklisted(context.bundleID)
+    }
+
+    /// Menu-bar "Disable/Enable on <site>": the exact host, and on the way back
+    /// every entry that covered it — same contract as `toggleUserBlacklist`.
+    static func toggleUserBlacklist(site host: String) {
+        let hits = Settings.userBlacklist.filter { site(host, matches: $0) }
+        if hits.isEmpty {
+            Settings.userBlacklist.append(siteEntry(host))
+        } else {
+            Settings.userBlacklist.removeAll { hits.contains($0) }
+        }
+    }
+
     static func isBlacklisted(_ bundleID: String?) -> Bool {
         if !userBlacklistEntries(for: bundleID).isEmpty {
             return true
@@ -53,6 +90,11 @@ enum AppPolicy {
 
     static func allowsScreenContext(_ bundleID: String?) -> Bool {
         !isBlacklisted(bundleID) && !isCodeEditor(bundleID)
+    }
+
+    /// Same, with the website: a site switched off feeds no OCR or clipboard either.
+    static func allowsScreenContext(_ context: TypingContext) -> Bool {
+        !isBlacklisted(context) && !isCodeEditor(context.bundleID)
     }
 
     private static func matches(_ bundleID: String?, _ markers: [String]) -> Bool {

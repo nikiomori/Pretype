@@ -312,6 +312,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 + "\(record.accepted * 100 / record.shown)% of \(record.shown) suggestions taken."
             appBlacklistItem.action = #selector(resumeInFrontmostApp)
             appBlacklistItem.image = symbol("play.circle")
+        } else if AppPolicy.userBlacklistEntries(for: bundleID).isEmpty, let host = context.site {
+            // In a browser the useful switch is the website: Gmail and the
+            // docs you're reading share one bundle ID. The whole browser stays
+            // one click away in Settings.
+            let off = Settings.userBlacklist.contains { AppPolicy.site(host, matches: $0) }
+            appBlacklistItem.title = fitting(off ? "Enable on \(host)" : "Disable on \(host)")
+            appBlacklistItem.action = #selector(toggleFrontmostSiteBlacklist)
+            appBlacklistItem.image = symbol(off ? "checkmark.circle" : "nosign")
         } else {
             let off = !AppPolicy.userBlacklistEntries(for: bundleID).isEmpty
             // No .state checkmark: a ✓ next to "Disable in Mail" reads either way.
@@ -490,6 +498,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         guard let bundleID = suggestionController?.typingContext.bundleID else { return }
         AppPolicy.toggleUserBlacklist(bundleID)
         // A ghost already on screen for the app we just silenced has to go.
+        suggestionController?.dismiss()
+        settingsWindow?.store.sync()
+    }
+
+    @objc private func toggleFrontmostSiteBlacklist() {
+        guard let host = suggestionController?.typingContext.site else { return }
+        AppPolicy.toggleUserBlacklist(site: host)
         suggestionController?.dismiss()
         settingsWindow?.store.sync()
     }

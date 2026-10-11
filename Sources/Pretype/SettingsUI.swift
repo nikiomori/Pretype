@@ -164,7 +164,7 @@ enum SettingsUI {
 
     /// `alert` as a sheet on the Settings window (app-modal only if that is
     /// gone); `confirmed` runs on its first button.
-    private static func present(_ alert: NSAlert, confirmed: @escaping () -> Void) {
+    static func present(_ alert: NSAlert, confirmed: @escaping () -> Void) {
         guard let window = settingsWindow else {
             NSApp.activate(ignoringOtherApps: true)
             if alert.runModal() == .alertFirstButtonReturn { confirmed() }

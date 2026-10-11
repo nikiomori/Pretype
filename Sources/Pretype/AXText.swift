@@ -776,6 +776,27 @@ enum AXText {
 
     // MARK: - Low-level helpers
 
+    /// The host of the web page `element` sits in: the URL of its OUTERMOST
+    /// `AXWebArea` ancestor (the tab, not an iframe inside it) — Safari,
+    /// Chromium browsers and most Electron apps publish one. Lowercased,
+    /// "www." dropped; nil outside a web page and for non-http(s) pages. Walks
+    /// ancestors, so it belongs on the focus-change path, never per keystroke.
+    static func pageHost(for element: AXUIElement) -> String? {
+        var host: String?
+        var node: AXUIElement? = element
+        for _ in 0..<60 {
+            guard let current = node else { break }
+            if (attribute(current, kAXRoleAttribute) as String?) == "AXWebArea",
+               let url: URL = attribute(current, "AXURL"),
+               url.scheme == "https" || url.scheme == "http",
+               let name = url.host?.lowercased() {
+                host = name.hasPrefix("www.") ? String(name.dropFirst(4)) : name
+            }
+            node = self.element(current, kAXParentAttribute)
+        }
+        return host
+    }
+
     static func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &ref) == .success else { return nil }

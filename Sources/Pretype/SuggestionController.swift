@@ -385,7 +385,7 @@ final class SuggestionController: NSObject {
 
     func makeRequest(text: String, after: String = "") -> CompletionRequest {
         var request = CompletionRequest(textBeforeCaret: text, textAfterCaret: after, context: typingContext)
-        if AppPolicy.allowsScreenContext(typingContext.bundleID) {
+        if AppPolicy.allowsScreenContext(typingContext) {
             request.screenSummary = screenSummary
             // Same app gate as the OCR: clipboard in a terminal/code editor is
             // usually code, which poisons a prose model. Skip once pasted —
@@ -455,7 +455,7 @@ final class SuggestionController: NSObject {
     /// the next keystroke (where a cold prefill measured ~0.45 s on E4B-8bit).
     private func warmPromptForCurrentText(_ typed: String? = nil) {
         guard Settings.enabled, !isOwnUIFrontmost, !dictationController.isBusy,
-              !AppPolicy.isBlacklisted(typingContext.bundleID),
+              !AppPolicy.isBlacklisted(typingContext),
               !Stats.isUnproductive(typingContext.bundleID),
               let text = typed ?? latestTextBeforeCaret,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -467,7 +467,7 @@ final class SuggestionController: NSObject {
     /// same way as a screen refresh. The check is a counter compare; the
     /// pasteboard is only read (by `makeRequest`) when it moved.
     private func warmPromptIfClipboardChanges() {
-        guard Settings.clipboardContextEnabled, AppPolicy.allowsScreenContext(typingContext.bundleID) else { return }
+        guard Settings.clipboardContextEnabled, AppPolicy.allowsScreenContext(typingContext) else { return }
         let before = NSPasteboard.general.changeCount
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             guard let self, NSPasteboard.general.changeCount != before else { return }
@@ -486,7 +486,7 @@ final class SuggestionController: NSObject {
         guard ScreenContext.hasPermission else {
             return "no Screen Recording permission (grant + relaunch)"
         }
-        guard AppPolicy.allowsScreenContext(typingContext.bundleID) else {
+        guard AppPolicy.allowsScreenContext(typingContext) else {
             return "blocked in this app (terminal/code editor)"
         }
         if let screenSummary { return "captured \(screenSummary.count) chars" }
@@ -496,7 +496,7 @@ final class SuggestionController: NSObject {
     /// Refreshes the window OCR at most every 25 s, off the typing path.
     private func refreshScreenContextIfNeeded(typed: String) {
         guard Settings.enabled, Settings.screenContextEnabled, ScreenContext.hasPermission,
-              AppPolicy.allowsScreenContext(typingContext.bundleID) else { return }
+              AppPolicy.allowsScreenContext(typingContext) else { return }
         guard !screenCaptureInFlight,
               Date().timeIntervalSince(screenCapturedAt) > 25,
               focusTracker.observedPID > 0 else { return }
@@ -542,7 +542,7 @@ final class SuggestionController: NSObject {
         // still speaking. The post-injection refresh re-enters here normally.
         if dictationController.isBusy { return }
         if isOwnUIFrontmost { dismiss(); return }
-        if AppPolicy.isBlacklisted(typingContext.bundleID) {
+        if AppPolicy.isBlacklisted(typingContext) {
             lastEvent = "suggestions are off in blacklisted apps"
             dismiss()
             return
@@ -922,7 +922,7 @@ final class SuggestionController: NSObject {
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 outcome: .abandoned, acceptedChars: 0, typed: nil, shownForMs: 0,
                 screen: screenSummary != nil
-                    && AppPolicy.allowsScreenContext(typingContext.bundleID)),
+                    && AppPolicy.allowsScreenContext(typingContext)),
                 shownAt: Date())
         } else {
             // Streamed growth of the same suggestion — keep the record current.
@@ -1017,7 +1017,7 @@ final class SuggestionController: NSObject {
         }
         guard Settings.enabled else { return stop("Pretype is paused") }
         guard !isOwnUIFrontmost else { return stop("our own window is frontmost") }
-        guard !AppPolicy.isBlacklisted(typingContext.bundleID) else {
+        guard !AppPolicy.isBlacklisted(typingContext) else {
             return stop("off in \(typingContext.appName ?? "this app")")
         }
         guard let element = currentTextElement() else {
@@ -1039,7 +1039,7 @@ final class SuggestionController: NSObject {
         // Without the screen there is nothing to reply *to*: say so at the caret
         // instead of answering from the empty field.
         guard Settings.screenContextEnabled, ScreenContext.hasPermission,
-              AppPolicy.allowsScreenContext(typingContext.bundleID) else {
+              AppPolicy.allowsScreenContext(typingContext) else {
             stop("needs screen context — \(screenContextStatus)")
             // Say which of the three is missing, in the words the fix is found
             // under — "needs screen context" left the user to work out which.
@@ -1149,7 +1149,7 @@ final class SuggestionController: NSObject {
         // An app Pretype has been told to stay out of is one where holding on
         // to its keystrokes is still being in the way; `begin` would refuse a
         // moment later anyway, having already eaten the key.
-        guard !AppPolicy.isBlacklisted(typingContext.bundleID) else { return false }
+        guard !AppPolicy.isBlacklisted(typingContext) else { return false }
         // Our own Settings window: `begin` refuses while we are frontmost, so
         // swallowing here would take a keystroke out of our own text fields to
         // do nothing with it.
@@ -1761,7 +1761,7 @@ extension SuggestionController: FocusTrackerDelegate {
         window.fieldChanged()
         correctionController.focusChanged()
         typingContext = newContext
-        let policy = AppPolicy.isBlacklisted(typingContext.bundleID)
+        let policy = AppPolicy.isBlacklisted(typingContext)
             ? " — suggestions off (blacklisted)"
             : (AppPolicy.isCodeEditor(typingContext.bundleID) ? " — code editor, no screen context" : "")
         DebugLog.shared.log(
@@ -1793,7 +1793,7 @@ extension SuggestionController: FocusTrackerDelegate {
         // should still have context before the first keystroke lands.
         // Paused, blacklisted or quiet: no reload, no indicator, no screenshot.
         if let element = tracker.focusedTextElement, Settings.enabled,
-           !AppPolicy.isBlacklisted(typingContext.bundleID),
+           !AppPolicy.isBlacklisted(typingContext),
            !Stats.isUnproductive(typingContext.bundleID) {
             // Entered a text field — start reloading the model now (no-op unless
             // it was idle-unloaded) so the first keystroke doesn't wait for it.

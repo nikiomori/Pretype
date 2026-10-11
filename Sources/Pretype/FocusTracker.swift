@@ -21,6 +21,10 @@ struct TypingContext: Equatable {
     var bundleID: String?
     var windowTitle: String?
     var fieldLabel: String?
+    /// The web page's host when the field is in one (`AXText.pageHost`) — so
+    /// per-app rules can be per-site in a browser, where Gmail and Slack share
+    /// one bundle ID.
+    var site: String? = nil
 }
 
 private let axObserverCallback: AXObserverCallback = { _, element, notification, refcon in
@@ -202,7 +206,8 @@ final class FocusTracker {
             appName: observedAppName,
             bundleID: observedBundleID,
             windowTitle: window.flatMap { AXText.attribute($0, kAXTitleAttribute) },
-            fieldLabel: focusedTextElement.flatMap { AXText.fieldLabel(for: $0) }
+            fieldLabel: focusedTextElement.flatMap { AXText.fieldLabel(for: $0) },
+            site: focusedTextElement.flatMap { AXText.pageHost(for: $0) }
         )
         Task { @MainActor in
             delegate?.focusTrackerDidChangeFocus(self)

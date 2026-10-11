@@ -487,6 +487,37 @@ final class SettingsStore {
         }
     }
 
+    /// Add a website with its own style lines (used instead of its browser's
+    /// while typing on it): one address field, as a sheet.
+    func addPerSiteInstruction() {
+        let alert = NSAlert()
+        alert.messageText = "Add a Website"
+        alert.informativeText = "Its style lines replace the browser's while you type on it. "
+            + "A domain covers its subdomains — google.com includes mail.google.com."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.placeholderString = "mail.google.com"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        SettingsUI.present(alert) { [weak self] in
+            guard let self, let host = Self.host(fromTyped: field.stringValue) else { return }
+            let key = AppPolicy.siteEntry(host)
+            if perAppInstructions[key] == nil { perAppInstructions[key] = "" }
+        }
+    }
+
+    /// "https://www.Mail.Google.com/inbox" → "mail.google.com"; nil unless it
+    /// names a dotted host.
+    static func host(fromTyped text: String) -> String? {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !typed.isEmpty,
+              var host = URL(string: typed.contains("://") ? typed : "https://" + typed)?.host,
+              host.contains(".") else { return nil }
+        if host.hasPrefix("www.") { host.removeFirst(4) }
+        return host
+    }
+
     /// The standard app picker, opened on /Applications.
     private func pickApps(prompt: String, message: String, picked: @escaping ([URL]) -> Void) {
         let panel = NSOpenPanel()
@@ -1639,6 +1670,9 @@ private struct BlacklistRow: View {
 /// Exact bundle IDs resolve to the installed app's real icon and name;
 /// fuzzy fragments ("slack") stay as typed with a generic glyph.
 @MainActor private func resolveApp(_ entry: String) -> (name: String, icon: NSImage?) {
+    if let host = AppPolicy.siteHost(fromEntry: entry) {
+        return (host, NSImage(systemSymbolName: "globe", accessibilityDescription: "Website"))
+    }
     guard entry.contains("."), let app = InstalledApps.lookup(entry) else { return (entry, nil) }
     return (app.name, app.icon)
 }
@@ -2114,6 +2148,12 @@ struct PersonalTab: View {
                         store.addPerAppInstructionApp()
                     } label: {
                         Label("Add App…", systemImage: "plus")
+                    }
+                    .controlSize(.small)
+                    Button {
+                        store.addPerSiteInstruction()
+                    } label: {
+                        Label("Add Website…", systemImage: "globe")
                     }
                     .controlSize(.small)
                 }

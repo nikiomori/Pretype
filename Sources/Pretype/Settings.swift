@@ -563,6 +563,21 @@ enum Settings {
         return text
     }
 
+    /// A website's own lines win over its browser's: in Chrome, Gmail and
+    /// Slack want different voices, and the app entry can't tell them apart.
+    /// The most specific matching site entry is the one used.
+    static func perAppInstructions(for bundleID: String?, site host: String?) -> String? {
+        if let host {
+            let best = perAppInstructions
+                .filter { AppPolicy.site(host, matches: $0.key) }
+                .max { $0.key.count < $1.key.count }
+            if let text = best?.value.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                return text
+            }
+        }
+        return perAppInstructions(for: bundleID)
+    }
+
     static var mlxModelID: String {
         get { defaults.string(forKey: "mlxModelID") ?? ModelCatalog.defaultID }
         set { defaults.set(newValue, forKey: "mlxModelID") }

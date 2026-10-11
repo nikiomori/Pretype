@@ -478,7 +478,7 @@ final class DictationController {
         // keep out of, pills included.
         guard Settings.enabled else { return refuse("Pretype is paused") }
         guard !gates.appIsActive() else { return refuse("our own window is frontmost") }
-        guard !AppPolicy.isBlacklisted(owner.typingContext.bundleID) else {
+        guard !AppPolicy.isBlacklisted(owner.typingContext) else {
             return refuse("off in \(owner.typingContext.appName ?? "this app")")
         }
         // Something has to receive the words. This is the only hard requirement:

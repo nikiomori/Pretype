@@ -8,6 +8,8 @@ struct CompletionRequest {
     var appBundleID: String?
     /// Localized name of the app the user is typing in ("Slack", "Mail", …).
     var appName: String?
+    /// The web page's host, when typing in one (per-site instructions).
+    var site: String?
     /// OCR text from the focused window (opt-in), e.g. the conversation
     /// above a chat input.
     var screenSummary: String?
@@ -34,7 +36,8 @@ extension CompletionRequest {
             textBeforeCaret: textBeforeCaret,
             textAfterCaret: textAfterCaret,
             appBundleID: context.bundleID,
-            appName: context.appName
+            appName: context.appName,
+            site: context.site
         )
     }
 
@@ -191,7 +194,7 @@ extension CompletionRequest {
     /// time so edits apply live — same discipline as the global instructions.
     func persona(global: String) -> String {
         var persona = global.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let extra = Settings.perAppInstructions(for: appBundleID) {
+        if let extra = Settings.perAppInstructions(for: appBundleID, site: site) {
             persona += (persona.isEmpty ? "" : "\n") + extra
         }
         return persona
