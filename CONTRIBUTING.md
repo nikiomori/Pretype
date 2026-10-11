@@ -1,114 +1,129 @@
 # Contributing to Pretype
 
-Thanks for your interest in improving Pretype! It's an early-stage open-source
-project, and contributions of all kinds are welcome — bug reports, fixes, new
-engines, prompt/quality work, and documentation.
+Thank you for your help with Pretype. Pretype is an open-source project in an early stage. We accept all types of contributions: bug reports, fixes, new engines, prompt and quality work, and documentation.
 
 ## The easiest contribution: a style for your app
 
-No Swift needed. Teach Pretype how people write in an app or website you use
-(Slack, Linear, Gmail, …) with one short text file in [`AppStyles/`](AppStyles/README.md),
-or use the share button next to the style in Settings → Personalization →
-Per-app style. GitHub opens with the pull request filled in. Everyone with that
-app can then add your style in one click.
+You do not need Swift for this contribution. A style tells Pretype how people write in an app or on a website, for example Slack, Linear, or Gmail. A style is one short text file in [`AppStyles/`](AppStyles/README.md).
+
+To share a style, do one of these:
+
+* Add a file to [`AppStyles/`](AppStyles/README.md) and open a pull request.
+* Click the share button next to the style in **Settings → Personalization → Per-app style**. GitHub opens with the pull request filled in.
+
+All users of that app can then add your style with one click.
 
 ## Ground rules
 
-- Be respectful — this project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
-- Security issues go through [SECURITY.md](SECURITY.md), **not** public issues.
-- Keep pull requests focused: one logical change per PR, matching the style of
-  the surrounding code.
+* Be respectful. This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+* Report security issues through [SECURITY.md](SECURITY.md). Do **not** open public issues for them.
+* Keep each pull request on one logical change. Use the style of the code near your change.
 
 ## Development setup
 
-Requirements (same as the README's *Build from source*): a Mac that can run
-**full Xcode 26.4+** (Swift 6.3 for the MLX packages, and the macOS 26 SDK — `FoundationModelsEngine` imports the
-`FoundationModels` framework, which is absent from Xcode 16.x; older toolchains
-also fail compiling the MLX dependencies, and the MLX engine needs the Metal
-shader compiler; Command Line Tools alone are not enough), and Apple Silicon.
-macOS 14+ is the app's *runtime* floor, not the toolchain floor — CI builds on
-macOS 26. Install the Metal toolchain once:
+The requirements are the same as for *Build from source* in the README.
 
-```bash
-xcodebuild -downloadComponent MetalToolchain
-```
+| Item | Requirement | Reason |
+|---|---|---|
+| Mac | Apple Silicon | MLX does not operate on Intel Macs. |
+| Xcode | **Full Xcode 26.4 or newer**. Command Line Tools alone are not sufficient. | The MLX packages need Swift 6.3. Older toolchains also fail to compile the MLX dependencies. |
+| SDK | The macOS 26 SDK | `FoundationModelsEngine` imports the `FoundationModels` framework. Xcode 16.x does not have this framework. |
+| Metal | The Metal shader compiler | The MLX engine needs it. |
 
-Build a real `.app` bundle (it gets its own Accessibility grant) and run it:
+macOS 14 is the minimum *runtime* version of the app. It is not the minimum version for the toolchain. CI builds on macOS 26.
 
-```bash
-./Scripts/make-app.sh
-open build/Pretype.app
-```
+To build and run the app:
 
-For a fast inner loop, `./Scripts/dev.sh` runs `swift build` and copies the MLX
-metallib next to the dev binary (requires one prior `make-app.sh` run to
-produce the metallib). Plain `swift build` compiles, but MLX can't run from a
-SwiftPM binary — Pretype detects the missing shaders and disables the MLX
-engine gracefully rather than crashing.
+1. Install the Metal toolchain. Do this one time only.
+   ```bash
+   xcodebuild -downloadComponent MetalToolchain
+   ```
+2. Build a real `.app` bundle. The bundle gets its own Accessibility permission.
+   ```bash
+   ./Scripts/make-app.sh
+   ```
+3. Open the app.
+   ```bash
+   open build/Pretype.app
+   ```
 
-> **Permissions.** Pretype needs Accessibility (always), Screen Recording
-> (only for OCR screen context) and Microphone (only for dictation).
-> `make-app.sh` signs with your *Apple
-> Development* certificate when one exists, so grants survive rebuilds;
-> otherwise it falls back to ad-hoc signing and you'll need to re-grant after
-> each rebuild (`tccutil reset Accessibility app.pretype.Pretype`). See
-> [Troubleshooting](docs/troubleshooting.md).
+For a fast inner loop:
+
+1. Run `./Scripts/make-app.sh` one time. This step makes the MLX metallib.
+2. Run `./Scripts/dev.sh`. This script runs `swift build` and copies the MLX metallib next to the dev binary.
+
+Plain `swift build` compiles the app, but MLX cannot run from a SwiftPM binary. Pretype finds that the shaders are missing and disables the MLX engine. It does not crash.
+
+> **Permissions.** Pretype needs these permissions:
+>
+> | Permission | When |
+> |---|---|
+> | Accessibility | Always |
+> | Screen Recording | Only for OCR screen context |
+> | Microphone | Only for dictation |
+>
+> If you have an *Apple Development* certificate, `make-app.sh` signs with it. Then the permissions stay after each rebuild. If you do not have one, the script uses an ad-hoc signature. Then you must grant the permissions again after each rebuild:
+> `tccutil reset Accessibility app.pretype.Pretype`. See [Troubleshooting](docs/troubleshooting.md).
 
 ## Headless harnesses
 
-Completion-quality work happens through a CLI/eval harness that runs the real
-engine without the full UI: `--complete` (one or more completions through the
-KV-cache path), `--fix` (fix-selection via the instruct sibling), `--type-sim`
-(KV-cache integrity — type a string word-by-word, then compare against a fresh
-engine), and `--eval` (the quality regression below). This harness is kept in a
-git-ignored `dev-tools/` tree (not shipped in the app); ask a maintainer if you
-need it for a change.
+The quality work uses a CLI and eval harness. It runs the real engine without the full UI.
 
-Environment variables it reads (they override stored Settings):
+| Flag | What it does |
+|---|---|
+| `--complete` | Runs one or more completions through the KV-cache path. |
+| `--fix` | Runs fix-selection through the instruct sibling. |
+| `--type-sim` | Tests the KV-cache integrity. It types a string one word at a time, then compares the result with a fresh engine. |
+| `--eval` | Runs the quality regression. See the next section. |
 
-- `PRETYPE_TEST_MODEL` — override the model id
-- `PRETYPE_TEST_ENGINE=fm` — use the Apple Intelligence engine (macOS 26+)
-- `PRETYPE_TEST_APP` — override the app-context header (empty string disables it)
-- `PRETYPE_TEST_SCREEN` — inject screen-context text
-- `PRETYPE_EVAL_VERBOSE=1` — per-sample eval output
+The harness is in the git-ignored `dev-tools/` tree. It is not in the app. If you need it for a change, ask a maintainer.
+
+The harness reads these environment variables. They override the stored Settings.
+
+| Variable | Effect |
+|---|---|
+| `PRETYPE_TEST_MODEL` | Sets a different model ID. |
+| `PRETYPE_TEST_ENGINE=fm` | Uses the Apple Intelligence engine (macOS 26 or later). |
+| `PRETYPE_TEST_APP` | Sets a different app-context header. An empty string disables the header. |
+| `PRETYPE_TEST_SCREEN` | Adds screen-context text. |
+| `PRETYPE_EVAL_VERBOSE=1` | Shows the eval output for each sample. |
 
 ## Quality eval — please measure prompt/model changes
 
-Any change touching prompting, sampling, the output gates, or the model catalog
-should be measured before and after. The eval harness lives in a git-ignored
-`dev-tools/` tree, so **external contributors can't run it themselves — that's
-expected**: open the PR anyway and note that it needs an eval run; a maintainer
-will run the before/after numbers (coverage, first-word accuracy, saved chars,
-p50 latency) and post them on the PR. The eval is a **comparison** tool —
-absolute first-word accuracy understates quality because it rejects valid
-paraphrases.
+Measure each change to prompting, sampling, the output gates, or the model catalog. Measure before the change and after it.
+
+The eval harness is in the git-ignored `dev-tools/` tree. Thus external contributors cannot run it. This is expected. Open the pull request, and write in it that the change needs an eval run. A maintainer runs the eval before and after the change. The maintainer posts these numbers on the pull request: coverage, first-word accuracy, saved characters, and p50 latency.
+
+The eval is a tool for **comparison**. The absolute first-word accuracy is lower than the real quality, because the eval rejects valid paraphrases.
 
 ## Code style
 
-- Match the surrounding code: 4-space indentation, no trailing whitespace.
-- SwiftLint runs in CI (`swiftlint --strict`, config in `.swiftlint.yml`); a
-  `.swiftformat` config covers formatting. Run `swiftlint --strict` locally
-  before pushing if you have it installed.
-- Comments explain *why*, not *what*; the codebase favors short, high-signal
-  comments (see the output-gate comments in `Engines/CompletionGates.swift`
-  and `Engines/CorrectionGates.swift` for the house style).
-- Don't add dependencies without discussing it first in an issue.
+* Use the style of the code near your change: 4-space indentation, no trailing whitespace.
+* CI runs SwiftLint (`swiftlint --strict`, configuration in `.swiftlint.yml`). A `.swiftformat` configuration controls the format. If you have SwiftLint, run `swiftlint --strict` before you push.
+* Comments tell *why*, not *what*. The codebase uses short comments with much information. For examples, see the output-gate comments in `Engines/CompletionGates.swift` and `Engines/CorrectionGates.swift`.
+* Do not add dependencies before you discuss them in an issue.
 
-## Adding an engine
+## Add an engine
 
-Engines conform to the `CompletionEngine` protocol
-(`Sources/Pretype/Engines/CompletionEngine.swift`): implement `complete(_:)`
-(and optionally `correct(selection:request:)`), reuse the shared output gates
-via `CompletionGates.postProcess(...)`, and surface progress through `EngineState` so
-the menu and the caret indicator stay accurate. `FoundationModelsEngine.swift`
-is a compact reference implementation.
+1. Make the engine conform to the `CompletionEngine` protocol (`Sources/Pretype/Engines/CompletionEngine.swift`).
+2. Implement `complete(_:)`. You can also implement `correct(selection:request:)`.
+3. Use the shared output gates through `CompletionGates.postProcess(...)`.
+4. Report the progress through `EngineState`. Then the menu and the caret indicator show the correct state.
+
+`FoundationModelsEngine.swift` is a compact reference implementation.
 
 ## Pull request checklist
 
-- [ ] `swift build` and `swift test` pass, and `swiftlint --strict` is clean —
-      CI runs all three.
-- [ ] The app launches and the change works against a real text field (TextEdit
-      and Notes have the best Accessibility support).
-- [ ] For prompt/model/gate changes: eval numbers requested (a maintainer runs
-      the harness — see *Quality eval* above).
-- [ ] Diff is focused; comments explain non-obvious decisions.
+```mermaid
+flowchart LR
+    B["swift build"] --> T["swift test"] --> L["swiftlint --strict"]
+    L --> R["Test in a real text field<br/>(TextEdit, Notes)"] --> PR["Open the pull request"]
+    PR --> Q{"Prompt, model,<br/>or gate change?"}
+    Q -- yes --> E["A maintainer runs the eval<br/>and posts the numbers"] --> V["Review"]
+    Q -- no --> V
+```
+
+- [ ] `swift build` and `swift test` pass, and `swiftlint --strict` shows no problems. CI runs all three.
+- [ ] The app starts, and the change operates in a real text field. TextEdit and Notes have the best Accessibility support.
+- [ ] For prompt, model, or gate changes: you asked for eval numbers. A maintainer runs the harness. See *Quality eval* above.
+- [ ] The diff contains only the change. Comments explain the decisions that are not obvious.

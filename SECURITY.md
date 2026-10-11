@@ -2,64 +2,58 @@
 
 ## Privacy model
 
-Pretype is a local-first macOS utility. Because it reads text system-wide, its
-trust model matters — here is exactly what it does:
+Pretype is a local-first macOS utility. It reads text in all apps, thus its trust model is important. This section tells exactly what Pretype does.
 
-- **All inference is on device.** Completions run locally, either via MLX
-  (Gemma 4, Qwen and the rest of the catalog, in-process) or Apple's on-device
-  Foundation Models. Your typed text, selections, and any screen context are
-  **never** sent to a server.
-- **Network traffic is limited to downloads and one version check** — none of
-  it carries your text (full list in [docs/privacy.md](docs/privacy.md)):
-  - model weights from Hugging Face on first use, cached in
-    `~/.cache/huggingface` — plus, on models that need it, an instruct sibling
-    the first time you use ⌥Tab (or dictate with tidy-up on), and on the Gemma
-    tiers a ~150 MB speculative-decoding drafter, fetched in the background
-    when it's missing (tried once per launch);
-  - once, in the background, the current build of a model an older install
-    downloaded (the slimmer Gemma re-packs, Qwen3.5's Base build) — only on an
-    unmetered network (never cellular, hotspot or Low Data Mode), with the old
-    build serving until the replacement is in place;
-  - a once-a-day version check against the GitHub Releases API that sends
-    nothing about you (off in **Settings → General**);
-  - Apple's on-device speech model for your dictation language, downloaded by
-    macOS itself when you turn dictation on or switch dictation language;
-  - only if you opt into Parakeet dictation, its ~610 MB model from Hugging
-    Face (`FluidInference/parakeet-ultra-coreml`; installs that opted in
-    before it replace their `parakeet-tdt-0.6b-v3-coreml` once, in the
-    background, on an unmetered network).
+<div align="center">
+<img src="docs/diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. Your text is never sent to the internet." />
+</div>
 
-  Once the models are on disk, completions, fixes and dictation work fully
-  offline.
-- **Password and secure fields are never read.** Secure text fields are
-  skipped, and macOS blocks Accessibility access to them regardless.
-- **Screen context (OCR) is opt-in and local.** It's off by default, requires a
-  separate Screen Recording permission, captures only the focused window, runs
-  Vision OCR locally, and is cleared on every focus change. It's disabled
-  entirely in terminals, password managers and code editors.
-- **No telemetry, analytics, or crash reporting.** The usage stats in the menu
-  are stored locally and never leave your Mac. You can inspect exactly what the
-  model received at any time via **Diagnostics → Show Last Prompt…**.
+### All inference occurs on the device
 
-Permissions used: **Accessibility** (reading the focused field, the event tap,
-and keystroke injection), and — only when you enable them — **Screen
-Recording** (OCR) and **Microphone** (dictation, only while a capture runs).
+Completions run locally. They use MLX (Gemma 4, Qwen, and the other models of the catalog, in the app process) or Apple's on-device Foundation Models. Pretype **never** sends your typed text, your selections, or the screen context to a server.
+
+### Network connections
+
+Pretype connects to the network only for downloads and for one version check. None of these connections carry your text. [docs/privacy.md](docs/privacy.md) gives the full list.
+
+| Source | What Pretype gets | When | Opt-out |
+|---|---|---|---|
+| Hugging Face | Model weights, cached in `~/.cache/huggingface` | At the first use of a model | — |
+| Hugging Face | An instruct sibling, on the models that need it | At the first ⌥Tab, or at the first dictation with tidy-up on | — |
+| Hugging Face | A ~150 MB speculative-decoding drafter, on the Gemma tiers | In the background, when it is missing. Pretype tries one time for each launch. | — |
+| Hugging Face | The current build of a model that an older install downloaded: the slimmer Gemma re-packs, or the Base build of Qwen3.5 | One time, in the background, only on an unmetered network (not cellular, hotspot, or Low Data Mode). The old build operates until the new build is in place. | — |
+| GitHub Releases API | The latest version number. Pretype sends no data about you. | One time each day | Disable it in **Settings → General** |
+| Apple servers (macOS downloads it) | The on-device speech model for your dictation language | When you enable dictation or change the dictation language | Keep dictation off |
+| Hugging Face | The Parakeet model, ~610 MB (`FluidInference/parakeet-ultra-coreml`). An install that opted in before this model replaces its `parakeet-tdt-0.6b-v3-coreml` one time, in the background, on an unmetered network. | Only if you opt in to Parakeet dictation | Opt-in only |
+
+When the models are on the disk, completions, fixes, and dictation operate fully offline.
+
+### Other protections
+
+* **Pretype never reads password fields.** Pretype skips secure text fields. Also, macOS blocks Accessibility access to them.
+* **Screen context (OCR) is opt-in and local.** It is off by default, and it needs a separate Screen Recording permission. It captures only the focused window and runs Vision OCR locally. Pretype clears it at each focus change. It is disabled in terminals, password managers, and code editors.
+* **No telemetry, no analytics, no crash reports.** The usage statistics in the menu stay on your Mac. To see exactly what the model received, use **Diagnostics → Show Last Prompt…**.
+
+### Permissions
+
+| Permission | Use | When |
+|---|---|---|
+| **Accessibility** | Reads the focused field, runs the event tap, and injects keystrokes | Always |
+| **Screen Recording** | OCR | Only if you enable it |
+| **Microphone** | Dictation | Only if you enable it, and only while a capture runs |
 
 ## Supported versions
 
-Only the latest release is supported. Security fixes land on `main` and ship
-in the next release; there are no long-term support branches.
+Pretype supports only the latest release. Security fixes go to `main`, and they ship in the next release. There are no long-term support branches.
 
 ## Reporting a vulnerability
 
-Please report security issues **privately** — do not open a public GitHub issue.
+Report security issues **privately**. Do not open a public GitHub issue.
 
-Email **nikiomori.x@gmail.com** with:
+Send an email to **nikiomori.x@gmail.com**. Include:
 
-- a description of the issue and its impact,
-- steps to reproduce (or a proof of concept), and
-- the version / commit you tested.
+* a description of the issue and its effect,
+* the steps to reproduce it, or a proof of concept,
+* the version or the commit that you tested.
 
-You can expect an acknowledgement within a few days. Once a fix is available,
-we're happy to credit you in the release notes unless you'd rather stay
-anonymous.
+We send an acknowledgement in a few days. When a fix is available, we can name you in the release notes. If you do not want your name in the notes, tell us.

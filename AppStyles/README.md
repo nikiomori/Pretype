@@ -1,21 +1,39 @@
 # App styles
 
-How Pretype should write in a particular app or website: one short plain-text file per app. Every Pretype user who has that app installed can add your style in one click, with **Settings → Personalization → Per-app style → Fill In Suggested**. A style shapes reply drafts (<kbd>⌥⇧Tab</kbd>) everywhere, and completions in Instruct style.
+An app style tells Pretype how to write in one app or on one website. It is one short plain-text file for each app.
+
+All Pretype users who have that app can add your style with one click: **Settings → Personalization → Per-app style → Fill In Suggested**. A style changes the reply drafts (<kbd>⌥⇧Tab</kbd>) in all completion styles. It also changes the completions, but only in Instruct style.
+
+```mermaid
+flowchart LR
+    W["Write the style<br/>in Settings"] --> U["Use it<br/>for some time"] --> S["Click share (↑)"]
+    S --> G["GitHub opens<br/>with the file filled in"] --> PR["Create the<br/>pull request"]
+    PR --> M["Merge"] --> F["Other users click<br/>Fill In Suggested"]
+```
 
 ## Share yours
 
-The easy way is from the app. Write the style for your app under **Settings → Personalization → Per-app style**, use it for a while, then click the share button (↑) next to it. GitHub opens with the file filled in. Click **Propose new file** and then **Create pull request**; GitHub makes the fork for you.
+From the app (the easy way):
 
-By hand: add a file and open a pull request.
+1. Write the style for your app in **Settings → Personalization → Per-app style**.
+2. Use the style for some time.
+3. Click the share button (↑) next to the style. GitHub opens with the file filled in.
+4. Click **Propose new file**.
+5. Click **Create pull request**. GitHub makes the fork for you.
+
+By hand:
+
+1. Add a file. The table shows the name and the location.
+2. Open a pull request.
 
 | What | Where |
 |---|---|
-| A Mac app | `apps/<bundle id>.txt`, e.g. `apps/com.tinyspeck.slackmacgap.txt` |
-| A website | `sites/<host>.txt`, e.g. `sites/mail.google.com.txt` (no `www.`) |
+| A Mac app | `apps/<bundle id>.txt`, for example `apps/com.tinyspeck.slackmacgap.txt` |
+| A website | `sites/<host>.txt`, for example `sites/mail.google.com.txt` (no `www.`) |
 
-To get an app's bundle ID, run `osascript -e 'id of app "Slack"'`, or add the app in Pretype's per-app list and hover its name. Write the file name in lowercase.
+To get the bundle ID of an app, run `osascript -e 'id of app "Slack"'`. You can also add the app to the per-app list in Pretype and hover over its name. Write the file name in lowercase.
 
-A site file covers that host's subdomains too: `sites/google.com.txt` would apply on mail.google.com. On a site, its style replaces the browser's.
+A site file also applies to the subdomains of that host. For example, `sites/google.com.txt` applies on mail.google.com. On a site, the site style replaces the style of the browser.
 
 ## The file
 
@@ -25,12 +43,15 @@ This is work chat: short, direct messages in a friendly professional tone.
 Contractions are fine. Skip greetings and sign-offs. Emoji only when it adds meaning.
 ```
 
-Lines that start with `#` are comments: put the app's name there, plus anything a reviewer should know. Everything else is the style.
+Lines that start with `#` are comments. Put the app name there, and all information that a reviewer must know. All other lines are the style.
 
-**What makes a good style:**
-- **English**, even for apps you write in another language. It steers tone, not language, and the models follow English instructions best.
-- **About the kind of writing done in the app**, not about you: register, length, greetings, emoji, formatting habits. "Commit messages: imperative mood, under 72 characters" works; "I'm a backend developer at Acme" doesn't belong here.
-- **Short:** under 400 characters, because the style rides along in every prompt.
-- **Nothing personal:** no names, employers, addresses or signatures.
+**Rules for a good style:**
 
-Pull request checks fail on a misnamed file, an empty style or one over the limit.
+| Rule | Reason or example |
+|---|---|
+| Write in **English**, also for apps where you write in a different language. | The style controls the tone, not the language. The models follow English instructions best. |
+| Write **about the type of text in the app**, not about you: register, length, greetings, emoji, format habits. | Good: "Commit messages: imperative mood, under 72 characters". Bad: "I'm a backend developer at Acme". |
+| Keep it **short**: less than 400 characters. | The style goes into each prompt. |
+| Put **nothing personal** in it. | No names, employers, addresses, or signatures. |
+
+The pull request checks fail if the file name is wrong, if the style is empty, or if the style is longer than the limit.

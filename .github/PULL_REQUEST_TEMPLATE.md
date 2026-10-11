@@ -1,19 +1,19 @@
 ## Summary
 
-<!-- What does this change, and why? -->
+<!-- What does this change do? Why is it necessary? -->
 
 ## Changes
 
-<!-- Bullet the key changes. -->
+<!-- List the key changes. -->
 -
 
 ## Testing
 
 - [ ] `swift build` succeeds
-- [ ] Verified against a real text field (TextEdit / Notes)
-<!-- For prompt / model / output-gate changes, just note it here — a maintainer
-     will run the eval harness and post before/after numbers. -->
+- [ ] Tested in a real text field (TextEdit / Notes)
+<!-- For prompt, model, or output-gate changes, write a note here. A maintainer
+     runs the eval harness and posts the numbers from before and after the change. -->
 
 ## Notes
 
-<!-- Anything reviewers should know: trade-offs, follow-ups, screenshots for UI. -->
+<!-- Give the reviewers all necessary information: trade-offs, follow-up work, screenshots of UI changes. -->
