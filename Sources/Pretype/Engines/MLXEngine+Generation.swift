@@ -499,7 +499,12 @@ extension MLXEngine {
             let fullTokens = try makeTokens(context)
             guard !fullTokens.isEmpty else { return "" }
 
-            var eosIDs = Set<Int>()
+            // The model's own eos_token_id list (config/generation_config), as
+            // mlx-lm uses it: Gemma 4 -it ends a turn on `<turn|>`, which is
+            // neither the tokenizer's `<eos>` nor Gemma 3's `<end_of_turn>`
+            // (absent from Gemma 4's vocab). Without it E4B-it ran past its
+            // reply into a "…thought" tail on 444/570 eval-reply rows.
+            var eosIDs = context.configuration.eosTokenIds
             if let eos = context.tokenizer.eosToken,
                let id = context.tokenizer.convertTokenToId(eos) {
                 eosIDs.insert(id)
