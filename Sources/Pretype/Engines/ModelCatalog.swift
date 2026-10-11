@@ -20,10 +20,9 @@ struct ModelOption {
 }
 
 enum ModelCatalog {
-    /// The default is language-aware (see `defaultID`): MiniCPM5 1B for EN/RU
-    /// typists, Qwen3.5 2B for everyone else. The Gemma 4 builds (same family
-    /// Cotypist uses) are the manual heavy picks — E4B best-quality, E2B for
-    /// smaller machines. The Gemma entries are the BASE (pretrained)
+    /// The out-of-the-box pick is sized on the Mac's memory (see `defaultID`):
+    /// the best Gemma 4 tier that fits, Qwen3.5 2B below them. The Gemma entries
+    /// are the BASE (pretrained)
     /// conversions — instruct variants echo the prompt instead of continuing it
     /// when used without a chat template.
     static let options: [ModelOption] = [
@@ -277,7 +276,8 @@ enum ModelCatalog {
         // first-word is length-independent; longer buys ~1–2 pts completeness
         // but LOSES word-F1 and doubles latency each step (short 157 / medium
         // 291 / long 550 ms p50 on eval-real) — so short wins for inline ghost
-        // text. No gate (not E4B-class), no fill-in.
+        // text. Its gate τ is the calibration run's own; not E4B-class, so no
+        // fill-in.
         if id.contains("MiniCPM5") {
             return Recommendation(style: .base, length: .short, fim: false,
                                   logprobGateTau: -1.00)

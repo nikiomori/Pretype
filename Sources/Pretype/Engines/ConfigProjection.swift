@@ -211,8 +211,8 @@ struct ConfigProjection {
         Double(length.maxTokens) / Double(CompletionLength.short.maxTokens)
     }
 
-    /// Reference for the compute estimate: the default config (MiniCPM5 1B,
-    /// base, short, single sample) = 1×.
+    /// Reference for the compute estimate: MiniCPM5 1B, base, short = 1×.
+    /// A fixed yardstick (the default when it was set), not today's default.
     private static let computeReferenceGB = 2.2
 
     static func project(_ c: ProjectionConfig) -> ConfigProjection {
@@ -276,7 +276,7 @@ struct ConfigProjection {
             let ms = Int((Double(m.p50Ms) * lf).rounded())
             // The calibration (62–67% shown at ~30% offered) was measured on
             // MiniCPM5 only (split-half, eval-real n=870, 2026-07-15) — pinned
-            // to that id, NOT to the language-aware defaultID. Other models get
+            // to that id, NOT to `ModelCatalog.defaultID`. Other models get
             // the same measured TRADE scaled from their own base figures — the
             // ratios read the calibration model's eval row, so a re-run can't
             // leave a stale divisor here — capped and labeled as scaled, never

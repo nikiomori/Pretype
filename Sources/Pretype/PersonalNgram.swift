@@ -85,29 +85,10 @@ final class PersonalNgram: @unchecked Sendable {
         return Self.confident(bigram[context.last], minCount: 3)
     }
 
-    /// Evidence that `word` follows `text` in the user's own typing: the max
-    /// of the trigram and bigram counts for it (0 = never seen). Unthresholded,
-    /// unlike `nextWord` — fuel for the beam fusion boost, where weak evidence
-    /// still nudges the ranking instead of gating it. Fold-matched both sides.
-    func count(of word: String, after text: String) -> Int {
-        guard let context = Self.lookupContext(text) else { return 0 }
-        let folded = Self.fold(word)
-        lock.lock()
-        defer { lock.unlock() }
-        func matched(_ counts: [String: Int]?) -> Int {
-            counts?.reduce(0) { $0 + (Self.fold($1.key) == folded ? $1.value : 0) } ?? 0
-        }
-        var count = matched(bigram[context.last])
-        if let triKey = context.triKey {
-            count = max(count, matched(trigram[triKey]))
-        }
-        return count
-    }
-
     /// Every next word the user has typed after `text`, with its evidence
-    /// count (max of the trigram and bigram tallies). Unthresholded like
-    /// `count(of:after:)` — fuel for the greedy first-token boost, where weak
-    /// evidence nudges the ranking instead of gating it.
+    /// count (max of the trigram and bigram tallies). Unthresholded, unlike
+    /// `nextWord` — fuel for the greedy first-token boost, where weak evidence
+    /// nudges the ranking instead of gating it.
     func continuations(after text: String) -> [String: Int] {
         guard let context = Self.lookupContext(text) else { return [:] }
         lock.lock()
@@ -122,8 +103,8 @@ final class PersonalNgram: @unchecked Sendable {
     /// Fusion boost from raw n-gram evidence: ln(1+count), count capped so the
     /// prior stays bounded (~+3 logits at the cap ≈ 20× odds) — unbounded
     /// counts would eventually force a habitual word over a better-fitting
-    /// one. The ONE home of the measured formula, used by BOTH the greedy
-    /// first-token bias and the beam rerank so the paths can't diverge.
+    /// one. The one home of the measured formula (the greedy first-token
+    /// bias).
     static func fusionBoost(count: Int) -> Double {
         log1p(Double(min(count, 20)))
     }

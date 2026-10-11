@@ -642,12 +642,12 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ngram.completeWord(partial: "ник"), "ите")
         XCTAssertEqual(ngram.wordCount, 12)
 
-        // Beam-fusion evidence: unthresholded counts, fold-matched (ё→е, case),
-        // trigram beats bigram when both hit; unseen → 0.
-        XCTAssertEqual(ngram.count(of: "ответ", after: "ну спасибо за быстрый "), 3)
-        XCTAssertEqual(ngram.count(of: "никите", after: "завтра передай "), 3)
-        XCTAssertEqual(ngram.count(of: "кино", after: "я иду в "), 2)   // below nextWord's dominance bar, still counted
-        XCTAssertEqual(ngram.count(of: "ответ", after: "совсем другой контекст "), 0)
+        // First-token-boost evidence: unthresholded counts, trigram beats
+        // bigram when both hit; unseen → nothing.
+        XCTAssertEqual(ngram.continuations(after: "ну спасибо за быстрый ")["ответ"], 3)
+        XCTAssertEqual(ngram.continuations(after: "завтра передай ")["Никите"], 3)
+        XCTAssertEqual(ngram.continuations(after: "я иду в ")["кино"], 2)   // below nextWord's dominance bar, still counted
+        XCTAssertTrue(ngram.continuations(after: "совсем другой контекст ").isEmpty)
 
         ngram.reset()
         XCTAssertNil(ngram.nextWord(after: "ну спасибо за быстрый "))
@@ -692,7 +692,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ngram.nextWord(after: "завтра передай "), "Никите")
         // A different app starts from its own cursor — no cross-app delta.
         ngram.observe(ctx: "совсем другое поле", app: "slack")
-        XCTAssertEqual(ngram.count(of: "поле", after: "совсем другое "), 0)
+        XCTAssertNil(ngram.continuations(after: "совсем другое ")["поле"])
     }
 
     // Base-path RAG: accepted phrases form a separate label-free preamble block

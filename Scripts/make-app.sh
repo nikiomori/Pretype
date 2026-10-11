@@ -14,6 +14,19 @@ if ! xcrun metal --version >/dev/null 2>&1; then
     exit 1
 fi
 
+# The bundle is compiled from the working tree, and the eval harness gets
+# copied into Sources/ while it runs (Eval/check-harness.sh, the run-*.sh
+# EVAL-HOOK in main.swift) — git-ignored, so a release built mid-run would
+# ship code the public repo doesn't have. Ignored files count — that is what
+# `--others` without `--exclude-standard` lists — but only Swift sources (a
+# Finder .DS_Store is no reason to refuse).
+stray=$( { git ls-files --others -- 'Sources/*.swift'; grep -l "EVAL-HOOK" Sources/Pretype/main.swift; } 2>/dev/null || true)
+if [ -n "$stray" ]; then
+    echo "Refusing to build: Sources/ holds code the repo doesn't track — git add it, or remove it (an eval run in progress?):"
+    echo "$stray"
+    exit 1
+fi
+
 # -skipMacroValidation: mlx-swift-lm uses Swift macros, which xcodebuild
 # refuses to run from the command line without this flag.
 # pipefail makes a compile failure fatal right here — with a warm
