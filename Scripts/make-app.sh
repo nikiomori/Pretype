@@ -111,6 +111,10 @@ else
     echo "warning: Assets/Pretype.icns not found — app will have no icon"
 fi
 
+# Community per-app styles (PerAppPresets.community reads them from here).
+cp -R AppStyles "$APP/Contents/Resources/AppStyles"
+rm -f "$APP/Contents/Resources/AppStyles/README.md"
+
 # MLX finds its compiled shaders (default.metallib) inside
 # mlx-swift_Cmlx.bundle via the main bundle's Resources directory.
 # The metallib must NOT go into Contents/MacOS — codesign rejects

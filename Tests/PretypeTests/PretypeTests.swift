@@ -753,6 +753,47 @@ final class PretypeTests: XCTestCase {
         XCTAssertNil(PerAppPresets.template(for: "com.example.mystery"))
     }
 
+    // AppStyles/ takes pull requests from people who never touch the Swift
+    // code, so this is their review: CI fails a file the app would mis-key,
+    // silently skip, or that would bloat every prompt it rides in.
+    func testCommunityAppStyles() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("AppStyles")
+        let manager = FileManager.default
+        XCTAssertEqual(Set(try manager.contentsOfDirectory(atPath: root.path)), ["README.md", "apps", "sites"])
+        let name = try NSRegularExpression(pattern: "^[a-z0-9-]+(\\.[a-z0-9-]+)+\\.txt$")
+        var files = 0
+        for folder in ["apps", "sites"] {
+            for file in try manager.contentsOfDirectory(atPath: root.appendingPathComponent(folder).path) {
+                files += 1
+                let path = "AppStyles/\(folder)/\(file)"
+                XCTAssertNotNil(name.firstMatch(in: file, range: NSRange(file.startIndex..., in: file)),
+                                "\(path): name it <bundle id>.txt / <host>.txt, lowercase")
+                XCTAssertFalse(folder == "sites" && file.hasPrefix("www."), "\(path): drop the www.")
+                let contents = try String(contentsOf: root.appendingPathComponent("\(folder)/\(file)"), encoding: .utf8)
+                let text = try XCTUnwrap(PerAppPresets.styleText(contents), "\(path): no style text")
+                XCTAssertLessThanOrEqual(text.count, 400, "\(path): keep it under 400 characters")
+            }
+        }
+        let styles = PerAppPresets.load(from: root)
+        XCTAssertEqual(styles.count, files)
+        XCTAssertEqual(styles["com.apple.mail"], PerAppPresets.email)
+        XCTAssertNotNil(styles["site:github.com"])
+
+        XCTAssertEqual(PerAppPresets.styleText("# Slack\n# by @someone\n\nShort and direct.\n"), "Short and direct.")
+        XCTAssertNil(PerAppPresets.styleText("# just a comment\n"))
+
+        // The share link carries the file intact — "&", "+" and "#" included.
+        let text = "Short & direct, C++ ok. #1 rule: no emoji."
+        let url = try XCTUnwrap(PerAppPresets.shareURL(key: "com.tinyspeck.slackmacgap", name: "Slack", text: text))
+        let query = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(query.first { $0.name == "filename" }?.value, "AppStyles/apps/com.tinyspeck.slackmacgap.txt")
+        XCTAssertEqual(query.first { $0.name == "value" }?.value, "# Slack\n\(text)\n")
+        let site = try XCTUnwrap(PerAppPresets.shareURL(key: "site:mail.google.com", name: "mail.google.com", text: "x"))
+        XCTAssertTrue(site.absoluteString.contains("filename=AppStyles/sites/mail.google.com.txt"))
+    }
+
     // Every synthetic edit (accept, fix, ⌘Z undo, dictation) moves the cache
     // through this one rule — the settle window and the undo snapshot compare
     // against what it returns.

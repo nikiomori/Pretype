@@ -526,7 +526,7 @@ final class SettingsStore {
         SettingsUI.present(alert) { [weak self] in
             guard let self, let host = Self.host(fromTyped: field.stringValue) else { return }
             let key = AppPolicy.siteEntry(host)
-            if perAppInstructions[key] == nil { perAppInstructions[key] = "" }
+            if perAppInstructions[key] == nil { perAppInstructions[key] = PerAppPresets.template(for: key) ?? "" }
         }
     }
 
@@ -552,6 +552,21 @@ final class SettingsStore {
         panel.prompt = prompt
         panel.message = message
         SettingsUI.run(panel, picked: picked)
+    }
+
+    /// Offer this app's (or site's) style to everyone: explain, then open it
+    /// prefilled on GitHub as a new AppStyles file.
+    func shareStyle(_ key: String, name: String) {
+        guard let text = perAppInstructions[key], let url = PerAppPresets.shareURL(key: key, name: name, text: text)
+        else { return }
+        let alert = NSAlert()
+        alert.messageText = "Share Your Style for \(name)?"
+        alert.informativeText = "GitHub opens in your browser with this style ready to propose to Pretype. "
+            + "Everyone who uses \(name) can then add it in one click, so check it says nothing personal. "
+            + "Nothing is sent until you submit it there (a free GitHub account is needed)."
+        alert.addButton(withTitle: "Open GitHub")
+        alert.addButton(withTitle: "Cancel")
+        SettingsUI.present(alert) { NSWorkspace.shared.open(url) }
     }
 
     /// Preset apps installed on this Mac and not configured yet.
@@ -1765,6 +1780,17 @@ private struct PerAppInstructionRow: View {
                 .labelsHidden()
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
+            let text = (store.perAppInstructions[bundleID] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty, text != PerAppPresets.community[bundleID] {
+                Button { store.shareStyle(bundleID, name: resolved.name) } label: {
+                    Image(systemName: "square.and.arrow.up").foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Share the style for \(resolved.name)")
+                .help("Share this style with other Pretype users")
+            }
             removeButton("Remove instructions for \(resolved.name)", help: "Remove this app's instructions") {
                 store.perAppInstructions.removeValue(forKey: bundleID)
             }

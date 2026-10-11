@@ -4,6 +4,14 @@ Thanks for your interest in improving Pretype! It's an early-stage open-source
 project, and contributions of all kinds are welcome — bug reports, fixes, new
 engines, prompt/quality work, and documentation.
 
+## The easiest contribution: a style for your app
+
+No Swift needed. Teach Pretype how people write in an app or website you use
+(Slack, Linear, Gmail, …) with one short text file in [`AppStyles/`](AppStyles/README.md),
+or use the share button next to the style in Settings → Personalization →
+Per-app style. GitHub opens with the pull request filled in. Everyone with that
+app can then add your style in one click.
+
 ## Ground rules
 
 - Be respectful — this project follows the [Code of Conduct](CODE_OF_CONDUCT.md).

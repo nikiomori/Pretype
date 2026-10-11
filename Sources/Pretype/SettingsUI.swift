@@ -5,6 +5,12 @@ import SwiftUI
 /// the user tweaks taste instead of writing instructions from scratch. All
 /// texts are English like the persona and directives (measured best there);
 /// they steer style, not language.
+///
+/// The per-app ones are community files, `AppStyles/{apps,sites}/*.txt` at the
+/// repo root, shipped in the app bundle: anyone adds support for their app with
+/// one plain-text file (AppStyles/README.md has the format), and Settings'
+/// share button opens that file prefilled on GitHub. The kinds below are the
+/// fallback for apps nobody has written one for yet.
 enum PerAppPresets {
     static let email = "This is email: complete, grammatical sentences in a polite, professional tone. "
         + "Open replies with a brief greeting and close politely. No slang, no emoji."
@@ -17,33 +23,42 @@ enum PerAppPresets {
     static let documents = "This is a document: clear, well-structured prose in complete sentences, "
         + "neutral and polished. No chat mannerisms, no emoji."
 
-    /// Exact bundle IDs (lowercased — the engines match exactly) for the
-    /// one-click suggestions.
-    static let suggestions: [(bundleID: String, text: String)] = [
-        ("com.apple.mail", email),
-        ("com.microsoft.outlook", email),
-        ("com.readdle.smartemail-macos", email),  // Spark
-        ("com.tinyspeck.slackmacgap", workChat),
-        ("com.microsoft.teams2", workChat),
-        ("com.apple.mobilesms", casualChat),  // Messages
-        ("ru.keepcoder.telegram", casualChat),
-        ("org.telegram.desktop", casualChat),
-        ("net.whatsapp.whatsapp", casualChat),
-        ("com.hnc.discord", casualChat),
-        ("org.whispersystems.signal-desktop", casualChat),
-        ("com.apple.notes", notes),
-        ("notion.id", notes),
-        ("md.obsidian", notes),
-        ("net.shinyfrog.bear", notes),
-        ("com.apple.iwork.pages", documents),
-    ]
+    /// Per-app-instructions key → text, from the bundle's AppStyles folder
+    /// (`Scripts/make-app.sh` copies it in; `Scripts/dev.sh` next to the binary).
+    static let community = load(from: Bundle.main.resourceURL?.appendingPathComponent("AppStyles"))
 
-    /// Template for an arbitrary picked app — exact ID first, then a bundle-ID
-    /// heuristic for apps outside the list ("com.readdle.smartemail…" reads as
-    /// email). nil = no guess, start blank.
-    static func template(for bundleID: String) -> String? {
-        let id = bundleID.lowercased()
-        if let exact = suggestions.first(where: { $0.bundleID == id }) { return exact.text }
+    /// `apps/<lowercased bundle ID>.txt` → that ID, `sites/<host>.txt` →
+    /// "site:<host>"; the text is the file minus its `#` comment lines.
+    static func load(from root: URL?) -> [String: String] {
+        guard let root else { return [:] }
+        var styles: [String: String] = [:]
+        for (folder, prefix) in [("apps", ""), ("sites", AppPolicy.sitePrefix)] {
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: root.appendingPathComponent(folder), includingPropertiesForKeys: nil)) ?? []
+            for file in files where file.pathExtension == "txt" {
+                guard let contents = try? String(contentsOf: file, encoding: .utf8),
+                      let text = styleText(contents) else { continue }
+                styles[prefix + file.deletingPathExtension().lastPathComponent.lowercased()] = text
+            }
+        }
+        return styles
+    }
+
+    static func styleText(_ contents: String) -> String? {
+        let text = contents.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.hasPrefix("#") }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
+    /// Template for an arbitrary picked app or typed site — its community file
+    /// first, then a bundle-ID heuristic for apps outside the folder
+    /// ("com.readdle.smartemail…" reads as email). nil = no guess, start blank.
+    static func template(for key: String) -> String? {
+        let id = key.lowercased()
+        if let exact = community[id] { return exact }
+        guard AppPolicy.siteHost(fromEntry: id) == nil else { return nil }
         if ["mail", "outlook", "email"].contains(where: id.contains) { return email }
         if ["slack", "teams"].contains(where: id.contains) { return workChat }
         if ["telegram", "whatsapp", "discord", "signal", "viber", "mobilesms"].contains(where: id.contains) {
@@ -54,10 +69,28 @@ enum PerAppPresets {
         return nil
     }
 
-    /// Suggestions for apps actually installed on this Mac and not configured yet.
+    /// Community styles for apps actually installed on this Mac and not
+    /// configured yet. Sites aren't offered wholesale — "Add Website…" fills in
+    /// the one typed.
     @MainActor
     static func installedSuggestions(excluding configured: Set<String>) -> [(bundleID: String, text: String)] {
-        suggestions.filter { !configured.contains($0.bundleID) && InstalledApps.lookup($0.bundleID) != nil }
+        community.sorted { $0.key < $1.key }
+            .filter { AppPolicy.siteHost(fromEntry: $0.key) == nil && !configured.contains($0.key)
+                && InstalledApps.lookup($0.key) != nil }
+            .map { (bundleID: $0.key, text: $0.value) }
+    }
+
+    /// GitHub's new-file page, prefilled with this style as its AppStyles file:
+    /// GitHub forks the repo for the user and turns it into a pull request.
+    /// Nothing leaves the Mac until they submit it there.
+    static func shareURL(key: String, name: String, text: String) -> URL? {
+        let path = AppPolicy.siteHost(fromEntry: key).map { "sites/\($0)" } ?? "apps/\(key)"
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#")
+        func escape(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: allowed) ?? "" }
+        let file = "# \(name)\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))\n"
+        return URL(string: "https://github.com/nikiomori/Pretype/new/main"
+            + "?filename=\(escape("AppStyles/\(path).txt"))&value=\(escape(file))")
     }
 }
 

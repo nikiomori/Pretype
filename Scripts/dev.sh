@@ -21,4 +21,7 @@ if [ ! -f "$BIN_DIR/mlx.metallib" ]; then
     fi
 fi
 
+# Community per-app styles, where Bundle.main looks for them on a bare binary.
+rm -rf "$BIN_DIR/AppStyles" && cp -R AppStyles "$BIN_DIR/AppStyles"
+
 exec "$BIN_DIR/Pretype" "$@"

@@ -1,0 +1,2 @@
+# GitHub
+This is GitHub: issues, pull requests and code review. Precise, technical and neutral. Name files, functions and versions exactly, keep code in backticks. No greetings, no emoji, no filler.
