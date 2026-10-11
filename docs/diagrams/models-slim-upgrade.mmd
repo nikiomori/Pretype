@@ -1,0 +1,13 @@
+%% How an older install moves to the slim Gemma re-pack (ModelStorage.upgradeToSlim).
+%% Every "no" stops for now; the next launch tries again.
+flowchart TB
+  launch(["Pretype starts"]) --> old{{"Is the model in use<br/>an original build?"}}
+  old -- "no" --> done(["Nothing to do"])
+  old -- "yes" --> disk{{"Free disk space more than<br/>the original size + 2 GB?"}}
+  disk -- "yes" --> net{{"Unmetered network?<br/>(no cellular, hotspot<br/>or Low Data Mode)"}}
+  net -- "yes" --> fetch["Download the re-pack<br/>in the background.<br/>The original serves."]
+  fetch --> load{{"Did the re-pack<br/>load on this Mac?"}}
+  load -- "yes" --> del(["Delete the original"])
+  disk -- "no" --> later(["Try again at<br/>the next launch"])
+  net -- "no" --> later
+  load -- "not yet" --> later
