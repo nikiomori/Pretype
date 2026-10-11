@@ -115,6 +115,10 @@ fi
 cp -R AppStyles "$APP/Contents/Resources/AppStyles"
 rm -f "$APP/Contents/Resources/AppStyles/README.md"
 
+# The binary statically links MIT/Apache-2.0/BSD code whose licenses require
+# their notices to travel with every copy — the app, not just the repo.
+cp LICENSE THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/"
+
 # MLX finds its compiled shaders (default.metallib) inside
 # mlx-swift_Cmlx.bundle via the main bundle's Resources directory.
 # The metallib must NOT go into Contents/MacOS — codesign rejects
