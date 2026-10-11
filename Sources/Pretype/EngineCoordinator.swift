@@ -74,7 +74,9 @@ final class EngineCoordinator {
 
     private static func makeEngine(modelID: String) -> CompletionEngine {
         let engine: CompletionEngine
-        if modelID == ModelCatalog.appleIntelligenceID, #available(macOS 26.0, *) {
+        if Settings.apiText.enabled {
+            engine = CloudEngine(Settings.apiText)
+        } else if modelID == ModelCatalog.appleIntelligenceID, #available(macOS 26.0, *) {
             engine = FoundationModelsEngine()
         } else {
             engine = MLXEngine(modelID: modelID)

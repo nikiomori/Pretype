@@ -449,7 +449,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // a sibling the user never chose ("gemma-4-e4b-it-4bit: ready").
         let engine = controller.engine
         let id = Settings.mlxModelID
-        let name = ModelMetrics.metrics(for: id)?.shortName ?? ModelCatalog.option(for: id)?.title ?? engine.name
+        let name = engine is CloudEngine ? engine.name
+            : ModelMetrics.metrics(for: id)?.shortName ?? ModelCatalog.option(for: id)?.title ?? engine.name
         switch engine.state {
         case .ready:
             return (.systemGreen, "\(name) ready")

@@ -756,6 +756,24 @@ enum Settings {
         set { defaults.set(newValue, forKey: "dictationParakeet") }
     }
 
+    /// Suggestions, fix and reply on a hosted model instead of the on-device
+    /// one (Settings → API). Off by default — on, typed text leaves the Mac.
+    static var apiText: APIConfig {
+        get { apiConfig("apiText") ?? APIConfig(provider: APIProvider.all[0], kind: .text) }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: "apiText") }
+    }
+
+    /// Dictation on a hosted speech model. Off by default — on, recorded
+    /// audio leaves the Mac.
+    static var apiAudio: APIConfig {
+        get { apiConfig("apiAudio") ?? APIConfig(provider: APIProvider.all[0], kind: .audio) }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: "apiAudio") }
+    }
+
+    private static func apiConfig(_ key: String) -> APIConfig? {
+        defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(APIConfig.self, from: $0) }
+    }
+
     /// Which microphone a capture opens: "auto" (keep a Bluetooth headset out
     /// of call mode — see `AudioDevices`), "system" (always the system default
     /// input), or a device UID.
