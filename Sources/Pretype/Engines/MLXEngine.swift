@@ -1090,7 +1090,7 @@ final class MLXEngine: CompletionEngine {
         let output = try await chatGenerate(
             request.replyPrompt(conversation: conversation, instructions: instructionsBox.get()),
             maxTokens: 200)
-        return request.cleanReply(output)
+        return request.cleanReply(output, conversation: conversation)
     }
 
     /// One greedy turn through the instruct model's OWN chat template — much

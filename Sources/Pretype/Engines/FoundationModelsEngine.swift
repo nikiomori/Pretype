@@ -225,7 +225,7 @@ final class FoundationModelsEngine: CompletionEngine {
                 options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 200)
             )
             try Task.checkCancellation()
-            return request.cleanReply(response.content)
+            return request.cleanReply(response.content, conversation: conversation)
         } catch let error as LanguageModelSession.GenerationError {
             switch error {
             // Same split as correct(): a resource error is a failure the user

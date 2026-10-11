@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 struct CompletionRequest {
     let textBeforeCaret: String
@@ -102,14 +103,20 @@ extension CompletionRequest {
     func replyPrompt(conversation: String, instructions: String) -> String {
         var prompt = "You are writing the next message the user will send"
         if let appName, !appName.isEmpty { prompt += " in \(appName)" }
+        // The language by NAME when it can be told: "in its language" lost to
+        // any persona written in English — E4B-it answered a Russian chat in
+        // English 20/20 with the developer's persona (eval-reply 2026-10-11:
+        // contract 70% without a persona, 6% with it).
+        let language = Self.languageName(of: conversation).map { "in \($0), the conversation's language" }
+            ?? "in ITS language"
         prompt += """
-        . Answer the conversation below as the user, in ITS language — 1–3 \
+        . Answer the conversation below as the user, \(language) — 1–3 \
         sentences, plain text only. No quotes, no salutation, no explanation, \
         no translation, and never restate the conversation.
         """
         let persona = persona(global: instructions)
         if !persona.isEmpty {
-            prompt += "\n\nAbout the user (voice only, never quote it):\n\(persona)"
+            prompt += "\n\nAbout the user (voice only — never quote it, and it never changes the reply's language):\n\(persona)"
         }
         prompt += "\n\nConversation on screen:\n\(conversation)"
         let draft = textBeforeCaret.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -124,12 +131,28 @@ extension CompletionRequest {
         return prompt
     }
 
+    /// `text`'s language by English name ("Russian"), or nil when the
+    /// recognizer isn't sure. It reads short Russian as Ukrainian, so "uk"
+    /// with a Russian-only letter (ы э ъ ё) and no Ukrainian-only one
+    /// (і ї є ґ) counts as Russian; with neither, the recognizer stands.
+    static func languageName(of text: String) -> String? {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(String(text.suffix(600)))
+        guard let (language, confidence) = recognizer.languageHypotheses(withMaximum: 1).first,
+              confidence >= 0.6 else { return nil }
+        var code = language.rawValue
+        if code == "uk", text.contains(where: { "ыэъёЫЭЪЁ".contains($0) }),
+           !text.contains(where: { "іїєґІЇЄҐ".contains($0) }) { code = "ru" }
+        return Locale(identifier: "en").localizedString(forLanguageCode: code)
+    }
+
     /// Normalize a raw reply generation: one clean line (the fix path's cleanup,
     /// shared so it can't drift), minus an echo of the draft the user already
     /// typed — instruct models like to restate it before continuing. The
     /// re-joining space is dropped downstream when the draft already ends in one.
-    /// nil when nothing usable is left.
-    func cleanReply(_ raw: String) -> String? {
+    /// nil when nothing usable is left — or when the reply restates the
+    /// `conversation` instead of answering it (`isEcho`).
+    func cleanReply(_ raw: String, conversation: String = "") -> String? {
         var text = CorrectionGates.cleanCorrectionOutput(raw)
         let draft = textBeforeCaret.trimmingCharacters(in: .whitespacesAndNewlines)
         // No length guard: a reply that IS the draft leaves nothing to offer
@@ -138,7 +161,29 @@ extension CompletionRequest {
             text = String(text.dropFirst(draft.count)).trimmingCharacters(in: .whitespaces)
             if !text.isEmpty { text = " " + text }
         }
+        if Self.isEcho(text, of: conversation) {
+            DebugLog.shared.log("REPLY", "dropped a reply that restates the conversation (\(text.count) chars)")
+            return nil
+        }
         return text.isEmpty ? nil : text
+    }
+
+    /// A reply that restates the conversation instead of answering it: the
+    /// whole reply sits inside the whitespace-normalized conversation, or it
+    /// carries one of its lines (8+ characters) verbatim. Small instruct
+    /// models do this a lot — eval-reply 2026-10-11 caught it on 29–57% of
+    /// the Qwen / MiniCPM5 / Bonsai rows, against 2–6% on the Gemmas.
+    static func isEcho(_ reply: String, of conversation: String) -> Bool {
+        func norm(_ s: String) -> String {
+            s.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased()
+        }
+        let r = norm(reply)
+        guard !r.isEmpty, !conversation.isEmpty else { return false }
+        if norm(conversation).contains(r) { return true }
+        return conversation.split(separator: "\n").contains { line in
+            let l = norm(String(line))
+            return l.count >= 8 && r.contains(l)
+        }
     }
 
     /// The persona for this request: the global instructions plus the user's
