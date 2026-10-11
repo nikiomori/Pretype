@@ -38,12 +38,12 @@ The two chords — fix the selection (<kbd>⌥Tab</kbd>) and draft a reply from 
 | Runs the chords | Loaded by (recommended settings) | Exact fix | Touches clean text | Fix p50 | Usable replies | Reply p50 |
 |---|---|--:|--:|--:|--:|--:|
 | Gemma E4B-it 6-bit | Gemma E4B 8-bit and 6-bit | **69%** [65–73] | 18% | 0.26 s | **97%** [94–98] | 0.33 s |
-| Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 21% | 0.24 s | 95% [92–97] | 0.25 s |
-| Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [45–54] | 29% | 0.11 s | 96% [93–97] | 0.09 s |
+| Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 21% | 0.21 s | 95% [92–97] | 0.25 s |
+| Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [45–54] | 29% | 0.08 s | 96% [93–97] | 0.09 s |
 | Qwen3.5 2B (post-trained) | Qwen3.5 2B Base — the 8 GB default | 33% [29–37] | 28% | 0.14 s | 76% [72–80] | 0.15 s |
-| Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.25 s | 39% [34–44] | 0.21 s |
-| Qwen2.5 0.5B-it | Qwen2.5 0.5B | 11% [9–14] | 19% | 0.06 s | 52% [47–57] | 0.07 s |
-| MiniCPM5 1B-it | MiniCPM5 1B | 4% [2–6] | 14% | 0.14 s | 35% [31–40] | 0.21 s |
+| Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.21 s | 39% [34–44] | 0.21 s |
+| Qwen2.5 0.5B-it | Qwen2.5 0.5B | 11% [9–14] | 19% | 0.03 s | 52% [47–57] | 0.07 s |
+| MiniCPM5 1B-it | MiniCPM5 1B | 4% [2–6] | 14% | 0.05 s | 35% [31–40] | 0.21 s |
 
 Three things worth knowing before reading it as a ranking:
 
@@ -51,7 +51,7 @@ Three things worth knowing before reading it as a ranking:
 * **"Exact fix" is a strict bar and "usable reply" is a lenient one.** A correct fix phrased differently than the original counts as a miss, so real-world usefulness sits above the fix column. A usable reply only means it drafted *something*, in the conversation's language, without restating the screen — it says nothing about how good the reply reads.
 * **"Touches clean text" is the cost of the chord.** Select an already-correct line and the sibling still proposes a change that often — 12–29% across the catalog. The app's minimal-edit gate is already inside these numbers; <kbd>Esc</kbd> keeps your original.
 
-<sub>Method: totals over 510/380 rows carry ±4–5 pp; per-language cells are 20–30 rows and are only used here for direction, never for claims. Release build, no persona, warm medians on an M4 Max. These figures supersede the 2026-07-25 booking, which counted a reply that re-joined the conversation's lines as fresh, pooled draft rows (where the draft already supplies the language) into the denominator, and ran with the developer's own English persona — together they had MiniCPM5 as the best replier and every Gemma sibling at ~33%. Two product fixes landed with the re-measure: Gemma 4 now stops at its turn marker (fix p50 1.5 s → 0.24 s on E4B-it; the 07-25 runs were also a debug build), and the reply prompt names the conversation's language instead of saying "its language", which an English persona used to override (E4B-it with a persona: 6% → 93% usable). Ukrainian is the one weak cell (≈50–70%): a third of the set's "Ukrainian" dialogues are Russian text, answered — correctly — in Russian. Sets: `eval-correct` (one real typo per sentence, Tatoeba register), `eval-reply` (screen-shaped conversations, right-language/no-echo contract).</sub>
+<sub>Method: totals over 510/380 rows carry ±4–5 pp; per-language cells are 20–30 rows and are only used here for direction, never for claims. Release build, no persona, warm medians on an M4 Max. These figures supersede the 2026-07-25 booking, which counted a reply that re-joined the conversation's lines as fresh, pooled draft rows (where the draft already supplies the language) into the denominator, and ran with the developer's own English persona — together they had MiniCPM5 as the best replier and every Gemma sibling at ~33%. Two product fixes landed with the re-measure: Gemma 4 now stops at its turn marker (fix p50 1.5 s → 0.24 s on E4B-it; the 07-25 runs were also a debug build), and the reply prompt names the conversation's language instead of saying "its language", which an English persona used to override (E4B-it with a persona: 6% → 93% usable). Fix latency has since dropped again: a fix mostly re-types its input, so the decoder now drafts from the selection itself (prompt lookup) — same output, E2B-it 109 → 78 ms and the small models 1.2–2.7× faster in same-session pairs; the column applies those ratios (`Eval/runs-2026-10-11-lookup`). Ukrainian is the one weak cell (≈50–70%): a third of the set's "Ukrainian" dialogues are Russian text, answered — correctly — in Russian. Sets: `eval-correct` (one real typo per sentence, Tatoeba register), `eval-reply` (screen-shaped conversations, right-language/no-echo contract).</sub>
 
 ## What a model costs you
 

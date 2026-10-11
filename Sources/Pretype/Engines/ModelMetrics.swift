@@ -330,7 +330,12 @@ struct ModelMetrics {
     /// eval-correct / eval-reply, 2026-10-11 (`Eval/runs-2026-10-11`): release
     /// build, persona pinned empty, Gemma 4 stopping on `<turn|>`, the reply
     /// prompt naming the conversation's language, echoes dropped by
-    /// `cleanReply`, draft rows out of the reply denominator.
+    /// `cleanReply`, draft rows out of the reply denominator. Fix p50 since
+    /// re-booked for prompt-lookup drafting (`Eval/runs-2026-10-11-lookup`):
+    /// the lookup-off/on ratio of same-session release pairs, applied to the
+    /// figures above — the machine was shared that evening, so its absolute
+    /// timings ran high. Qwen3.5 (recurrent cache, no lookup) and E4B-it-6bit
+    /// (a tie) keep theirs.
     static let taskSource = "eval-correct/eval-reply, 2026-10-11"
 
     static let tasks: [String: TaskMetrics] = [
@@ -338,22 +343,22 @@ struct ModelMetrics {
             fixPct: 69, fixCI: 65...73, falseFixPct: 18, fixP50Ms: 257,
             replyPct: 97, replyCI: 94...98, replyP50Ms: 331),
         "mlx-community/gemma-4-e4b-it-4bit": TaskMetrics(
-            fixPct: 65, fixCI: 61...69, falseFixPct: 21, fixP50Ms: 235,
+            fixPct: 65, fixCI: 61...69, falseFixPct: 21, fixP50Ms: 208,
             replyPct: 95, replyCI: 92...97, replyP50Ms: 249),
         "mlx-community/gemma-4-e2b-it-4bit": TaskMetrics(
-            fixPct: 50, fixCI: 45...54, falseFixPct: 29, fixP50Ms: 113,
+            fixPct: 50, fixCI: 45...54, falseFixPct: 29, fixP50Ms: 81,
             replyPct: 96, replyCI: 93...97, replyP50Ms: 89),
         "mlx-community/Qwen3.5-2B-4bit": TaskMetrics(
             fixPct: 33, fixCI: 29...37, falseFixPct: 28, fixP50Ms: 137,
             replyPct: 76, replyCI: 72...80, replyP50Ms: 152),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
-            fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 63,
+            fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 34,
             replyPct: 52, replyCI: 47...57, replyP50Ms: 73),
         "openbmb/MiniCPM5-1B": TaskMetrics(
-            fixPct: 4, fixCI: 2...6, falseFixPct: 14, fixP50Ms: 139,
+            fixPct: 4, fixCI: 2...6, falseFixPct: 14, fixP50Ms: 52,
             replyPct: 35, replyCI: 31...40, replyP50Ms: 208),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": TaskMetrics(
-            fixPct: 19, fixCI: 16...23, falseFixPct: 12, fixP50Ms: 252,
+            fixPct: 19, fixCI: 16...23, falseFixPct: 12, fixP50Ms: 205,
             replyPct: 39, replyCI: 34...44, replyP50Ms: 210),
     ]
 
