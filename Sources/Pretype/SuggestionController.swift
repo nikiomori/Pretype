@@ -641,6 +641,12 @@ final class SuggestionController: NSObject {
             lastEvent = "quiet in this app — suggestions here are almost never taken"
             return
         }
+        // Same placement for the user's battery rule: typo fixes and emoji
+        // shortcodes cost nothing, completions are the GPU bursts it's about.
+        if AppPolicy.pausedForBattery {
+            lastEvent = "paused on battery"
+            return
+        }
 
         // Personal n-gram fast-path: a confident hit from the user's own
         // recurring phrases shows at ~0 ms, before the debounce even starts;

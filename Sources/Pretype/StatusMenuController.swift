@@ -12,6 +12,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var diagnosticsMenu: NSMenu!
     private var permissionItem: NSMenuItem!
     private var enabledItem: NSMenuItem!
+    private var batteryItem: NSMenuItem!
     private var appBlacklistItem: NSMenuItem!
     private var languageHintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
@@ -128,6 +129,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // A verb, not a checkmark: "Enabled" with a pause icon and no ✓ read
         // as either state. Title and icon flip in menuNeedsUpdate.
         enabledItem = item("Pause Pretype", #selector(toggleEnabled))
+        // A checkmark this time: it's a standing rule, not an action now.
+        batteryItem = item("Pause on Battery", #selector(togglePauseOnBattery), symbol: "battery.50")
 
         // Only while the engine has failed: the background retry is silent and
         // Apple Intelligence never re-checks on its own, so without this the
@@ -245,6 +248,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         permissionItem.isHidden = Permissions.isTrusted
         enabledItem.title = Settings.enabled ? "Pause Pretype" : "Resume Pretype"
         enabledItem.image = symbol(Settings.enabled ? "pause.circle" : "play.circle")
+        batteryItem.state = Settings.pauseOnBattery ? .on : .off
         if case .failed = suggestionController?.engine.state {
             retryItem.isHidden = false
         } else {
@@ -431,6 +435,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         if controller.dictationController.isCapturing {
             return (.systemRed, "Listening — dictation is capturing")
         }
+        // Completions only — dictation still works on battery, hence after it.
+        if AppPolicy.pausedForBattery { return (.systemGray, "Paused on battery") }
         // Secure input blinds the key tap system-wide (a password field, or a
         // terminal's Secure Keyboard Entry left on) — the one silence a
         // "ready" light would otherwise misreport.
@@ -489,6 +495,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         controller.setEnabled(!Settings.enabled)
         // An open Settings window mirrors these; it only re-reads on sync().
         settingsWindow?.store.sync()
+    }
+
+    /// Read on the keystroke path (`AppPolicy.pausedForBattery`), like the
+    /// blacklist below — nothing to propagate.
+    @objc private func togglePauseOnBattery() {
+        Settings.pauseOnBattery.toggle()
+        suggestionController?.clearActiveCompletion()
+        refreshHeader()
     }
 
     /// The pipeline needs no propagation: AppPolicy.isBlacklisted reads

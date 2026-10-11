@@ -1,4 +1,5 @@
 import Foundation
+import IOKit.ps
 
 /// Per-app behavior policy. Terminals get no suggestions at all (ghost text
 /// next to shell commands is dangerous noise); password managers get neither
@@ -8,6 +9,15 @@ import Foundation
 /// feed screen OCR to the model (their windows are full of code and UI text
 /// that poisons a prose model).
 enum AppPolicy {
+    /// The Mac is drawing on its battery right now.
+    static var isOnBattery: Bool {
+        let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        return IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String? == kIOPSBatteryPowerValue
+    }
+
+    /// Completions are paused because the user asked for that on battery.
+    static var pausedForBattery: Bool { Settings.pauseOnBattery && isOnBattery }
+
     static func isTerminal(_ bundleID: String?) -> Bool {
         matches(bundleID, ["terminal", "iterm", "warp", "alacritty", "kitty", "hyper", "ghostty"])
     }

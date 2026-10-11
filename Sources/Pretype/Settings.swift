@@ -435,6 +435,7 @@ enum Settings {
         let rec = ModelCatalog.recommended(for: ModelCatalog.defaultID)
         defaults.register(defaults: [
             "enabled": true,
+            "pauseOnBattery": false,
             "mlxModelID": ModelCatalog.defaultID,
             // Wait after a keystroke before querying. Replayed typing (lognormal
             // gaps, median 190 ms): 120 → 60 ms cut pause→ghost p50 by 55–76 ms
@@ -508,6 +509,14 @@ enum Settings {
     static var enabled: Bool {
         get { defaults.bool(forKey: "enabled") }
         set { defaults.set(newValue, forKey: "enabled") }
+    }
+
+    /// No completions while the Mac runs on battery: every suggestion is a GPU
+    /// burst, and battery drain is the most-cited reason people quit local
+    /// autocomplete. Off by default; see `AppPolicy.pausedForBattery`.
+    static var pauseOnBattery: Bool {
+        get { defaults.bool(forKey: "pauseOnBattery") }
+        set { defaults.set(newValue, forKey: "pauseOnBattery") }
     }
 
     static var userBlacklist: [String] {
