@@ -599,6 +599,13 @@ final class SuggestionController: NSObject {
             return
         }
 
+        // A selection just typed over (a selection fix) may still read as
+        // selected inside the settle window — and would put its "fix" pill
+        // back. Look again once the host has caught up.
+        if let deadline = injectionSettleDeadline, Date() < deadline, AXText.selectionInfo(for: element) != nil {
+            scheduleKeystrokeRefresh(after: 0.09)
+            return
+        }
         // A selection switches into fix-selection mode (⌥⇥); the correction
         // controller owns the overlay while it's up.
         if correctionController.handleSelection(element) { return }
