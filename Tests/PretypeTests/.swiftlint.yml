@@ -1,0 +1,5 @@
+# Tests: force-unwraps are assertions here, and one-letter typealiases
+# (`typealias L = …`) keep table-style cases on one line.
+disabled_rules: [force_unwrapping, type_name]
+opening_brace:
+  ignore_multiline_statement_conditions: true
