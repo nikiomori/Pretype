@@ -95,6 +95,14 @@ final class DictationController {
         trigger == .latch && isBusy && phase != .working
     }
 
+    /// Finishing a transcript that can no longer be typed where it was
+    /// captured: the focus moved, so it is headed for the clipboard
+    /// (`rescueDictated`), not the caret — a later click or keystroke can't
+    /// put it behind anything, and must not throw it away.
+    private var isRescueBound: Bool {
+        phase == .working && owner.map { $0.focusGeneration != focusGeneration } == true
+    }
+
     private(set) var phase: Phase = .idle {
         didSet {
             // The status item mirrors the microphone: only the open/closed
@@ -305,6 +313,7 @@ final class DictationController {
         // its own wording: Settings promises "⎋ discards one already running",
         // and answering a deliberate cancel with "you kept typing" reads as
         // the app misreading the gesture.
+        if !isEscape, isRescueBound { return }
         let wasWorking = phase == .working
         discard(notice: wasWorking
             ? .hint(isEscape ? "dictation cancelled" : "dictation dropped — you kept typing")
@@ -341,6 +350,7 @@ final class DictationController {
         // precisely what hands-free is for.
         guard !isLatchedAndLive else { return }
         guard isBusy || hold.isArmed else { return }
+        guard !isRescueBound else { return }
         _ = hold.interrupt()
         let wasWorking = phase == .working
         discard(notice: wasWorking ? .hint("dictation dropped — the caret moved") : nil)
@@ -355,7 +365,27 @@ final class DictationController {
         // has no key in their hand to tell them it was live, and losing a
         // paragraph without a word is exactly how this feature reads as broken.
         let spoken = isLatched
+        // Already finishing: the transcript is done, and the finish task's own
+        // focus check routes it to the clipboard now that it can't be typed
+        // here. Discarding instead would drop it — and an app switch fires
+        // this twice (focus change, then resign-active, ms apart), so the
+        // second call would bump the generation under the finish the FIRST
+        // one started for exactly this rescue. The capture QUEUED behind it is
+        // another matter: that one would open the microphone in the app just
+        // moved to, so it goes.
+        if phase == .working {
+            _ = hold.interrupt()
+            if pendingBegin == .latch { pendingBegin = nil }
+            return
+        }
         _ = hold.interrupt()
+        // …and a latched capture that has heard something is finished, not
+        // discarded: `finish` sees the focus moved and hands the transcript
+        // to `rescueDictated` instead of typing it into the wrong field.
+        if spoken, case .listening(let partial) = phase, !partial.isEmpty {
+            Self.note("focus moved mid hands-free capture — finishing to the clipboard")
+            return finish()
+        }
         discard(notice: spoken ? .hint("dictation stopped — the focus moved") : nil)
     }
 
@@ -942,7 +972,8 @@ final class DictationController {
                 if owner.focusGeneration == targetFocus {
                     owner.insertDictated(text)
                 } else {
-                    Self.note("dropped \(text.count) chars — focus changed")
+                    Self.note("rescued \(text.count) chars to the clipboard — focus changed")
+                    owner.rescueDictated(text)
                 }
                 self.resumePendingHold(noticeIfMissed: true)
             } catch {

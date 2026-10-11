@@ -75,6 +75,7 @@ private final class MockDictationHost: DictationHost {
         caretRect: CGRect(x: 10, y: 10, width: 1, height: 18),
         host: HostTextStyle(), textBeforeCaret: "")
     private(set) var inserted: [String] = []
+    private(set) var rescued: [String] = []
     private(set) var transientNotices: [SuggestionDisplayMode] = []
     private(set) var shownModes: [SuggestionDisplayMode] = []
     private(set) var hideCount = 0
@@ -97,6 +98,7 @@ private final class MockDictationHost: DictationHost {
     }
     func hideOverlay() { hideCount += 1 }
     func insertDictated(_ text: String) { inserted.append(text) }
+    func rescueDictated(_ text: String) { rescued.append(text) }
     func tidyDictation(_ text: String, before context: String) async -> String? {
         if tidyDelay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(tidyDelay * 1_000_000_000))
@@ -917,6 +919,62 @@ final class DictationControllerTests: XCTestCase {
         await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// Minutes of hands-free speech survive the focus moving away: the
+    /// capture is finished, and the transcript goes to the clipboard instead
+    /// of being typed into the wrong field — or thrown away.
+    func testFocusChangeRescuesAHandsFreeTranscript() async {
+        let rig = makeRig()
+        await startLatched(rig)
+        await hear("a whole paragraph", in: rig)
+        rig.host.focusGeneration += 1
+        rig.controller.invalidate()
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// An app switch fires two invalidations milliseconds apart (focus change,
+    /// then resign-active). The second must not discard the finish the first
+    /// one started — it would bump the generation and drop the transcript.
+    func testAppSwitchDoubleInvalidateStillRescues() async {
+        let rig = makeRig { $0.finishDelay = 0.2 }
+        await startLatched(rig)
+        await hear("a whole paragraph", in: rig)
+        rig.host.focusGeneration += 1
+        rig.controller.invalidate()
+        rig.controller.invalidate()
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+    }
+
+    /// Once the transcript is headed for the clipboard, a click or keystroke
+    /// can't land it behind anything — it is kept. ⎋ still cancels.
+    func testClickOrKeyDuringRescueKeepsTheTranscriptEscapeCancels() async {
+        let rig = makeRig { $0.finishDelay = 0.2 }
+        await startLatched(rig)
+        await hear("a whole paragraph", in: rig)
+        rig.host.focusGeneration += 1
+        rig.controller.invalidate()
+        XCTAssertEqual(rig.controller.phase, .working)
+        rig.controller.mouseDown()
+        rig.controller.keyPressed()
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+
+        let cancelled = makeRig { $0.finishDelay = 0.2 }
+        await startLatched(cancelled)
+        await hear("never mind", in: cancelled)
+        cancelled.host.focusGeneration += 1
+        cancelled.controller.invalidate()
+        cancelled.controller.keyPressed(isEscape: true)
+        await pump(0.4)
+        XCTAssertTrue(cancelled.host.rescued.isEmpty, "⎋ is a cancel, not a rescue")
+        XCTAssertEqual(cancelled.controller.phase, .idle)
     }
 
     /// The rule that makes hands-free worth having. Under a hold, every one of

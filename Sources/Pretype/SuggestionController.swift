@@ -1943,6 +1943,10 @@ extension SuggestionController: DictationHost {
 
     func hideOverlay() { window.hide() }
 
+    func rescueDictated(_ text: String) {
+        parkDictation(text, why: "the focus moved", hint: "focus moved")
+    }
+
     func tidyDictation(_ text: String, before context: String) async -> String? {
         // A fix model that still has to be fetched cannot help THIS sentence:
         // the tidy-up budget is three seconds and the download is gigabytes.

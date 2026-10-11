@@ -60,6 +60,10 @@ protocol DictationHost: AnyObject {
     /// Type a finished transcript into the focused field, with all the
     /// bookkeeping an accepted suggestion gets (seam spacing, ⌘Z, stats).
     func insertDictated(_ text: String)
+    /// A finished transcript that can no longer be typed — the focus moved
+    /// while it was being captured or written down. Put it on the clipboard and
+    /// say so: a latched capture can be minutes of speech.
+    func rescueDictated(_ text: String)
     /// The engine's minimal-edit fix over the transcript, or nil to keep it
     /// exactly as heard. May be slow — the caller owns the time budget.
     func tidyDictation(_ text: String, before context: String) async -> String?
