@@ -1,0 +1,23 @@
+%% The main components and how data moves between them.
+flowchart TB
+  app["Focused app"]
+  ft["FocusTracker, AXText"]
+  kt["KeyTap"]
+  sc["SuggestionController"]
+  cc["CorrectionController"]
+  dc["DictationController"]
+  ec["EngineCoordinator"]
+  en["MLXEngine or<br/>FoundationModelsEngine"]
+  sw["SuggestionWindow"]
+  ti["TextInjector"]
+  pers[("SuggestionJournal,<br/>PersonalNgram")]
+  set["SettingsStore"]
+  app -- "AX text" --> ft --> sc
+  app -- "key events" --> kt --> sc
+  cc <--> sc
+  dc -- "DictationHost" --> sc
+  set --> ec
+  sc --> ec --> en
+  sc --> pers
+  sc --> sw
+  sc --> ti -- "synthetic keys" --> app

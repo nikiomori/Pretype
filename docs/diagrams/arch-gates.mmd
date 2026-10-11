@@ -1,0 +1,14 @@
+%% Base style: the four checks between the decode and the screen.
+flowchart TB
+  dec("Decode") --> g{{"1. Confidence gate (opt-in)<br/>First-word log-prob ≥ τ?"}}
+  g -- "yes, gate off,<br/>or caret in a word" --> t["2. Confidence trim<br/>Stop at the first weak token.<br/>Show the text before it."]
+  t --> h{{"3. Token healing<br/>Caret in a word: does the<br/>output start with the<br/>typed fragment?"}}
+  h -- "yes, or caret<br/>not in a word" --> o{{"4. Output gates<br/>pass?"}}
+  o -- yes --> show("Show the suggestion")
+  g -- no --> drop("Show nothing")
+  h -- no --> drop
+  o -- no --> drop
+  classDef stop fill:#fff1f0,stroke:#ff3b30,color:#1d1d1f
+  classDef ok fill:#effaf2,stroke:#157a35,color:#1d1d1f
+  class drop stop
+  class show ok

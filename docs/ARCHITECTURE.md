@@ -1,254 +1,330 @@
 # Architecture
 
-How Pretype is put together, for people reading the code. The user-facing
-summary is in the [README](../README.md#how-it-works).
+This page tells how Pretype operates. It is for persons who read the code.
+The [README](../README.md#how-it-works) gives a short summary for users.
+
+## Terms
+
+| Term | Meaning |
+|---|---|
+| Suggestion | The text that Pretype shows at the caret. |
+| Accept key | The key that types the suggestion. <kbd>Tab</kbd> types one word. <kbd>⇧Tab</kbd> types all of it. |
+| Engine | The code that runs a model and returns a suggestion (`CompletionEngine`). |
+| Base style, Instruct style | The two completion styles. Base style continues the raw text. Instruct style uses a chat template and a persona. |
+| Instruct sibling | The instruction-tuned build of the completion model. The fix chord (<kbd>⌥Tab</kbd>) and the reply draft use it. |
+| KV cache | The state of the model for the prompt. The engine keeps it from one key press to the next. |
+
+## From a key press to a suggestion
+
+<div align="center">
+<img src="diagram-arch-pipeline.svg" width="720" alt="Pipeline in three stages. Read: 1, you type a character; 2, FocusTracker and AXText read the text at the caret; 3, SuggestionController does the checks. Generate: 4, wait 60 ms, and a new key press cancels the request; 5, the engine prefills only the new tokens and decodes; 6, the gates cut or drop the output. Accept: 7, SuggestionWindow shows the suggestion; 8, you press Tab and KeyTap holds the key; 9, TextInjector types the text into the field." />
+</div>
+
+`FocusTracker` follows the focused text element with `AXObserver`. An AX
+change notification starts a read of the text at the caret. Some apps, for
+example Electron apps, do not send reliable notifications. Thus each key press
+also starts a read 60 ms later.
+
+Before a request, `SuggestionController` does these checks, in this sequence:
+
+| Condition | Result |
+|---|---|
+| Pretype is off in this app or on this site, or macOS reports secure input | No suggestion. |
+| Text is selected | Fix mode (<kbd>⌥Tab</kbd>). `CorrectionController` controls the overlay. |
+| A typo fix, an emoji shortcode or a sum is at the caret | The correction pill shows. No completion. |
+| A letter or a digit is immediately after the caret | No suggestion. A completion here joins the rest of the word. |
+| You type the same characters as the suggestion | The suggestion becomes shorter. No new request. |
+| You almost never accept suggestions in this app | No suggestion. The menu shows the numbers and a *Resume* item. |
+| *Pause on Battery* is on and the Mac is on battery | No completion. Typo fixes and emoji shortcodes continue. |
+| Your personal n-gram model has a confident match | That suggestion shows at once. The model output replaces it later. |
+
+When you press the accept key, `KeyTap` holds the key, and the app does not
+get it. `TextInjector` then types the text as synthetic key events. The tap
+holds the key only while a suggestion is on the screen.
 
 ## Inference engines
 
-Two backends implement the `CompletionEngine` protocol
+Two engines implement the `CompletionEngine` protocol
 (`Sources/Pretype/Engines/CompletionEngine.swift`):
 
-* **In-process MLX** *(default)* — runs the selected model locally through
-  Apple's `mlx-swift-lm`. Weights are downloaded from Hugging Face on first
-  launch and cached under `~/.cache/huggingface`.
-* **Apple Intelligence** *(macOS 26+)* — runs the OS-provided system model on
-  the Neural Engine via the `FoundationModels` framework. No download, no app
-  memory. It exposes no logprobs, so the confidence gate below can't run on it.
+| Engine | What it runs | Notes |
+|---|---|---|
+| `MLXEngine` *(default)* | The selected model, in the Pretype process, through Apple's `mlx-swift-lm`. | The weights download from Hugging Face on first launch. The cache is in `~/.cache/huggingface`. |
+| `FoundationModelsEngine` *(macOS 26 and later)* | The Apple Intelligence system model, on the Neural Engine, through the `FoundationModels` framework. | No download and no app memory. It gives no logprobs, thus the confidence gate cannot run on it. |
 
-`FoundationModelsEngine.swift` is the compact reference implementation if you
-want to add a third.
+To add a third engine, use `FoundationModelsEngine.swift` as a compact
+reference.
 
 ## Model catalog
 
-The out-of-the-box pick is resolved once per launch from the Mac's physical
-memory — `ModelCatalog.defaultID(forRamGB:)`: the best Gemma tier, in quality
-order E4B 6-bit → E2B 8-bit → E2B 4-bit, whose resident model in its
-recommended configuration (the instruct primary) stays within about a quarter
-of RAM, with Qwen3.5 2B as the floor below the smallest one. On the memory
-sizes Apple ships that is 8 GB → Qwen3.5 2B, 16–18 GB → E2B 4-bit,
-24 GB → E2B 8-bit, 32 GB and up → E4B 6-bit ([why](models.md)). The
-thresholds are a fixed table (sized on the pre-slim builds, so the quarter
-rule holds with room to spare): the default is live, not stored, so moving a
-threshold would move every auto-default install of that size onto another
-model — a multi-GB download nobody asked for. Keyboard
-layouts no longer pick the model; they still drive the persona and the
-per-language menu nudge. Everything else is a manual pick in
+Pretype selects the default model one time per launch, from the physical
+memory of the Mac. The function is `ModelCatalog.defaultID(forRamGB:)`.
+
+<div align="center">
+<img src="diagram-arch-ram-ladder.svg" width="560" alt="Default model by physical memory. 27.2 GB or more: Gemma 4 E4B 6-bit, Macs with 32 GB and more. Else 20 GB or more: Gemma 4 E2B 8-bit, Macs with 24 GB. Else 14 GB or more: Gemma 4 E2B 4-bit, Macs with 16 to 18 GB. Else Qwen3.5 2B Base, Macs with 8 GB." />
+</div>
+
+The rule selects the best Gemma tier whose resident model stays in about a
+quarter of the RAM. The quality sequence is E4B 6-bit, then E2B 8-bit, then
+E2B 4-bit. The resident model is the model in its recommended configuration
+(the instruct primary). Qwen3.5 2B is the floor below the smallest Gemma tier
+([why](models.md)).
+
+The thresholds are a fixed table. We sized them on the builds before the slim
+re-packs, thus the quarter rule has a margin. The default is not stored: the
+app calculates it at each launch. Thus, a change to a threshold moves each
+install of that memory size to a different model. That is a download of
+several GB that nobody asked for.
+
+Keyboard layouts do not select the model. They select the persona and the
+per-language nudge in the menu. You select all other models manually in
 **Settings → Model**:
 
-| Model | Download | Why you'd pick it |
+| Model | Download | Why you select it |
 |---|---|---|
-| Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality; holds up across all 19 eval languages. Never the default — it ties 6-bit |
-| **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB* — ties E4B 8-bit (p=0.052) for a smaller download |
-| **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB* — ~1 pp behind E4B at roughly twice the speed |
-| **Gemma 4 E2B 4-bit** | ≈2.5 GB | *Default at 16–18 GB* — the mildest 4-bit cost in the field |
-| MiniCPM5 1B | ≈2.2 GB | Fastest in the catalog at 49 ms; strong on English, weaker elsewhere |
-| Ternary Bonsai 4B | ≈1.1 GB | A 4B in about a gigabyte |
-| **Qwen3.5 2B (Base)** | ≈1.0 GB | *Default on 8 GB* — best sub-2 GB pick multilingually (p<0.001) |
-| Qwen2.5 0.5B | ≈1.0 GB | Smallest footprint in the catalog |
+| Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality. It holds up across all 19 eval languages. It is never the default, because it ties 6-bit. |
+| **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB.* It ties E4B 8-bit (p=0.052) and the download is smaller. |
+| **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB.* About 1 pp behind E4B, at approximately two times the speed. |
+| **Gemma 4 E2B 4-bit** | ≈2.5 GB | *Default at 16–18 GB.* The smallest 4-bit cost in the field. |
+| MiniCPM5 1B | ≈2.2 GB | The fastest model in the catalog, at 49 ms. Strong on English, weaker in other languages. |
+| Ternary Bonsai 4B | ≈1.1 GB | A 4B model in about one gigabyte. |
+| **Qwen3.5 2B (Base)** | ≈1.0 GB | *Default on 8 GB.* The best model below 2 GB for many languages (p<0.001). |
+| Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
 
-Sizes are the catalog's download figures (`ModelOption.approxSizeMB`); the
-Gemma tiers download slim re-packs (`ModelCatalog.slimRepos`). Qwen3.5
-completes on its Base build (our own conversion) while ⌥⇥ and the reply draft
-run on the post-trained one.
+The sizes are the download sizes of the catalog (`ModelOption.approxSizeMB`).
+The Gemma tiers download slim re-packs (`ModelCatalog.slimRepos`). Qwen3.5
+completes text on its Base build, which is our own conversion. The fix chord
+(⌥⇥) and the reply draft run on the post-trained build.
 
-Quantization is not a free axis, and it isn't uniform across families:
-**E4B below 6-bit collapses** — E4B 4-bit was delisted after measuring as a
-statistical tie with the floor of the field — while the same step on E2B is the
-mildest 4-bit cost measured, level with 8-bit on English (27 vs 26) and on
-Russian (22 vs 23) alike, and about two points behind it across 17 languages
-(p<0.001). Reduce footprint by stepping down model size rather than bit width.
+### Quantization
 
-Figures are quoted per language on purpose. Pooling English and Russian into one
-"EN/RU" number hides the split that matters most for the small models: MiniCPM5
-ties Gemma E2B 8-bit on English (27 vs 26, p=0.35) and gives up 6 points on
-Russian (17 vs 23, p<0.001). Each language cell is 280 rows (English 560,
-Russian 689), which is ±5 pp near 20% — the app prints that tolerance next to
-every figure, so a two-point gap reads as the tie it usually is.
+Quantization is not a free axis, and its cost is not the same for all
+families:
 
-On the Gemma builds the **Instruct** completion style swaps in an instruct
-sibling sized to that entry's RAM class, so no pick ever loads weights your Mac
-can't comfortably hold.
+* **E4B below 6-bit collapses.** We removed E4B 4-bit from the catalog. Its
+  measurement was a statistical tie with the floor of the field.
+* **E2B at 4-bit has the smallest 4-bit cost that we measured.** It is level
+  with 8-bit on English (27 vs 26) and on Russian (22 vs 23). Across 17
+  languages it is about two points behind 8-bit (p<0.001).
 
-Measured figures live in `Sources/Pretype/Engines/ModelMetrics.swift`, with
-the eval sets, sample sizes and significance tests noted beside them.
-The eval harness and datasets themselves are kept out of the public repo (see
-*Quality eval* in [CONTRIBUTING](../CONTRIBUTING.md#quality-eval--please-measure-promptmodel-changes)).
+To make the footprint smaller, use a smaller model, not fewer bits.
+
+### Figures per language
+
+We give the figures for each language separately. A pooled "EN/RU" number
+hides the most important split for the small models. MiniCPM5 ties Gemma E2B
+8-bit on English (27 vs 26, p=0.35). On Russian it is 6 points lower (17 vs
+23, p<0.001).
+
+Each language cell has 280 rows (English 560, Russian 689). That gives
+±5 pp near 20%. The app shows this tolerance next to each figure. Thus a
+two-point gap shows as the tie that it usually is.
+
+On the Gemma builds, the **Instruct** completion style loads an instruct
+sibling of the same RAM class. Thus no selection loads weights that are too
+large for the Mac.
+
+The measured figures are in `Sources/Pretype/Engines/ModelMetrics.swift`.
+The eval sets, the sample sizes and the significance tests are next to them.
+The eval harness and the datasets are not in the public repo. Refer to
+*Quality eval* in [CONTRIBUTING](../CONTRIBUTING.md#quality-eval--please-measure-promptmodel-changes).
 
 ## Latency
 
-* **KV-cache reuse** — each keystroke prefills only the newly typed tokens and
-  reuses the existing cache, which is what keeps warm completions inside the
-  49–145 ms band the catalog measures (`ModelMetrics.p50Ms`; Apple Intelligence
-  is the outlier at 430 ms). Caches that can't rewind — Qwen3.5's recurrent
-  layers, a Gemma sliding window the prompt has outgrown — are reused from a
-  checkpoint taken a few tokens before the prompt's end. Past the context
-  window, the prompt starts at a sentence boundary so its first tokens hold
-  still while you type.
-* **Stop early** — decoding ends at the confidence trim's cut, and a gated
-  suggestion is dropped as soon as its first word fails the gate; a gated
-  suggestion still streams once that first word passes.
-* **Warm in the background** — the screen, clipboard and retrieved-example
-  blocks sit at the head of the prompt, so a refresh of any of them voids the
-  cache; the new prompt is prefilled when the refresh lands, not on the next
-  keystroke.
-* **Lighter 6- and 8-bit Gemma** — the tied embedding table, which is also the
-  262k-row output projection read on every token, is re-quantized to 4-bit at
-  load: 160–320 MB less memory, same suggestion accuracy on the eval set.
-* **Speculative fixes and replies** — whenever a Gemma instruct model runs ⌥⇥
-  or the reply draft (the instruct primary, or base style's fix model), it
-  decodes with Google's multi-token-prediction drafter (~150 MB, fetched in the
-  background on first use): 20–40% faster, same output quality. Streamed
-  completions skip it — the speculative start costs more than it saves before
-  the first word shows.
-* **Debounced and cancellable** — a query starts 60 ms after the last
-  keystroke, and fast typing supersedes in-flight work instead of queueing it.
-* **Fast reloads** — a downloaded model loads straight from its local snapshot
-  (no request to Hugging Face to list the repo), and a parsed tokenizer
-  survives the idle unload, so the next keystroke waits for the weights alone.
-* **Idle unload** — after `Settings.idleUnloadMinutes` (5 by default, 15 on Macs with 32 GB or more) the engine
-  releases the weights and gives the RAM back, reloading on the next keystroke.
-  Memory pressure from macOS unloads it early.
+| Mechanism | What it does | Effect |
+|---|---|---|
+| KV-cache reuse | Each key press prefills only the new tokens. The engine reuses the cache of the prompt. Some caches cannot rewind: the recurrent layers of Qwen3.5, and a Gemma sliding window that is shorter than the prompt. For these, the engine reuses a checkpoint from a few tokens before the end of the prompt. | Warm suggestions in 49–145 ms (`ModelMetrics.p50Ms`). Apple Intelligence is the outlier at 430 ms. |
+| Stable context window | Past the context window, the prompt starts at a sentence boundary. Its first tokens do not change while you type. | The cache stays valid. |
+| Early stop | Decoding stops at the cut of the confidence trim. A gated suggestion stops when its first word fails the gate. It streams after its first word passes. | No decode time for text that nobody sees. |
+| Background warm-up | The screen, clipboard and retrieved-example blocks are at the start of the prompt. A change to one of them makes the cache invalid. The engine prefills the new prompt when the change arrives, not at the next key press. | The next key press does not wait for a full prefill. |
+| Lighter 6-bit and 8-bit Gemma | At load, the engine re-quantizes the tied embedding table to 4-bit. This table is also the output projection (262k rows), which each token reads. | 160–320 MB less memory. Same suggestion accuracy on the eval set. |
+| Speculative fixes and replies | A Gemma instruct model runs ⌥⇥ and the reply draft with the multi-token-prediction drafter from Google (~150 MB). This model is the instruct primary, or the fix model of base style. The drafter downloads in the background on first use. Streamed completions do not use it, because before the first word the speculative start costs more than it saves. | 20–40% faster. Same output quality. |
+| Debounce and cancel | A request starts 60 ms after the last key press. Fast typing replaces the work in progress. It does not put the requests in a queue. | No work on old text. |
+| Fast reloads | A downloaded model loads directly from its local snapshot. There is no request to Hugging Face to list the repo. A parsed tokenizer stays in memory after the idle unload. | The next key press waits only for the weights. |
+| Idle unload | After `Settings.idleUnloadMinutes`, the engine releases the weights and the RAM. The default is 5 minutes, or 15 minutes on Macs with 32 GB or more. The next key press loads the weights again. Memory pressure from macOS unloads them earlier. | The RAM goes back to other apps. |
 
 ## Knowing when to stay quiet
 
-On real held-out text, an ungated autocomplete measures *net-negative*: the cost
-of reading wrong suggestions exceeds the keystrokes saved. So Pretype ships an
-**opt-in confidence gate** (**Settings → Suggestions**, off by default, base
-style only): the first word's log-probability decides whether a suggestion is
-shown at all, against a threshold calibrated per model — chosen on one half of
-the eval set and verified on the untouched half. Suggestions repaired by token
-healing (mid-word completions) bypass it, since a fragment match is already a
-sufficient filter.
+On real held-out text, an autocomplete without a gate is *net-negative*. The
+cost to read wrong suggestions is more than the keystrokes that it saves.
+Thus Pretype has an **opt-in confidence gate** and an always-on confidence
+trim. This diagram shows the checks in base style:
 
-What runs by default is confidence *trim*, which cuts the low-confidence tail
-off a suggestion rather than abstaining from it entirely.
+<div align="center">
+<img src="diagram-arch-gates.svg" width="400" alt="Base-style checks after the decode. 1, confidence gate, opt-in: is the first-word log-prob at or above tau? If no, show nothing. The gate does not apply when the caret is inside a word. 2, confidence trim: stop at the first weak token and show the text before it. 3, token healing: with the caret inside a word, does the output start with the typed fragment? If no, show nothing. 4, output gates: if they fail, show nothing; if they pass, show the suggestion." />
+</div>
 
-The per-model thresholds are `Recommendation.logprobGateTau` in
-`ModelCatalog.recommended(for:)`; the gates themselves live in
+* **Confidence gate.** It is in **Settings → Suggestions**. It is off by
+  default and operates only in base style. The mean log-probability of the
+  first word must be at or above a threshold τ. We calibrate τ for each
+  model on one half of the eval set and verify it on the other half.
+* **Token healing bypasses the gate.** Healing repairs mid-word completions.
+  The match with the typed fragment is already a sufficient filter.
+* **Confidence trim.** It operates by default. It cuts the low-confidence tail
+  off a suggestion and does not drop all of it. The cut is at the first token
+  after the first word with a log-prob below −1.5, or an entropy above
+  2.5 nats.
+* **Output gates.** They reject, for example, a change of language, an echo
+  of the typed text, a duplicate of the text after the caret, and control
+  characters.
+
+The thresholds for each model are `Recommendation.logprobGateTau` in
+`ModelCatalog.recommended(for:)`. The output gates are in
 `Engines/CompletionGates.swift`.
 
 ## Typo corrections and rewrites
 
-* **Inline typo fix** — the macOS system spell-checker, in whichever language
-  `NLLanguageRecognizer` detects from the preceding context.
-* **Fix selection (`⌥Tab`)** — the local model rewrites the selection in place.
-  Corrections need instruction-following, so on most models running Base style
-  (Bonsai corrects with itself) the first `⌥Tab` triggers a one-time download of an instruct sibling of your
-  completion model (shown as *preparing…* in the menu bar); a Gemma tier in its
-  recommended Instruct style fixes with the model it already has loaded.
+| Feature | How it operates |
+|---|---|
+| Inline typo fix | The macOS system spell-checker. The language is the one that `NLLanguageRecognizer` finds in the text before the caret. |
+| Fix selection (<kbd>⌥Tab</kbd>) | The local model rewrites the selection in place. A correction must follow instructions. Thus, on most models in base style, the first <kbd>⌥Tab</kbd> downloads an instruct sibling of the completion model one time. The menu bar shows *preparing…* during the download. Bonsai corrects with itself. A Gemma tier in its recommended Instruct style fixes with the model that is already loaded. |
 
 ## Dictation
 
-Hold-to-talk, off by default, macOS 26+ (`Sources/Pretype/Dictation/`).
+Dictation is hold-to-talk. It is off by default and needs macOS 26 or later.
+The code is in `Sources/Pretype/Dictation/`.
 
-* **The gesture** — `ModifierHold` in `KeyTap.swift`, the complement of the
-  reply gesture's `ModifierDoubleTap`: a hold is never a tap and two taps are
-  never a hold, which is what lets both live on the same modifier. Pure and
-  time-injected, so every rule about what does *not* open the microphone is a
-  unit test. The event tap sees only key-down, so a hold gesture is only
-  possible on a modifier — that is why it is one.
-* **Which microphone** — `AudioDevices`. A Bluetooth headset carries either good
-  playback or a two-way call, never both, so opening the AirPods microphone
-  drops whatever is playing into hands-free quality for the length of the hold.
-  The default setting steps around it: when the default input and the default
-  output are the same physical device (macOS publishes a headset as two objects
-  whose UIDs share everything before the colon), dictation records from the
-  built-in microphone instead and the headset never leaves music mode. Settings
-  can pin any input device, or the system default, instead.
-* **Audio** — `AudioCapture` opens the chosen input for exactly as long as the
-  key is down and resamples each buffer into the format the analyzer asks for.
-  It is built on `AVCaptureSession`, not `AVAudioEngine`, and the choice is
-  load-bearing: merely instantiating an engine builds an aggregate device
-  around the system-default input *and output*, which alone drops a Bluetooth
-  headset into hands-free attenuation — music dipped quieter-then-louder
-  around every hold. A capture session opens exactly one device, the
-  microphone, and has no output side to disturb. The session is built per
-  capture and **released** on stop, so nothing stays alive to keep the device
-  claimed (or the orange microphone indicator lit) between holds.
-  Nothing is buffered, nothing is written to disk. If the device changes
-  mid-capture (a headset dying, AirPods taking over the default input), the tap
-  restarts on the new device and the session never notices — provided the
-  session pinned a format to resample into; one running on the device's raw
-  format ends gracefully instead, since a mid-stream format change is exactly
-  what the analyzer rejects. With no input left, whatever was already heard is
-  finalized and typed instead of discarded.
-* **Words** — `Transcription` wraps Apple's `SpeechAnalyzer` behind a
-  `TranscriptionSession` protocol, so the controller above it isn't
-  version-gated; the opt-in Parakeet engine (`Parakeet.swift`, NVIDIA's model
-  via FluidAudio, downloaded once into `~/Library/Application Support/FluidAudio`)
-  slots in behind the same protocol for the languages Apple serves only with its
-  older model. The models are the system's own, downloaded by macOS per language on
-  first use and shared with every other app that asks — zero bytes shipped by us.
-  Volatile results drive the live pill at the caret.
-* **Two models, picked per language** — `SpeechTranscriber` is the newer and
-  better one and covers exactly 30 locales (en, de, es, fr, it, ja, ko, pt, yue,
-  zh). Everything else, **Russian included**, is served by
-  `DictationTranscriber`: the model behind the system's own dictation key, older
-  and punctuation-free. Support is decided by *membership* in
-  `supportedLocales`, never by `supportedLocale(equivalentTo:)` — that one
-  canonicalizes an identifier ("ru" → "ru_RU") whether or not a model exists,
-  which reads as support and then fails at load. Measured on synthesized speech:
-  Russian transcribes correctly through the fallback but returns no punctuation
-  at all, which is most of what the tidy-up pass restores.
-* **Tidy-up** — the transcript goes through `engine.correct`, the same
-  minimal-edit pass `⌥Tab` uses, including its divergence guard: a model that
-  starts paraphrasing is rejected and the text goes in as heard. On a hard time
-  budget, because an idle-unloaded engine starts with a model reload: past a few
-  seconds the raw transcript is typed rather than held hostage.
-* **The state machine** — `DictationController` talks to the app through the
-  `DictationHost` protocol and takes its session, audio capture and environment
-  checks as injectable seams, so the whole capture lifecycle (queued holds,
-  focus-mismatch drops, device loss, watchdogs) is pinned by unit tests that
-  never touch a microphone.
-* **Insertion** — `SuggestionController.insertDictated`, which reuses the accept
-  path's bookkeeping (cache advance, settle window, `⌘Z` undo) because the
-  hazards are identical. Captures serialize: a hold that passes its threshold
-  while the previous transcript is still being written down waits for that
-  insert to land, instead of invalidating it.
-* **Accounting** — dictated characters are booked on their own counter, outside
-  the menu's time-saved figure: one spoken sentence would otherwise swamp a
-  week of accepted words and silently redefine what that number meant.
+### The capture lifecycle
+
+<div align="center">
+<img src="diagram-arch-dictation-states.svg" width="420" alt="Dictation states. Idle goes to Preparing when you hold the modifier for 0.45 s or press Control-Option-D. Preparing goes to Listening when the microphone is open. Listening goes to Working on release, a second Control-Option-D, silence or the time limit. Listening goes back to Idle on Esc or an interrupt, and the transcript is dropped. Working goes to Idle when the text is typed or put on the clipboard. In Working: a 10 s watchdog on the finalization, and a tidy-up with a 3 s budget and a 500-character maximum." />
+</div>
+
+The states are `DictationController.Phase`. Two triggers start a capture, and
+they stop in different ways:
+
+| Event | Hold (modifier) | Hands-free (<kbd>⌃⌥D</kbd>) |
+|---|---|---|
+| Start | Hold the modifier for 0.45 s. | Press the chord. |
+| Release before the microphone is open | Back to Idle with a hint. | Not applicable. |
+| Stop and type | Release the key. | Press the chord again, or stop to speak. The silence budget is in Settings. Before the first word, the budget is 30 s. |
+| Time limit | 120 s, then the capture stops and types. | 600 s, then the capture stops and types. |
+| <kbd>Esc</kbd> | Drops the capture. | Drops the capture. |
+| Other key, click or scroll | Drops the capture. | No effect. |
+| Focus moves to a different field | Drops the capture. | The capture stops. The words that it heard go to the clipboard. |
+| Key press or click while Working | Drops the transcript, with a notice. If the focus moved, the transcript goes to the clipboard. | Same as for a hold. |
+| New hold while Working | Waits. It starts after the insert of the previous transcript. | Waits. A second press removes it from the queue. |
+
+* **The gesture.** `ModifierHold` in `KeyTap.swift` is the complement of
+  `ModifierDoubleTap`, the gesture of the reply chord. A hold is never a tap,
+  and two taps are never a hold. Thus both gestures can use the same
+  modifier.
+* **Why a modifier.** The event tap sees only key-down events. Thus a hold
+  gesture is possible only on a modifier key.
+* **Unit tests.** `ModifierHold` is pure and gets the time as an input. Each
+  rule about what does *not* open the microphone is a unit test.
+* **The state machine.** `DictationController` talks to the app through the
+  `DictationHost` protocol. Its session, audio capture and environment checks
+  are injectable. Thus unit tests cover the full lifecycle (queued holds,
+  focus changes, device loss, watchdogs) without a microphone.
+
+### Which microphone
+
+<div align="center">
+<img src="diagram-arch-mic.svg" width="560" alt="Microphone selection. Automatic, the default: if the default input is a Bluetooth headset that also plays the audio, and a built-in microphone exists, use the built-in microphone; else use the default input. A pinned device: if it is connected, use it; else use the default input. System default: use the default input." />
+</div>
+
+`AudioDevices` makes this selection. A Bluetooth headset carries good
+playback or a two-way call, but not the two at the same time. When an app
+opens the AirPods microphone, playback drops to hands-free quality during
+the hold. The *Automatic* setting prevents this. It records from the built-in
+microphone, and the headset stays in music mode.
+
+macOS shows one headset as two audio objects. Their UIDs are different only
+in a `:input` or `:output` suffix at the end. Pretype compares the UIDs
+without this suffix.
+
+### Audio capture
+
+* **One device, no output.** `AudioCapture` uses `AVCaptureSession`, not
+  `AVAudioEngine`. An `AVAudioEngine` instance builds an aggregate device
+  around the system-default input *and output*. That alone puts a Bluetooth
+  headset into hands-free attenuation: the music became quieter and then
+  louder around each hold. A capture session opens only the microphone.
+* **Open only during the capture.** The app makes a new session for each
+  capture and **releases** it at the stop. Thus nothing keeps the device
+  claimed, and the orange microphone indicator goes off between holds.
+* **No storage.** `AudioCapture` resamples each buffer to the format that the
+  analyzer asks for. Nothing goes into a buffer, and nothing goes to disk.
+* **Device loss.** The capture keeps the device that it opened. A new default
+  input does not move it. If that device disappears, the capture opens the
+  current selection again and continues. This is possible only when the
+  session pinned a format to resample into. Without a pinned format, the
+  capture stops, because the analyzer rejects a format change.
+* **Limits on restarts.** More than three restarts in three seconds stop the
+  capture. With no input left, the capture types the words that it heard. It
+  does not discard them.
+
+### Which speech model
+
+<div align="center">
+<img src="diagram-arch-speech-model.svg" width="560" alt="Speech model selection for the keyboard language. If SpeechTranscriber supports it, one of 30 locales, use SpeechTranscriber. Else, if Parakeet is on and the language is one of its 25, use Parakeet. Else, if DictationTranscriber supports it, use DictationTranscriber, which serves Russian and most other languages. Else there is no dictation for this language." />
+</div>
+
+* **SpeechTranscriber.** The newer and better model. It covers exactly 30
+  locales (en, de, es, fr, it, ja, ko, pt, yue, zh).
+* **DictationTranscriber.** The model of the macOS dictation key. It is older
+  and serves all other languages, **Russian included**. In our measurement
+  on synthesized speech, Russian came back correct but with no punctuation.
+  The tidy-up pass restores most of it.
+* **Parakeet (opt-in).** The model from NVIDIA, through FluidAudio
+  (`Parakeet.swift`). It downloads one time into
+  `~/Library/Application Support/FluidAudio`. It serves the languages for
+  which Apple has only the older model.
+* **The support rule.** Pretype checks *membership* in `supportedLocales`.
+  It does not use `supportedLocale(equivalentTo:)`. That function changes an
+  identifier ("ru" → "ru_RU") also when no model exists. The result looks
+  like support and then fails at load.
+* **One protocol.** `Transcription` wraps Apple's `SpeechAnalyzer` behind the
+  `TranscriptionSession` protocol. Parakeet uses the same protocol. Thus the
+  controller has no version checks.
+* **Zero bytes from us.** The Apple models belong to the system. macOS
+  downloads them for each language on first use, and all apps share them.
+* **Live pill.** Volatile results update the pill at the caret while you
+  speak.
+
+### Tidy-up and insertion
+
+* **Tidy-up.** The transcript goes through `engine.correct`, the same
+  minimal-edit pass as <kbd>⌥Tab</kbd>. Its divergence guard rejects a model
+  that starts to paraphrase. Then the text goes in as Pretype heard it.
+* **Time budget.** An engine after an idle unload must first load the model
+  again. Thus the tidy-up has a 3 s budget. After the budget, Pretype types
+  the raw transcript. A transcript of more than 500 characters skips the
+  tidy-up.
+* **Insertion.** `SuggestionController.insertDictated` uses the same
+  bookkeeping as the accept path: cache advance, settle window and
+  <kbd>⌘Z</kbd> undo. The hazards are the same.
+* **One capture at a time.** A new hold can pass its threshold while the
+  previous transcript is in insertion. It waits for that insert and does not
+  cancel it.
+* **Accounting.** Dictated characters have their own counter. They are not in
+  the time-saved figure of the menu. One spoken sentence is equal to a week
+  of accepted words, and it changes what that number means.
 
 ## Context
 
-* **App awareness** — prompt style adapts to the active app (short completions
-  in chat apps, disabled entirely in password managers, and in terminals
-  everywhere but an AI agent's prompt box — `AgentPrompt` finds it in the
-  terminal's AX text, `AXText.xtermContext` rebuilds that text for xterm.js
-  terminals), and all reading stops while macOS reports secure input.
-* **Screen context** — optional, off by default. Runs Apple's Vision OCR on the
-  focused window to pull in nearby text, such as the email thread you're
-  replying to. Requires Screen Recording. OCR'd text never enters the debug
-  log; exported logs carry a size-only placeholder in its place.
+| Feature | How it operates |
+|---|---|
+| App awareness | The prompt style changes with the active app: short completions in chat apps. Pretype is off in password managers. In terminals, it is off except in the prompt box of an AI agent. `AgentPrompt` finds that box in the AX text of the terminal. `AXText.xtermContext` builds that text again for xterm.js terminals. All reads stop while macOS reports secure input. |
+| Screen context | Optional and off by default. Apple's Vision OCR reads the focused window to get nearby text, for example the email thread of your reply. It needs Screen Recording. OCR text never goes into the debug log. An exported log has a placeholder with the size only. |
 
 ## Where things live
 
+<div align="center">
+<img src="diagram-arch-modules.svg" width="720" alt="Main components. The focused app sends AX text to FocusTracker and AXText, and key events to KeyTap. Both send to SuggestionController. CorrectionController exchanges data with SuggestionController. DictationController sends to SuggestionController through DictationHost. SuggestionController sends to EngineCoordinator, which runs MLXEngine or FoundationModelsEngine. SettingsStore sends to EngineCoordinator. SuggestionController writes to SuggestionJournal and PersonalNgram, shows SuggestionWindow, and sends text to TextInjector, which types synthetic keys into the focused app." />
+</div>
+
 All app code is in `Sources/Pretype/`:
 
-* **Startup & menu** — `main.swift` (entry point, `--ax-probe`), `AppDelegate`,
-  `StatusMenuController` + `MenuHeaderView` (menu bar and Diagnostics),
-  `OnboardingWindow`, `Permissions`, `UpdateChecker` (daily release check).
-* **Reading the field** — `FocusTracker` (follows the focused element via
-  `AXObserver`), `AXText` (text, caret and font reads), `ScreenContext`
-  (opt-in OCR), `AppPolicy` (per-app and per-site rules).
-* **Input & output** — `KeyTap` (event tap, accept keys, modifier gestures),
-  `TextInjector` (synthetic key events), `SuggestionWindow` (ghost text and
-  pills), `CaretIndicator`, `BackgroundProbe` (light/dark under the overlay).
-* **Pipeline** — `SuggestionController` is the hub: text → engine → overlay →
-  accept → inject, plus dictation inserts. `EngineCoordinator` owns the
-  engine's lifecycle; `CorrectionController` runs ⌥⇥, last-word and inline
-  spell fixes (`SpellChecker`, `EmojiShortcodes`, `InlineCalculator`).
-* **Engines** (`Engines/`) — `CompletionEngine` (protocol), `MLXEngine` +
-  `MLXEngine+Generation` (load, KV cache, decode loop), `FoundationModelsEngine`,
-  `CompletionGates` / `CorrectionGates` (shared output gates), `ModelCatalog`
-  (entries, RAM ladder, recommended settings), `ModelMetrics` (measured
-  figures), `ModelStorage` (disk, deletes, slim upgrade), `ConfigProjection`.
-* **Personalization** — `SuggestionJournal`, `PersonalNgram`, `TypedLanguage`,
-  `Stats`.
-* **Dictation** (`Dictation/`) — `DictationController` (state machine) behind
-  `DictationHost`, `AudioCapture`, `AudioDevices`, `Transcription` (Apple's
-  `SpeechAnalyzer`), `Parakeet` (opt-in).
-* **Settings UI** — `Settings` (stored defaults), `SettingsWindowController`,
-  `SettingsStore` (the observable bridge to the pipeline), `SettingsView` (tabs), `SettingsUI` (presets, sharing, alerts),
-  `ModelTabView` (model map and list), `ImpactRailView` (Live Impact meters).
-* **Debugging** — `DebugLog` (ring buffer and Debug Console), `ConsoleMetrics`.
+| Area | Files | Job |
+|---|---|---|
+| Startup and menu | `main.swift`, `AppDelegate`, `StatusMenuController`, `MenuHeaderView`, `BrandMark`, `OnboardingWindow`, `Permissions`, `UpdateChecker` | Entry point and `--ax-probe`. Menu bar, menu-bar icon and Diagnostics. Onboarding, permissions, and the daily release check. |
+| Read the field | `FocusTracker`, `AXText`, `AgentPrompt`, `ScreenContext`, `AppPolicy` | Follow the focused element with `AXObserver`. Read text, caret and font. Find an agent prompt in a terminal. Opt-in OCR. Rules for each app and site. |
+| Input and output | `KeyTap`, `TextInjector`, `SuggestionWindow`, `CaretIndicator`, `BackgroundProbe` | Event tap, accept keys and modifier gestures. Synthetic key events. The panel, inline ghost text and pills. Light or dark below the overlay. |
+| Pipeline | `SuggestionController`, `EngineCoordinator`, `CorrectionController`, `SpellChecker`, `EmojiShortcodes`, `InlineCalculator` | `SuggestionController` is the hub: text → engine → overlay → accept → inject, and dictation inserts. `EngineCoordinator` controls the life of the engine. `CorrectionController` runs ⌥⇥, last-word fixes and inline spell fixes. |
+| Engines (`Engines/`) | `CompletionEngine`, `MLXEngine`, `MLXEngine+Generation`, `FoundationModelsEngine`, `CompletionGates`, `CorrectionGates`, `ModelCatalog`, `ModelMetrics`, `ModelStorage`, `ConfigProjection` | The protocol. Load, KV cache and decode loop. The Apple Intelligence engine. Shared output gates. Catalog entries, RAM ladder and recommended settings. Measured figures. Disk, deletes and the slim upgrade. |
+| Personalization | `SuggestionJournal`, `PersonalNgram`, `TypedLanguage`, `Stats` | The local journal, the personal n-gram model, the typed language and the usage statistics. |
+| Dictation (`Dictation/`) | `DictationController`, `DictationHost`, `AudioCapture`, `AudioDevices`, `Transcription`, `Parakeet` | The state machine and its host protocol. Microphone capture and device selection. Apple's `SpeechAnalyzer`. The opt-in Parakeet engine. |
+| Settings UI | `Settings`, `SettingsWindowController`, `SettingsStore`, `SettingsView`, `SettingsUI`, `ModelTabView`, `ImpactRailView` | Stored defaults. The observable bridge to the pipeline. Tabs. Presets, sharing and alerts. The model map and list. The Live Impact meters. |
+| Debugging | `DebugLog`, `ConsoleMetrics` | Ring buffer and Debug Console. |

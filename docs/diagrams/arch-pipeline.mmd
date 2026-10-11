@@ -1,0 +1,18 @@
+%% One key press to one accepted suggestion, in three stages.
+flowchart LR
+  subgraph read["Read"]
+    direction TB
+    k["1. You type a character"] --> ax["2. FocusTracker and AXText<br/>read the text at the caret"]
+    ax --> chk["3. SuggestionController<br/>does the checks"]
+  end
+  subgraph gen["Generate"]
+    direction TB
+    wait["4. Wait 60 ms.<br/>A new key press<br/>cancels the request."] --> eng["5. The engine prefills<br/>only the new tokens<br/>and decodes"]
+    eng --> gate["6. The gates cut<br/>or drop the output"]
+  end
+  subgraph acc["Accept"]
+    direction TB
+    show["7. SuggestionWindow<br/>shows the suggestion"] --> tab["8. You press Tab.<br/>KeyTap holds the key."]
+    tab --> inj["9. TextInjector types<br/>the text into the field"]
+  end
+  read --> gen --> acc

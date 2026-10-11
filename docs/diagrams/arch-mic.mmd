@@ -1,0 +1,9 @@
+%% AudioDevices.resolve: which input device a capture opens.
+flowchart TB
+  set{{"Microphone setting"}} -- "Automatic<br/>(default)" --> bt{{"Default input is a<br/>Bluetooth headset that<br/>also plays the audio,<br/>and a built-in mic exists?"}}
+  set -- "A pinned<br/>device" --> pin{{"Is the device<br/>connected?"}}
+  set -- "System<br/>default" --> def["Default input"]
+  bt -- yes --> built["Built-in microphone"]
+  bt -- no --> def
+  pin -- yes --> dev["The pinned device"]
+  pin -- no --> def

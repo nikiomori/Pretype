@@ -1,0 +1,9 @@
+%% ModelCatalog.defaultID(forRamGB:): physical memory -> default model.
+flowchart TB
+  ram("Physical memory") --> q1{{"27.2 GB or more?"}}
+  q1 -- yes --> e4b6["Gemma 4 E4B 6-bit<br/>(Macs with 32 GB and more)"]
+  q1 -- no --> q2{{"20 GB or more?"}}
+  q2 -- yes --> e2b8["Gemma 4 E2B 8-bit<br/>(Macs with 24 GB)"]
+  q2 -- no --> q3{{"14 GB or more?"}}
+  q3 -- yes --> e2b4["Gemma 4 E2B 4-bit<br/>(Macs with 16–18 GB)"]
+  q3 -- no --> qwen["Qwen3.5 2B (Base)<br/>(Macs with 8 GB)"]

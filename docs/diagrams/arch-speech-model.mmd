@@ -1,0 +1,9 @@
+%% Transcription.start: which speech model serves the dictation language.
+flowchart TB
+  lang("Keyboard language") --> a{{"In the 30 locales of<br/>SpeechTranscriber?"}}
+  a -- yes --> st["SpeechTranscriber"]
+  a -- no --> p{{"Parakeet is on, and the<br/>language is one of its 25?"}}
+  p -- yes --> pk["Parakeet"]
+  p -- no --> d{{"DictationTranscriber<br/>supports it?"}}
+  d -- yes --> dt["DictationTranscriber<br/>(Russian and most others)"]
+  d -- no --> none("No dictation<br/>for this language")

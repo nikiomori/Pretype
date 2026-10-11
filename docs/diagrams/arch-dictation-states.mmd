@@ -1,0 +1,11 @@
+%% DictationController.Phase: the capture lifecycle (idle, preparing, listening, working).
+%% Not drawn: a release during Preparing goes back to Idle (see the table).
+flowchart TB
+  idle("Idle") -- "Hold the modifier 0.45 s,<br/>or press ⌃⌥D" --> prep("Preparing")
+  prep -- "The microphone is open" --> listen("Listening")
+  listen -- "Release, ⌃⌥D again,<br/>silence, or time limit" --> work("Working")
+  work -- "Text typed, or put<br/>on the clipboard" --> idle
+  listen -. "Esc or an interrupt<br/>(transcript dropped)" .-> idle
+  work --- note["Finalize: 10 s watchdog.<br/>Tidy-up: 3 s budget,<br/>500 characters maximum."]
+  classDef memo fill:#fff8e6,stroke:#ff9500,color:#1d1d1f
+  class note memo
