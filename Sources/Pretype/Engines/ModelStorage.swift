@@ -267,7 +267,7 @@ enum ModelStorage {
 
     /// Whether the network is one a multi-GB background fetch may use: up, not
     /// cellular or a hotspot (`isExpensive`), not in Low Data Mode (`isConstrained`).
-    private static func isNetworkUnmetered() async -> Bool {
+    static func isNetworkUnmetered() async -> Bool {
         let monitor = NWPathMonitor()
         defer { monitor.cancel() }
         let answered = LockedValue(false)

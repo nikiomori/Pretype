@@ -750,7 +750,7 @@ enum Settings {
 
     /// Dictate the languages Apple's newer speech model doesn't cover with
     /// Parakeet instead (see `Parakeet`). Off by default — turning it on is
-    /// the consent for a ~470 MB download.
+    /// the consent for a ~610 MB download.
     static var dictationParakeet: Bool {
         get { defaults.bool(forKey: "dictationParakeet") }
         set { defaults.set(newValue, forKey: "dictationParakeet") }

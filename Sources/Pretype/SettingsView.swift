@@ -87,9 +87,9 @@ final class SettingsStore {
     var parakeetNote: String?
 
     /// Fetch and load the model the moment the user opts in, so the first
-    /// dictation after it doesn't sit in "preparing" for a 470 MB download.
+    /// dictation after it doesn't sit in "preparing" for a 610 MB download.
     func prepareParakeet() {
-        parakeetNote = Parakeet.isDownloaded ? nil : "Downloading the Parakeet model (~470 MB)…"
+        parakeetNote = Parakeet.isDownloaded ? nil : "Downloading the Parakeet model (~610 MB)…"
         Task { @MainActor [weak self] in
             do {
                 _ = try await Parakeet.prepare()
@@ -1571,9 +1571,9 @@ struct GeneralTab: View {
                             Toggle(isOn: $store.dictationParakeet) {
                                 Text("Use Parakeet for \(store.dictationLanguageName)")
                                 Text("NVIDIA's open speech model, run locally, for the languages Apple's "
-                                    + "newer model skips. On Russian it makes half the word errors of the "
-                                    + "system model and writes its own punctuation (F1 0.85 against 0.02), "
-                                    + "three times faster. A one-time ~470 MB download.")
+                                    + "newer model skips. On Russian it makes under half the word errors of the "
+                                    + "system model and writes its own punctuation (F1 0.87 against 0.02), "
+                                    + "three times faster. A one-time ~610 MB download.")
                             }
                             if let note = store.parakeetNote {
                                 Caption(note)

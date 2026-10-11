@@ -41,7 +41,8 @@ first use. Those weights are licensed by their publishers, not by Pretype's MIT 
 | MiniCPM5 | OpenBMB | See the [model card](https://huggingface.co/openbmb) |
 | Qwen 2.5 / 3.5 | Alibaba (Qwen) | Apache-2.0 — see the [model card](https://huggingface.co/Qwen) |
 | Ternary Bonsai | prism-ml | See the [model card](https://huggingface.co/prism-ml) |
-| Parakeet TDT 0.6B v3 (opt-in dictation, CoreML conversion by FluidInference) | NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |
+| Parakeet Ultra — moondream's post-training of NVIDIA Parakeet TDT 0.6B v3 (opt-in dictation, CoreML conversion by FluidInference) | moondream, NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/moondream/parakeet-ultra) |
+| Parakeet TDT 0.6B v3 (installs that opted in before Ultra, until the background swap) | NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |
 
 By downloading a model through Pretype you accept its publisher's terms. Check the model
 card on Hugging Face for the authoritative, current license of any specific repository.
