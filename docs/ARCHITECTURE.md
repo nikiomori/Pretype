@@ -20,20 +20,36 @@ want to add a third.
 
 ## Model catalog
 
-The out-of-the-box pick is resolved once from your enabled keyboard layouts
-([why](models.md)); both defaults fit an 8 GB Mac.
-Everything else is a manual pick in **Settings → Model**:
+The out-of-the-box pick is resolved once per launch from the Mac's physical
+memory — `ModelCatalog.defaultID(forRamGB:)`: the best Gemma tier, in quality
+order E4B 6-bit → E2B 8-bit → E2B 4-bit, whose resident model in its
+recommended configuration (the instruct primary) stays within about a quarter
+of RAM, with Qwen3.5 2B as the floor below the smallest one. On the memory
+sizes Apple ships that is 8 GB → Qwen3.5 2B, 16–18 GB → E2B 4-bit,
+24 GB → E2B 8-bit, 32 GB and up → E4B 6-bit ([why](models.md)). The
+thresholds are a fixed table (sized on the pre-slim builds, so the quarter
+rule holds with room to spare): the default is live, not stored, so moving a
+threshold would move every auto-default install of that size onto another
+model — a multi-GB download nobody asked for. Keyboard
+layouts no longer pick the model; they still drive the persona and the
+per-language menu nudge. Everything else is a manual pick in
+**Settings → Model**:
 
-| Model | Size | Why you'd pick it |
+| Model | Download | Why you'd pick it |
 |---|---|---|
-| **MiniCPM5 1B** | ≈2.2 GB | *Default for EN/RU keyboards* — fastest in the catalog at 49 ms |
-| **Qwen3.5 2B 4-bit** | ≈1.6 GB | *Default for every other keyboard* — best sub-2 GB pick multilingually (p<0.001) |
-| Gemma 4 E4B 8-bit | ≈8.6 GB | Best measured quality; holds up across all 19 eval languages |
-| Gemma 4 E4B 6-bit | ≈6.8 GB | Ties E4B 8-bit (p=0.052) at 1.8 GB less |
-| Gemma 4 E2B 8-bit | ≈5.7 GB | ~1 pp behind E4B at roughly twice the speed |
-| Gemma 4 E2B 4-bit | ≈3.5 GB | The mildest 4-bit cost in the field |
+| Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality; holds up across all 19 eval languages. Never the default — it ties 6-bit |
+| **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB* — ties E4B 8-bit (p=0.052) for a smaller download |
+| **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB* — ~1 pp behind E4B at roughly twice the speed |
+| **Gemma 4 E2B 4-bit** | ≈2.5 GB | *Default at 16–18 GB* — the mildest 4-bit cost in the field |
+| MiniCPM5 1B | ≈2.2 GB | Fastest in the catalog at 49 ms; strong on English, weaker elsewhere |
 | Ternary Bonsai 4B | ≈1.1 GB | A 4B in about a gigabyte |
+| **Qwen3.5 2B (Base)** | ≈1.0 GB | *Default on 8 GB* — best sub-2 GB pick multilingually (p<0.001) |
 | Qwen2.5 0.5B | ≈1.0 GB | Smallest footprint in the catalog |
+
+Sizes are the catalog's download figures (`ModelOption.approxSizeMB`); the
+Gemma tiers download slim re-packs (`ModelCatalog.slimRepos`). Qwen3.5
+completes on its Base build (our own conversion) while ⌥⇥ and the reply draft
+run on the post-trained one.
 
 Quantization is not a free axis, and it isn't uniform across families:
 **E4B below 6-bit collapses** — E4B 4-bit was delisted after measuring as a
@@ -53,8 +69,10 @@ On the Gemma builds the **Instruct** completion style swaps in an instruct
 sibling sized to that entry's RAM class, so no pick ever loads weights your Mac
 can't comfortably hold.
 
-Measured figures live in `Sources/Pretype/Engines/ModelMetrics.swift`; the
-protocol, datasets and significance tests behind them are in `Eval/BASELINE.md`.
+Measured figures live in `Sources/Pretype/Engines/ModelMetrics.swift`, with
+the eval sets, sample sizes and significance tests noted beside them.
+The eval harness and datasets themselves are kept out of the public repo (see
+*Quality eval* in [CONTRIBUTING](../CONTRIBUTING.md#quality-eval--please-measure-promptmodel-changes)).
 
 ## Latency
 
@@ -105,16 +123,19 @@ sufficient filter.
 What runs by default is confidence *trim*, which cuts the low-confidence tail
 off a suggestion rather than abstaining from it entirely.
 
-Details and the measured swing are in `Eval/BASELINE.md`.
+The per-model thresholds are `Recommendation.logprobGateTau` in
+`ModelCatalog.recommended(for:)`; the gates themselves live in
+`Engines/CompletionGates.swift`.
 
 ## Typo corrections and rewrites
 
 * **Inline typo fix** — the macOS system spell-checker, in whichever language
   `NLLanguageRecognizer` detects from the preceding context.
 * **Fix selection (`⌥Tab`)** — the local model rewrites the selection in place.
-  Corrections need instruction-following, so the first `⌥Tab` triggers a
-  one-time download of a small instruct sibling of your completion model (shown
-  as *preparing…* in the menu bar).
+  Corrections need instruction-following, so on most models running Base style
+  (Bonsai corrects with itself) the first `⌥Tab` triggers a one-time download of an instruct sibling of your
+  completion model (shown as *preparing…* in the menu bar); a Gemma tier in its
+  recommended Instruct style fixes with the model it already has loaded.
 
 ## Dictation
 
@@ -153,8 +174,10 @@ Hold-to-talk, off by default, macOS 26+ (`Sources/Pretype/Dictation/`).
   finalized and typed instead of discarded.
 * **Words** — `Transcription` wraps Apple's `SpeechAnalyzer` behind a
   `TranscriptionSession` protocol, so the controller above it isn't
-  version-gated and a bundled Whisper/Parakeet engine for macOS 14–15 could slot
-  in later. The models are the system's own, downloaded by macOS per language on
+  version-gated; the opt-in Parakeet engine (`Parakeet.swift`, NVIDIA's model
+  via FluidAudio, downloaded once into `~/Library/Application Support/FluidAudio`)
+  slots in behind the same protocol for the languages Apple serves only with its
+  older model. The models are the system's own, downloaded by macOS per language on
   first use and shared with every other app that asks — zero bytes shipped by us.
   Volatile results drive the live pill at the caret.
 * **Two models, picked per language** — `SpeechTranscriber` is the newer and
@@ -195,3 +218,35 @@ Hold-to-talk, off by default, macOS 26+ (`Sources/Pretype/Dictation/`).
   focused window to pull in nearby text, such as the email thread you're
   replying to. Requires Screen Recording. OCR'd text never enters the debug
   log; exported logs carry a size-only placeholder in its place.
+
+## Where things live
+
+All app code is in `Sources/Pretype/`:
+
+* **Startup & menu** — `main.swift` (entry point, `--ax-probe`), `AppDelegate`,
+  `StatusMenuController` + `MenuHeaderView` (menu bar and Diagnostics),
+  `OnboardingWindow`, `Permissions`, `UpdateChecker` (daily release check).
+* **Reading the field** — `FocusTracker` (follows the focused element via
+  `AXObserver`), `AXText` (text, caret and font reads), `ScreenContext`
+  (opt-in OCR), `AppPolicy` (per-app and per-site rules).
+* **Input & output** — `KeyTap` (event tap, accept keys, modifier gestures),
+  `TextInjector` (synthetic key events), `SuggestionWindow` (ghost text and
+  pills), `CaretIndicator`, `BackgroundProbe` (light/dark under the overlay).
+* **Pipeline** — `SuggestionController` is the hub: text → engine → overlay →
+  accept → inject, plus dictation inserts. `EngineCoordinator` owns the
+  engine's lifecycle; `CorrectionController` runs ⌥⇥, last-word and inline
+  spell fixes (`SpellChecker`, `EmojiShortcodes`, `InlineCalculator`).
+* **Engines** (`Engines/`) — `CompletionEngine` (protocol), `MLXEngine` +
+  `MLXEngine+Generation` (load, KV cache, decode loop), `FoundationModelsEngine`,
+  `CompletionGates` / `CorrectionGates` (shared output gates), `ModelCatalog`
+  (entries, RAM ladder, recommended settings), `ModelMetrics` (measured
+  figures), `ModelStorage` (disk, deletes, slim upgrade), `ConfigProjection`.
+* **Personalization** — `SuggestionJournal`, `PersonalNgram`, `TypedLanguage`,
+  `Stats`.
+* **Dictation** (`Dictation/`) — `DictationController` (state machine) behind
+  `DictationHost`, `AudioCapture`, `AudioDevices`, `Transcription` (Apple's
+  `SpeechAnalyzer`), `Parakeet` (opt-in).
+* **Settings UI** — `Settings` (stored defaults), `SettingsWindowController`,
+  `SettingsStore` (the observable bridge to the pipeline), `SettingsView` (tabs), `SettingsUI` (presets, sharing, alerts),
+  `ModelTabView` (model map and list), `ImpactRailView` (Live Impact meters).
+* **Debugging** — `DebugLog` (ring buffer and Debug Console), `ConsoleMetrics`.
