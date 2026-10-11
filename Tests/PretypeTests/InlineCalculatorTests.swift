@@ -19,6 +19,11 @@ final class InlineCalculatorTests: XCTestCase {
         XCTAssertNil(InlineCalculator.completion(for: "1/0="), "not finite")
         XCTAssertNil(InlineCalculator.completion(for: "1.2.3+4="), "malformed number")
         XCTAssertNil(InlineCalculator.completion(for: "(1+2="), "unbalanced")
+        // A space ends a number: the run before "=" may start with a stray one.
+        XCTAssertEqual(InlineCalculator.trailingExpression(in: "Room 12 3+4="), "12 3+4=")
+        XCTAssertNil(InlineCalculator.completion(for: "12 3+4="), "two numbers, not 123")
+        XCTAssertNil(InlineCalculator.completion(for: "1. 2+2="), "a list marker, not 1.2")
+        XCTAssertEqual(InlineCalculator.completion(for: "( 1 + 2 ) * 3 ="), "( 1 + 2 ) * 3 =9")
     }
 
     func testTokenLengthMatchesWhatThePillDeletes() {

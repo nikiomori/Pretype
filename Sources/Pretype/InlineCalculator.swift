@@ -27,7 +27,7 @@ enum InlineCalculator {
     /// it doesn't parse or doesn't come out a finite number.
     static func completion(for token: String) -> String? {
         guard token.hasSuffix("=") else { return nil }
-        var parser = Parser(Array(token.dropLast().filter { $0 != " " }))
+        var parser = Parser(Array(token.dropLast()))
         guard let value = parser.expression(), parser.atEnd, value.isFinite else { return nil }
         return token + format(value)
     }
@@ -67,18 +67,27 @@ enum InlineCalculator {
             return value
         }
 
+        /// Spaces separate tokens, never join them: "12 3+4" is no 123+4.
+        mutating func skipSpaces() {
+            while pos < chars.count, chars[pos] == " " { pos += 1 }
+        }
+
         mutating func factor() -> Double? {
+            skipSpaces()
             guard pos < chars.count else { return nil }
             if chars[pos] == "-" { pos += 1; return factor().map { -$0 } }
             if chars[pos] == "(" {
                 pos += 1
                 guard let value = expression(), pos < chars.count, chars[pos] == ")" else { return nil }
                 pos += 1
+                skipSpaces()
                 return value
             }
             let start = pos
             while pos < chars.count, chars[pos].isNumber || chars[pos] == "." { pos += 1 }
-            return Double(String(chars[start..<pos]))
+            let value = Double(String(chars[start..<pos]))
+            skipSpaces()
+            return value
         }
     }
 }
