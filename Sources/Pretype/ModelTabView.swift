@@ -102,7 +102,7 @@ struct ModelTab: View {
                 case .reply:
                     Text("Up = usable reply drafts — right language, no echo of the screen; a floor on usability, not a quality score · right = faster · bubble size = the sibling's memory. "
                         + "The ring marks the sibling your pick loads for \(store.hotkeyStyle.replyLabel); click a bubble to switch to the pick it serves. "
-                        + "Catalog-wide totals (570 conversations, 19 languages, ±4 pp) — the language picker above doesn't apply here.")
+                        + "Catalog-wide totals (380 conversations, 19 languages, ±5 pp) — the language picker above doesn't apply here.")
                 case .completion:
                     if axis == "core" {
                         Text("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource)). "
@@ -382,14 +382,11 @@ struct ChordTaskRows: View {
             LabeledContent("Fix a line (\(store.hotkeyStyle.correctionLabel))") {
                 Text("\(t.m.fixPct)% restored exactly · touches \(t.m.falseFixPct)% of clean lines")
             }
-            .help("Of 510 single-typo sentences in 17 languages, \(t.runsOn) — the model this pick loads for the chord — restored \(t.m.fixPct)% [\(t.m.fixCI.lowerBound)–\(t.m.fixCI.upperBound)] to the exact original; on 170 already-clean lines it still proposed a change \(t.m.falseFixPct)% of the time. Warm median \(t.m.fixP50Ms) ms. eval-correct, 2026-07-25.")
+            .help("Of 510 single-typo sentences in 17 languages, \(t.runsOn) — the model this pick loads for the chord — restored \(t.m.fixPct)% [\(t.m.fixCI.lowerBound)–\(t.m.fixCI.upperBound)] to the exact original; on 170 already-clean lines it still proposed a change \(t.m.falseFixPct)% of the time. Warm median \(t.m.fixP50Ms) ms. \(ModelMetrics.taskSource).")
             LabeledContent("Draft a reply (\(store.hotkeyStyle.replyLabel))") {
                 Text("\(t.m.replyPct)% usable drafts — right language, no echo")
             }
-            .help("Of 570 on-screen conversations in 19 languages, \(t.runsOn) drafted something in the conversation's language without parroting the screen \(t.m.replyPct)% [\(t.m.replyCI.lowerBound)–\(t.m.replyCI.upperBound)] of the time — a floor on usability, not a quality score. Warm median \(t.m.replyP50Ms) ms. eval-reply, 2026-07-25.")
-            if !t.measuredExactly {
-                Caption("Chord figures measured on \(t.runsOn); this pick runs the 6-bit build of the same sibling, so treat them as a floor.")
-            }
+            .help("Of 380 on-screen conversations in 19 languages, \(t.runsOn) drafted something in the conversation's language without parroting the screen \(t.m.replyPct)% [\(t.m.replyCI.lowerBound)–\(t.m.replyCI.upperBound)] of the time — a floor on usability, not a quality score. Warm median \(t.m.replyP50Ms) ms. \(ModelMetrics.taskSource).")
         } else {
             LabeledContent("Fix & reply chords") {
                 Text("not measured for this model's correction sibling yet")
@@ -531,18 +528,16 @@ struct ModelRow: View {
     /// The chord figures beside the bars: fix% · reply%, in the task colors
     /// the map lenses use. Resolved at the model's RECOMMENDED settings (what
     /// a click gives you); the selected-model card below re-resolves against
-    /// the live style. "~" marks the E4B tiers' 4-bit floor for their
-    /// unmeasured 6-bit sibling; "—" = sibling not in the task sweep.
+    /// the live style. "—" = sibling not in the task sweep.
     @ViewBuilder private var chordFigures: some View {
         let chord = ModelMetrics.taskMetrics(
             for: id, style: ModelCatalog.recommended(for: id).style)
         VStack(alignment: .leading, spacing: 3) {
             Text("Fix · Reply").font(.caption2).foregroundStyle(.secondary)
             if let chord {
-                let approx = chord.measuredExactly ? "" : "~"
-                let fixText = Text("\(approx)\(chord.m.fixPct)%").foregroundStyle(Color.orange.legible)
+                let fixText = Text("\(chord.m.fixPct)%").foregroundStyle(Color.orange.legible)
                 let dotText = Text(" · ").foregroundStyle(Color.secondary)
-                let replyText = Text("\(approx)\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
+                let replyText = Text("\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
                 (fixText + dotText + replyText)
                     .font(.caption2.monospacedDigit())
             } else {
@@ -554,8 +549,7 @@ struct ModelRow: View {
     }
 
     private func chordHelp(
-        _ chord: (m: ModelMetrics.TaskMetrics, runsOn: String,
-                  measuredID: String, measuredExactly: Bool)?) -> String {
+        _ chord: (m: ModelMetrics.TaskMetrics, runsOn: String, measuredID: String)?) -> String {
         guard let c = chord else {
             return "The fix and reply chords for this model aren't measured by the task eval yet."
         }
@@ -563,10 +557,7 @@ struct ModelRow: View {
         out += "[\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(c.m.replyPct)% usable reply drafts "
         out += "[\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this "
         out += "model's recommended settings; they don't follow the language picker. "
-        if !c.measuredExactly {
-            out += "This pick runs the 6-bit build of the sibling; the 4-bit figures are its floor. "
-        }
-        out += "eval-correct/eval-reply, 2026-07-25."
+        out += ModelMetrics.taskSource + "."
         return out
     }
 
@@ -738,7 +729,7 @@ struct ModelMapView: View {
     /// models span a much narrower band (all-language averages sit at 9–23%),
     /// and the fixed scale squeezed every bubble into the bottom fifth — so
     /// the scale fits the plotted data instead, rounded to 5s. The chord
-    /// lenses always fit their own five values (fix spans 4–65%).
+    /// lenses always fit their own values (fix spans 4–69%).
     private var accBounds: (lo: Double, hi: Double) {
         let values: [Double]
         switch lens {

@@ -67,11 +67,11 @@ enum ModelCatalog {
         // English-only — against E2B-8bit: English 27 vs 26 (p=0.35), Russian
         // 17 vs 23 (p<0.001). Beyond EN/RU coverage collapses (uk/ro/tr/cs
         // 53–69%) and E2B-8bit wins decisively (p<0.001). It lost the default
-        // seat in the 07-25 revision — its instruct build is the catalog's
-        // best replier (56%) but as a fixer it is inert (4% vs Qwen3.5's 32%),
-        // and its EN edge over Qwen3.5 is a trend only (p=0.014, ru tie
-        // p=0.79) — so it stays the MANUAL pick for the lowest latency and
-        // the best reply drafts. Runs base-only — its instruct mode ANSWERS
+        // seat in the 07-25 revision — as a fixer its instruct build is inert
+        // (4% vs Qwen3.5's 33%), its reply drafts mostly restate the screen
+        // (35% usable, 2026-10-11), and its EN edge over Qwen3.5 is a trend
+        // only (p=0.014, ru tie p=0.79) — so it stays the MANUAL pick for the
+        // lowest completion latency. Runs base-only — its instruct mode ANSWERS
         // the text instead of continuing it (first-word ~0%), so
         // `recommended(for:)` and the fresh-install defaults both pin base
         // style. bf16 straight from the hub; no 8-bit Base conversion is
@@ -104,7 +104,7 @@ enum ModelCatalog {
         // 17-language eval-real, 2026-07-16/17): best sub-2 GB model on the
         // full set — beats MiniCPM5, Bonsai and Qwen 0.5B (all p<0.001) with
         // the mildest coverage sag, near-ties MiniCPM5 on EN/RU, and its
-        // chords work (fix 32% / reply 46%). Base-only like the other smalls;
+        // chords work (fix 33% / reply 76%). Base-only like the other smalls;
         // correction/instruct siblings point at the base id itself
         // (guaranteed to load; recommended(for:) pins base so auto never
         // flips to an echoing instruct mode).
@@ -139,11 +139,10 @@ enum ModelCatalog {
     /// Russian is a tie, p=0.79; Japanese p=0.064 — direct McNemar over the
     /// runs-2026-07-16 dumps), while the task eval splits hard AGAINST the
     /// old EN/RU default — MiniCPM5's instruct build fixes 4% of noisy lines
-    /// where Qwen3.5 manages 32% and the Gemma siblings 50–65% — and E2B
+    /// where Qwen3.5 manages 33% and the Gemma siblings 50–69% — and E2B
     /// 4-bit beats BOTH smalls on Russian outright (p=0.0007 / 0.0012).
     /// Keyboard languages still drive the persona and the per-language menu
-    /// nudge; MiniCPM5 stays the manual pick for the lowest latency and the
-    /// best reply drafts.
+    /// nudge; MiniCPM5 stays the manual pick for the lowest latency.
     static let defaultID: String = defaultID(forRamGB: machineRamGB)
 
     /// The rule behind `defaultID`, memory injected so tests stay
@@ -156,7 +155,7 @@ enum ModelCatalog {
     /// Below the smallest Gemma tier the floor is Qwen3.5 2B: ties MiniCPM5
     /// on EN/RU completions, beats every other small multilingually
     /// (p<0.001), and corrects with itself — 1.6 GB, no sibling download,
-    /// working chords (fix 32% / reply 46% against MiniCPM5's 4% / 56%).
+    /// working chords (fix 33% / reply 76% against MiniCPM5's 4% / 35%).
     static func defaultID(forRamGB ram: Double) -> String {
         let gemmaTiers = ["mlx-community/gemma-4-e4b-6bit",
                           "mlx-community/gemma-4-e2b-8bit",
@@ -180,13 +179,13 @@ enum ModelCatalog {
     static var defaultRationale: String {
         switch defaultID {
         case "mlx-community/gemma-4-e4b-6bit":
-            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~6.8 GB resident, freed again after idle). Measurably ahead of the E2B tiers across the evaluated languages (p=0.001), statistically tied with E4B 8-bit at 1.8 GB less, and its fix sibling restores 65% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory."
+            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~6.8 GB resident, freed again after idle). Measurably ahead of the E2B tiers across the evaluated languages (p=0.001), statistically tied with E4B 8-bit at 1.8 GB less, and its fix sibling restores 69% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory."
         case "mlx-community/gemma-4-e2b-8bit":
-            return "Auto-picked for this Mac's memory (~5 GB resident in its recommended configuration, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding the best-measured fixer (65% exact restores). E4B is the upgrade if this Mac gains memory; the small models spend less."
+            return "Auto-picked for this Mac's memory (~5 GB resident in its recommended configuration, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
         case "mlx-community/gemma-4-e2b-4bit":
-            return "Auto-picked for this Mac's memory (~3.5 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and it fixes half of noisy lines exactly where the small models manage 4–32%."
+            return "Auto-picked for this Mac's memory (~3.5 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and it fixes half of noisy lines exactly where the small models manage 4–33%."
         case "mlx-community/Qwen3.5-2B-4bit":
-            return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.6 GB, no separate rewrite sibling. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (32% / 46%). A Gemma tier is the accuracy upgrade on a Mac with more memory."
+            return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.6 GB, no separate rewrite sibling. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 76%). A Gemma tier is the accuracy upgrade on a Mac with more memory."
         default:
             return "Auto-picked for this Mac."
         }

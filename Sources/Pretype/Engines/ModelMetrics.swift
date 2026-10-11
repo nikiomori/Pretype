@@ -287,62 +287,75 @@ struct ModelMetrics {
     /// Protocol: `Eval/eval-correct.jsonl` — 510 single-typo sentences plus
     /// 170 clean controls, 17 languages; fix% = restored EXACTLY to the clean
     /// line, false-fix% = proposed a change on a line with nothing wrong.
-    /// `Eval/eval-reply.jsonl` — 570 on-screen conversations, 19 languages;
-    /// reply% = drafted something in the conversation's language without
-    /// echoing the screen — a floor on usability, not a quality score.
-    /// Booked from `Eval/runs-2026-07-25-tasks/` (book-tasks.py): the E4B
-    /// sibling from the correct3 rerun — after the turn-marker stop and
-    /// run-on trim landed; the earlier pass lost 39% of its rows to same-line
-    /// junk — everything else from correct2, where junk was ~0 so those fixes
-    /// don't move them. Bonsai (which corrects with itself — no instruct
-    /// conversion of the ternary QAT exists) ran the same evening on the
-    /// current-code pipeline (run-bonsai.sh, correct3-/reply-bonsai dumps).
-    /// Verdicts at the p<0.01 rule: E4B-it is the strongest fixer (vs E2B-it
-    /// p=1e-10, paired over the shared 510 rows) and MiniCPM5's instruct
-    /// build the strongest replier (vs Qwen3.5 p=5e-4) — each is the other
-    /// task's weak model. The fix column is a clean ladder: every adjacent
-    /// gap (65 > 50 > 32 > 21 > 11 > 4) is CLAIM-significant, Bonsai slotting
-    /// below Qwen3.5 (p=7e-7) and above Qwen0.5B-it (p=2e-6). On replies
-    /// Bonsai is last outright — its drafts survive mostly in English (80%)
-    /// and Russian (70%) and collapse elsewhere.
+    /// `Eval/eval-reply.jsonl` — the 380 on-screen conversations (19
+    /// languages) that carry no draft; reply% = drafted something in the
+    /// conversation's language without restating the screen — a floor on
+    /// usability, not a quality score. The 190 draft rows are a separate
+    /// slice: a draft hands the model its language, so pooling them inflated
+    /// every model that got the language wrong on its own (EVAL_REVIEW
+    /// 2026-07-29 §2).
+    /// Booked from `Eval/runs-2026-10-11/` (book-tasks.py), see `taskSource`.
+    /// The 07-25 booking is superseded wholesale: its echo check normalized
+    /// only one side (MiniCPM5's "best replier" verdict was its echoes), it
+    /// ran with the developer's own persona (which turned every Gemma reply
+    /// English), on a debug build, and before Gemma 4 stopped at `<turn|>`.
+    /// Verdicts at the p<0.01 rule, paired over the shared rows: the fix
+    /// column is a clean ladder — every adjacent gap (69 > 65 > 50 > 33 > 19
+    /// > 11 > 4) significant at p<0.001, E4B-it 6-bit ahead of its 4-bit
+    /// build (p=9e-4). On replies the three Gemma siblings tie (95–97%,
+    /// p≥0.45), then Qwen3.5 > Qwen0.5B-it > Bonsai (p<0.001 each), Bonsai
+    /// tying MiniCPM5 (p=0.27) — the small models' drafts mostly restate the
+    /// screen, which `cleanReply` now drops.
     struct TaskMetrics {
         /// % of typo rows restored exactly (n=510; Wilson 95% CI in `fixCI`).
         let fixPct: Int
         let fixCI: ClosedRange<Int>
         /// % of clean control rows it "fixed" anyway (n=170).
         let falseFixPct: Int
-        /// Warm median latency of a fix, ms, on the dev machine.
+        /// Warm median latency of a fix, ms, on the dev machine (release build).
         let fixP50Ms: Int
-        /// % of reply rows meeting the contract (n=570; Wilson 95% CI).
+        /// % of reply rows meeting the contract — answered, in the
+        /// conversation's language, not restating it — over the 380 rows
+        /// with no draft (Wilson 95% CI).
         let replyPct: Int
         let replyCI: ClosedRange<Int>
         let replyP50Ms: Int
     }
 
+    /// eval-correct / eval-reply, 2026-10-11 (`Eval/runs-2026-10-11`): release
+    /// build, persona pinned empty, Gemma 4 stopping on `<turn|>`, the reply
+    /// prompt naming the conversation's language, echoes dropped by
+    /// `cleanReply`, draft rows out of the reply denominator.
+    static let taskSource = "eval-correct/eval-reply, 2026-10-11"
+
     static let tasks: [String: TaskMetrics] = [
+        "mlx-community/gemma-4-e4b-it-6bit": TaskMetrics(
+            fixPct: 69, fixCI: 65...73, falseFixPct: 18, fixP50Ms: 257,
+            replyPct: 97, replyCI: 94...98, replyP50Ms: 331),
         "mlx-community/gemma-4-e4b-it-4bit": TaskMetrics(
-            fixPct: 65, fixCI: 60...69, falseFixPct: 21, fixP50Ms: 1523,
-            replyPct: 33, replyCI: 30...37, replyP50Ms: 532),
+            fixPct: 65, fixCI: 61...69, falseFixPct: 21, fixP50Ms: 235,
+            replyPct: 95, replyCI: 92...97, replyP50Ms: 249),
         "mlx-community/gemma-4-e2b-it-4bit": TaskMetrics(
-            fixPct: 50, fixCI: 45...54, falseFixPct: 29, fixP50Ms: 378,
-            replyPct: 32, replyCI: 28...36, replyP50Ms: 356),
+            fixPct: 50, fixCI: 45...54, falseFixPct: 29, fixP50Ms: 113,
+            replyPct: 96, replyCI: 93...97, replyP50Ms: 89),
         "mlx-community/Qwen3.5-2B-4bit": TaskMetrics(
-            fixPct: 32, fixCI: 28...37, falseFixPct: 28, fixP50Ms: 255,
-            replyPct: 46, replyCI: 42...50, replyP50Ms: 448),
+            fixPct: 33, fixCI: 29...37, falseFixPct: 28, fixP50Ms: 137,
+            replyPct: 76, replyCI: 72...80, replyP50Ms: 152),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
-            fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 185,
-            replyPct: 38, replyCI: 35...42, replyP50Ms: 345),
+            fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 63,
+            replyPct: 52, replyCI: 47...57, replyP50Ms: 73),
         "openbmb/MiniCPM5-1B": TaskMetrics(
-            fixPct: 4, fixCI: 2...6, falseFixPct: 14, fixP50Ms: 668,
-            replyPct: 56, replyCI: 52...61, replyP50Ms: 1801),
+            fixPct: 4, fixCI: 2...6, falseFixPct: 14, fixP50Ms: 139,
+            replyPct: 35, replyCI: 31...40, replyP50Ms: 208),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": TaskMetrics(
-            fixPct: 21, fixCI: 18...25, falseFixPct: 14, fixP50Ms: 324,
-            replyPct: 21, replyCI: 18...25, replyP50Ms: 324),
+            fixPct: 19, fixCI: 16...23, falseFixPct: 12, fixP50Ms: 252,
+            replyPct: 39, replyCI: 34...44, replyP50Ms: 210),
     ]
 
     /// Display names for the measured siblings — they are not catalog
     /// entries, so `metrics(for:)` doesn't know them.
     static let taskModelNames: [String: String] = [
+        "mlx-community/gemma-4-e4b-it-6bit": "Gemma E4B-it 6-bit",
         "mlx-community/gemma-4-e4b-it-4bit": "Gemma E4B-it 4-bit",
         "mlx-community/gemma-4-e2b-it-4bit": "Gemma E2B-it 4-bit",
         "mlx-community/Qwen3.5-2B-4bit": "Qwen3.5 2B",
@@ -354,25 +367,17 @@ struct ModelMetrics {
     /// The task figures the current pick would actually produce: resolves the
     /// sibling the engine loads for fix/reply — the instruct primary in
     /// Instruct style, the lazy correction sibling in Base style (mirrors
-    /// `MLXEngine.correct`) — and looks it up. `measuredExactly` is false when
-    /// the pick runs a sibling the sweep didn't cover and the figures come
-    /// from its nearest measured build (E4B-it 6-bit → the 4-bit numbers, a
-    /// floor); `measuredID` is the sibling the figures were measured on, so
-    /// map/list surfaces can point at the same bubble. nil only for Apple
-    /// Intelligence — the system model is not in the task sweep.
+    /// `MLXEngine.correct`) — and looks it up. `measuredID` is the sibling the
+    /// figures were measured on, so map/list surfaces can point at the same
+    /// bubble. nil for Apple Intelligence (not in the task sweep) and for a
+    /// sibling nobody measured (a fine-tune's).
     static func taskMetrics(for id: String, style: CompletionStyle)
-        -> (m: TaskMetrics, runsOn: String, measuredID: String, measuredExactly: Bool)? {
+        -> (m: TaskMetrics, runsOn: String, measuredID: String)? {
         guard id != ModelCatalog.appleIntelligenceID,
               let option = ModelCatalog.option(for: id) else { return nil }
         let sibling = style == .instruct ? option.instructModelID : option.correctionModelID
-        if let m = tasks[sibling] {
-            return (m, taskModelNames[sibling] ?? sibling, sibling, true)
-        }
-        if sibling == "mlx-community/gemma-4-e4b-it-6bit",
-           let m = tasks["mlx-community/gemma-4-e4b-it-4bit"] {
-            return (m, "Gemma E4B-it 4-bit", "mlx-community/gemma-4-e4b-it-4bit", false)
-        }
-        return nil
+        guard let m = tasks[sibling] else { return nil }
+        return (m, taskModelNames[sibling] ?? sibling, sibling)
     }
 
     /// Resident size of a measured task sibling, GB — bubble size on the

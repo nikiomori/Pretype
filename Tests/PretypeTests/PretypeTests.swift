@@ -1339,10 +1339,12 @@ final class PretypeTests: XCTestCase {
                            "\(sibling) is measured but no catalog pick routes to it at recommended settings")
         }
         // Clicking a sibling bubble on the map switches to the FIRST catalog
-        // user — catalog order is quality order, so the shared E4B-it bubble
-        // must land on the top Gemma tier, not on E2B 8-bit which also runs it.
-        XCTAssertEqual(ModelMetrics.taskUserIDs(of: "mlx-community/gemma-4-e4b-it-4bit").first,
-                       "mlx-community/gemma-4-e4b-8bit")
+        // user — catalog order is quality order, so the shared E4B-it 6-bit
+        // bubble must land on the top Gemma tier.
+        XCTAssertEqual(ModelMetrics.taskUserIDs(of: "mlx-community/gemma-4-e4b-it-6bit"),
+                       ["mlx-community/gemma-4-e4b-8bit", "mlx-community/gemma-4-e4b-6bit"])
+        XCTAssertEqual(ModelMetrics.taskUserIDs(of: "mlx-community/gemma-4-e4b-it-4bit"),
+                       ["mlx-community/gemma-4-e2b-8bit"])
         XCTAssertEqual(ModelMetrics.taskUserIDs(of: "openbmb/MiniCPM5-1B"),
                        ["openbmb/MiniCPM5-1B-Base"])
         // Instruct style on E2B 8-bit runs the E4B-it 4-bit primary — the
@@ -1350,26 +1352,23 @@ final class PretypeTests: XCTestCase {
         let e2b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e2b-8bit", style: .instruct)
         XCTAssertEqual(e2b?.m.fixPct, 65)
         XCTAssertEqual(e2b?.measuredID, "mlx-community/gemma-4-e4b-it-4bit")
-        XCTAssertEqual(e2b?.measuredExactly, true)
-        // The E4B tiers' instruct primary is the unmeasured 6-bit build: the
-        // 4-bit figures come back as a floor, flagged as such.
+        // The E4B tiers' instruct primary is the 6-bit build, measured on its
+        // own since 2026-10-11 (69%, ahead of the 4-bit's 65%, p<0.001).
         let e4b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .instruct)
-        XCTAssertEqual(e4b?.m.fixPct, 65)
-        XCTAssertEqual(e4b?.measuredExactly, false)
+        XCTAssertEqual(e4b?.m.fixPct, 69)
+        XCTAssertEqual(e4b?.measuredID, "mlx-community/gemma-4-e4b-it-6bit")
         // Base style routes to the lazy correction sibling instead.
         let e4bBase = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .base)
-        XCTAssertEqual(e4bBase?.measuredExactly, true)
-        // The EN/RU default: near-inert fixer, best replier — both from the
-        // instruct build it loads for the chords.
+        XCTAssertEqual(e4bBase?.measuredID, "mlx-community/gemma-4-e4b-it-4bit")
+        // MiniCPM5: a near-inert fixer, and — once echoes stopped counting as
+        // replies — a weak replier too.
         let minicpm = ModelMetrics.taskMetrics(for: "openbmb/MiniCPM5-1B-Base", style: .base)
         XCTAssertEqual(minicpm?.m.fixPct, 4)
-        XCTAssertEqual(minicpm?.m.replyPct, 56)
-        // Bonsai corrects with itself — measured 07-25 late on its own base
-        // build through its chat template (run-bonsai.sh).
+        XCTAssertEqual(minicpm?.m.replyPct, 35)
+        // Bonsai corrects with itself, through its own chat template.
         let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .base)
-        XCTAssertEqual(bonsai?.m.fixPct, 21)
-        XCTAssertEqual(bonsai?.m.replyPct, 21)
-        XCTAssertEqual(bonsai?.measuredExactly, true)
+        XCTAssertEqual(bonsai?.m.fixPct, 19)
+        XCTAssertEqual(bonsai?.m.replyPct, 39)
         // Not measured: only the system model.
         XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
     }
