@@ -285,10 +285,17 @@ extension MLXEngine {
     final class LogProbRecorder: LogitProcessor {
         private var inner: LogitProcessor?
         private var last: MLXArray?
+        private let recordsEntropy: Bool
         /// One lazy scalar per sampled token, index-aligned with sampling order.
         private(set) var pending: [MLXArray] = []
+        /// The entropy (nats) of the distribution each token was sampled from,
+        /// index-aligned with `pending`; empty unless `recordsEntropy`.
+        private(set) var entropies: [MLXArray] = []
 
-        init(inner: LogitProcessor?) { self.inner = inner }
+        init(inner: LogitProcessor?, recordsEntropy: Bool = false) {
+            self.inner = inner
+            self.recordsEntropy = recordsEntropy
+        }
 
         func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
 
@@ -304,6 +311,11 @@ extension MLXEngine {
                 // logSumExp in the logits' own dtype, difference in float32 —
                 // bit-for-bit the arithmetic the τ thresholds were calibrated on.
                 pending.append((picked.asType(.float32) - row.logSumExp().asType(.float32)).reshaped([]))
+                if recordsEntropy {
+                    // H = logΣe^x − Σ softmax(x)·x, in float32.
+                    let x = row.asType(.float32)
+                    entropies.append((x.logSumExp() - (softmax(x) * x).sum()).reshaped([]))
+                }
             }
             inner?.didSample(token: token)
         }
@@ -317,14 +329,24 @@ extension MLXEngine {
     /// When the weak token would have CONTINUED a word, the stranded head of
     /// that word is dropped too. Returns nil when nothing needs trimming.
     /// `decode` abstracts the tokenizer so the boundary logic is testable.
+    /// `entropyThreshold` adds a second cut signal: a token sampled from a
+    /// distribution flatter than that many nats (a name, a number — any slot
+    /// the model is guessing at) ends the shown prefix too, even when the
+    /// greedy pick itself clears `threshold`.
     static func confidenceTrimmed(
         text: String, textTokens: [Int], perToken: [Float],
         firstWordTokens: Int, threshold: Float,
+        perEntropy: [Float] = [], entropyThreshold: Float? = nil,
         decode: ([Int]) -> String
     ) -> String? {
         let n = min(textTokens.count, perToken.count)
         let start = min(max(firstWordTokens, 1), n)
-        guard let cut = (start..<n).first(where: { perToken[$0] < threshold }) else { return nil }
+        func weak(_ i: Int) -> Bool {
+            if perToken[i] < threshold { return true }
+            guard let entropyThreshold, i < perEntropy.count else { return false }
+            return perEntropy[i] > entropyThreshold
+        }
+        guard let cut = (start..<n).first(where: weak) else { return nil }
         var kept = decode(Array(textTokens.prefix(cut)))
         func isWordChar(_ c: Character?) -> Bool { c.map { $0.isLetter || $0.isNumber } ?? false }
         if isWordChar(kept.last), isWordChar(decode([textTokens[cut]]).first) {
@@ -464,6 +486,8 @@ extension MLXEngine {
         bias: PersonalizationBias? = nil,
         logProbSink: LockedValue<Double?>? = nil,
         trimLogProb: Float? = nil,
+        /// Entropy trim (nats): see `confidenceTrimmed`. nil = off.
+        trimEntropy: Float? = nil,
         /// Logprob-gate τ: abstain as soon as the first word's mean logprob is
         /// known to fall below it (the caller re-checks on the final result),
         /// and hold back partials until it is known to pass — so a gated
@@ -597,8 +621,8 @@ extension MLXEngine {
             // (post-penalties, post-bias) — that distribution is what "the
             // engine's confidence in what it showed" means.
             var recorder: LogProbRecorder?
-            if logProbSink != nil || trimLogProb != nil || gateLogProb != nil {
-                let r = LogProbRecorder(inner: processor)
+            if logProbSink != nil || trimLogProb != nil || trimEntropy != nil || gateLogProb != nil {
+                let r = LogProbRecorder(inner: processor, recordsEntropy: trimEntropy != nil)
                 processor = r
                 recorder = r
             }
@@ -620,7 +644,8 @@ extension MLXEngine {
                 last = processor?.process(logits: last) ?? last
                 let token = sampler.sample(logits: last)
                 processor?.didSample(token: token)
-                asyncEval([token] + (recorder?.pending.last.map { [$0] } ?? []))
+                asyncEval([token] + (recorder?.pending.last.map { [$0] } ?? [])
+                          + (recorder?.entropies.last.map { [$0] } ?? []))
                 return token
             }
 
@@ -645,6 +670,7 @@ extension MLXEngine {
             var cachedGenerated = 0         // of those, how many the cache holds
             var textTokens: [Int] = []
             var perToken: [Float] = []
+            var perEntropy: [Float] = []
             var firstWordCount: Int?
             var gateOpen = gateLogProb == nil
             var text = ""
@@ -665,6 +691,9 @@ extension MLXEngine {
                 textTokens.append(token)
                 if let recorder, generated.count <= recorder.pending.count {
                     perToken.append(recorder.pending[generated.count - 1].item(Float.self))
+                    if generated.count <= recorder.entropies.count {
+                        perEntropy.append(recorder.entropies[generated.count - 1].item(Float.self))
+                    }
                 }
                 text = context.tokenizer.decode(tokenIds: textTokens, skipSpecialTokens: true)
 
@@ -690,9 +719,11 @@ extension MLXEngine {
                 }
                 // Confidence trim's cut point (see confidenceTrimmed): nothing
                 // from this token on is ever shown, so stop decoding here.
-                if let trimLogProb, let fw = firstWordCount, textTokens.count - 1 >= fw,
-                   let lp = perToken.last, perToken.count == textTokens.count, lp < trimLogProb {
-                    break
+                if let fw = firstWordCount, textTokens.count - 1 >= fw,
+                   let lp = perToken.last, perToken.count == textTokens.count {
+                    if let trimLogProb, lp < trimLogProb { break }
+                    if let trimEntropy, let h = perEntropy.last, perEntropy.count == textTokens.count,
+                       h > trimEntropy { break }
                 }
                 if gateOpen { onPartial?(text) }
                 if text.contains("\n") { break }
@@ -721,15 +752,17 @@ extension MLXEngine {
                 logProbSink?.set(n > 0 ? firstWordSum / Double(n) : nil)
                 // Confidence trim: show only the prefix before the first weak
                 // token. Display-only — the KV cache is untouched.
-                if let threshold = trimLogProb,
+                if trimLogProb != nil || trimEntropy != nil,
                    let trimmed = confidenceTrimmed(
                        text: text, textTokens: textTokens, perToken: perToken,
-                       firstWordTokens: firstWord, threshold: threshold,
+                       firstWordTokens: firstWord, threshold: trimLogProb ?? -.infinity,
+                       perEntropy: perEntropy, entropyThreshold: trimEntropy,
                        decode: { context.tokenizer.decode(tokenIds: $0, skipSpecialTokens: true) }
                    ) {
                     DebugLog.shared.log(
                         "GATE",
-                        String(format: "confidence-trim: weak tail below %.2f", threshold),
+                        "confidence-trim: weak tail (lp<\(trimLogProb.map { String(format: "%.2f", $0) } ?? "off")"
+                            + (trimEntropy.map { String(format: " or H>%.1f", $0) } ?? "") + ")",
                         detail: logRaw
                             ? "kept \(trimmed.debugDescription) of \(text.debugDescription)"
                             : "kept \(trimmed.count) of \(text.count) chars — redacted from log"

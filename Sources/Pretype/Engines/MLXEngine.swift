@@ -60,6 +60,15 @@ final class MLXEngine: CompletionEngine {
     /// of ~14 garbage-tail chars per row at zero correct-char loss.
     /// PRETYPE_TRIM_LOGPROB pins it (numeric = τ sweep, "off" = force off).
     private let trimLogProbThreshold: Float?
+    /// The entropy half of the confidence trim (see `confidenceTrimmed`):
+    /// stop at a token sampled from a distribution flatter than 2.5 nats.
+    /// On top of the −1.5 logprob trim it cuts another ~1.1–1.3 garbage chars
+    /// per suggestion (−17…−19%) at no measurable cost in correct chars or
+    /// latency — eval-real EN+RU core, even-picked / odd-verified on E2B 8-bit
+    /// and Qwen3.5 2B (Eval/runs-2026-10-11, analyze-entropy.py).
+    /// `PRETYPE_TRIM_ENTROPY=<nats>|off` is the A/B knob.
+    private static let trimEntropyThreshold: Float? =
+        ProcessInfo.processInfo.environment["PRETYPE_TRIM_ENTROPY"].map { Float($0) } ?? 2.5
     /// The PRIMARY model's state, written only by its own load and unload.
     private let stateBox = LockedValue<EngineState>(.preparing("starting…"))
     private var loadTask: Task<ModelContainer, Error>?
@@ -788,11 +797,13 @@ final class MLXEngine: CompletionEngine {
             bias: heal == nil ? ngramBias(for: prepared) : nil,
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
+            trimEntropy: recording ? Self.trimEntropyThreshold : nil,
             // Healed suggestions bypass the gate (see below).
             gateLogProb: recording && heal == nil ? logprobGateThreshold : nil,
             healExpected: Self.healConstrain ? heal?.expected : nil,
             prefillOnly: prefillOnly,
-            onPartial: Self.makeStreamHandler(onPartial, gate: healedGate)
+            onPartial: Self.makeStreamHandler(
+                onPartial, gate: healed(prepared.gate(cleanInstruct: false, logRejects: false)))
         )
         if prefillOnly { return nil }
         try Task.checkCancellation()
@@ -925,12 +936,14 @@ final class MLXEngine: CompletionEngine {
             promptCache: promptCache,
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
+            trimEntropy: recording ? Self.trimEntropyThreshold : nil,
             prefillOnly: prefillOnly,
             // No drafter here: starting the speculative iterator costs ~25 ms
             // before the first token, and a streamed suggestion is judged by
             // its first word (measured: first-visible p50 +8 ms, final −5%).
             // The drafter pays off on the longer, non-streamed fix and reply.
-            onPartial: Self.makeStreamHandler(onPartial, gate: gate)
+            onPartial: Self.makeStreamHandler(
+                onPartial, gate: prepared.gate(cleanInstruct: true, logRejects: false))
         )
         if prefillOnly { return nil }
         try Task.checkCancellation()
