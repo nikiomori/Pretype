@@ -23,6 +23,8 @@ their own licenses. This file lists both.
 | swift-system | Apache-2.0 | <https://github.com/apple/swift-system> |
 | EventSource | MIT | <https://github.com/mattt/EventSource> |
 | yyjson | MIT | <https://github.com/ibireme/yyjson> |
+| FluidAudio | Apache-2.0 | <https://github.com/FluidInference/FluidAudio> |
+| text-processing-rs (NemoTextProcessing, linked by FluidAudio) | Apache-2.0 | <https://github.com/FluidInference/text-processing-rs> |
 
 Each package's full license text ships with its source at the link above (Apache-2.0
 packages: `LICENSE.txt`, plus `NOTICE.txt` where present). The exact pinned versions are
@@ -39,6 +41,7 @@ first use. Those weights are licensed by their publishers, not by Pretype's MIT 
 | MiniCPM5 | OpenBMB | See the [model card](https://huggingface.co/openbmb) |
 | Qwen 2.5 / 3.5 | Alibaba (Qwen) | Apache-2.0 — see the [model card](https://huggingface.co/Qwen) |
 | Ternary Bonsai | prism-ml | See the [model card](https://huggingface.co/prism-ml) |
+| Parakeet TDT 0.6B v3 (opt-in dictation, CoreML conversion by FluidInference) | NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |
 
 By downloading a model through Pretype you accept its publisher's terms. Check the model
 card on Hugging Face for the authoritative, current license of any specific repository.

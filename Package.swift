@@ -17,6 +17,9 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.32.3")),
         .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
+        // Parakeet TDT v3 (CoreML) for opt-in dictation of the languages Apple's
+        // SpeechTranscriber skips — see Dictation/Parakeet.swift.
+        .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.17.7")),
     ],
     targets: [
         .executableTarget(
@@ -30,6 +33,7 @@ let package = Package(
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
+                .product(name: "FluidAudio", package: "FluidAudio"),
             ],
             path: "Sources/Pretype"
         ),

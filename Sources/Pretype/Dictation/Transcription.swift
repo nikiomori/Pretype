@@ -101,13 +101,18 @@ enum Transcription {
         /// `DictationTranscriber`, the system dictation model — Russian and
         /// most other languages land here.
         case fallback
+        /// Opted into Parakeet, which serves this fallback language instead.
+        case parakeet
         case unsupported
     }
 
     static func support(for locale: Locale) async -> LanguageSupport {
-        guard #available(macOS 26.0, *), let resolved = await resolve(locale) else {
-            return .unsupported
+        guard #available(macOS 26.0, *) else { return .unsupported }
+        let resolved = await resolve(locale)
+        if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
+            return .parakeet
         }
+        guard let resolved else { return .unsupported }
         return resolved.preferred ? .preferred : .fallback
     }
 
@@ -123,7 +128,11 @@ enum Transcription {
     static func start(locale: Locale,
                       onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
         guard #available(macOS 26.0, *) else { throw TranscriptionError.unsupportedSystem }
-        guard let resolved = await resolve(locale) else {
+        let resolved = await resolve(locale)
+        if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
+            return try await Parakeet.start(locale: locale, onPartial: onPartial)
+        }
+        guard let resolved else {
             throw TranscriptionError.unsupportedLanguage(name(of: locale))
         }
         if resolved.preferred {

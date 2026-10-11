@@ -93,5 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionController = controller
         statusMenu.bind(to: controller)
         controller.start()
+        // Load (or, after an OS update, recompile — ~14 s once) the opted-in
+        // Parakeet model now, not at the first held key.
+        if Settings.dictationEnabled, Settings.dictationParakeet, Parakeet.isDownloaded {
+            Task.detached(priority: .utility) { _ = try? await Parakeet.prepare() }
+        }
     }
 }

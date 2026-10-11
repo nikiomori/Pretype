@@ -77,6 +77,29 @@ final class SettingsStore {
     /// Which speech model the current language would use — or that macOS has
     /// none for it. Resolved async; nil until the first answer arrives.
     var dictationSupport: Transcription.LanguageSupport?
+    var dictationParakeet = false {
+        didSet { guard !syncing, oldValue != dictationParakeet else { return }
+            Settings.dictationParakeet = dictationParakeet
+            refreshDictationLanguage()
+            if dictationParakeet { prepareParakeet() } }
+    }
+    /// The opt-in's download/load progress, or its failure; nil once ready.
+    var parakeetNote: String?
+
+    /// Fetch and load the model the moment the user opts in, so the first
+    /// dictation after it doesn't sit in "preparing" for a 470 MB download.
+    func prepareParakeet() {
+        parakeetNote = Parakeet.isDownloaded ? nil : "Downloading the Parakeet model (~470 MB)…"
+        Task { @MainActor [weak self] in
+            do {
+                _ = try await Parakeet.prepare()
+                self?.parakeetNote = nil
+            } catch {
+                self?.parakeetNote = "⚠︎ Download failed: \(error.localizedDescription). "
+                    + "The next dictation tries again."
+            }
+        }
+    }
     /// Languages the system transcriber offers, loaded once when the pane
     /// appears (the lookup is async and never changes within a session).
     var dictationLocales: [Locale] = []
@@ -748,6 +771,7 @@ final class SettingsStore {
         }
         dictation = Settings.dictationEnabled
         dictationLanguage = Settings.dictationLanguage
+        dictationParakeet = Settings.dictationParakeet
         dictationInput = Settings.dictationInput
         blacklist = Settings.userBlacklist
         useRecommended = Settings.useRecommendedSettings
@@ -1517,12 +1541,28 @@ struct GeneralTab: View {
                                 + "30 locales and this isn't one of them, so dictation uses the system "
                                 + "dictation model instead — the same one macOS's own dictation key uses. "
                                 + "It is a little rougher, which is what “Tidy up” below is for.")
+                        case .parakeet:
+                            Caption("\(store.dictationLanguageName): dictated with Parakeet, on this Mac's "
+                                + "Neural Engine.")
                         case .unsupported:
                             Caption("⚠︎ macOS has no speech model for \(store.dictationLanguageName) at all. "
                                 + "Pick a language it can dictate, or switch keyboard layout before "
                                 + "holding the key.")
                         case nil:
                             EmptyView()
+                        }
+                        if [.fallback, .parakeet].contains(store.dictationSupport),
+                           Parakeet.covers(Settings.resolvedDictationLocale) {
+                            Toggle(isOn: $store.dictationParakeet) {
+                                Text("Use Parakeet for \(store.dictationLanguageName)")
+                                Text("NVIDIA's open speech model, run locally, for the languages Apple's "
+                                    + "newer model skips. On Russian it makes half the word errors of the "
+                                    + "system model and writes its own punctuation (F1 0.85 against 0.02), "
+                                    + "three times faster. A one-time ~470 MB download.")
+                            }
+                            if let note = store.parakeetNote {
+                                Caption(note)
+                            }
                         }
                         Toggle(isOn: $dictationPolish) {
                             Text("Tidy up with the model")
