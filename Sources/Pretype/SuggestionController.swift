@@ -2027,10 +2027,16 @@ extension SuggestionController: DictationHost {
         // the tidy-up budget is three seconds and the download is gigabytes.
         // Waiting would only stall every dictation behind a progress bar it
         // can't outlast, so the words go in as heard and the fetch starts in
-        // the background for the next one.
+        // the background for the next one — on an unmetered network only:
+        // nobody asked for gigabytes over a hotspot to tidy a sentence. On
+        // one, the first ⌥⇥ (which the user does ask for) fetches it.
         guard engine.isCorrectionReady else {
-            engine.prewarmCorrection()
-            DictationController.note("tidy-up skipped — fetching the fix model for next time")
+            if await ModelStorage.isNetworkUnmetered() {
+                engine.prewarmCorrection()
+                DictationController.note("tidy-up skipped — fetching the fix model for next time")
+            } else {
+                DictationController.note("tidy-up skipped — fix model not downloaded, network metered or offline")
+            }
             return nil
         }
         let request = makeRequest(text: context)
