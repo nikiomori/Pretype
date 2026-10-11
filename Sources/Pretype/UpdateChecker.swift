@@ -3,14 +3,11 @@ import Security
 
 /// Notify-only update check against the GitHub Releases API.
 ///
-/// It deliberately does NOT install anything. Published releases are still
-/// ad-hoc signed — `Scripts/dist.sh` and the release workflow grew a Developer
-/// ID path, but no certificate has been used for a tag yet — and replacing the
-/// bundle in place changes its code signature, which makes macOS revoke the
-/// Accessibility grant the whole app runs on. Telling the user to update
-/// themselves beats silently breaking their permissions. Swap this for Sparkle
-/// once releases actually ship Developer ID-signed and notarized: only then is
-/// the signature stable across updates.
+/// It deliberately does NOT install anything. Releases from 2.5.0 on are
+/// Developer ID-signed and notarized, so the signature (and with it the
+/// Accessibility grant) now survives an update — which makes Sparkle an
+/// option, not yet a need. Everything up to 2.4.0 was ad-hoc signed, and an
+/// in-place swap from one of those still costs a one-time re-grant.
 ///
 /// ponytail: no appcast, no downloader, no delta — one JSON GET, and either a
 /// link or the one-line Homebrew command, depending on how this copy arrived.

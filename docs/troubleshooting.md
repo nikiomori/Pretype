@@ -20,7 +20,7 @@ then re-grant.
 
 **`open build/Pretype.app` fails with `-600`, or Finder says "the application is not open anymore"** *(building from source)* — a previous instance was still running when its bundle was replaced, so LaunchServices tries to activate a process whose bundle no longer exists instead of launching the new build. `make-app.sh` now quits the running instance of that build first (a copy installed in /Applications is left alone, so you can keep dogfooding one while rebuilding the other); on an older checkout, quit Pretype from the menu bar before rebuilding, or launch with `open -n build/Pretype.app`.
 
-**Gatekeeper blocks the first launch** — releases before the Developer ID signing are ad-hoc signed. Clear the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`, or open the app via **System Settings → Privacy & Security → Open Anyway**.
+**Gatekeeper blocks the first launch** — 2.5.0 and later are notarized and open normally; releases up to 2.4.0 are ad-hoc signed. Clear the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`, or open the app via **System Settings → Privacy & Security → Open Anyway**.
 
 ## FAQ
 

@@ -72,19 +72,14 @@ It's a free, MIT-licensed alternative to [Cotypist](https://cotypist.app) — a 
 
 ```bash
 brew install nikiomori/tap/pretype
-xattr -dr com.apple.quarantine /Applications/Pretype.app
 ```
 
-**Apple Silicon only** (M1 or newer) — MLX does not run on Intel Macs. The `xattr` line skips the Gatekeeper "Open Anyway" dance (releases are ad-hoc signed, not notarized — see step 2 below); run it again after each `brew upgrade`. Homebrew 6 removed the old `--no-quarantine` flag, so it no longer works. Then continue from step 3.
+**Apple Silicon only** (M1 or newer) — MLX does not run on Intel Macs. Then continue from step 3.
 
 ### Download the app
 
 1. **Apple Silicon only** (M1 or newer). Grab [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip) from [Releases](https://github.com/nikiomori/Pretype/releases), unzip, and move `Pretype.app` to `/Applications`.
-2. Clear the quarantine flag. Releases are ad-hoc signed and not notarized, so Gatekeeper blocks the first launch — expected, not a warning sign:
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Pretype.app
-   ```
-   *(Or open it via **System Settings → Privacy & Security → Open Anyway**.)* Developer ID signing is planned; until then an in-place updater would change the code signature and make macOS revoke the Accessibility grant the app runs on, so updates stay manual.
+2. Open it. Releases are signed with a Developer ID and notarized by Apple, so it launches like any other downloaded app. Coming from 2.4.0 or earlier (ad-hoc signed)? macOS asks for Accessibility once more after this update, because the signature changed; later updates keep the grant.
 3. Launch it and **grant Accessibility** when prompted. If you grant it after launching, restart the app.
 4. On first launch Pretype downloads one model from Hugging Face (**≈1.6–6.8 GB, sized to your Mac's memory** — the strongest tier that stays within about a quarter of it; the menu-bar icon shows progress). Any other model is one click in **Settings → Model**; [Choosing a model](docs/models.md) has the eval numbers behind the default.
 5. Pretype lives in the **menu bar** — no Dock icon, no main window. Click the icon for status, **Diagnostics**, and **Settings…** (<kbd>⌘,</kbd>).
