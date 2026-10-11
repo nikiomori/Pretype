@@ -154,10 +154,43 @@ enum Transcription {
             module: module, text: { String($0.text.characters) }, onPartial: onPartial)
     }
 
+    /// Words from the field being dictated into — names and jargon the user
+    /// already typed there — handed to the analyzer as contextual strings, so
+    /// "Dubina" or "MLX" heard again is spelled the way the page spells it.
+    /// ponytail: one global for the one capture that can run at a time; thread
+    /// it through `Gates.startSession` if two sessions ever overlap.
+    static let contextualWords = LockedValue<[String]>([])
+
+    /// The bias candidates in `text`, most recent first, deduplicated: words
+    /// capitalized mid-sentence (names) and words with an inner capital or
+    /// digit (iPhone, MLX, GPT4). Sentence-initial capitals carry no signal.
+    static func biasWords(in text: String, limit: Int = 50) -> [String] {
+        var picked: [String] = []
+        for line in text.split(whereSeparator: \.isNewline) {
+            var atStart = true  // a new line starts a sentence (or a list item)
+            for raw in line.split(whereSeparator: \.isWhitespace) {
+                defer { atStart = raw.last.map { ".!?…".contains($0) } ?? false }
+                let word = raw.trimmingCharacters(in: CharacterSet.punctuationCharacters.union(.symbols))
+                guard word.count >= 3, let first = word.first, word.contains(where: \.isLetter) else { continue }
+                let inner = word.dropFirst().contains { $0.isUppercase || $0.isNumber }
+                if inner || (!atStart && first.isUppercase) { picked.append(word) }
+            }
+        }
+        var seen = Set<String>()
+        return Array(picked.reversed().filter { seen.insert($0.lowercased()).inserted }.prefix(limit))
+    }
+
+    /// A language pack is downloading — the one `.preparing` wait worth
+    /// sitting through, and the one a discard must not cancel (the next press
+    /// would start it over). A plain microphone open is the other, short one.
+    static let isDownloading = LockedValue(false)
+
     @available(macOS 26.0, *)
     private static func install(_ module: any SpeechModule, locale: Locale) async throws {
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             DebugLog.shared.log("DICTATE", "downloading the \(name(of: locale)) speech model…")
+            isDownloading.set(true)
+            defer { isDownloading.set(false) }
             try await request.downloadAndInstall()
         }
         // Installed is not enough: macOS also wants the locale *allocated* to
@@ -167,8 +200,9 @@ enum Transcription {
         // without the release pass below, "follow keyboard" hands a slot to
         // every language ever dictated until the cap is hit, after which every
         // NEW language fails at load forever. A slot already ours is kept as
-        // is; a full pool frees the languages no longer being spoken and asks
-        // once more. Still-failing stays logged rather than fatal — the load
+        // is; a full pool frees stale slots ONE at a time, asking again after
+        // each, so the languages still in rotation (an EN/RU typist's other
+        // half) keep theirs. Still-failing stays logged rather than fatal — the load
         // failure it may cause is reported at the caret with a message the
         // user can act on.
         do {
@@ -181,6 +215,7 @@ enum Transcription {
                     _ = await AssetInventory.release(reservedLocale: stale)
                     DebugLog.shared.log(
                         "DICTATE", "released the \(stale.identifier) speech-model slot to make room")
+                    if (try? await AssetInventory.reserve(locale: locale)) != nil { return }
                 }
                 _ = try await AssetInventory.reserve(locale: locale)
             }
@@ -239,6 +274,17 @@ private final class SystemTranscription<Module: SpeechModule>: TranscriptionSess
                 }
             }
             return finalized
+        }
+
+        let words = Transcription.contextualWords.get()
+        if !words.isEmpty {
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = words
+            do {
+                try await analyzer.setContext(context)
+            } catch {
+                DebugLog.shared.log("DICTATE", "contextual strings refused: \(error.localizedDescription)")
+            }
         }
 
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()

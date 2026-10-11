@@ -406,7 +406,10 @@ final class DictationControllerTests: XCTestCase {
                        "what was already heard is still typed")
     }
 
-    func testReleaseDuringPreparingCancelsSessionOnArrival() async {
+    /// Released while the start is only opening the microphone (no language
+    /// pack downloading): the start is cancelled outright — so a second press
+    /// can't race it — and the notice says what actually happened.
+    func testReleaseDuringMicOpenCancelsTheStart() async {
         let rig = makeRig()
         let session = rig.session
         rig.controller.gates.startSession = { _, onPartial in
@@ -419,9 +422,38 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.controller.phase, .preparing)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .idle)
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a release during the mic open should say so")
+        }
+        XCTAssertTrue(notice.contains("microphone"),
+                      "no download is running — 'getting the model ready' would be a lie: \(notice)")
+        // Past the 200 ms the start would have taken, had it not been cancelled.
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertEqual(session.cancelCount, 0, "a cancelled start produces no session")
         XCTAssertEqual(rig.capture.startCount, 0)
-        // The download task was left running on purpose; the session it
-        // produced belongs to a discarded capture and dies on arrival.
+    }
+
+    /// Released mid language-pack download: the start is left running (the
+    /// next press would otherwise download again), and the session it
+    /// produces belongs to a discarded capture, so it dies on arrival.
+    func testReleaseDuringDownloadKeepsTheStartAndCancelsSessionOnArrival() async {
+        let rig = makeRig()
+        let session = rig.session
+        rig.controller.gates.startSession = { _, onPartial in
+            try await Task.sleep(nanoseconds: 200_000_000)
+            session.onPartial = onPartial
+            return session
+        }
+        rig.controller.modifierChanged(optionEvent(down: true))
+        await pump(until: { rig.controller.phase == .preparing })
+        Transcription.isDownloading.set(true)
+        defer { Transcription.isDownloading.set(false) }
+        await release(rig.controller)
+        XCTAssertEqual(rig.controller.phase, .idle)
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a release mid-download should say so")
+        }
+        XCTAssertTrue(notice.contains("getting the dictation model ready"), notice)
         await pump(until: { session.cancelCount == 1 })
         XCTAssertEqual(session.cancelCount, 1)
         XCTAssertEqual(rig.capture.startCount, 0)

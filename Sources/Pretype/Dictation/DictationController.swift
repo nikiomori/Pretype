@@ -534,6 +534,13 @@ final class DictationController {
         guard gates.transcriptionSupported() else {
             return refuse("needs macOS 26", notice: .error("dictation needs macOS 26"), at: rect)
         }
+        // A released capture's language-pack download is still running (see
+        // `discard`). A second session start now would race it for the same
+        // install and reservation, so wait it out with the same words.
+        guard !Transcription.isDownloading.get() else {
+            return refuse("the language pack is still downloading",
+                          notice: .hint("getting the dictation model ready…"), at: rect)
+        }
         guard gates.micGranted() else {
             // Never asked. Dictation can be switched on without passing through
             // the Settings toggle that normally does the asking — a stored
@@ -567,6 +574,7 @@ final class DictationController {
         caretRect = rect
         hostStyle = anchor?.host ?? HostTextStyle()
         contextBefore = anchor?.textBeforeCaret ?? ""
+        Transcription.contextualWords.set(Transcription.biasWords(in: contextBefore))
         if let rect, let anchor { owner.noteCaret(rect: rect, host: anchor.host) }
         generation += 1
         let gen = generation
@@ -873,11 +881,16 @@ final class DictationController {
     private func finish() {
         guard let owner else { return }
         if case .preparing = phase {
-            // Released while the language pack was still coming down. The
-            // download keeps running (`discard` leaves a preparing task alone
-            // — it is the slow part, and cancelling it would mean starting
-            // over), so the next press is the fast one.
-            discard(notice: .hint("getting the dictation model ready…"))
+            // Released before the microphone opened. During a first-use
+            // language-pack download that is expected — the download keeps
+            // running (`discard` leaves it alone: it is the slow part, and
+            // cancelling would mean starting over), so the next press is the
+            // fast one. Otherwise it was only the microphone opening (a
+            // Bluetooth input negotiates for 0.5–2 s), and "getting the model
+            // ready" would send the user waiting for a download that isn't.
+            discard(notice: .hint(Transcription.isDownloading.get()
+                ? "getting the dictation model ready…"
+                : "too quick — the microphone was still opening"))
             return
         }
         guard case .listening = phase, let session else { return }
@@ -1074,17 +1087,20 @@ final class DictationController {
 
     /// Stop everything and forget it.
     ///
-    /// A task still *preparing* is left running on purpose: that phase is a
-    /// one-time language-pack download, and cancelling it would mean starting
-    /// the download over on the next press. The generation bump is what makes
-    /// that safe — the session it eventually produces is cancelled on arrival.
+    /// A task still *preparing* is left running only while it downloads the
+    /// language pack: cancelling that would mean starting the download over
+    /// on the next press. The generation bump is what makes that safe — the
+    /// session it eventually produces is cancelled on arrival — and `begin`
+    /// refuses while the download runs, so it is never one of two session
+    /// starts racing each other. A preparing task that is only opening the
+    /// microphone is cancelled like any other.
     private func discard(notice: SuggestionDisplayMode?) {
         guard isBusy else { return }
         generation += 1
         capture.stop()
         session?.cancel()
         session = nil
-        if phase != .preparing {
+        if phase != .preparing || !Transcription.isDownloading.get() {
             sessionTask?.cancel()
             sessionTask = nil
         }
