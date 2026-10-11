@@ -782,18 +782,7 @@ final class SuggestionController: NSObject {
         refreshTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Settings.debounceMs))
             if Task.isCancelled { return }
-            // Log the prompt with the OCR'd screen text and clipboard redacted:
-            // the debug log is exportable (bug reports), and both can contain
-            // OTHER people's text — it must never leave the process under the
-            // export warning's "text you typed" framing.
-            var redacted = request
-            redacted.screenSummary = request.screenSummary.map {
-                "[\($0.count) chars of on-screen text — redacted from log]"
-            }
-            redacted.clipboardContext = request.clipboardContext.map {
-                "[\($0.count) chars of clipboard text — redacted from log]"
-            }
-            let fullPrompt = redacted.completionPrompt(maxChars: 1000)
+            let fullPrompt = Self.loggablePrompt(request)
             DebugLog.shared.log(
                 "PROMPT",
                 "\(fullPrompt.count) chars"
@@ -1793,6 +1782,21 @@ final class SuggestionController: NSObject {
     nonisolated static func deduplicatingSeamSpace(_ suggestion: String, after context: String) -> String {
         guard context.hasSuffix(" "), suggestion.hasPrefix(" ") else { return suggestion }
         return String(suggestion.drop { $0 == " " })
+    }
+
+    /// The prompt as the debug log shows it, OCR'd screen text and clipboard
+    /// redacted: the log is exportable (bug reports), and both can hold OTHER
+    /// people's text — it must never leave the process under the export
+    /// warning's "text you typed" framing.
+    nonisolated static func loggablePrompt(_ request: CompletionRequest) -> String {
+        var redacted = request
+        redacted.screenSummary = request.screenSummary.map {
+            "[\($0.count) chars of on-screen text — redacted from log]"
+        }
+        redacted.clipboardContext = request.clipboardContext.map {
+            "[\($0.count) chars of clipboard text — redacted from log]"
+        }
+        return redacted.completionPrompt(maxChars: 1000)
     }
 
     /// Leading spaces plus the first run of non-space characters.
