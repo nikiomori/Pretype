@@ -377,7 +377,14 @@ final class SuggestionController: NSObject {
         }
     }
 
+    /// The field the pipeline reads and types into — nil while keyboard focus
+    /// sits in another process. Launchers (Spotlight, Raycast, Alfred) take
+    /// keys through a non-activating panel: the menu bar keeps the app we
+    /// track and no activation or focus change fires, so without this check
+    /// the old field's ghost would be re-offered on every launcher keystroke,
+    /// and ⇥ would type it into the launcher.
     func currentTextElement() -> AXUIElement? {
+        guard !keyboardFocusIsElsewhere else { return nil }
         if let element = focusTracker.focusedTextElement { return element }
         guard let element = AXText.systemFocusedTextElement() else { return nil }
         // The tracker missed this field, so its site was never read and a
@@ -391,6 +398,17 @@ final class SuggestionController: NSObject {
 
     private var fallbackSiteElement: AXUIElement?
     private var fallbackSite: String?
+
+    /// One system-wide AX read: the process that holds keyboard focus is
+    /// neither the tracked app nor Pretype itself (our panels never take focus;
+    /// our own windows are `isOwnUIFrontmost`'s business).
+    private var keyboardFocusIsElsewhere: Bool {
+        var pid: pid_t = 0
+        guard let app = AXText.element(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute as String),
+              AXUIElementGetPid(app, &pid) == .success, pid > 0,
+              focusTracker.observedPID > 0 else { return false }
+        return pid != focusTracker.observedPID && pid != ProcessInfo.processInfo.processIdentifier
+    }
 
     /// True while one of Pretype's own windows (Settings, Debug console) is
     /// frontmost. The session-wide key tap still fires for keystrokes into our
@@ -1185,8 +1203,9 @@ final class SuggestionController: NSObject {
         guard !AppPolicy.isBlacklisted(typingContext) else { return false }
         // Our own Settings window: `begin` refuses while we are frontmost, so
         // swallowing here would take a keystroke out of our own text fields to
-        // do nothing with it.
-        return !isOwnUIFrontmost
+        // do nothing with it. A launcher holding the keys: same, `begin`
+        // finds no field of ours there.
+        return !isOwnUIFrontmost && !keyboardFocusIsElsewhere
     }
 
     private func handleKeyDown(_ event: CGEvent) -> Bool {
@@ -1297,11 +1316,12 @@ final class SuggestionController: NSObject {
         // be inserting text the user can no longer see.
         if let current = active, window.showsSuggestion {
             let style = Settings.hotkeyStyle
-            if style.matchesAcceptAll(keyCode: keyCode, flags: flags) {
-                accept(chunk: current.text)
-                return true
-            } else if style.matchesAcceptWord(keyCode: keyCode, flags: flags) {
-                accept(chunk: Self.firstWordChunk(of: current.text))
+            // Only an accept key pays for the focus check (one AX read): a
+            // launcher holding the keys must get its ⇥, not our ghost.
+            let acceptAll = style.matchesAcceptAll(keyCode: keyCode, flags: flags)
+            let acceptWord = !acceptAll && style.matchesAcceptWord(keyCode: keyCode, flags: flags)
+            if acceptAll || acceptWord, !keyboardFocusIsElsewhere {
+                accept(chunk: acceptAll ? current.text : Self.firstWordChunk(of: current.text))
                 return true
             }
             if keyCode == KeyCode.escape {
