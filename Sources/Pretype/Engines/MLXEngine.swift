@@ -247,6 +247,8 @@ final class MLXEngine: CompletionEngine {
         let drafterID = style == .instruct ? ModelCatalog.mtpDrafterID(for: id) : nil
         stateBox.set(.preparing("loading…"))
         return Task { [weak self] in
+            // Resolved once, so the load report names the build that loaded.
+            let repo = ModelCatalog.repo(for: id)
             do {
                 // A fine-tuned model is a local directory (no download); a
                 // catalog id resolves through the Hub.
@@ -254,15 +256,16 @@ final class MLXEngine: CompletionEngine {
                 var isDir: ObjCBool = false
                 if FileManager.default.fileExists(atPath: id, isDirectory: &isDir), isDir.boolValue {
                     configuration = ModelConfiguration(directory: URL(fileURLWithPath: id), extraEOSTokens: eos)
-                } else if let local = ModelStorage.localSnapshot(for: id) {
+                } else if let local = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:)) {
                     // Already downloaded: no network round trip (see localSnapshot).
                     configuration = ModelConfiguration(directory: local, extraEOSTokens: eos)
                 } else {
-                    configuration = ModelConfiguration(id: ModelCatalog.repo(for: id), extraEOSTokens: eos)
+                    configuration = ModelConfiguration(id: repo, extraEOSTokens: eos)
                 }
                 let loaded = try await Self.loadTarget(
                     configuration, drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
+                ModelStorage.noteLoad(repo: repo, succeeded: true)
                 // The first generation pays for Metal kernel compilation; do it
                 // now so the first real keystroke doesn't. The prompt is long
                 // enough to take the split-prefill path too — a 2-token warm-up
@@ -287,6 +290,7 @@ final class MLXEngine: CompletionEngine {
                 self?.markLoadSucceeded()
                 return loaded
             } catch {
+                if !(error is CancellationError) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
                 stateBox.set(.failed(error.localizedDescription))
                 self?.clearLoadTaskOnFailure()
                 throw error
@@ -1245,15 +1249,18 @@ final class MLXEngine: CompletionEngine {
         // a load that hasn't reported itself yet.
         status.set("loading fix model…")
         let task = Task<ModelContainer, Error> { [weak self] in
+            let repo = ModelCatalog.repo(for: id)
             do {
                 let container = try await Self.loadTarget(
-                    ModelStorage.localSnapshot(for: id).map { ModelConfiguration(directory: $0) }
-                        ?? ModelConfiguration(id: ModelCatalog.repo(for: id)),
+                    ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
+                        .map { ModelConfiguration(directory: $0) }
+                        ?? ModelConfiguration(id: repo),
                     drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in
                         status.set(Self.downloadStatus(progress, label: "fix model"))
                     }
                 )
+                ModelStorage.noteLoad(repo: repo, succeeded: true)
                 status.set(nil)
                 // Whatever the disk probe thought, the weights are provably
                 // here now — and after an idle unload nils the task, this is
@@ -1261,6 +1268,7 @@ final class MLXEngine: CompletionEngine {
                 correctionFetched.set(true)
                 return container
             } catch {
+                if !(error is CancellationError) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
                 // Before the slot frees: a retry's fresh status must not be cleared.
                 status.set(nil)
                 self?.clearCorrectionLoadTaskOnFailure()

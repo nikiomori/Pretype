@@ -218,13 +218,49 @@ enum ModelStorage {
         try FileManager.default.removeItem(at: directory)
     }
 
+    /// Re-packs and new builds (`ModelCatalog.slimRepos` values,
+    /// `previousBuilds` keys) that have loaded on this Mac. An original is
+    /// deleted only once its replacement made it into memory here — a
+    /// re-pack that fails to load must not strand a user without the build
+    /// that worked.
+    private static let loadedKey = "loadedReplacementRepos"
+    /// Replacements whose load failed this launch: `ModelCatalog.repo(for:)`
+    /// treats them as absent, so the engine's retry falls back to the
+    /// original still on disk. In memory only — each launch tries again.
+    private static let failedLoads = LockedValue<Set<String>>([])
+
+    private static func isReplacement(_ repo: String) -> Bool {
+        ModelCatalog.slimRepos.values.contains(repo) || ModelCatalog.previousBuilds[repo] != nil
+    }
+
+    /// The engine's report on a load of `repo` (a resolved repo, not an id).
+    static func noteLoad(repo: String, succeeded: Bool) {
+        guard isReplacement(repo) else { return }
+        if succeeded {
+            _ = failedLoads.mutate { $0.remove(repo) }
+            var loaded = Set(UserDefaults.standard.stringArray(forKey: loadedKey) ?? [])
+            if loaded.insert(repo).inserted { UserDefaults.standard.set(Array(loaded), forKey: loadedKey) }
+        } else {
+            _ = failedLoads.mutate { $0.insert(repo) }
+            DebugLog.shared.log("MLX", "\(repo) failed to load — falling back to the build it replaces this launch")
+        }
+    }
+
+    static func loadFailed(repo: String) -> Bool { failedLoads.get().contains(repo) }
+
+    private static func hasLoaded(repo: String) -> Bool {
+        UserDefaults.standard.stringArray(forKey: loadedKey)?.contains(repo) ?? false
+    }
+
     /// Moves an install that downloaded an original Gemma build before the
     /// slim re-packs existed onto them: fetch the re-pack in the background
-    /// while the original keeps serving, then delete the original.
+    /// while the original keeps serving, then — once the re-pack has loaded
+    /// here (`noteLoad`) — delete the original.
     /// `ModelCatalog.repo(for:)` prefers a fetched re-pack, so the next load
     /// (idle reload or relaunch) picks it up — the same weights the engine
     /// already held in memory, so all that changes is disk (−0.6…2.7 GB per
-    /// model) and a faster reload.
+    /// model) and a faster reload. A `previousBuilds` pair is fetched the same
+    /// way, but its old build stays: it is the entry's ⌥⇥ sibling.
     ///
     /// Only the selected model's repos: a model nobody uses isn't worth
     /// gigabytes of the user's bandwidth. Skipped on an expensive (cellular,
@@ -233,7 +269,9 @@ enum ModelStorage {
     static func upgradeToSlim(selected: String) async {
         let inUse = repos(for: selected)
         var networkOK: Bool?
-        for (original, slim) in ModelCatalog.slimRepos where inUse.contains(original) {
+        let pairs = ModelCatalog.slimRepos.map { (original: $0.key, slim: $0.value, keepOriginal: false) }
+            + ModelCatalog.previousBuilds.map { (original: $0.value, slim: $0.key, keepOriginal: true) }
+        for (original, slim, keepOriginal) in pairs where inUse.contains(original) && inUse.contains(slim) {
             guard let originalDir = cacheDirectory(repo: original), let slimDir = cacheDirectory(repo: slim),
                   FileManager.default.fileExists(atPath: originalDir.path) else { continue }
             if !isFetched(at: slimDir) {
@@ -256,6 +294,7 @@ enum ModelStorage {
                 }
                 guard isFetched(at: slimDir) else { continue }
             }
+            guard !keepOriginal, hasLoaded(repo: slim) else { continue }
             // An engine holding the original keeps it: its weights are in
             // memory, and an unlinked file stays readable while open.
             // ponytail: a reload resolving the original in the instant before

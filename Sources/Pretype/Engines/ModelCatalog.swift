@@ -218,15 +218,31 @@ enum ModelCatalog {
         "gemma-4-e4b-it-6bit", "gemma-4-e4b-it-4bit", "gemma-4-e2b-it-4bit",
     ].map { ("mlx-community/\($0)", "nikimori/\($0)-slim") })
 
-    /// The Hub repo `id`'s weights come from: its slim re-pack, unless only the
-    /// original is on disk — an install from before the re-packs keeps loading
-    /// that until `ModelStorage.upgradeToSlim` has fetched the re-pack.
+    /// Entries whose completion build changed under the same pick: the build
+    /// an older install already holds, which keeps serving until
+    /// `ModelStorage.upgradeToSlim` has fetched the new one in the background —
+    /// so an update never turns into a forced download (or a dead engine
+    /// offline). Unlike a slim original it is never deleted: here it stays on
+    /// as the entry's ⌥⇥ sibling.
+    static let previousBuilds: [String: String] = [
+        "nikimori/Qwen3.5-2B-Base-4bit": "mlx-community/Qwen3.5-2B-4bit",
+    ]
+
+    /// The Hub repo `id`'s weights come from: its slim re-pack (or its new
+    /// build), unless only the original is on disk — an install from before
+    /// keeps loading that until `ModelStorage.upgradeToSlim` has fetched the
+    /// replacement. A replacement that failed to load this launch counts as
+    /// absent, so the retry falls back to the build that worked.
     static func repo(
         for id: String,
-        isFetched: (String) -> Bool = { ModelStorage.cacheDirectory(repo: $0).map(ModelStorage.isFetched(at:)) ?? false }
+        isFetched: (String) -> Bool = {
+            !ModelStorage.loadFailed(repo: $0)
+                && (ModelStorage.cacheDirectory(repo: $0).map(ModelStorage.isFetched(at:)) ?? false)
+        }
     ) -> String {
-        guard let slim = slimRepos[id] else { return id }
-        return isFetched(id) && !isFetched(slim) ? id : slim
+        if let slim = slimRepos[id] { return isFetched(id) && !isFetched(slim) ? id : slim }
+        if let previous = previousBuilds[id] { return isFetched(previous) && !isFetched(id) ? previous : id }
+        return id
     }
 
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):
