@@ -103,10 +103,13 @@ enum Transcription {
         case fallback
         /// Opted into Parakeet, which serves this fallback language instead.
         case parakeet
+        /// A hosted speech model (Settings → API) serves every language.
+        case api
         case unsupported
     }
 
     static func support(for locale: Locale) async -> LanguageSupport {
+        if Settings.apiAudio.enabled { return .api }
         guard #available(macOS 26.0, *) else { return .unsupported }
         let resolved = await resolve(locale)
         if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
@@ -127,6 +130,7 @@ enum Transcription {
     /// doesn't have it yet (slow exactly once per language).
     static func start(locale: Locale,
                       onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
+        if Settings.apiAudio.enabled { return try CloudTranscription(Settings.apiAudio, locale: locale) }
         guard #available(macOS 26.0, *) else { throw TranscriptionError.unsupportedSystem }
         let resolved = await resolve(locale)
         if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {

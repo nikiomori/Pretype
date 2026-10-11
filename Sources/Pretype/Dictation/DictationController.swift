@@ -956,7 +956,10 @@ final class DictationController {
                 // forever, with every keystroke silently discarding. Ten
                 // seconds is far past any real finalization of a two-minute
                 // ceiling's audio — this is a watchdog, not a budget.
-                let raw = try await Self.withDeadline(seconds: Self.finalizeSeconds) {
+                // An upload is not a local finalization: a long take over a
+                // slow link legitimately takes longer than ten seconds.
+                let raw = try await Self.withDeadline(
+                    seconds: session is CloudTranscription ? 60 : Self.finalizeSeconds) {
                     try await session.finish()
                 }
                 guard let self else { return }

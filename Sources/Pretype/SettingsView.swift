@@ -687,6 +687,8 @@ struct GeneralTab: View {
                         case .parakeet:
                             Caption("\(store.dictationLanguageName): dictated with Parakeet, on this Mac's "
                                 + "Neural Engine.")
+                        case .api:
+                            Caption("Dictated by the API provider in Settings → API.")
                         case .unsupported:
                             Caption("⚠︎ macOS has no speech model for \(store.dictationLanguageName) at all. "
                                 + "Pick a language it can dictate, or switch keyboard layout before "
