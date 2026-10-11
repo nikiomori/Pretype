@@ -12,7 +12,7 @@ struct ModelOption {
     let correctionModelID: String
     /// Instruct sibling that becomes the *primary* model in instruct
     /// completion style. On the Gemma builds it is sized to the entry's RAM
-    /// tier: E4B 6-bit where the tier affords ~6.8 GB (an eval A/B showed
+    /// tier: E4B 6-bit where the tier affords ~5.6 GB (an eval A/B showed
     /// instruct only matches/beats base at 6–8 bit), 4-bit siblings on the
     /// tighter tiers — a handicapped instruct still beats swapping a model the
     /// Mac can't hold. Overridable via PRETYPE_INSTRUCT_MODEL.
@@ -154,21 +154,26 @@ enum ModelCatalog {
     /// loaded) stays within about a QUARTER of physical memory. Quality order
     /// E4B 6-bit > E2B 8-bit > E2B 4-bit is the 17-language catalog run
     /// (p ≤ 0.001 each step); E4B 8-bit is never the default — it ties 6-bit
-    /// (p=0.052) at +1.8 GB, so it stays the manual "best quality" pick.
+    /// (p=0.052) for more memory, so it stays the manual "best quality" pick.
     /// Below the smallest Gemma tier the floor is Qwen3.5 2B: ties MiniCPM5
     /// on EN/RU completions, beats every other small multilingually
     /// (p<0.001) — 1.1 GB, plus its 1.6 GB post-trained sibling once the
     /// chords are used (fix 33% / reply 76% against MiniCPM5's 4% / 35%).
+    ///
+    /// A fixed table, not derived from the size tables: the thresholds are 4×
+    /// each tier's resident size as booked on 2026-07-25 (6.8 / 5.0 / 3.5 GB);
+    /// the slim re-packs only made every tier lighter (5.6 / 4.6 / 3.0), so
+    /// the quarter rule still holds. The registered default is live — moving
+    /// a threshold moves every auto-default install of that size onto another
+    /// model, a multi-GB download nobody asked for. Re-tier on purpose (24 GB
+    /// now fits E4B 6-bit) and with a migration that keeps installed defaults.
     static func defaultID(forRamGB ram: Double) -> String {
-        let gemmaTiers = ["mlx-community/gemma-4-e4b-6bit",
-                          "mlx-community/gemma-4-e2b-8bit",
-                          "mlx-community/gemma-4-e2b-4bit"]
-        for id in gemmaTiers {
-            if let resident = ModelMetrics.instructRamGB(for: id), !isHeavy(residentGB: resident, ramGB: ram) {
-                return id
-            }
+        switch ram {
+        case 27.2...: return "mlx-community/gemma-4-e4b-6bit"
+        case 20...: return "mlx-community/gemma-4-e2b-8bit"
+        case 14...: return "mlx-community/gemma-4-e2b-4bit"
+        default: return "nikimori/Qwen3.5-2B-Base-4bit"
         }
-        return "nikimori/Qwen3.5-2B-Base-4bit"
     }
 
     /// The fit rule `defaultID` sizes on, for any resident size: past about a
@@ -182,11 +187,11 @@ enum ModelCatalog {
     static var defaultRationale: String {
         switch defaultID {
         case "mlx-community/gemma-4-e4b-6bit":
-            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~6.8 GB resident, freed again after idle). Measurably ahead of the E2B tiers across the evaluated languages (p=0.001), statistically tied with E4B 8-bit at 1.8 GB less, and its fix sibling restores 69% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory."
+            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5.6 GB resident, freed again after idle). Measurably ahead of the E2B tiers across the evaluated languages (p=0.001), statistically tied with E4B 8-bit for less memory, and its fix sibling restores 69% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory."
         case "mlx-community/gemma-4-e2b-8bit":
-            return "Auto-picked for this Mac's memory (~5 GB resident in its recommended configuration, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
+            return "Auto-picked for this Mac's memory (~4.6 GB resident in its recommended configuration, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
         case "mlx-community/gemma-4-e2b-4bit":
-            return "Auto-picked for this Mac's memory (~3.5 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and it fixes half of noisy lines exactly where the small models manage 4–33%."
+            return "Auto-picked for this Mac's memory (~3 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and it fixes half of noisy lines exactly where the small models manage 4–33%."
         case "nikimori/Qwen3.5-2B-Base-4bit":
             return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.1 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 76%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory."
         default:

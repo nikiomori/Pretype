@@ -1177,7 +1177,7 @@ final class PretypeTests: XCTestCase {
         let instruct = SettingsStore.weights(modelID: "mlx-community/gemma-4-e4b-8bit", style: .instruct)
         XCTAssertEqual(instruct.id, "mlx-community/gemma-4-e4b-it-6bit")
         XCTAssertEqual(instruct.name, "Gemma 4 E4B 8-bit Instruct")
-        XCTAssertEqual(instruct.gb, 6.8, accuracy: 0.01)
+        XCTAssertEqual(instruct.gb, 5.56, accuracy: 0.01)  // its slim re-pack
         // One set of weights for both styles: nothing separate to fetch.
         XCTAssertEqual(SettingsStore.weights(modelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .instruct).id,
                        "prism-ml/Ternary-Bonsai-4B-mlx-2bit")

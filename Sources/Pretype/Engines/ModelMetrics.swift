@@ -1,8 +1,9 @@
 import Foundation
 
 /// Measured per-model figures behind the settings UI (the quality/speed/size
-/// chart and the model detail card). Every number is a real measurement — no
-/// spec-sheet estimates.
+/// chart and the model detail card). No spec-sheet estimates: accuracy and
+/// latency come from eval runs (one derived p50 says so where it's booked),
+/// `ramGB` is the weights a model loads — the size of what it downloads.
 ///
 /// Protocol: `Eval/eval-real.jsonl` (5649 rows / 17 languages), base · greedy ·
 /// short, personalization off, confidence-trim pinned off, warm model,
@@ -44,22 +45,22 @@ struct ModelMetrics {
     static let all: [ModelMetrics] = [
         ModelMetrics(id: "mlx-community/gemma-4-e4b-8bit", shortName: "E4B 8-bit",
                      firstWordPct: 31, ci: 28...33, coveragePct: 84,
-                     logProbPerChar: -0.853, p50Ms: 145, ramGB: 8.6,
+                     logProbPerChar: -0.853, p50Ms: 145, ramGB: 5.98,
                      note: "Best quality: holds up across all 17 eval languages, and measurably ahead of E2B 8-bit (p=0.001, n=5649)."),
         ModelMetrics(id: "mlx-community/gemma-4-e4b-6bit", shortName: "E4B 6-bit",
                      firstWordPct: 30, ci: 28...33, coveragePct: 82,
-                     logProbPerChar: -0.865, p50Ms: 129, ramGB: 6.8,
-                     note: "Ties E4B 8-bit on the 17-language set (p=0.052) at 1.8 GB less."),
+                     logProbPerChar: -0.865, p50Ms: 129, ramGB: 5.03,
+                     note: "Ties E4B 8-bit on the 17-language set (p=0.052) at ~1 GB less."),
         ModelMetrics(id: "mlx-community/gemma-4-e2b-8bit", shortName: "E2B 8-bit",
                      firstWordPct: 29, ci: 27...32, coveragePct: 84,
-                     logProbPerChar: -0.878, p50Ms: 75, ramGB: 5.7,
+                     logProbPerChar: -0.878, p50Ms: 75, ramGB: 3.41,
                      note: "~1 pp behind E4B (now significant, p=0.001) at ~2× the speed; robust across all 17 eval languages."),
         // E4B-4bit and LFM2.5 delisted 2026-07-17: each strictly dominated by a
         // catalog neighbor on every axis (E2B-4bit and MiniCPM5 respectively).
         ModelMetrics(id: "mlx-community/gemma-4-e2b-4bit", shortName: "E2B 4-bit",
                      firstWordPct: 29, ci: 27...32, coveragePct: 85,
-                     logProbPerChar: -0.925, p50Ms: 127, ramGB: 3.5,
-                     note: "Mildest 4-bit cost in the field: ties E2B 8-bit on English (27 vs 26) and on Russian (22 vs 23) alike, measurably behind it on 17 languages (p<0.001) yet still ahead of every smaller model — at 2.2 GB less, though slower."),
+                     logProbPerChar: -0.925, p50Ms: 127, ramGB: 2.51,
+                     note: "Mildest 4-bit cost in the field: ties E2B 8-bit on English (27 vs 26) and on Russian (22 vs 23) alike, measurably behind it on 17 languages (p<0.001) yet still ahead of every smaller model — at 0.9 GB less, though slower."),
         ModelMetrics(id: "openbmb/MiniCPM5-1B-Base", shortName: "MiniCPM5 1B",
                      firstWordPct: 28, ci: 26...31, coveragePct: 81,
                      logProbPerChar: -1.041, p50Ms: 49, ramGB: 2.2,
@@ -262,13 +263,16 @@ struct ModelMetrics {
         }
     }
 
-    /// Download sizes of the instruct siblings, GB — hub sizes, the same
-    /// provenance as `ModelOption.approxSizeMB`. Feeds the setup summary's
-    /// memory estimate when Instruct style loads a second model.
+    /// Download sizes of the instruct siblings, GB — hub sizes of what the
+    /// engine fetches (the Gemma ones from their slim re-packs, which keep the
+    /// vision tower the MTP path loads, so this is also what they hold
+    /// resident). Feeds the setup summary's memory estimate and the download
+    /// prompt when Instruct style loads a second model. Not the default
+    /// ladder: `ModelCatalog.defaultID(forRamGB:)` is a fixed table.
     private static let instructSizesGB: [String: Double] = [
-        "mlx-community/gemma-4-e4b-it-6bit": 6.8,
-        "mlx-community/gemma-4-e4b-it-4bit": 5.0,
-        "mlx-community/gemma-4-e2b-it-4bit": 3.5,
+        "mlx-community/gemma-4-e4b-it-6bit": 5.56,
+        "mlx-community/gemma-4-e4b-it-4bit": 4.57,
+        "mlx-community/gemma-4-e2b-it-4bit": 2.97,
         "mlx-community/Qwen3.5-2B-4bit": 1.6,  // Qwen3.5 Base's chord sibling
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": 0.4,
         "openbmb/MiniCPM5-1B": 2.2,

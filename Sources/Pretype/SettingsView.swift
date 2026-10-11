@@ -2090,7 +2090,7 @@ struct SuggestionsTab: View {
                 EffectBadge(icon: "checkmark.seal", text: "more accurate on real text", tone: .quality,
                             source: "First-word 33% vs 22% of shown suggestions (Base vs Instruct+persona, same E4B-6bit family), McNemar p≈0.0005 — eval-real, n=870, 2026-07-15."),
                 EffectBadge(icon: "memorychip", text: "no second model", tone: .memory,
-                            source: "Instruct loads a separate instruct-tuned sibling (up to ~6.8 GB on E4B); Base runs only the selected model."),
+                            source: "Instruct loads a separate instruct-tuned sibling (up to ~5.6 GB on E4B); Base runs only the selected model."),
                 EffectBadge(icon: "hand.raised", text: "can abstain", tone: .neutral,
                             source: "Base offers nothing on ~17% of keystrokes instead of forcing a guess (coverage 83% vs 99% for Instruct) — fewer wrong flashes."),
             ]
@@ -2101,7 +2101,7 @@ struct SuggestionsTab: View {
             EffectBadge(icon: "person.text.rectangle", text: "persona steering", tone: .neutral,
                         source: "Follows your persona text; the persona lifts Instruct from 66% to 85–88% first-word on eval-v2."),
             EffectBadge(icon: "memorychip", text: "loads an instruct sibling", tone: .memory,
-                        source: "Runs the instruct-tuned sibling of the selected model (~6.8 GB it-6bit on the E4B tiers, ~3–5 GB on smaller tiers)."),
+                        source: "Runs the instruct-tuned sibling of the selected model (~5.6 GB it-6bit on the E4B tiers, ~3–4.6 GB on smaller tiers)."),
         ]
         if store.instructUnusable {
             badges.insert(EffectBadge(icon: "exclamationmark.triangle", text: "broken on this model", tone: .caution,

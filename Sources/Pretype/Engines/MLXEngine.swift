@@ -392,7 +392,10 @@ final class MLXEngine: CompletionEngine {
     /// Gemma's tied embedding table is also its 262k-row output projection, read
     /// in full on every decoded token. A 6- or 8-bit table is re-quantized to
     /// 4-bit at load, for both uses. Resident memory: E4B-8bit −320 MB, E4B-6bit
-    /// −160 MB, E2B-8bit −192 MB; reload +15 ms. eval-real core 870 first-word,
+    /// −160 MB, E2B-8bit −192 MB. Paid on every load of an original build
+    /// (E4B 6-bit reload 0.8–1.9 s against 0.4–0.5 s for its slim re-pack,
+    /// which ships the table at 4-bit — there this finds nothing to do, and the
+    /// `PRETYPE_*_4BIT=off` knobs change nothing). eval-real core 870 first-word,
     /// ungated: 28% = 28% (p = 0.77), 28% = 28% (p = 1.0), 27% = 27% (p = 1.0).
     ///
     /// The per-layer-embedding table (`embed_tokens_per_layer`) is the bigger

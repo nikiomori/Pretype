@@ -82,7 +82,7 @@ brew install nikiomori/tap/pretype
 1. **Apple Silicon only** (M1 or newer). Grab [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip) from [Releases](https://github.com/nikiomori/Pretype/releases), unzip, and move `Pretype.app` to `/Applications`.
 2. Open it. Releases are signed with a Developer ID and notarized by Apple, so it launches like any other downloaded app. Coming from 2.4.0 or earlier (ad-hoc signed)? macOS asks for Accessibility once more after this update, because the signature changed; later updates keep the grant.
 3. Launch it and **grant Accessibility** when prompted. If you grant it after launching, restart the app.
-4. On first launch Pretype downloads one model from Hugging Face (**≈1.6–6.8 GB, sized to your Mac's memory** — the strongest tier that stays within about a quarter of it; the menu-bar icon shows progress). Any other model is one click in **Settings → Model**; [Choosing a model](docs/models.md) has the eval numbers behind the default.
+4. On first launch Pretype downloads one model from Hugging Face (**≈1–5.7 GB, sized to your Mac's memory** — the strongest tier that stays within about a quarter of it; the menu-bar icon shows progress). Any other model is one click in **Settings → Model**; [Choosing a model](docs/models.md) has the eval numbers behind the default.
 5. Pretype lives in the **menu bar** — no Dock icon, no main window. Click the icon for status, **Diagnostics**, and **Settings…** (<kbd>⌘,</kbd>).
 
 ### Build from source
@@ -171,8 +171,8 @@ Rendered at **[pretype.app/docs](https://pretype.app/docs)**, written in [`docs/
 
 * **OS** — macOS 14+ (macOS 26+ for the Apple Intelligence engine)
 * **Hardware** — Apple Silicon (M1 or newer). Intel Macs can't run MLX at all.
-* **Memory** — 8 GB is enough; the default is sized to about a quarter of your Mac's memory (≈1.1 GB resident on 8 GB Macs up to ≈6.8 GB from 32 GB), and the catalog goes down to ≈1 GB. Big-RAM Macs can pick Gemma 4 E4B 8-bit, a ≈6 GB download.
-* **Storage** — ≈1.6–6.8 GB for the default model (sized to your Mac); 1–8.6 GB depending on what you pick. Using <kbd>⌥Tab</kbd> can add a one-time instruct sibling (≈2.2 GB on MiniCPM5, up to ≈5 GB on a base-style Gemma; none on Qwen3.5 or Bonsai, which correct with themselves, or on a Gemma in its recommended Instruct style)
+* **Memory** — 8 GB is enough; the default is sized to about a quarter of your Mac's memory (≈1.1 GB resident on 8 GB Macs up to ≈5.6 GB from 32 GB), and the catalog goes down to ≈1 GB. Big-RAM Macs can pick Gemma 4 E4B 8-bit, a ≈6 GB download.
+* **Storage** — ≈1–5.7 GB for the default model (sized to your Mac); ≈1–6 GB depending on what you pick. Using <kbd>⌥Tab</kbd> can add a one-time instruct sibling (≈1.6 GB on Qwen3.5 — it completes on its Base build and fixes and replies on the post-trained one — ≈2.2 GB on MiniCPM5, up to ≈5 GB on a base-style Gemma; none on Bonsai, which corrects with itself, or on a Gemma in its recommended Instruct style)
 * **To build** — full Xcode 26.4+ (Swift 6.3, macOS 26 SDK + Metal toolchain). Not needed for the prebuilt app.
 
 ---

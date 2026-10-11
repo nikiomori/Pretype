@@ -18,11 +18,11 @@ The default used to be chosen from your keyboard layouts; since 2026-07-25 it is
 | Mac memory | Default | Resident (recommended config) |
 |---|---|--:|
 | 8 GB | Qwen3.5 2B (Base) | ≈1.1 GB |
-| 16–18 GB | Gemma E2B 4-bit | ≈3.5 GB |
-| 24 GB | Gemma E2B 8-bit | ≈5.0 GB |
-| 32 GB and up | Gemma E4B 6-bit | ≈6.8 GB |
+| 16–18 GB | Gemma E2B 4-bit | ≈3.0 GB |
+| 24 GB | Gemma E2B 8-bit | ≈4.6 GB |
+| 32 GB and up | Gemma E4B 6-bit | ≈5.6 GB |
 
-Language dropped out of the rule because no per-language gap between the small models survives the significance bar (MiniCPM5's English lead over Qwen3.5 is a trend at p=0.014, Russian a tie at p=0.79, Japanese p=0.064), while the chord measurements split hard against the old English/Russian default: MiniCPM5's fix is inert at 4%. It remains the manual pick for the lowest latency (49 ms); E4B 8-bit remains the manual best-quality pick (it ties 6-bit at p=0.052 for 1.8 GB more). Your keyboard languages still drive the persona and the per-language menu nudge, and everything else is one click in **Settings → Model**, where each entry ships its own eval-backed recommended settings and the catalog re-ranks for any of the 19 evaluated languages.
+Language dropped out of the rule because no per-language gap between the small models survives the significance bar (MiniCPM5's English lead over Qwen3.5 is a trend at p=0.014, Russian a tie at p=0.79, Japanese p=0.064), while the chord measurements split hard against the old English/Russian default: MiniCPM5's fix is inert at 4%. It remains the manual pick for the lowest latency (49 ms); E4B 8-bit remains the manual best-quality pick (it ties 6-bit at p=0.052 for ≈1 GB more). Your keyboard languages still drive the persona and the per-language menu nudge, and everything else is one click in **Settings → Model**, where each entry ships its own eval-backed recommended settings and the catalog re-ranks for any of the 19 evaluated languages.
 
 <div align="center">
 <img src="shot-models.png" width="720" alt="Model tab: an interactive speed by accuracy map of the catalog with eval-backed presets and a ranked list" />
@@ -55,7 +55,7 @@ Three things worth knowing before reading it as a ranking:
 
 ## What a model costs you
 
-Disk and memory track each other: the default holds **≈1.1–6.8 GB** resident — sized to about a quarter of the Mac's memory, per the ladder above — the catalog goes down to ≈1 GB, and Gemma 4 E4B 8-bit tops it at a ≈6 GB download. Warm completions run **49–145 ms** across the local models, against 430 ms for Apple Intelligence, which downloads nothing and holds no app memory at all.
+Disk and memory track each other: the default holds **≈1.1–5.6 GB** resident — sized to about a quarter of the Mac's memory, per the ladder above — the catalog goes down to ≈1 GB, and Gemma 4 E4B 8-bit tops it at a ≈6 GB download. Warm completions run **49–145 ms** across the local models, against 430 ms for Apple Intelligence, which downloads nothing and holds no app memory at all.
 
 The Gemma tiers download slim re-packs of the mlx-community builds ([nikimori/*-slim](https://huggingface.co/nikimori)): the audio and vision encoders the app never runs are gone (the instruct siblings keep vision, which their speculative-decoding load needs), and both of Gemma's embedding tables (the shared input/output table and the far bigger per-layer one) ship at 4-bit — a pure lookup, so it costs no speed, and first-word accuracy is unchanged (paired p≥0.72 on all three tiers). That is 13–39% less to download (E2B 8-bit 5.9 → 3.6 GB, E4B 6-bit 7.1 → 5.3, E4B 8-bit 9.0 → 6.3) with outputs identical to the originals, row for row. An install that downloaded an original before then moves onto the re-pack by itself: on launch it fetches the re-pack of the model in use in the background while the original keeps serving (never on a cellular, hotspot or Low Data Mode network), then — once the re-pack has loaded on this Mac — deletes the original; which also makes the reload after an idle pause about twice as fast (E4B 6-bit 0.8–1.9 → 0.4–0.5 s). Measured model memory: E2B 8-bit 3.4 GB, E4B 6-bit 5.0, E4B 8-bit 6.0.
 
