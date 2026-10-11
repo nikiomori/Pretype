@@ -160,7 +160,9 @@ final class CorrectionController {
            let caret = ctx.caretRect,
            let fix = tokenAtCaret.hasPrefix(":")
                ? EmojiShortcodes.emoji(for: tokenAtCaret)
-               : SpellChecker.correction(for: tokenAtCaret, context: text) {
+               : tokenAtCaret.hasSuffix("=")
+                   ? InlineCalculator.completion(for: tokenAtCaret)
+                   : SpellChecker.correction(for: tokenAtCaret, context: text) {
             owner.clearActiveCompletion()
             owner.indicator.stop()
             activeCorrection = (word: tokenAtCaret, fix: fix)
@@ -453,6 +455,8 @@ final class CorrectionController {
     /// through this — `trailingWord` stops at ':', so a shortcode fix would read
     /// its original back as "" and fail to apply, silently.
     static func lastToken(of text: String) -> String {
-        EmojiShortcodes.trailingShortcode(in: text) ?? SpellChecker.trailingWord(of: text)
+        EmojiShortcodes.trailingShortcode(in: text)
+            ?? InlineCalculator.trailingExpression(in: text)
+            ?? SpellChecker.trailingWord(of: text)
     }
 }
