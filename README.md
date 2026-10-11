@@ -54,7 +54,7 @@ It's a free, MIT-licensed alternative to [Cotypist](https://cotypist.app) — a 
 ## Features
 
 * **Any text field** — native AppKit/SwiftUI apps, Electron apps (VS Code, Slack, Claude Desktop), and web views.
-* **Ghost text at the caret** — baseline-matched and sized to the field's own font, or a floating panel if you prefer that.
+* **A floating panel at the caret** — never overlaps your text, legible on any background. Inline ghost text (baseline-matched, in the field's own font) is available as an unstable option.
 * **<kbd>Tab</kbd> to accept** — one word at a time, <kbd>⇧Tab</kbd> for the rest, or just keep typing to reject. The part one <kbd>Tab</kbd> will take renders a step brighter. Switchable to <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd> or <kbd>⌃Space</kbd> in Settings.
 * **Inline typo fixes** — a correction pill above the misspelled word, <kbd>Tab</kbd> to apply. Uses the macOS spell-checker in whichever language it detects from the surrounding text.
 * **Emoji shortcodes** — type `:shrug:` and 🤷 is offered in the same pill, <kbd>Tab</kbd> to take it. A handful of Gemoji nicknames plus every Unicode character name macOS already knows, so `:rocket:` and `:thinking_face:` work without shipping a table.
@@ -117,7 +117,7 @@ Dev loop, headless harnesses and the SwiftPM/Metal caveat live in the [Contribut
 <br/>
 
 <img src="docs/shot-modes.png" alt="Two presentation modes side by side: inline ghost text on the line, and a floating capsule panel above it" width="720" />
-<p><sub><i><b>Two presentation modes.</b> Inline ghost text stays pixel-accurate even in Electron apps.</i></sub></p>
+<p><sub><i><b>Two presentation modes.</b> The panel is the default; inline ghost text is marked unstable — it can still leave drawing glitches.</i></sub></p>
 
 <br/>
 
