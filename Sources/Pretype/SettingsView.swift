@@ -8,11 +8,14 @@ import SwiftUI
 /// Hover previews change many times a second as the pointer moves. They live
 /// on their own observable so that hovering re-renders only the surfaces that
 /// draw previews (map, rail, delta strips) — never the scrolling Form around
-/// them: any @Published set on the store invalidates every tab observing it,
-/// which visibly hitches wheel/trackpad scrolling over the model list.
+/// them, which visibly hitched wheel/trackpad scrolling over the model list
+/// back when the store was one ObservableObject and any set invalidated every
+/// tab. `@Observable` tracks per property now; the split still keeps the
+/// hottest property out of the store's way.
 @MainActor
-final class HoverState: ObservableObject {
-    @Published var preview: ProjectionConfig.Change?
+@Observable
+final class HoverState {
+    var preview: ProjectionConfig.Change?
 }
 
 /// Observable bridge between the SwiftUI settings surface and the live
@@ -20,10 +23,11 @@ final class HoverState: ObservableObject {
 /// points the old AppKit panel used; `sync()` re-reads Settings after any
 /// change that cascades (model → recommended style/length → gates).
 @MainActor
-final class SettingsStore: ObservableObject {
-    weak var controller: SuggestionController?
-    private var syncing = false
-    private var statusTimer: Timer?
+@Observable
+final class SettingsStore {
+    @ObservationIgnored weak var controller: SuggestionController?
+    @ObservationIgnored private var syncing = false
+    @ObservationIgnored private var statusTimer: Timer?
 
     init(controller: SuggestionController?) {
         self.controller = controller
@@ -32,15 +36,15 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Published mirrors of Settings
 
-    @Published var enabled = true {
+    var enabled = true {
         didSet { guard !syncing else { return }
             controller?.setEnabled(enabled) }
     }
-    @Published var presentation = SuggestionPresentation.inline {
+    var presentation = SuggestionPresentation.inline {
         didSet { guard !syncing, oldValue != presentation else { return }
             controller?.setSuggestionPresentation(presentation) }
     }
-    @Published var hotkeyStyle = HotkeyStyle.tab {
+    var hotkeyStyle = HotkeyStyle.tab {
         didSet { guard !syncing, oldValue != hotkeyStyle else { return }
             Settings.hotkeyStyle = hotkeyStyle
             controller?.dismiss() }
@@ -48,7 +52,7 @@ final class SettingsStore: ObservableObject {
     /// Hold-to-talk dictation. The write goes through `SettingsUI` because
     /// switching it on is what asks for the microphone — and has to report a
     /// refusal, since macOS only ever prompts once.
-    @Published var dictation = false {
+    var dictation = false {
         didSet { guard !syncing, oldValue != dictation else { return }
             SettingsUI.setDictation(dictation) { [weak self] granted in
                 guard let self, !granted else { return }
@@ -57,32 +61,32 @@ final class SettingsStore: ObservableObject {
                 self.syncing = false
             } }
     }
-    @Published var dictationInput = "auto" {
+    var dictationInput = "auto" {
         didSet { guard !syncing, oldValue != dictationInput else { return }
             Settings.dictationInput = dictationInput
             refreshDictationInput() }
     }
     /// Input devices to offer, and the one a capture would open right now.
-    @Published var dictationInputs: [AudioDevices.Device] = []
-    @Published var dictationInputNote: String?
-    @Published var dictationLanguage = "auto" {
+    var dictationInputs: [AudioDevices.Device] = []
+    var dictationInputNote: String?
+    var dictationLanguage = "auto" {
         didSet { guard !syncing, oldValue != dictationLanguage else { return }
             Settings.dictationLanguage = dictationLanguage
             refreshDictationLanguage() }
     }
     /// Which speech model the current language would use — or that macOS has
     /// none for it. Resolved async; nil until the first answer arrives.
-    @Published var dictationSupport: Transcription.LanguageSupport?
+    var dictationSupport: Transcription.LanguageSupport?
     /// Languages the system transcriber offers, loaded once when the pane
     /// appears (the lookup is async and never changes within a session).
-    @Published var dictationLocales: [Locale] = []
+    var dictationLocales: [Locale] = []
 
-    @Published var blacklist: [String] = [] {
+    var blacklist: [String] = [] {
         didSet { guard !syncing, oldValue != blacklist else { return }
             Settings.userBlacklist = blacklist
             controller?.dismiss() }
     }
-    @Published var useRecommended = true {
+    var useRecommended = true {
         didSet { guard !syncing, oldValue != useRecommended else { return }
             let on = useRecommended
             // Snapping to the recommended style can mean its instruct sibling.
@@ -94,7 +98,7 @@ final class SettingsStore: ObservableObject {
             // Held for the download confirmation: keep showing what runs.
             if !now { syncing = true; useRecommended = oldValue; syncing = false } }
     }
-    @Published var style = CompletionStyle.instruct {
+    var style = CompletionStyle.instruct {
         didSet { guard !syncing, oldValue != style else { return }
             let picked = style
             // Instruct loads a separate sibling model — 3–7 GB on the Gemma tiers.
@@ -105,19 +109,19 @@ final class SettingsStore: ObservableObject {
             }
             if !now { syncing = true; style = oldValue; syncing = false } }
     }
-    @Published var length = CompletionLength.short {
+    var length = CompletionLength.short {
         didSet { guard !syncing, oldValue != length else { return }
             unlockManualTuning()
             controller?.engineCoordinator.setCompletionLength(length)
             // Leaving Recommended re-targets the rows: they keep this style now.
             refreshModelDiskUsage() }
     }
-    @Published var logprobGate = false {
+    var logprobGate = false {
         didSet { guard !syncing, oldValue != logprobGate else { return }
             controller?.engineCoordinator.apply(.logprobGate(logprobGate))
             resync() }
     }
-    @Published var personalization = PersonalizationLevel.off {
+    var personalization = PersonalizationLevel.off {
         didSet { guard !syncing, oldValue != personalization else { return }
             controller?.engineCoordinator.setPersonalization(personalization)
             // Enabling mid-session must start the journal build right away —
@@ -125,40 +129,40 @@ final class SettingsStore: ObservableObject {
             if personalization != .off { PersonalNgram.shared.prepareIfNeeded() }
             learnedWords = PersonalNgram.shared.wordCount }
     }
-    @Published var journalEnabled = true {
+    var journalEnabled = true {
         didSet { guard !syncing else { return }
             Settings.suggestionJournalEnabled = journalEnabled
             // Off means forget: keeping a file of typed-text snippets around
             // after the user opted out would betray what the toggle promises.
             if !journalEnabled { clearJournal() } }
     }
-    @Published var instructions = "" {
+    var instructions = "" {
         didSet { guard !syncing, oldValue != instructions else { return }
             controller?.engineCoordinator.setCustomInstructions(instructions) }
     }
     /// Per-app persona additions (exact lowercased bundle ID → text). Read by
     /// the engines at generation time, so writes apply live — no rebuild.
-    @Published var perAppInstructions: [String: String] = [:] {
+    var perAppInstructions: [String: String] = [:] {
         didSet { guard !syncing, oldValue != perAppInstructions else { return }
             Settings.perAppInstructions = perAppInstructions }
     }
-    @Published var screenContext = false {
+    var screenContext = false {
         didSet { guard !syncing, oldValue != screenContext else { return }
             SettingsUI.setScreenContext(screenContext) }
     }
     /// Login-item state, re-read from launchd on every `sync()` — there is no
     /// stored mirror to keep in step (see `LoginItem`). Writes go through
     /// `setOpenAtLogin`, so no didSet here.
-    @Published var loginStatus = LoginItem.status
+    var loginStatus = LoginItem.status
 
     /// Selection flows through `selectModel`, not a binding didSet.
-    @Published var modelID = ModelCatalog.defaultID
+    var modelID = ModelCatalog.defaultID
 
     /// Language the Model tab's figures are shown for ("*" = all languages, or
     /// a language code — no pooled entry: English and Russian are separate
     /// choices like every other language). Presentation-only — re-renders the
     /// tab, never touches the pipeline.
-    @Published var accuracyAxis = Settings.accuracyAxis {
+    var accuracyAxis = Settings.accuracyAxis {
         didSet { guard !syncing, oldValue != accuracyAxis else { return }
             Settings.accuracyAxis = accuracyAxis
             // Picking a language is a request to see that language. Leaving the
@@ -170,7 +174,7 @@ final class SettingsStore: ObservableObject {
     /// Settings-map mode: the whole tab moves to the pooled English+Russian
     /// sample the config projections are anchored to. Separate from the
     /// language so switching it off returns to the language you had picked.
-    @Published var settingsMapMode = Settings.settingsMapMode {
+    var settingsMapMode = Settings.settingsMapMode {
         didSet { guard !syncing, oldValue != settingsMapMode else { return }
             Settings.settingsMapMode = settingsMapMode }
     }
@@ -180,7 +184,7 @@ final class SettingsStore: ObservableObject {
     var effectiveAxis: String { settingsMapMode ? "core" : accuracyAxis }
 
     /// Pane selected in the sidebar.
-    @Published var activeTab = SettingsTab.general {
+    var activeTab = SettingsTab.general {
         didSet { preview = nil }
     }
 
@@ -211,18 +215,18 @@ final class SettingsStore: ObservableObject {
         Settings.useRecommendedSettings = false
     }
 
-    @Published var learnedWords = 0
-    @Published var journalBytes = 0
+    var learnedWords = 0
+    var journalBytes = 0
     /// Bytes on disk per catalog id — what deleting that entry would free.
     /// Refreshed when the Model tab appears, never on the 1 s timer: it is a
     /// few hundred `stat`s against a possibly-cold cache.
-    @Published var modelDiskBytes: [String: Int64] = [:]
+    var modelDiskBytes: [String: Int64] = [:]
     /// One-line result of the last journal import, shown under the Journal
     /// section. nil until the user imports something.
-    @Published var importStatus: String?
+    var importStatus: String?
     /// An import is running — disables the button so a double-click can't run
     /// two concurrent imports, each with its own 500-row budget.
-    @Published var importing = false
+    var importing = false
 
     // MARK: Derived
 
@@ -293,11 +297,16 @@ final class SettingsStore: ObservableObject {
     /// Cheap, and re-run whenever the pane appears — under "Follow keyboard"
     /// the answer changes with the layout.
     func refreshDictationLanguage() {
-        Task { @MainActor [weak self] in
+        // Latest request wins: a slow answer for the language picked a moment
+        // ago must not land over the one picked since.
+        dictationSupportTask?.cancel()
+        dictationSupportTask = Task { @MainActor [weak self] in
             let support = await Transcription.support(for: Settings.resolvedDictationLocale)
+            guard !Task.isCancelled else { return }
             self?.dictationSupport = support
         }
     }
+    @ObservationIgnored private var dictationSupportTask: Task<Void, Never>?
 
     var recommendation: ModelCatalog.Recommendation { ModelCatalog.recommended(for: modelID) }
     var logprobGateUsable: Bool { style == .base }
@@ -355,11 +364,11 @@ final class SettingsStore: ObservableObject {
         let sizeGB: Double
         let commit: @MainActor () -> Void
     }
-    @Published var pendingDownload: PendingDownload?
+    var pendingDownload: PendingDownload?
 
     /// Catalog rows whose click would download weights first — refreshed with
     /// the disk figures, off the main actor (see `refreshModelDiskUsage`).
-    @Published var needsDownload: Set<String> = []
+    var needsDownload: Set<String> = []
 
     /// The weights a model + style keeps loaded — the instruct sibling in
     /// Instruct style, resolved the way `MLXEngine.init` picks its primary —
@@ -637,6 +646,11 @@ final class SettingsStore: ObservableObject {
             let c = committedConfig.applying(.model(id))
             return (id, Self.weights(modelID: c.modelID, style: c.style).id)
         }
+        // Latest request wins: a delete and the resync after a model switch
+        // each start one, and an older scan finishing last would put back
+        // figures (and "↓" badges) for a state that has since moved on.
+        diskScanSeq += 1
+        let seq = diskScanSeq
         Task.detached {
             var sizes: [String: Int64] = [:]
             for id in ids {
@@ -648,11 +662,13 @@ final class SettingsStore: ObservableObject {
             let measured = sizes
             let missing = Set(targets.filter { !ModelStorage.isFetched($0.1) }.map(\.0))
             await MainActor.run {
+                guard self.diskScanSeq == seq else { return }
                 if self.modelDiskBytes != measured { self.modelDiskBytes = measured }
                 if self.needsDownload != missing { self.needsDownload = missing }
             }
         }
     }
+    @ObservationIgnored private var diskScanSeq = 0
 
     func deleteDownload(_ id: String) {
         for repo in ModelStorage.deletableRepos(for: id, selected: modelID) {
@@ -666,7 +682,7 @@ final class SettingsStore: ObservableObject {
     /// reports `.preparing`, and gating on that would disable deletion exactly
     /// when it is safest (nothing loaded, nothing writing). Polled by the
     /// status timer and published only when it flips.
-    @Published private(set) var engineBusy = false
+    private(set) var engineBusy = false
 
     func setOpenAtLogin(_ on: Bool) {
         LoginItem.set(on)
@@ -751,8 +767,8 @@ final class SettingsStore: ObservableObject {
         statusTimer = nil
     }
 
-    /// Assign only on change: this runs on a 1 s timer, and a no-op
-    /// @Published set still invalidates every observing view — enough to
+    /// Assign only on change: this runs on a 1 s timer, and an `@Observable`
+    /// set notifies its readers even when the value is the same — enough to
     /// hitch an in-flight scroll. The status line itself lives in
     /// `EngineStatusFooter`, off the store for the same reason.
     private func refreshEngineBusy() {
@@ -982,7 +998,7 @@ enum SettingsTab: String, CaseIterable {
 /// stays on standard grouped-form backgrounds (per the HIG, glass is for the
 /// floating layer, never the content itself).
 struct SettingsRootView: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
 
     var body: some View {
         NavigationSplitView {
@@ -1202,12 +1218,12 @@ struct HoverSegments<T: Hashable>: View {
 // MARK: - General tab
 
 struct GeneralTab: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
     @State private var blacklistDraft = ""
     @AppStorage("replyGesture") private var replyGesture = ReplyGesture.option
     @AppStorage("ghostOpacity") private var ghostOpacity = 0.7
     @AppStorage("dictationGesture") private var dictationGesture = DictationGesture.option
-    @AppStorage("dictationLatch") private var dictationLatch = DictationLatch.off
+    @AppStorage("dictationLatch") private var dictationLatch = DictationLatch.controlOptionD  // = the registered default
     /// Silence budget for a hands-free capture, in seconds; 0 is off.
     @AppStorage("dictationSilence") private var dictationSilence = 5.0
     @AppStorage("dictationPolish") private var dictationPolish = true
@@ -1622,12 +1638,9 @@ private struct BlacklistRow: View {
 
 /// Exact bundle IDs resolve to the installed app's real icon and name;
 /// fuzzy fragments ("slack") stay as typed with a generic glyph.
-private func resolveApp(_ entry: String) -> (name: String, icon: NSImage?) {
-    guard entry.contains("."),
-          let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: entry)
-    else { return (entry, nil) }
-    return (FileManager.default.displayName(atPath: url.path),
-            NSWorkspace.shared.icon(forFile: url.path))
+@MainActor private func resolveApp(_ entry: String) -> (name: String, icon: NSImage?) {
+    guard entry.contains("."), let app = InstalledApps.lookup(entry) else { return (entry, nil) }
+    return (app.name, app.icon)
 }
 
 /// The resolved 20 pt app icon, or the dashed-app placeholder.
@@ -1648,7 +1661,7 @@ private struct AppIcon: View {
 /// One per-app persona line: icon + app name + an editable instruction field.
 private struct PerAppInstructionRow: View {
     let bundleID: String
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
 
     var body: some View {
         let resolved = resolveApp(bundleID)
@@ -1840,7 +1853,7 @@ private struct PresentationCard: View {
 // MARK: - Suggestions tab
 
 struct SuggestionsTab: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
 
     var body: some View {
         Form {
@@ -1991,7 +2004,7 @@ struct SuggestionsTab: View {
     private var lengthBadges: [EffectBadge] {
         // Length sweep (eval-real, 2026-07-13): p50 157 / 291 / 550 ms on the
         // sweep model; first-word length-independent, word-F1 drops. Figures
-        // shown are the sweep's ×1.85/×3.5 ratios applied to the SELECTED
+        // shown are the sweep's ratios (`latencyFactor`) applied to the SELECTED
         // model's measured base latency — quoting the sweep model's absolute
         // milliseconds next to a rail that shows this model's contradicts it.
         // The reach badge states what longer BUYS — without it the control
@@ -2002,9 +2015,14 @@ struct SuggestionsTab: View {
             let v = Int((Double(baseMs) * ConfigProjection.latencyFactor(length)).rounded())
             return v >= 1000 ? String(format: "%.1f s", Double(v) / 1000) : "\(v) ms"
         }
+        // The ratios come from the projection's own table, so a re-measured
+        // sweep can't leave these strings quoting the old one.
+        func ratio(_ length: CompletionLength) -> String {
+            String(format: "%g", (ConfigProjection.latencyFactor(length) * 10).rounded() / 10)
+        }
         let sweepSource = "Measured length sweep (eval-real, 2026-07-13): 157 · 291 · 550 ms p50 on the sweep model — "
             + (baseMs != nil
-                ? "the ×1.85/×3.5 ratios here are applied to \(store.selectedModelName)'s measured base latency."
+                ? "the ×\(ratio(.medium))/×\(ratio(.long)) ratios here are applied to \(store.selectedModelName)'s measured base latency."
                 : "no measured base latency for this model, so only the ratios are shown.")
         let reach: EffectBadge
         let speed: EffectBadge
@@ -2019,13 +2037,13 @@ struct SuggestionsTab: View {
             reach = EffectBadge(icon: "text.word.spacing", text: "runs up to ~6 words ahead", tone: .neutral,
                                 source: "What longer buys: more words per suggestion (+1–2 pp completeness in the sweep). Per-word accuracy does not improve — you pay only in wait time.")
             speed = EffectBadge(icon: "bolt",
-                                text: baseMs != nil ? "p50 ~\(ms(.medium)) (≈2× short)" : "≈2× slower than short",
+                                text: baseMs != nil ? "p50 ~\(ms(.medium)) (≈\(ratio(.medium))× short)" : "≈\(ratio(.medium))× slower than short",
                                 tone: .caution, source: sweepSource)
         case .long:
             reach = EffectBadge(icon: "text.word.spacing", text: "runs up to a sentence ahead", tone: .neutral,
                                 source: "What longer buys: more words per suggestion (+1–2 pp completeness in the sweep). Per-word accuracy does not improve, and weak tails are trimmed automatically.")
             speed = EffectBadge(icon: "tortoise",
-                                text: baseMs != nil ? "p50 ~\(ms(.long)) (≈3.5× short)" : "≈3.5× slower than short",
+                                text: baseMs != nil ? "p50 ~\(ms(.long)) (≈\(ratio(.long))× short)" : "≈\(ratio(.long))× slower than short",
                                 tone: .caution, source: sweepSource)
         }
         return [
@@ -2041,7 +2059,7 @@ struct SuggestionsTab: View {
 // MARK: - Personalization tab
 
 struct PersonalTab: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
     /// Both journal paths destroy the learned n-gram model irreversibly, so
     /// they route through one confirmation instead of firing on a single click.
     @State private var confirmingClear = false

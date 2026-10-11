@@ -7,10 +7,10 @@ import SwiftUI
 /// each meter, before anything commits. All figures come from
 /// `ConfigProjection` (eval-backed); compute is the one estimate, labeled so.
 struct ImpactRailView: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
     /// Hover previews publish here (not on the store) so pointer movement
     /// re-renders the rail and map only — never the scrolling Form.
-    @ObservedObject var hover: HoverState
+    var hover: HoverState
 
     var body: some View {
         let base = store.projection

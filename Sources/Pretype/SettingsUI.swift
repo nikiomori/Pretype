@@ -55,11 +55,29 @@ enum PerAppPresets {
     }
 
     /// Suggestions for apps actually installed on this Mac and not configured yet.
+    @MainActor
     static func installedSuggestions(excluding configured: Set<String>) -> [(bundleID: String, text: String)] {
-        suggestions.filter {
-            !configured.contains($0.bundleID)
-                && NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil
+        suggestions.filter { !configured.contains($0.bundleID) && InstalledApps.lookup($0.bundleID) != nil }
+    }
+}
+
+/// LaunchServices lookups for Settings, memoized: the rows that show app names
+/// and icons re-render on every keystroke in the persona and per-app fields,
+/// and each lookup (plus `icon(forFile:)`) is a LaunchServices round-trip —
+/// about twenty of them per keystroke before this.
+/// ponytail: never invalidated — an app installed or removed while Pretype
+/// runs reads as it was until a relaunch.
+@MainActor
+enum InstalledApps {
+    private static var cache: [String: (name: String, icon: NSImage)?] = [:]
+
+    static func lookup(_ bundleID: String) -> (name: String, icon: NSImage)? {
+        if let hit = cache[bundleID] { return hit }
+        let found = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map {
+            (name: FileManager.default.displayName(atPath: $0.path), icon: NSWorkspace.shared.icon(forFile: $0.path))
         }
+        cache[bundleID] = found
+        return found
     }
 }
 

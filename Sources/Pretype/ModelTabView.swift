@@ -6,7 +6,7 @@ import SwiftUI
 /// measured numbers beside them. Every figure is a real eval run
 /// (see `ModelMetrics`); no axes to decode, no spec-sheet estimates.
 struct ModelTab: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
     /// Catalog id awaiting delete confirmation. Local @State: it changes on a
     /// click, not on pointer movement, but it still has no business on the store.
     @State private var confirmingDelete: String?
@@ -371,7 +371,7 @@ struct ModelTab: View {
 /// style the same way the engine picks what it loads, so the figures are the
 /// ones this pick would actually produce.
 struct ChordTaskRows: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
 
     var body: some View {
         if store.isAppleIntelligence {
@@ -688,10 +688,10 @@ enum MapLens: Hashable {
 /// bubble size — the settings machinery (envelope, dots, projected ring) is
 /// completion-only and hides.
 struct ModelMapView: View {
-    @ObservedObject var store: SettingsStore
+    @Bindable var store: SettingsStore
     /// Hover previews live on their own observable so pointer movement
     /// re-renders the map and rail — never the scrolling Form around them.
-    @ObservedObject var hover: HoverState
+    var hover: HoverState
     var lens: MapLens = .completion
     /// Hovered sibling bubble on the chord lenses. Local @State: sibling ids
     /// aren't models the Live Impact rail can preview, so they never touch
