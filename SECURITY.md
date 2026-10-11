@@ -6,28 +6,49 @@ Pretype is a local-first macOS utility. Because it reads text system-wide, its
 trust model matters — here is exactly what it does:
 
 - **All inference is on device.** Completions run locally, either via MLX
-  (Gemma 4, in-process) or Apple's on-device Foundation Models. Your typed
-  text, selections, and any screen context are **never** sent to a server.
-- **The only network egress** is the one-time download of model weights from
-  Hugging Face on first use (cached in `~/.cache/huggingface`). After that the
-  app works fully offline.
+  (Gemma 4, Qwen and the rest of the catalog, in-process) or Apple's on-device
+  Foundation Models. Your typed text, selections, and any screen context are
+  **never** sent to a server.
+- **Network traffic is limited to downloads and one version check** — none of
+  it carries your text (full list in [docs/privacy.md](docs/privacy.md)):
+  - model weights from Hugging Face on first use, cached in
+    `~/.cache/huggingface` — plus, on models that need it, an instruct sibling
+    the first time you use ⌥Tab (or dictate with tidy-up on), and on the Gemma
+    tiers a ~150 MB speculative-decoding drafter, fetched in the background
+    when it's missing (tried once per launch);
+  - once, in the background, the current build of a model an older install
+    downloaded (the slimmer Gemma re-packs, Qwen3.5's Base build) — only on an
+    unmetered network (never cellular, hotspot or Low Data Mode), with the old
+    build serving until the replacement is in place;
+  - a once-a-day version check against the GitHub Releases API that sends
+    nothing about you (off in **Settings → General**);
+  - Apple's on-device speech model for your dictation language, downloaded by
+    macOS itself when you turn dictation on or switch dictation language;
+  - only if you opt into Parakeet dictation, its ~610 MB model from Hugging
+    Face (`FluidInference/parakeet-ultra-coreml`; installs that opted in
+    before it replace their `parakeet-tdt-0.6b-v3-coreml` once, in the
+    background, on an unmetered network).
+
+  Once the models are on disk, completions, fixes and dictation work fully
+  offline.
 - **Password and secure fields are never read.** Secure text fields are
   skipped, and macOS blocks Accessibility access to them regardless.
 - **Screen context (OCR) is opt-in and local.** It's off by default, requires a
   separate Screen Recording permission, captures only the focused window, runs
   Vision OCR locally, and is cleared on every focus change. It's disabled
-  entirely in terminals and code editors.
+  entirely in terminals, password managers and code editors.
 - **No telemetry, analytics, or crash reporting.** The usage stats in the menu
   are stored locally and never leave your Mac. You can inspect exactly what the
-  model received at any time via **Context → Show Last Prompt…**.
+  model received at any time via **Diagnostics → Show Last Prompt…**.
 
 Permissions used: **Accessibility** (reading the focused field, the event tap,
-and keystroke injection) and — only when you enable OCR — **Screen Recording**.
+and keystroke injection), and — only when you enable them — **Screen
+Recording** (OCR) and **Microphone** (dictation, only while a capture runs).
 
 ## Supported versions
 
-Pretype is pre-1.0 and under active development. Security fixes are applied to
-the latest `main`; there are no long-term support branches yet.
+Only the latest release is supported. Security fixes land on `main` and ship
+in the next release; there are no long-term support branches.
 
 ## Reporting a vulnerability
 
