@@ -100,6 +100,52 @@ final class SettingsStore {
             }
         }
     }
+    /// Hosted models (Settings → API). A text change while it is on — or the
+    /// switch itself — rebuilds the engine; the on-device engine is never
+    /// rebuilt for an edit that doesn't reach it.
+    var apiText = APIConfig(provider: APIProvider.all[0], kind: .text) {
+        didSet { guard !syncing, oldValue != apiText else { return }
+            Settings.apiText = apiText
+            apiTextTest = nil
+            if apiText.enabled || oldValue.enabled { controller?.engineCoordinator.rebuild() } }
+    }
+    var apiAudio = APIConfig(provider: APIProvider.all[0], kind: .audio) {
+        didSet { guard !syncing, oldValue != apiAudio else { return }
+            Settings.apiAudio = apiAudio
+            apiAudioTest = nil
+            refreshDictationLanguage() }
+    }
+    /// The last "Test" result per kind, or "Testing…"; cleared by any edit.
+    var apiTextTest: String?
+    var apiAudioTest: String?
+
+    /// Bumped when a key is saved: both sections mirror the Keychain, and one
+    /// provider's key serves both (OpenAI for text AND dictation).
+    var apiKeyRevision = 0
+
+    /// A key lives in the Keychain, not in the config, so saving one is not a
+    /// config change — the text engine still has to pick it up.
+    func apiKeyChanged(provider: String) {
+        apiKeyRevision += 1
+        if apiText.provider == provider {
+            apiTextTest = nil
+            if apiText.enabled { controller?.engineCoordinator.rebuild() }
+        }
+        if apiAudio.provider == provider { apiAudioTest = nil }
+    }
+
+    func testAPI(_ kind: APIKind) {
+        let config = kind == .text ? apiText : apiAudio
+        if kind == .text { apiTextTest = "Testing…" } else { apiAudioTest = "Testing…" }
+        Task { @MainActor [weak self] in
+            let result = kind == .text ? await CloudEngine.test(config) : await CloudTranscription.test(config)
+            guard let self else { return }
+            // An edit made during the round trip already cleared the line.
+            if kind == .text, self.apiText == config, self.apiTextTest != nil { self.apiTextTest = result }
+            if kind == .audio, self.apiAudio == config, self.apiAudioTest != nil { self.apiAudioTest = result }
+        }
+    }
+
     /// Languages the system transcriber offers, loaded once when the pane
     /// appears (the lookup is async and never changes within a session).
     var dictationLocales: [Locale] = []
@@ -371,6 +417,7 @@ final class SettingsStore {
 
     /// "MiniCPM5 1B · Base · Short · Confident-only" — what is running now.
     var setupLine: String {
+        if apiText.enabled { return "API · \(apiText.preset.name) · \(apiText.model)" }
         var parts = [ModelMetrics.metrics(for: modelID)?.shortName ?? selectedModelName]
         if !isAppleIntelligence { parts.append(style == .instruct ? "Instruct" : "Base") }
         parts.append(length.rawValue.capitalized)
@@ -788,6 +835,8 @@ final class SettingsStore {
         dictationLanguage = Settings.dictationLanguage
         dictationParakeet = Settings.dictationParakeet
         dictationInput = Settings.dictationInput
+        apiText = Settings.apiText
+        apiAudio = Settings.apiAudio
         blacklist = Settings.userBlacklist
         useRecommended = Settings.useRecommendedSettings
         style = Settings.completionStyle

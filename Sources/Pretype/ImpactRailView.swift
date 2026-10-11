@@ -26,37 +26,44 @@ struct ImpactRailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
 
-                VStack(alignment: .leading, spacing: 14) {
-                    MeterView(icon: "scope", tint: .green, label: "Accuracy",
-                              value: base.accuracyText, sub: base.accuracySub,
-                              fraction: base.accuracyFraction,
-                              previewFraction: target?.accuracyFraction,
-                              previewValue: target?.accuracyText,
-                              delta: deltas.first { $0.label == "Accuracy" })
-                    MeterView(icon: "bolt.fill", tint: .blue, label: "Speed",
-                              value: base.latencyText, sub: base.latencySub,
-                              fraction: base.speedFraction,
-                              previewFraction: target?.speedFraction,
-                              previewValue: target?.latencyText,
-                              delta: deltas.first { $0.label == "Speed" })
-                    MeterView(icon: "memorychip", tint: .teal, label: "Memory",
-                              value: base.memoryText, sub: base.memorySub,
-                              fraction: base.memoryFraction,
-                              previewFraction: target?.memoryFraction,
-                              previewValue: target?.memoryText,
-                              delta: deltas.first { $0.label == "Memory" })
-                    // Indigo, not red: this meter is mostly full in the
-                    // default state (longer = lighter load), and a full red
-                    // bar reads as an alarm, not a resting figure.
-                    MeterView(icon: "gauge.with.needle", tint: .indigo, label: "Compute",
-                              value: base.computeText, sub: base.computeSub,
-                              fraction: base.computeFraction,
-                              previewFraction: target?.computeFraction,
-                              previewValue: target?.computeText,
-                              delta: deltas.first { $0.label == "Compute" })
+                // The meters project ON-DEVICE configurations; none of them
+                // describes a hosted model, so none is shown while one runs.
+                if store.apiText.enabled {
+                    Caption("Text runs on an API model, which Pretype hasn't measured. "
+                        + "“Test connection” in Settings → API shows its round trip.")
+                } else {
+                    VStack(alignment: .leading, spacing: 14) {
+                        MeterView(icon: "scope", tint: .green, label: "Accuracy",
+                                  value: base.accuracyText, sub: base.accuracySub,
+                                  fraction: base.accuracyFraction,
+                                  previewFraction: target?.accuracyFraction,
+                                  previewValue: target?.accuracyText,
+                                  delta: deltas.first { $0.label == "Accuracy" })
+                        MeterView(icon: "bolt.fill", tint: .blue, label: "Speed",
+                                  value: base.latencyText, sub: base.latencySub,
+                                  fraction: base.speedFraction,
+                                  previewFraction: target?.speedFraction,
+                                  previewValue: target?.latencyText,
+                                  delta: deltas.first { $0.label == "Speed" })
+                        MeterView(icon: "memorychip", tint: .teal, label: "Memory",
+                                  value: base.memoryText, sub: base.memorySub,
+                                  fraction: base.memoryFraction,
+                                  previewFraction: target?.memoryFraction,
+                                  previewValue: target?.memoryText,
+                                  delta: deltas.first { $0.label == "Memory" })
+                        // Indigo, not red: this meter is mostly full in the
+                        // default state (longer = lighter load), and a full red
+                        // bar reads as an alarm, not a resting figure.
+                        MeterView(icon: "gauge.with.needle", tint: .indigo, label: "Compute",
+                                  value: base.computeText, sub: base.computeSub,
+                                  fraction: base.computeFraction,
+                                  previewFraction: target?.computeFraction,
+                                  previewValue: target?.computeText,
+                                  delta: deltas.first { $0.label == "Compute" })
+                    }
+                    .opacity(store.enabled ? 1 : 0.4)
+                    .animation(.easeOut(duration: 0.25), value: store.enabled)
                 }
-                .opacity(store.enabled ? 1 : 0.4)
-                .animation(.easeOut(duration: 0.25), value: store.enabled)
 
                 footer(target)
                 Spacer(minLength: 0)
@@ -136,7 +143,7 @@ struct ImpactRailView: View {
             return "Hover a model to preview it. Bigger bubble = more memory."
         case .suggestions:
             return "Hover any control to see exactly what it improves or costs — before you commit."
-        case .general, .personalization:
+        case .general, .personalization, .api:
             return "A live readout of your current setup. Hover a control on the Model or Suggestions tab to preview a change before it commits."
         }
     }

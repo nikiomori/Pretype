@@ -169,6 +169,7 @@ enum SettingsTab: String, CaseIterable {
     case suggestions = "Suggestions"
     case model = "Model"
     case personalization = "Personalization"
+    case api = "API"
 
     /// Sidebar icon.
     var symbol: String {
@@ -177,6 +178,7 @@ enum SettingsTab: String, CaseIterable {
         case .suggestions: return "character.cursor.ibeam"
         case .model: return "cpu"
         case .personalization: return "person.crop.circle"
+        case .api: return "cloud"
         }
     }
 
@@ -187,6 +189,7 @@ enum SettingsTab: String, CaseIterable {
         case .suggestions: return "Tune quality, speed and precision — hover any control to preview its effect."
         case .model: return "Pick the on-device model. Everything is measured on real text."
         case .personalization: return "Teach Pretype your voice — all on your Mac."
+        case .api: return "Optional: run text or dictation on a hosted model. Off by default — everything stays on your Mac."
         }
     }
 }
@@ -278,6 +281,7 @@ struct SettingsRootView: View {
                 case .suggestions: SuggestionsTab(store: store)
                 case .model: ModelTab(store: store)
                 case .personalization: PersonalTab(store: store)
+                case .api: APITab(store: store)
                 }
             }
         }
@@ -688,7 +692,8 @@ struct GeneralTab: View {
                             Caption("\(store.dictationLanguageName): dictated with Parakeet, on this Mac's "
                                 + "Neural Engine.")
                         case .api:
-                            Caption("Dictated by the API provider in Settings → API.")
+                            Caption("Dictated by \(store.apiAudio.preset.name) (\(store.apiAudio.model)) — "
+                                + "see Settings → API.")
                         case .unsupported:
                             Caption("⚠︎ macOS has no speech model for \(store.dictationLanguageName) at all. "
                                 + "Pick a language it can dictate, or switch keyboard layout before "

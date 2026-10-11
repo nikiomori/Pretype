@@ -34,6 +34,15 @@ struct ModelTab: View {
 
     var body: some View {
         Form {
+            if store.apiText.enabled {
+                Section {
+                    LabeledContent("Running on the API") {
+                        Button("Open API settings") { store.activeTab = .api }
+                    }
+                    Caption("Text runs on \(store.apiText.preset.name) (\(store.apiText.model)). "
+                        + "The model you pick here runs again when you turn the API off.")
+                }
+            }
             Section {
                 // Languages only. The pooled English+Russian entry used to sit
                 // here as if it were a language; it pooled two that measure
