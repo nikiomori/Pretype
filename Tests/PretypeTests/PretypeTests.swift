@@ -921,6 +921,9 @@ final class PretypeTests: XCTestCase {
         // Missing caret rect → derived from the glyph box.
         XCTAssertEqual(AXText.glyphAnchoredCaret(reported: nil, prevChar: prev),
                        CGRect(x: 108, y: 50, width: 1, height: 16))
+        // Zero-size rect at a nonsense y (Terminal.app) → missing, too.
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 0, y: 1329, width: 0, height: 0), prevChar: prev),
+                       CGRect(x: 108, y: 50, width: 1, height: 16))
         // Reported a line ABOVE the glyphs (TextEdit) → rewritten onto them.
         XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 30, width: 1, height: 16),
                                                  prevChar: prev),

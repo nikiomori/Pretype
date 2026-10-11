@@ -543,7 +543,9 @@ enum AXText {
     /// legitimate line start) → keep as reported.
     nonisolated static func glyphAnchoredCaret(reported: CGRect?, prevChar: CGRect?) -> CGRect? {
         guard let prev = prevChar, prev != .zero, prev.height >= 4 else { return reported }
-        guard var rect = reported, rect != .zero, rect.minY + 1 >= prev.minY else {
+        // Terminal.app answers the zero-length range with a zero-size rect
+        // at a nonsense y: no caret at all, like a missing one.
+        guard var rect = reported, rect.height > 0, rect.minY + 1 >= prev.minY else {
             return CGRect(x: prev.maxX, y: prev.minY, width: 1, height: prev.height)
         }
         if rect.minY < prev.maxY - 1, rect.maxY > prev.minY + 1,
