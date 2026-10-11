@@ -260,7 +260,8 @@ final class MLXEngine: CompletionEngine {
                     // Already downloaded: no network round trip (see localSnapshot).
                     configuration = ModelConfiguration(directory: local, extraEOSTokens: eos)
                 } else {
-                    configuration = ModelConfiguration(id: repo, extraEOSTokens: eos)
+                    configuration = ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo),
+                                                       extraEOSTokens: eos)
                 }
                 let loaded = try await Self.loadTarget(
                     configuration, drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
@@ -362,7 +363,8 @@ final class MLXEngine: CompletionEngine {
                 Task.detached(priority: .utility) {
                     do {
                         _ = try await #hubDownloader().download(
-                            id: drafterID, revision: nil, matching: ["*.safetensors", "*.json"],
+                            id: drafterID, revision: ModelCatalog.revision(for: drafterID),
+                            matching: ["*.safetensors", "*.json"],
                             useLatest: false, progressHandler: { _ in })
                     } catch {
                         DebugLog.shared.log("MLX", "MTP drafter download failed: \(error.localizedDescription)")
@@ -1254,7 +1256,7 @@ final class MLXEngine: CompletionEngine {
                 let container = try await Self.loadTarget(
                     ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
                         .map { ModelConfiguration(directory: $0) }
-                        ?? ModelConfiguration(id: repo),
+                        ?? ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo)),
                     drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in
                         status.set(Self.downloadStatus(progress, label: "fix model"))

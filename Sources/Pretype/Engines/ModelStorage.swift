@@ -92,6 +92,12 @@ enum ModelStorage {
         // downloaded model as missing — permanently, since the answer is
         // latched. `refs/main` is the cache's own record of the current head,
         // so ask about that one; without it, any complete revision will do.
+        // The pinned commit outranks it: that is what a download fetches.
+        let repo = directory.lastPathComponent.dropFirst("models--".count).replacingOccurrences(of: "--", with: "/")
+        if let pinned = ModelCatalog.pinnedRevisions[repo], named.contains(pinned) {
+            let revision = snapshots.appendingPathComponent(pinned)
+            if isRevisionComplete(revision) { return revision }
+        }
         if let head = try? String(
             contentsOf: directory.appendingPathComponent("refs/main"), encoding: .utf8) {
             let sha = head.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -286,7 +292,8 @@ enum ModelStorage {
                 guard networkOK == true else { continue }
                 DebugLog.shared.log("MLX", "fetching slim re-pack \(slim) to replace \(original)")
                 do {
-                    _ = try await resolve(configuration: ModelConfiguration(id: slim), from: #hubDownloader(),
+                    _ = try await resolve(configuration: ModelConfiguration(id: slim, revision: ModelCatalog.revision(for: slim)),
+                                          from: #hubDownloader(),
                                           useLatest: false, progressHandler: { _ in })
                 } catch {
                     DebugLog.shared.log("MLX", "slim re-pack fetch failed: \(error.localizedDescription)")

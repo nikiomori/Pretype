@@ -245,6 +245,42 @@ enum ModelCatalog {
         return id
     }
 
+    /// The commit every Hub download is pinned to — the revision the evals
+    /// measured. "main" would hand every fresh install whatever was pushed
+    /// last, by anyone holding the publishing account (one personal account
+    /// serves the 8 GB default and every slim Gemma tier), unseen by any
+    /// review. A new upload ships with the app update that pins it. Already
+    /// downloaded revisions keep loading from disk (`ModelStorage.localSnapshot`).
+    static let pinnedRevisions: [String: String] = [
+        "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3",
+        "mlx-community/Qwen2.5-0.5B-bf16": "ef6b6957374b0c7e10ebe6e8497480bbaf71ba4c",
+        "mlx-community/Qwen3.5-2B-4bit": "674aaa7240b91e8012fcad5d791b7dfe5ba90207",
+        "mlx-community/gemma-4-E2B-it-assistant-bf16": "a7770799b560135ebdbfae8b7f468947415003bc",
+        "mlx-community/gemma-4-E4B-it-assistant-bf16": "844e008e06ef5562bdb89428d851d0634d119dcd",
+        "mlx-community/gemma-4-e2b-4bit": "a280baf4aece348bd0f561ca43b9d47cc66d8498",
+        "mlx-community/gemma-4-e2b-8bit": "23be803ce95a14eed6e1664843b1d56170d3b6f9",
+        "mlx-community/gemma-4-e2b-it-4bit": "238767527555cb75a05732a84dff5d6ba0dd6809",
+        "mlx-community/gemma-4-e4b-6bit": "c19feba0dd6cc2486fa0d7ae108e34bc55c370af",
+        "mlx-community/gemma-4-e4b-8bit": "ddd5748af7babe0706bd334de7e32b9a91ee394b",
+        "mlx-community/gemma-4-e4b-it-4bit": "475b9088d29754a3379866cf5aeb6b41acd313c2",
+        "mlx-community/gemma-4-e4b-it-6bit": "7b781e6489f260b3a24ff38aebb6313b2db516d7",
+        "nikimori/Qwen3.5-2B-Base-4bit": "9254a84e0f65f6d4cd97e70cd0957bf66d59a663",
+        "nikimori/gemma-4-e2b-4bit-slim": "305acaa7d45feb640158ea6344cee719578e989f",
+        "nikimori/gemma-4-e2b-8bit-slim": "ab7d6c423cd7bdd54354d0715ac5f2dfe94dd78a",
+        "nikimori/gemma-4-e2b-it-4bit-slim": "151cd44c28f88c48f00ac698c28e7acd78352c36",
+        "nikimori/gemma-4-e4b-6bit-slim": "f105370ab6b7e767b84c90ce591db59afc1fc9d2",
+        "nikimori/gemma-4-e4b-8bit-slim": "4448b728fb952a84b5cde35e20cfb46666c988e4",
+        "nikimori/gemma-4-e4b-it-4bit-slim": "4a222e14c9a980d5b47ffb24c77b2896c9bd39de",
+        "nikimori/gemma-4-e4b-it-6bit-slim": "9e1179844f08bcc78dcf368d804ae1877194f804",
+        "openbmb/MiniCPM5-1B": "87179e5c1f455ef22e6223592d2d61351b525bfc",
+        "openbmb/MiniCPM5-1B-Base": "156170697656c48f69915b33a2fb44110242187c",
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": "e1374ad6bf9b1b56afd743936b8faa33c409a75f",
+    ]
+
+    /// What to ask the Hub for: the pinned commit, or "main" for a repo the
+    /// catalog doesn't know (a `PRETYPE_*_MODEL` override).
+    static func revision(for repo: String) -> String { pinnedRevisions[repo] ?? "main" }
+
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):
     /// zero download, zero app memory, runs on the Neural Engine.
     static let appleIntelligenceID = "system.apple-intelligence"
