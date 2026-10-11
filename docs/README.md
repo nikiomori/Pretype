@@ -52,9 +52,13 @@ and costs ~5× the file size on flat dark UI for no visible gain.
 
 ## Real captures — `shot-settings.png`, `shot-models.png`, `shot-personal.png`
 
-Live screenshots of the app's Settings window. **These need a GUI and cannot be
-regenerated headlessly** — re-shoot them by hand whenever the settings UI
-changes, or the README ships a picture of an app that no longer exists.
+Real captures of the app's Settings window — re-shoot them whenever the
+settings UI changes, or the README ships a picture of an app that no longer
+exists. The git-ignored `dev-tools/ui-shots/make-shots.sh` does it in one go:
+it builds HEAD with a small hook, opens the Settings window on its own (no
+engine, its own defaults domain, a made-up persona) and has the app capture
+its own window, which needs no Screen Recording permission. A window shows on
+screen for about 15 seconds while it runs.
 
 The suggestion overlay is a borderless agent (`LSUIElement`) window, so `⌘⇧4`
 and most capture apps filter it out. The system tool with an explicit region

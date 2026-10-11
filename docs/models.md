@@ -25,7 +25,7 @@ The default used to be chosen from your keyboard layouts; since 2026-07-25 it is
 Language dropped out of the rule because no per-language gap between the small models survives the significance bar (MiniCPM5's English lead over Qwen3.5 is a trend at p=0.014, Russian a tie at p=0.79, Japanese p=0.064), while the chord measurements split hard against the old English/Russian default: MiniCPM5's fix is inert at 4%. It remains the manual pick for the lowest latency (49 ms); E4B 8-bit remains the manual best-quality pick (it ties 6-bit at p=0.052 for ≈1 GB more). Your keyboard languages still drive the persona and the per-language menu nudge, and everything else is one click in **Settings → Model**, where each entry ships its own eval-backed recommended settings and the catalog re-ranks for any of the 19 evaluated languages.
 
 <div align="center">
-<img src="shot-models.png" width="720" alt="Model tab: an interactive speed by accuracy map of the catalog with eval-backed presets and a ranked list" />
+<img src="shot-models.png" width="720" alt="Model tab: eval-backed presets and an interactive speed by accuracy map of the catalog" />
 <p><sub><i>The same data live in the app — a speed × accuracy map with one-click presets and a per-language accuracy axis.</i></sub></p>
 </div>
 
