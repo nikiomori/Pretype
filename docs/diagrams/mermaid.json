@@ -1,0 +1,39 @@
+{
+  "htmlLabels": false,
+  "theme": "base",
+  "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+  "themeVariables": {
+    "fontSize": "15px",
+    "background": "#ffffff",
+    "primaryColor": "#eef4ff",
+    "primaryBorderColor": "#0b6ad1",
+    "primaryTextColor": "#1d1d1f",
+    "secondaryColor": "#f2f2f5",
+    "secondaryBorderColor": "#8e8e93",
+    "tertiaryColor": "#f7f7f9",
+    "tertiaryBorderColor": "#c7c7cc",
+    "lineColor": "#636366",
+    "textColor": "#1d1d1f",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#f7f8fb",
+    "clusterBorder": "#c7c7cc",
+    "noteBkgColor": "#fff8e6",
+    "noteBorderColor": "#ff9500",
+    "actorBkg": "#eef4ff",
+    "actorBorder": "#0b6ad1",
+    "signalColor": "#636366",
+    "labelBoxBkgColor": "#eef4ff"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "basis",
+    "padding": 12
+  },
+  "sequence": {
+    "mirrorActors": false,
+    "useMaxWidth": false
+  },
+  "state": {
+    "useMaxWidth": false
+  }
+}
