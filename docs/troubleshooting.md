@@ -1,75 +1,112 @@
 # Troubleshooting & FAQ
 
-Open **Diagnostics** from the menu-bar icon — *Context* shows what Pretype sees (app, window, field) and *Pipeline* shows what the last completion did.
+Use **Diagnostics** to find the cause of a problem. To open it, click the menu-bar icon and then click **Diagnostics**.
+
+* *Context* shows what Pretype reads: the app, the window and the text field.
+* *Pipeline* shows what occurred with the last suggestion.
+
+## No suggestions appear
+
+Do the checks from left to right. Each check reads one line of **Diagnostics**.
+
+<div align="center">
+<img src="diagram-trouble-no-suggestions.svg" width="720" alt="Fault isolation when no suggestions appear. Open Diagnostics. If the line reads 'Accessibility: NOT granted ✗', grant Accessibility to the .app bundle. If 'Text element: none', the app does not show its text fields to Accessibility and there is no remedy. If the Engine line reads 'failed — Metal shaders missing', build with Scripts/make-app.sh. If 'Last:' reads that Pretype is quiet in this app, click 'Resume in ‹app›' in the menu. If 'Last: engine returned no suggestion', type more text. If none of these, open an issue and attach the Diagnostics output." />
+</div>
 
 ## Common issues
 
-**`Accessibility: NOT granted ✗`** — if you're running the raw binary from a terminal, macOS attributes the permission to the *terminal*, so grant it there or run the `.app` bundle. If you built locally, a changed code signature can confuse macOS:
-
-```bash
-tccutil reset Accessibility app.pretype.Pretype
-```
-
-then re-grant.
-
-**`Text element: none`** — the app doesn't expose its text fields over the Accessibility API. Nothing to be done from this side.
-
-**`Last: engine returned no suggestion`** — the model had nothing it was willing to guess: too little context, or the output gates rejected what it produced. Keep typing.
-
-**No suggestions anywhere, MLX engine missing** — a source build without compiled Metal shaders. Use `./Scripts/make-app.sh` rather than plain `swift build`.
-
-**`open build/Pretype.app` fails with `-600`, or Finder says "the application is not open anymore"** *(building from source)* — a previous instance was still running when its bundle was replaced, so LaunchServices tries to activate a process whose bundle no longer exists instead of launching the new build. `make-app.sh` now quits the running instance of that build first (a copy installed in /Applications is left alone, so you can keep dogfooding one while rebuilding the other); on an older checkout, quit Pretype from the menu bar before rebuilding, or launch with `open -n build/Pretype.app`.
-
-**Gatekeeper blocks the first launch** — 2.5.0 and later are notarized and open normally; releases up to 2.4.0 are ad-hoc signed. Clear the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`, or open the app via **System Settings → Privacy & Security → Open Anyway**.
+| Symptom | Cause | Remedy |
+|---|---|---|
+| `Accessibility: NOT granted ✗` | You started the raw binary<br>from a terminal. macOS gave<br>the permission to the terminal. | Grant Accessibility to the terminal, or run the `.app` bundle. |
+| `Accessibility: NOT granted ✗`<br>after a local build | The code signature changed. | Reset the grant with `tccutil reset Accessibility app.pretype.Pretype`. Then grant Accessibility again. |
+| `Text element: none` | The app does not show its<br>text fields to the<br>Accessibility API. | No remedy is possible from Pretype. |
+| `Last: engine returned`<br>`no suggestion` | The context is too short, or<br>the output gates rejected<br>the result of the model. | Type more text. |
+| No suggestions in all apps.<br>The MLX engine is missing. | A source build without<br>compiled Metal shaders. | Build with `./Scripts/make-app.sh`. Do not use plain `swift build`. |
+| `open build/Pretype.app` fails<br>with `-600`, or Finder shows<br>"the application is not open<br>anymore" (source builds) | An old instance was running<br>when you replaced its bundle.<br>LaunchServices activates the<br>old process, not the new build. | Quit Pretype from the menu bar before you rebuild. Or start the build with `open -n build/Pretype.app`. On a current checkout, `make-app.sh` quits the running instance of that build first. It does not quit a copy in `/Applications`, so you can use that copy while you rebuild. |
+| Gatekeeper blocks<br>the first launch | Releases up to 2.4.0 have<br>an ad-hoc signature. | Releases 2.5.0 and later are notarized and open normally. For an older release, remove the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`. Or click **System Settings → Privacy & Security → Open Anyway**. |
 
 ## FAQ
 
-### What happens to <kbd>Tab</kbd> when I actually want a Tab?
+### What happens to <kbd>Tab</kbd> when I want a Tab character?
 
-It passes straight through. The event tap only swallows the key while a suggestion is on screen; with nothing showing, <kbd>Tab</kbd> indents and moves between fields as usual. If that still collides with your habits, switch the chord to <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd> or <kbd>⌃Space</kbd> in **Settings → General**.
+The key goes through to the app. The event tap stops <kbd>Tab</kbd> only while a suggestion is on the screen. When no suggestion shows, <kbd>Tab</kbd> indents and moves between fields as usual.
 
-### Suggestions stopped appearing in one app
+To use a different accept key, select <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd> or <kbd>⌃Space</kbd> in **Settings → General**.
 
-Deliberate. Once Pretype has offered a few dozen completions in an app and under 2% of them were taken, it stops offering there — a model that is wrong in a particular field is pure interruption, and generating them costs battery. Everything else keeps working: inline typo fixes, emoji shortcodes and <kbd>⌥Tab</kbd> rewrites are unaffected.
+### Suggestions stopped in one app
 
-Only offers you could actually have taken count toward that. The pipeline re-offers after every keystroke, so a ghost that was replaced by the next one, or that vanished in under 0.4 s, was never a suggestion you declined — and one you typed out yourself, word for word, means the model was right. None of those reach the tally, and neither do they reach the acceptance figure in **Diagnostics**.
+This is intentional. Pretype stops suggestions in an app when both conditions are true:
 
-It isn't silent about it. The menu-bar item that normally offers *Disable in …* becomes **Resume in Slack** instead, hovering the numbers behind the decision (*"Pretype went quiet here: 2% of 74 suggestions taken."*), and one click clears the record and starts offering again from scratch.
+* It showed a few dozen suggestions in that app.
+* You accepted less than 2% of them.
+
+A model that is frequently wrong in a field only interrupts you, and it uses battery power. Inline typo fixes, emoji shortcodes and <kbd>⌥Tab</kbd> rewrites continue to work.
+
+Only the suggestions that you were able to accept are counted. These suggestions are not counted, in this rule and in the acceptance figure in **Diagnostics**:
+
+* A suggestion that the next suggestion replaced. Pretype makes a new suggestion after each keystroke.
+* A suggestion that disappeared in less than 0.4 s.
+* A suggestion that you typed yourself, word for word. In this case, the model was correct.
+
+Pretype tells you when it stops. The menu item *Disable in …* changes to **Resume in ‹app›**, for example **Resume in Slack**. Its tooltip shows the numbers, for example *"Pretype went quiet here: 2% of 74 suggestions taken."* Click the item to clear the record. Pretype then starts to show suggestions again.
 
 ### Dictation does nothing when I hold the key (or press the chord)
 
-Work down the list in **Settings → General → Dictation** — it names the blocker itself:
+First, open **Settings → General → Dictation**. That section shows the name of the blocker.
 
-* **The section says it needs macOS 26.** Dictation uses the system's own on-device speech models. On macOS 14–15 those don't exist, and Pretype doesn't bundle a model of its own.
-* **The section says "built app only".** A raw `swift build` binary has no bundle, and macOS grants microphone access by bundle. Run `./Scripts/make-app.sh` and launch the `.app`.
-* **The section says the microphone is denied.** macOS only ever asks once, so a past refusal never re-prompts. Re-allow Pretype under **System Settings → Privacy & Security → Microphone** — the button under the notice jumps straight to the pane — then switch dictation on again.
-* **The language line warns that macOS has no model for it.** Apple's newer speech model covers 30 locales; the rest fall back to the system dictation model, and a few languages have neither. The Settings caption names which one your current language gets — dictation can't invent a model Pretype doesn't ship.
-* **The first press only says "getting the dictation model ready…"** — macOS is downloading that language, once. Try again in a minute; the download continues even after you let go.
-* **The pill never appears.** It is a *hold*, not a tap: keep the key down for about half a second before speaking. Either side of the modifier works. Any other keypress — or a mouse click — cancels a capture in progress, so don't type while talking. None of that applies to the hands-free chord below, which is what to reach for if this keeps catching you out.
-* **I can't talk and use the keyboard at the same time.** That is the hold gesture being strict on purpose — a modifier is only "push to talk" as long as nothing else happens, or every <kbd>⌥</kbd>-arrow would open the microphone. Use the hands-free chord instead (**Settings → General → Dictation → Hands-free chord**, <kbd>⌃⌥D</kbd> by default): press once to start, once to stop, and typing, clicking and scrolling leave it alone. <kbd>⎋</kbd> still throws the capture away, and moving to another field ends it — the words belong to the field you started in.
-* **A hands-free capture stopped by itself.** It ends after a few seconds of silence so a forgotten chord isn't an open microphone; what it had heard by then is typed, not thrown away. Change the budget — or turn it off entirely — under **Stop after silence**. Before your first word the budget is half a minute, so thinking before you start is fine. With silence off, a capture still ends at ten minutes.
-* **My music goes flat and quiet while I dictate.** That is the headset switching to call mode: Bluetooth carries either good playback or a two-way call, never both. **Settings → General → Dictation → Microphone** is set to *Automatic*, which avoids it by recording from the built-in microphone whenever your earbuds are also playing your audio — if you pinned the headset there instead, this is the cost. The sound comes back once the capture ends and the headset switches back out of call mode.
-* **The headset died (or AirPods connected) mid-sentence.** The capture follows the default input: when the device changes it carries on from whatever macOS switched to, and only ends when no microphone is left at all — in which case whatever was already heard is typed rather than thrown away.
-* **A long dictation lands unpunctuated.** The tidy-up pass is the same minimal-edit fix <kbd>⌥Tab</kbd> uses, and that one is defined for a single short line: anything past 500 characters skips it and is typed exactly as heard, rather than going in half-corrected. Say a long passage in a few holds if you want the punctuation back.
+| Symptom | Cause | Remedy |
+|---|---|---|
+| The section says that<br>dictation needs macOS 26 | Dictation uses the on-device<br>speech models of the system.<br>macOS 14–15 does not have them. | Use macOS 26 or later. Pretype does not include a speech model of its own. |
+| The section says<br>"built app only" | A raw `swift build` binary<br>has no bundle. macOS gives<br>microphone access by bundle. | Run `./Scripts/make-app.sh`. Then start the `.app`. |
+| The section says that<br>the microphone is denied | macOS asks only one time.<br>After a refusal, it does<br>not ask again. | Allow Pretype in **System Settings → Privacy & Security → Microphone**. The button below the notice opens that pane. Then enable dictation again. |
+| The language line says that<br>macOS has no model for it | The newer Apple model covers<br>30 locales. Other languages use<br>the system dictation model.<br>Some languages have neither. | Use a language that has a model. The Settings caption shows which model your current language gets. Pretype cannot add a model that macOS does not supply. |
+| The first press shows<br>"getting the dictation<br>model ready…" | macOS downloads the model<br>for that language one time. | Wait approximately one minute, then try again. The download continues after you release the key. |
+| The pill does not appear | Dictation starts on a hold,<br>not on a tap. Another key or<br>a mouse click cancels it. | Hold the key for approximately half a second before you speak. The modifier key on the left or the right side operates. Do not type while you speak. If this occurs frequently, use the hands-free chord (next row). |
+| You cannot speak and use<br>the keyboard at the same time | The hold gesture is strict<br>by design. If not, each<br><kbd>⌥</kbd>-arrow opens the microphone. | Use the hands-free chord: **Settings → General → Dictation → Hands-free chord**, <kbd>⌃⌥D</kbd> by default. Press it one time to start and one time to stop. Typing, clicks and scrolling do not stop it. <kbd>⎋</kbd> discards the capture. A move to a different field stops the capture, because the words go to the field where you started. |
+| A hands-free capture<br>stopped by itself | The capture stops after a few<br>seconds of silence. This<br>prevents an open microphone. | Pretype types the words that it heard before the stop. To change the time, or to disable the stop, use **Stop after silence**. Before your first word, the limit is 30 seconds. With the silence stop disabled, a capture stops at 10 minutes. |
+| Music becomes flat and quiet<br>while you dictate | The headset changed to call<br>mode. Bluetooth carries good<br>playback or a two-way call,<br>not both at the same time. | Set **Settings → General → Dictation → Microphone** to *Automatic* (the default). Then Pretype records from the built-in microphone when your earbuds also play your audio. If you selected the headset there, this effect is the cost. The sound becomes normal when the capture stops. |
+| The headset stopped<br>during a sentence | The microphone of the<br>capture disconnected. | No action is necessary. The capture continues on the default input. It stops if no microphone is available, or if the input changes more than 3 times in 3 seconds. Then Pretype types the words that it heard. A headset that connects during a capture does not replace the microphone of that capture. |
+| A long dictation has<br>no punctuation | The tidy-up pass is for one<br>short line. Text longer than<br>500 characters skips it. | Pretype types that text exactly as it heard it. To get punctuation, dictate a long passage in a few shorter parts. |
 
-Still silent? **Diagnostics → `Dictation:`** states the app's own view in one line. For the whole picture, run the built binary with `--dictation-probe`: it prints the environment, then every modifier edge with the hold state it produced, and — when a hold completes — each condition the capture checks, so a refusal names itself.
+If dictation still does not operate:
 
-```bash
-./build/Pretype.app/Contents/MacOS/Pretype --dictation-probe
-```
+1. Read the `Dictation:` line in **Diagnostics**. It shows the status of dictation in one line.
+2. Run the built binary with `--dictation-probe`:
+
+   ```bash
+   ./build/Pretype.app/Contents/MacOS/Pretype --dictation-probe
+   ```
+
+   The probe prints the environment. Then it prints each change of a modifier key, with the hold state that the change caused. When a hold completes, it prints each condition that the capture checks. Thus a refusal shows its cause.
 
 ### What does it cost in battery and memory?
 
-The model stays resident while you're typing — that's what makes warm completions fast — holding ≈1.1–5.6 GB for the default, which is sized to about a quarter of your Mac's memory. After **five idle minutes (fifteen on Macs with 32 GB or more) it unloads itself** and frees that memory, reloading on your next keystroke; it also unloads early if macOS reports memory pressure. It only computes while you're typing in a field it's allowed to read, and suggestions are debounced and cancellable, so fast typing supersedes in-flight work instead of queueing it.
+The model stays in memory while you type. This makes suggestions fast. The default model uses approximately 1.1–5.6 GB, which is approximately one quarter of the memory of your Mac.
+
+* After five minutes without typing, the model unloads and releases its memory. On Macs with 32 GB or more, this time is fifteen minutes. The model loads again at your next keystroke.
+* If macOS reports memory pressure, the model unloads earlier.
+* The model computes only while you type in a field that Pretype can read.
+* Pretype waits for a short pause in your typing before it starts a suggestion. When you type fast, new work replaces old work, and no queue occurs.
 
 ### Which languages work?
 
-Completions are evaluated across 19 languages, each measured on its own rather than averaged with its neighbours — see [Choosing a model](models.md); the default is sized to your Mac's memory: a Gemma 4 tier (the broadest language coverage) from 16 GB up, Qwen3.5 2B (the strongest small model outside English) on 8 GB. In **Settings → Model** you can set the accuracy axis to the language you actually type in, and every figure on that tab is re-measured for it, with its sample size and tolerance printed alongside. Inline typo fixes use the macOS spell-checker in whichever language it detects, so any dictionary macOS has installed works (English and Russian are the most-tested pair).
+The eval measures suggestions in 19 languages. Each language has its own result, and no language is averaged with other languages. Refer to [Choosing a model](models.md).
+
+The default model depends on the memory of your Mac:
+
+| Mac memory | Default model |
+|---|---|
+| 16 GB and more | A Gemma 4 tier, which has the widest language coverage |
+| 8 GB | Qwen3.5 2B, which is the strongest small model outside English |
+
+In **Settings → Model**, set the accuracy axis to the language that you type. Each figure on that tab then shows the result for that language, with its sample size and tolerance.
+
+Inline typo fixes use the macOS spell checker, in the language that it detects. All dictionaries that macOS has installed operate. English and Russian have the most tests.
 
 ### Where does my data go?
 
-Nowhere. See [Privacy & permissions](privacy.md) for what is stored locally and how to remove it.
+Pretype does not send your data. [Privacy & permissions](privacy.md) shows what Pretype stores on your Mac and how to remove it.
 
 ---
 
-Still stuck? [Open an issue](https://github.com/nikiomori/Pretype/issues) with the Diagnostics output — it redacts your text and carries only the pipeline state.
+If the problem continues, [open an issue](https://github.com/nikiomori/Pretype/issues) and attach the Diagnostics output. The output does not contain your text. It contains only the pipeline state.

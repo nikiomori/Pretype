@@ -1,0 +1,15 @@
+%% Fault isolation: no suggestions appear. Each check reads one line of Diagnostics.
+flowchart TB
+  start(["No suggestions.<br/>Open Diagnostics."]) --> q1{"Accessibility:<br/>granted ✓?"}
+  q1 -- "yes" --> q2{"Text element:<br/>detected ✓?"}
+  q2 -- "yes" --> q3{"Engine: failed —<br/>Metal shaders<br/>missing?"}
+  q3 -- "no" --> q4{"Last: quiet<br/>in this app?"}
+  q4 -- "no" --> q5{"Last: engine<br/>returned no<br/>suggestion?"}
+  q1 -- "NOT granted ✗" --> f1["Grant<br/>Accessibility<br/>to the .app"]
+  q2 -- "none" --> f2["The app hides<br/>its fields.<br/>No remedy."]
+  q3 -- "yes" --> f3["Build with<br/>make-app.sh"]
+  q4 -- "yes" --> f4["Click<br/>Resume in ‹app›<br/>in the menu"]
+  q5 -- "yes" --> f5["Type more text"]
+  q5 -- "no" --> f6["Open an issue<br/>with Diagnostics"]
+  classDef fix fill:#eaf7ee,stroke:#157a35,color:#1d1d1f
+  class f1,f2,f3,f4,f5,f6 fix
