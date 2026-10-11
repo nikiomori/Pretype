@@ -20,6 +20,12 @@ enum ModelStorage {
     /// zero download) and local fine-tune folders, which are the user's OWN
     /// directories and must never reach `removeItem`.
     static func directory(for id: String) -> URL? {
+        cacheDirectory(repo: ModelCatalog.repo(for: id))
+    }
+
+    /// The cache directory of one Hub repo, taken literally — `directory(for:)`
+    /// first resolves a catalog id to the repo it downloads from.
+    static func cacheDirectory(repo id: String) -> URL? {
         guard id != ModelCatalog.appleIntelligenceID, !id.hasPrefix("/"),
               let repo = Repo.ID(rawValue: id) else { return nil }
         return HubCache.default.repoDirectory(repo: repo, kind: .model)

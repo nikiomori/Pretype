@@ -1115,7 +1115,7 @@ final class PretypeTests: XCTestCase {
         let base = SettingsStore.weights(modelID: "mlx-community/gemma-4-e4b-8bit", style: .base)
         XCTAssertEqual(base.id, "mlx-community/gemma-4-e4b-8bit")
         XCTAssertEqual(base.name, "Gemma 4 E4B 8-bit")
-        XCTAssertEqual(base.gb, 8.58, accuracy: 0.01)
+        XCTAssertEqual(base.gb, 5.98, accuracy: 0.01)  // the slim download
         let instruct = SettingsStore.weights(modelID: "mlx-community/gemma-4-e4b-8bit", style: .instruct)
         XCTAssertEqual(instruct.id, "mlx-community/gemma-4-e4b-it-6bit")
         XCTAssertEqual(instruct.name, "Gemma 4 E4B 8-bit Instruct")
@@ -1714,8 +1714,18 @@ final class PretypeTests: XCTestCase {
         // The system model downloads nothing.
         XCTAssertNil(ModelStorage.directory(for: ModelCatalog.appleIntelligenceID))
 
-        let repoDir = try XCTUnwrap(ModelStorage.directory(for: "mlx-community/gemma-4-e2b-4bit"))
+        let repoDir = try XCTUnwrap(ModelStorage.cacheDirectory(repo: "mlx-community/gemma-4-e2b-4bit"))
         XCTAssertEqual(repoDir.lastPathComponent, "models--mlx-community--gemma-4-e2b-4bit")
+        // A catalog id resolves to the repo it downloads from: its slim re-pack,
+        // or the original when that is already on disk (whichever this Mac has).
+        let id = "mlx-community/gemma-4-e2b-4bit"
+        XCTAssertTrue([id, "nikimori/gemma-4-e2b-4bit-slim"].contains(ModelCatalog.repo(for: id)))
+        XCTAssertEqual(ModelStorage.directory(for: id),
+                       ModelStorage.cacheDirectory(repo: ModelCatalog.repo(for: id)))
+        // Every slim re-pack replaces something the catalog actually downloads.
+        let downloaded = Set(ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] })
+        XCTAssertTrue(Set(ModelCatalog.slimRepos.keys).isSubset(of: downloaded))
+        XCTAssertEqual(ModelCatalog.repo(for: "openbmb/MiniCPM5-1B-Base"), "openbmb/MiniCPM5-1B-Base")
 
         // Nothing is deletable when the entry being inspected is the selected one.
         XCTAssertTrue(ModelStorage.deletableRepos(

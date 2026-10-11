@@ -29,7 +29,7 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e4b-8bit",
             title: "Gemma 4 E4B 8-bit — best quality",
-            approxSizeMB: 8580,
+            approxSizeMB: 5980,  // slim download (see slimRepos); the original was 8.6 GB
             extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
@@ -37,7 +37,7 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e4b-6bit",
             title: "Gemma 4 E4B 6-bit — lighter, near-best",
-            approxSizeMB: 6790,
+            approxSizeMB: 5030,
             extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
@@ -45,7 +45,7 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e2b-8bit",
             title: "Gemma 4 E2B 8-bit — small but precise",
-            approxSizeMB: 5660,
+            approxSizeMB: 3410,
             extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-4bit"  // ~5 GB — fits the 11–16 GB tier
@@ -56,7 +56,7 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e2b-4bit",
             title: "Gemma 4 E2B — for 8–16 GB Macs",
-            approxSizeMB: 3450,
+            approxSizeMB: 2510,
             extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
@@ -202,6 +202,29 @@ enum ModelCatalog {
         if id.contains("gemma-4-e2b-it") { return "mlx-community/gemma-4-E2B-it-assistant-bf16" }
         if id.contains("gemma-4-e4b-it") { return "mlx-community/gemma-4-E4B-it-assistant-bf16" }
         return nil
+    }
+
+    /// Slimmer re-packs of the Gemma downloads: the towers the engine never
+    /// runs are gone (audio everywhere, vision too on the base builds, which
+    /// load text-only — the -it builds keep it for the MTP path's VLM load),
+    /// and both embedding tables ship at the 4-bit that `requantizeTiedTable`
+    /// produced at every load. The same weights the app already ran, 13–39%
+    /// less to download (E2B 8-bit 5.9 → 3.6 GB); Eval/runs-2026-10-11 slim-*.
+    static let slimRepos: [String: String] = Dictionary(uniqueKeysWithValues: [
+        "gemma-4-e4b-8bit", "gemma-4-e4b-6bit", "gemma-4-e2b-8bit", "gemma-4-e2b-4bit",
+        "gemma-4-e4b-it-6bit", "gemma-4-e4b-it-4bit", "gemma-4-e2b-it-4bit",
+    ].map { ("mlx-community/\($0)", "nikimori/\($0)-slim") })
+
+    /// The Hub repo `id`'s weights come from: its slim re-pack, unless the
+    /// original is already downloaded — that one keeps loading as before
+    /// rather than fetching gigabytes to replace it.
+    /// ponytail: an original left half-downloaded by an older build stays
+    /// orphaned in the cache; the Models tab only deletes the repo in use.
+    static func repo(for id: String) -> String {
+        guard let slim = slimRepos[id],
+              !(ModelStorage.cacheDirectory(repo: id).map(ModelStorage.isFetched(at:)) ?? false)
+        else { return id }
+        return slim
     }
 
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):

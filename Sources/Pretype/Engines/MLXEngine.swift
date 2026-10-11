@@ -258,7 +258,7 @@ final class MLXEngine: CompletionEngine {
                     // Already downloaded: no network round trip (see localSnapshot).
                     configuration = ModelConfiguration(directory: local, extraEOSTokens: eos)
                 } else {
-                    configuration = ModelConfiguration(id: id, extraEOSTokens: eos)
+                    configuration = ModelConfiguration(id: ModelCatalog.repo(for: id), extraEOSTokens: eos)
                 }
                 let loaded = try await Self.loadTarget(
                     configuration, drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
@@ -1241,7 +1241,7 @@ final class MLXEngine: CompletionEngine {
             do {
                 let container = try await Self.loadTarget(
                     ModelStorage.localSnapshot(for: id).map { ModelConfiguration(directory: $0) }
-                        ?? ModelConfiguration(id: id),
+                        ?? ModelConfiguration(id: ModelCatalog.repo(for: id)),
                     drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in
                         status.set(Self.downloadStatus(progress, label: "fix model"))
