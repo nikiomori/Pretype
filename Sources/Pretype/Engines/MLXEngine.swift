@@ -267,6 +267,9 @@ final class MLXEngine: CompletionEngine {
                     configuration, drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
                 ModelStorage.noteLoad(repo: repo, succeeded: true)
+                // Retired mid-load (a model switch, `shutdown`): don't warm up
+                // weights nobody will use next to the replacement's.
+                try Task.checkCancellation()
                 // The first generation pays for Metal kernel compilation; do it
                 // now so the first real keystroke doesn't. The prompt is long
                 // enough to take the split-prefill path too — a 2-token warm-up
@@ -287,6 +290,7 @@ final class MLXEngine: CompletionEngine {
                 } catch {
                     DebugLog.shared.log("ERROR", "warm-up generation failed: \(error.localizedDescription)")
                 }
+                try Task.checkCancellation()
                 stateBox.set(.ready)
                 self?.markLoadSucceeded()
                 return loaded
@@ -357,6 +361,9 @@ final class MLXEngine: CompletionEngine {
                     return vlm
                 } catch {
                     drafterBox.set(nil)
+                    // Cancelled is not "no drafter": falling through would start
+                    // a second, plain load for an engine already retired.
+                    if error is CancellationError { throw error }
                     DebugLog.shared.log("MLX", "MTP drafter unavailable (\(error.localizedDescription)) — plain decoding")
                 }
             } else if drafterFetches.mutate({ $0.insert(drafterID).inserted }) {
