@@ -353,7 +353,7 @@ final class PretypeTests: XCTestCase {
         }
         // Drafters are trained against the -it models only.
         XCTAssertNil(ModelCatalog.mtpDrafterID(for: "mlx-community/gemma-4-e2b-4bit"))
-        XCTAssertNil(ModelCatalog.mtpDrafterID(for: "mlx-community/Qwen3.5-2B-4bit"))
+        XCTAssertNil(ModelCatalog.mtpDrafterID(for: "nikimori/Qwen3.5-2B-Base-4bit"))
     }
 
     func testLocalSnapshotNeedsWeightsConfigAndTokenizer() throws {
@@ -1121,7 +1121,10 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(instruct.name, "Gemma 4 E4B 8-bit Instruct")
         XCTAssertEqual(instruct.gb, 6.8, accuracy: 0.01)
         // One set of weights for both styles: nothing separate to fetch.
-        XCTAssertEqual(SettingsStore.weights(modelID: "mlx-community/Qwen3.5-2B-4bit", style: .instruct).id,
+        XCTAssertEqual(SettingsStore.weights(modelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .instruct).id,
+                       "prism-ml/Ternary-Bonsai-4B-mlx-2bit")
+        // Qwen3.5 completes on its Base build; instruct runs the post-trained one.
+        XCTAssertEqual(SettingsStore.weights(modelID: "nikimori/Qwen3.5-2B-Base-4bit", style: .instruct).id,
                        "mlx-community/Qwen3.5-2B-4bit")
         // The system model never downloads.
         XCTAssertTrue(ModelStorage.isFetched(
@@ -1155,7 +1158,7 @@ final class PretypeTests: XCTestCase {
         // resident model stays within about a quarter of physical memory;
         // Qwen3.5 2B is the floor below the smallest Gemma tier.
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 8),
-                       "mlx-community/Qwen3.5-2B-4bit")
+                       "nikimori/Qwen3.5-2B-Base-4bit")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 16),
                        "mlx-community/gemma-4-e2b-4bit")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 18),
@@ -1206,7 +1209,7 @@ final class PretypeTests: XCTestCase {
         // Where the recommendation IS Base · Short, auto mode stays on.
         // (Explicit Qwen3.5, not the Balanced pick: Balanced is RAM-sized now
         // and lands on an instruct-recommended Gemma tier on big machines.)
-        XCTAssertTrue(custom.applying(.preset("mlx-community/Qwen3.5-2B-4bit")).useRecommended)
+        XCTAssertTrue(custom.applying(.preset("nikimori/Qwen3.5-2B-Base-4bit")).useRecommended)
 
         // A map settings-dot jumps to its exact configuration, verbatim.
         let dot = ProjectionConfig(modelID: custom.modelID, style: .base, length: .medium,
@@ -1473,7 +1476,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(tau("mlx-community/gemma-4-e2b-8bit"), -0.88)
         XCTAssertEqual(tau("mlx-community/gemma-4-e2b-4bit"), -0.94)
         XCTAssertEqual(tau("openbmb/MiniCPM5-1B-Base"), -1.00)
-        XCTAssertEqual(tau("mlx-community/Qwen3.5-2B-4bit"), -1.00)
+        XCTAssertEqual(tau("nikimori/Qwen3.5-2B-Base-4bit"), -1.10)
         XCTAssertEqual(tau("mlx-community/Qwen2.5-0.5B-bf16"), -1.12)
         XCTAssertNil(tau(ModelCatalog.appleIntelligenceID))   // no logprob to gate on
     }

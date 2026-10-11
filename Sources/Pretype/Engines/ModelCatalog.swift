@@ -103,15 +103,18 @@ enum ModelCatalog {
         // The small-RAM default (the sub-12 GB floor of the memory ladder;
         // 17-language eval-real, 2026-07-16/17): best sub-2 GB model on the
         // full set — beats MiniCPM5, Bonsai and Qwen 0.5B (all p<0.001) with
-        // the mildest coverage sag, near-ties MiniCPM5 on EN/RU, and its
-        // chords work (fix 33% / reply 76%). Base-only like the other smalls;
-        // correction/instruct siblings point at the base id itself
-        // (guaranteed to load; recommended(for:) pins base so auto never
-        // flips to an echoing instruct mode).
+        // the mildest coverage sag, near-ties MiniCPM5 on EN/RU. Completions run
+        // on the Base (pretrained) build since 2026-10-11 — 17.1 vs 16.1% of
+        // all rows on the 17-language set (paired p=0.005), better logP/char,
+        // and 1.06 GB against 1.6 (no vision weights); nobody publishes it for
+        // MLX, hence our own conversion. The chords stay on the post-trained
+        // build (fix 33% / reply 76%), fetched on first ⌥⇥ like the Gemma
+        // siblings. Base-only like the other smalls (recommended(for:) pins
+        // base so auto never flips to an echoing instruct mode).
         ModelOption(
-            id: "mlx-community/Qwen3.5-2B-4bit",
+            id: "nikimori/Qwen3.5-2B-Base-4bit",
             title: "Qwen3.5 2B — best small multilingual",
-            approxSizeMB: 1600,
+            approxSizeMB: 1010,
             extraEOSTokens: [],
             correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
             instructModelID: "mlx-community/Qwen3.5-2B-4bit"
@@ -154,8 +157,8 @@ enum ModelCatalog {
     /// (p=0.052) at +1.8 GB, so it stays the manual "best quality" pick.
     /// Below the smallest Gemma tier the floor is Qwen3.5 2B: ties MiniCPM5
     /// on EN/RU completions, beats every other small multilingually
-    /// (p<0.001), and corrects with itself — 1.6 GB, no sibling download,
-    /// working chords (fix 33% / reply 76% against MiniCPM5's 4% / 35%).
+    /// (p<0.001) — 1.1 GB, plus its 1.6 GB post-trained sibling once the
+    /// chords are used (fix 33% / reply 76% against MiniCPM5's 4% / 35%).
     static func defaultID(forRamGB ram: Double) -> String {
         let gemmaTiers = ["mlx-community/gemma-4-e4b-6bit",
                           "mlx-community/gemma-4-e2b-8bit",
@@ -165,7 +168,7 @@ enum ModelCatalog {
                 return id
             }
         }
-        return "mlx-community/Qwen3.5-2B-4bit"
+        return "nikimori/Qwen3.5-2B-Base-4bit"
     }
 
     /// The fit rule `defaultID` sizes on, for any resident size: past about a
@@ -184,8 +187,8 @@ enum ModelCatalog {
             return "Auto-picked for this Mac's memory (~5 GB resident in its recommended configuration, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
         case "mlx-community/gemma-4-e2b-4bit":
             return "Auto-picked for this Mac's memory (~3.5 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and it fixes half of noisy lines exactly where the small models manage 4–33%."
-        case "mlx-community/Qwen3.5-2B-4bit":
-            return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.6 GB, no separate rewrite sibling. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 76%). A Gemma tier is the accuracy upgrade on a Mac with more memory."
+        case "nikimori/Qwen3.5-2B-Base-4bit":
+            return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.1 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 76%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory."
         default:
             return "Auto-picked for this Mac."
         }
@@ -310,7 +313,8 @@ enum ModelCatalog {
         // fill-in. The logprob gate still works (monotone calibration).
         if id.contains("Qwen2.5-0.5B") || id.contains("Qwen3.5-2B")
             || id.contains("Ternary-Bonsai") {
-            let tau = id.contains("Qwen2.5-0.5B") ? -1.12 : id.contains("Ternary-Bonsai") ? -0.95 : -1.00
+            let tau = id.contains("Qwen2.5-0.5B") ? -1.12 : id.contains("Ternary-Bonsai") ? -0.95
+                : id.contains("Qwen3.5-2B-Base") ? -1.10 : -1.00  // Base: runs-2026-10-11 book-qwen35base
             return Recommendation(style: .base, length: .short, fim: false,
                                   logprobGateTau: tau)
         }

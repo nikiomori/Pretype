@@ -497,6 +497,11 @@ enum Settings {
             "dictationInput": "auto",
             "onboardingCompleted": false,
         ])
+        // Qwen3.5 2B completes on its Base build since 2026-10-11; a user who
+        // picked it keeps the pick (the post-trained build stays its ⌥⇥ sibling).
+        if defaults.string(forKey: "mlxModelID") == "mlx-community/Qwen3.5-2B-4bit" {
+            defaults.set("nikimori/Qwen3.5-2B-Base-4bit", forKey: "mlxModelID")
+        }
         // The catalog changes over time; clear stale model picks every launch.
         if let stored = defaults.string(forKey: "mlxModelID"), ModelCatalog.option(for: stored) == nil {
             defaults.removeObject(forKey: "mlxModelID")

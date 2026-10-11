@@ -171,7 +171,7 @@ Rendered at **[pretype.app/docs](https://pretype.app/docs)**, written in [`docs/
 
 * **OS** — macOS 14+ (macOS 26+ for the Apple Intelligence engine)
 * **Hardware** — Apple Silicon (M1 or newer). Intel Macs can't run MLX at all.
-* **Memory** — 8 GB is enough; the default is sized to about a quarter of your Mac's memory (≈1.6 GB resident on 8 GB Macs up to ≈6.8 GB from 32 GB), and the catalog goes down to ≈1 GB. Big-RAM Macs can pick Gemma 4 E4B 8-bit at ≈8.6 GB.
+* **Memory** — 8 GB is enough; the default is sized to about a quarter of your Mac's memory (≈1.1 GB resident on 8 GB Macs up to ≈6.8 GB from 32 GB), and the catalog goes down to ≈1 GB. Big-RAM Macs can pick Gemma 4 E4B 8-bit, a ≈6 GB download.
 * **Storage** — ≈1.6–6.8 GB for the default model (sized to your Mac); 1–8.6 GB depending on what you pick. Using <kbd>⌥Tab</kbd> can add a one-time instruct sibling (≈2.2 GB on MiniCPM5, up to ≈5 GB on a base-style Gemma; none on Qwen3.5 or Bonsai, which correct with themselves, or on a Gemma in its recommended Instruct style)
 * **To build** — full Xcode 26.4+ (Swift 6.3, macOS 26 SDK + Metal toolchain). Not needed for the prebuilt app.
 

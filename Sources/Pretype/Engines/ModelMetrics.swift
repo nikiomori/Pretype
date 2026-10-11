@@ -68,10 +68,14 @@ struct ModelMetrics {
                      firstWordPct: 26, ci: 23...28, coveragePct: 84,
                      logProbPerChar: -1.051, p50Ms: 79, ramGB: 1.0,
                      note: "Smallest footprint; ties MiniCPM5 on 17 languages (p=0.084), though its bigger sibling Qwen3.5 2B measures clearly better (p<0.001)."),
-        ModelMetrics(id: "mlx-community/Qwen3.5-2B-4bit", shortName: "Qwen3.5 2B",
-                     firstWordPct: 27, ci: 24...29, coveragePct: 81,
-                     logProbPerChar: -0.993, p50Ms: 93, ramGB: 1.6,
-                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; matches MiniCPM5 on English (26 vs 27) and on Russian (17 vs 17) alike. On Arabic and Hebrew its lead over the other small models disappears (ties Qwen 0.5B and Bonsai; only MiniCPM5 is worse) — a Gemma tier roughly doubles it there."),
+        // The Base build, booked 2026-10-11 (runs-2026-10-11/book-qwen35base.py,
+        // same rules as the 07-16 rows — they reproduce the old Qwen3.5 row
+        // exactly); p50 scaled from the post-trained build's 93 ms by the
+        // same-binary ratio 35/38 ms.
+        ModelMetrics(id: "nikimori/Qwen3.5-2B-Base-4bit", shortName: "Qwen3.5 2B",
+                     firstWordPct: 28, ci: 26...31, coveragePct: 82,
+                     logProbPerChar: -0.966, p50Ms: 86, ramGB: 1.1,
+                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; matches MiniCPM5 on English (28 vs 27) and on Russian (18 vs 17) alike. The Base build: ahead of the post-trained Qwen3.5 it replaced (p=0.005) in 1.1 GB instead of 1.6. On Arabic and Hebrew its lead over the other small models disappears — a Gemma tier roughly doubles it there."),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 25...30, coveragePct: 81,
                      logProbPerChar: -1.073, p50Ms: 102, ramGB: 1.1,
@@ -116,8 +120,8 @@ struct ModelMetrics {
             ["ar": 5, "cs": 6, "de": 16, "en": 27, "es": 25, "fr": 20, "he": 1, "it": 17, "ja": 6, "ko": 7, "nl": 13, "pl": 10, "pt": 16, "ro": 6, "ru": 17, "sv": 9, "tr": 5, "uk": 5, "zh": 9],
         "mlx-community/Qwen2.5-0.5B-bf16":
             ["ar": 6, "cs": 6, "de": 15, "en": 26, "es": 21, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 5, "nl": 14, "pl": 13, "pt": 16, "ro": 9, "ru": 16, "sv": 6, "tr": 6, "uk": 6, "zh": 10],
-        "mlx-community/Qwen3.5-2B-4bit":
-            ["ar": 6, "cs": 7, "de": 18, "en": 26, "es": 24, "fr": 22, "he": 10, "it": 20, "ja": 2, "ko": 6, "nl": 17, "pl": 14, "pt": 22, "ro": 18, "ru": 17, "sv": 13, "tr": 7, "uk": 15, "zh": 8],
+        "nikimori/Qwen3.5-2B-Base-4bit":
+            ["ar": 5, "cs": 9, "de": 19, "en": 28, "es": 26, "fr": 23, "he": 11, "it": 20, "ja": 2, "ko": 7, "nl": 19, "pl": 15, "pt": 23, "ro": 19, "ru": 18, "sv": 16, "tr": 8, "uk": 14, "zh": 7],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
             ["ar": 4, "cs": 5, "de": 16, "en": 28, "es": 21, "fr": 21, "he": 7, "it": 12, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 13, "ru": 15, "sv": 9, "tr": 6, "uk": 9, "zh": 5],
         "system.apple-intelligence":
@@ -143,8 +147,8 @@ struct ModelMetrics {
             ["ar": 59, "cs": 60, "de": 89, "en": 86, "es": 88, "fr": 83, "he": 58, "it": 83, "ja": 70, "ko": 55, "nl": 74, "pl": 69, "pt": 88, "ro": 57, "ru": 76, "sv": 78, "tr": 57, "uk": 53, "zh": 51],
         "mlx-community/Qwen2.5-0.5B-bf16":
             ["ar": 68, "cs": 65, "de": 88, "en": 88, "es": 90, "fr": 83, "he": 71, "it": 80, "ja": 72, "ko": 50, "nl": 79, "pl": 73, "pt": 90, "ro": 67, "ru": 80, "sv": 66, "tr": 64, "uk": 67, "zh": 55],
-        "mlx-community/Qwen3.5-2B-4bit":
-            ["ar": 65, "cs": 64, "de": 87, "en": 86, "es": 84, "fr": 80, "he": 68, "it": 78, "ja": 67, "ko": 57, "nl": 74, "pl": 71, "pt": 86, "ro": 75, "ru": 77, "sv": 76, "tr": 61, "uk": 74, "zh": 53],
+        "nikimori/Qwen3.5-2B-Base-4bit":
+            ["ar": 69, "cs": 74, "de": 88, "en": 88, "es": 87, "fr": 81, "he": 71, "it": 83, "ja": 68, "ko": 57, "nl": 83, "pl": 71, "pt": 88, "ro": 77, "ru": 78, "sv": 82, "tr": 71, "uk": 71, "zh": 54],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
             ["ar": 60, "cs": 62, "de": 86, "en": 87, "es": 83, "fr": 80, "he": 66, "it": 80, "ja": 73, "ko": 49, "nl": 76, "pl": 69, "pt": 81, "ro": 71, "ru": 76, "sv": 75, "tr": 66, "uk": 61, "zh": 55],
         "system.apple-intelligence":
@@ -265,6 +269,7 @@ struct ModelMetrics {
         "mlx-community/gemma-4-e4b-it-6bit": 6.8,
         "mlx-community/gemma-4-e4b-it-4bit": 5.0,
         "mlx-community/gemma-4-e2b-it-4bit": 3.5,
+        "mlx-community/Qwen3.5-2B-4bit": 1.6,  // Qwen3.5 Base's chord sibling
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": 0.4,
         "openbmb/MiniCPM5-1B": 2.2,
     ]
