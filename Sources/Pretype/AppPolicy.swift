@@ -98,11 +98,8 @@ enum AppPolicy {
         }
     }
 
-    static func allowsScreenContext(_ bundleID: String?) -> Bool {
-        !isBlacklisted(bundleID) && !isCodeEditor(bundleID)
-    }
-
-    /// Same, with the website: a site switched off feeds no OCR or clipboard either.
+    /// Screen OCR and clipboard context for this app and website: not where
+    /// Pretype is off, not in a code editor.
     static func allowsScreenContext(_ context: TypingContext) -> Bool {
         !isBlacklisted(context) && !isCodeEditor(context.bundleID)
     }

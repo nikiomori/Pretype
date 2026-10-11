@@ -780,13 +780,16 @@ enum AXText {
     /// `AXWebArea` ancestor (the tab, not an iframe inside it) — Safari,
     /// Chromium browsers and most Electron apps publish one. Lowercased,
     /// "www." dropped; nil outside a web page and for non-http(s) pages. Walks
-    /// ancestors, so it belongs on the focus-change path, never per keystroke.
+    /// ancestors, so it belongs on the focus-change path, never per keystroke;
+    /// stops at the window, since nothing above it is a page.
     static func pageHost(for element: AXUIElement) -> String? {
         var host: String?
         var node: AXUIElement? = element
         for _ in 0..<60 {
             guard let current = node else { break }
-            if (attribute(current, kAXRoleAttribute) as String?) == "AXWebArea",
+            let role: String? = attribute(current, kAXRoleAttribute)
+            if role == kAXWindowRole || role == kAXApplicationRole { break }
+            if role == "AXWebArea",
                let url: URL = attribute(current, "AXURL"),
                url.scheme == "https" || url.scheme == "http",
                let name = url.host?.lowercased() {

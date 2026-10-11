@@ -283,6 +283,9 @@ final class CorrectionController {
     private func correctLastWord() {
         guard let owner, !inFlight,
               let element = owner.currentTextElement(),
+              // Re-checked here: resolving the element can read a site the
+              // tap-side check didn't know yet.
+              !AppPolicy.isBlacklisted(owner.typingContext),
               let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars),
               let rect = ctx.caretRect else { return }
         // Not mid-word: the next character must not be a letter.

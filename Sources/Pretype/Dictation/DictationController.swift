@@ -521,6 +521,11 @@ final class DictationController {
             return refuse("no text field in focus",
                           notice: .hint("click into a text field, then \(retry)"))
         }
+        // Again: finding the field can read the site of one the focus tracker
+        // missed, and that site may be switched off.
+        guard !AppPolicy.isBlacklisted(owner.typingContext) else {
+            return refuse("off on \(owner.typingContext.site ?? "this site")")
+        }
         // An open IME composition is the one focused-field state synthetic
         // keystrokes must never touch: they land inside the marked text and
         // garble or force-commit it, IME-dependent. Precise-only by design —

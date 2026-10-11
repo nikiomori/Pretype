@@ -136,7 +136,14 @@ final class SuggestionController: NSObject {
     private var lastLoggedSuggestion: String?
 
     // Surfaced in the menu.
-    private(set) var typingContext = TypingContext()
+    /// What the focus tracker reported, plus the site of a field only the
+    /// system-wide fallback found (`currentTextElement`).
+    var typingContext: TypingContext {
+        var context = trackedContext
+        if context.site == nil { context.site = fallbackSite }
+        return context
+    }
+    private var trackedContext = TypingContext()
     private(set) var lastPromptDescription: String?
     private(set) var lastResultDescription: String?
     var lastEvent = "waiting for typing"
@@ -371,8 +378,19 @@ final class SuggestionController: NSObject {
     }
 
     func currentTextElement() -> AXUIElement? {
-        focusTracker.focusedTextElement ?? AXText.systemFocusedTextElement()
+        if let element = focusTracker.focusedTextElement { return element }
+        guard let element = AXText.systemFocusedTextElement() else { return nil }
+        // The tracker missed this field, so its site was never read and a
+        // site switched off would fall through to the app check. Once per field.
+        if fallbackSiteElement.map({ !CFEqual($0, element) }) ?? true {
+            fallbackSiteElement = element
+            fallbackSite = trackedContext.site == nil ? AXText.pageHost(for: element) : nil
+        }
+        return element
     }
+
+    private var fallbackSiteElement: AXUIElement?
+    private var fallbackSite: String?
 
     /// True while one of Pretype's own windows (Settings, Debug console) is
     /// frontmost. The session-wide key tap still fires for keystrokes into our
@@ -542,6 +560,9 @@ final class SuggestionController: NSObject {
         // still speaking. The post-injection refresh re-enters here normally.
         if dictationController.isBusy { return }
         if isOwnUIFrontmost { dismiss(); return }
+        // Checked on both sides of the lookup: before it, the app (no AX
+        // reads in a terminal); after it, also a site that only resolving a
+        // field the tracker missed could read.
         if AppPolicy.isBlacklisted(typingContext) {
             lastEvent = "suggestions are off in blacklisted apps"
             dismiss()
@@ -549,6 +570,11 @@ final class SuggestionController: NSObject {
         }
         guard let element = currentTextElement() else {
             if active != nil { lastEvent = "lost text element" }
+            dismiss()
+            return
+        }
+        if fallbackSite != nil, AppPolicy.isBlacklisted(typingContext) {
+            lastEvent = "suggestions are off on this site"
             dismiss()
             return
         }
@@ -1023,11 +1049,12 @@ final class SuggestionController: NSObject {
         }
         guard Settings.enabled else { return stop("Pretype is paused") }
         guard !isOwnUIFrontmost else { return stop("our own window is frontmost") }
-        guard !AppPolicy.isBlacklisted(typingContext) else {
-            return stop("off in \(typingContext.appName ?? "this app")")
-        }
+        // Element first: it reads the site the blacklist check needs.
         guard let element = currentTextElement() else {
             return stop("no text field in focus")
+        }
+        guard !AppPolicy.isBlacklisted(typingContext) else {
+            return stop("off in \(typingContext.site ?? typingContext.appName ?? "this app")")
         }
         // allowEmpty: an empty chat box is the case this feature exists for —
         // the completion pipeline's "nothing to continue" is not a refusal here.
@@ -1232,7 +1259,10 @@ final class SuggestionController: NSObject {
         // flows only for symmetry — the two chords differ by ⇧ and the fix
         // matcher demands exact flags, so neither can swallow the other. Hops
         // off the tap: the flow does synchronous AX reads.
-        if Settings.hotkeyStyle.matchesReply(keyCode: keyCode, flags: flags) {
+        // In an app (or site) Pretype stays out of, neither chord is ours: the
+        // keystroke goes to the app, and nothing of the field reaches a model.
+        let offHere = AppPolicy.isBlacklisted(typingContext)
+        if !offHere, Settings.hotkeyStyle.matchesReply(keyCode: keyCode, flags: flags) {
             lastAcceptedChunk = nil
             DispatchQueue.main.async { [weak self] in self?.composeReply() }
             return true
@@ -1240,7 +1270,7 @@ final class SuggestionController: NSObject {
 
         // Fix flows (⌥⇥, plus the keys that apply/dismiss a fix preview) get
         // first refusal — a fix preview is only ever up when no completion is.
-        switch correctionController.handleKey(keyCode: keyCode, flags: flags) {
+        switch offHere ? .ignored : correctionController.handleKey(keyCode: keyCode, flags: flags) {
         case .consumed:
             lastAcceptedChunk = nil
             return true
@@ -1753,7 +1783,7 @@ extension SuggestionController: FocusTrackerDelegate {
         case (nil, nil): sameElement = true
         default: sameElement = false
         }
-        if newContext == typingContext, sameElement { return }
+        if newContext == trackedContext, sameElement { return }
 
         focusGeneration += 1
         lastFocusedElement = tracker.focusedTextElement
@@ -1766,7 +1796,9 @@ extension SuggestionController: FocusTrackerDelegate {
         // prevent).
         window.fieldChanged()
         correctionController.focusChanged()
-        typingContext = newContext
+        trackedContext = newContext
+        fallbackSiteElement = nil
+        fallbackSite = nil
         let policy = AppPolicy.isBlacklisted(typingContext)
             ? " — suggestions off (blacklisted)"
             : (AppPolicy.isCodeEditor(typingContext.bundleID) ? " — code editor, no screen context" : "")

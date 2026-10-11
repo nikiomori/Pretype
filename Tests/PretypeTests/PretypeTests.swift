@@ -253,7 +253,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertTrue(AppPolicy.isBlacklisted("com.tinyspeck.slackmacgap"))
         
         // Allows screen context should be false for blacklisted apps
-        XCTAssertFalse(AppPolicy.allowsScreenContext("com.apple.mail"))
+        XCTAssertFalse(AppPolicy.allowsScreenContext(TypingContext(bundleID: "com.apple.mail")))
     }
 
     // The journal is the dataset every future personalization feature reads;
