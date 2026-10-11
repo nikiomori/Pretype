@@ -63,11 +63,11 @@ enum PersonalizationLevel: String, CaseIterable {
 }
 
 /// How a completion is shown at the caret.
-/// - `inline`: seamless ghost text drawn on the line itself (Cotypist-style) —
-///   needs an accurate caret; pixel-perfect in native + Chromium/Electron apps.
-/// - `panel`: a small floating box beside the caret with the text + a ⇥ hint —
-///   the classic look; more legible on busy backgrounds, never overlaps text,
-///   and forgiving when the caret can only be estimated.
+/// - `panel` (default): a small floating box beside the caret with the text + a
+///   ⇥ hint — legible on busy backgrounds, never overlaps text, and forgiving
+///   when the caret can only be estimated.
+/// - `inline`: ghost text drawn on the line itself (Cotypist-style) — needs an
+///   accurate caret and still shows drawing glitches, so the UI marks it unstable.
 enum SuggestionPresentation: String, CaseIterable {
     case inline
     case panel
@@ -456,7 +456,7 @@ enum Settings {
             // Subtle by default: powers the n-gram first-token boost AND the
             // personal n-gram fast-path; everything stays on-device.
             "personalizationLevel": PersonalizationLevel.subtle.rawValue,
-            "suggestionPresentation": SuggestionPresentation.inline.rawValue,
+            "suggestionPresentation": SuggestionPresentation.panel.rawValue,
             "useRecommendedSettings": true,
             "automaticUpdateCheck": true,
             "logprobGate": false,
@@ -684,7 +684,7 @@ enum Settings {
 
     /// Inline ghost text vs a floating panel beside the caret.
     static var suggestionPresentation: SuggestionPresentation {
-        get { SuggestionPresentation(rawValue: defaults.string(forKey: "suggestionPresentation") ?? "") ?? .inline }
+        get { SuggestionPresentation(rawValue: defaults.string(forKey: "suggestionPresentation") ?? "") ?? .panel }
         set { defaults.set(newValue.rawValue, forKey: "suggestionPresentation") }
     }
 

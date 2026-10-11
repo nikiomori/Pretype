@@ -108,7 +108,7 @@ final class SuggestionWindow: NSPanel {
 
     /// Inline ghost text vs a floating panel beside the caret. Set by the
     /// controller from `Settings.suggestionPresentation`.
-    var presentation: SuggestionPresentation = .inline
+    var presentation: SuggestionPresentation = .panel
 
     /// Flips the window's appearance to match the host app's background under
     /// the caret (dark editor ↔ light page), so every semantic color in the

@@ -40,7 +40,7 @@ final class SettingsStore {
         didSet { guard !syncing else { return }
             controller?.setEnabled(enabled) }
     }
-    var presentation = SuggestionPresentation.inline {
+    var presentation = SuggestionPresentation.panel {
         didSet { guard !syncing, oldValue != presentation else { return }
             controller?.setSuggestionPresentation(presentation) }
     }

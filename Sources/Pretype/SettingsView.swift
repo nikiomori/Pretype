@@ -437,25 +437,25 @@ struct GeneralTab: View {
         Form {
             Section {
                 HStack(spacing: 12) {
-                    PresentationCard(mode: .inline, title: "Inline",
-                                     isSelected: store.presentation == .inline,
-                                     hotkeyLabel: store.hotkeyStyle.label) {
-                        // Animate at the mutation site: the Ghost-visibility row
-                        // below inserts/removes on this change, and a row cannot
-                        // animate its own insertion from a Section modifier.
-                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
-                    }
+                    // Animate at the mutation site: the Ghost-visibility row
+                    // below inserts/removes on this change, and a row cannot
+                    // animate its own insertion from a Section modifier.
                     PresentationCard(mode: .panel, title: "Panel",
                                      isSelected: store.presentation == .panel,
                                      hotkeyLabel: store.hotkeyStyle.label) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
+                    }
+                    PresentationCard(mode: .inline, title: "Inline", badge: "Unstable",
+                                     isSelected: store.presentation == .inline,
+                                     hotkeyLabel: store.hotkeyStyle.label) {
+                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
                     }
                 }
             } header: {
                 Text("Suggestion display")
             } footer: {
                 Text(store.presentation == .inline
-                    ? "Ghost text continues your line right at the cursor — same size and baseline, seamless in native and Chromium/Electron apps. \(store.hotkeyStyle.label) accepts."
+                    ? "Ghost text continues your line right at the cursor, same size and baseline. \(store.hotkeyStyle.label) accepts. Unstable: it can leave drawing glitches in some apps — switch to Panel if you see them."
                     : "A small floating box beside the cursor shows the suggestion with a \(store.hotkeyStyle.label) hint. Never overlaps your text, and forgiving when the cursor can only be estimated.")
             }
 
@@ -1012,6 +1012,8 @@ struct OverlayPreview: View {
 private struct PresentationCard: View {
     let mode: SuggestionPresentation
     let title: String
+    /// Short status tag beside the title (e.g. "Unstable").
+    var badge: String? = nil
     let isSelected: Bool
     /// The chosen accept key, shown in the panel mockup's hint pill so it
     /// matches the live overlay instead of a hardcoded ⇥.
@@ -1034,6 +1036,13 @@ private struct PresentationCard: View {
                 .frame(height: 44)
                 HStack {
                     Text(title).font(.subheadline.weight(.semibold))
+                    if let badge {
+                        Text(badge)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.orange.opacity(0.15)))
+                    }
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
@@ -1056,7 +1065,7 @@ private struct PresentationCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .frame(maxWidth: .infinity)
         .onHover { hovering = $0 }
