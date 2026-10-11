@@ -162,12 +162,13 @@ enum ModelStorage {
     }
 
     /// Every repo a catalog entry pulls: its own weights plus the ⌥Tab rewrite
-    /// siblings, which are downloaded lazily on first fix and are invisible in
+    /// siblings and their MTP drafters, all downloaded lazily and invisible in
     /// the entry's advertised size. Leaving orphaned siblings behind is exactly
     /// how 82 GB of cache accumulates without anyone noticing.
     static func repos(for id: String) -> Set<String> {
         guard let option = ModelCatalog.option(for: id) else { return [] }
-        return Set([option.id, option.correctionModelID, option.instructModelID]
+        let models = [option.id, option.correctionModelID, option.instructModelID]
+        return Set((models + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
             .filter { directory(for: $0) != nil })
     }
 

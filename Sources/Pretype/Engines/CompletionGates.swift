@@ -12,10 +12,12 @@ enum CompletionGates {
     static func postProcess(
         _ raw: String, prompt: String, trailingSpaces: Int,
         endsMidWord: Bool, endsCompleteWord: Bool = false,
-        textAfterCaret: String
+        textAfterCaret: String, logRejects: Bool = true
     ) -> String? {
         func reject(_ reason: String) -> String? {
-            DebugLog.shared.log("GATE", "rejected: \(reason)", detail: "raw: \(raw.debugDescription)")
+            if logRejects {
+                DebugLog.shared.log("GATE", "rejected: \(reason)", detail: "raw: \(raw.debugDescription)")
+            }
             return nil
         }
 
@@ -255,7 +257,12 @@ struct PreparedPrompt {
     /// final) through the shared `CompletionGates`. `cleanInstruct` first
     /// strips wrapping quotes and restores the separator instruct models
     /// answer without — base continuations bring their own separator.
-    func gate(cleanInstruct: Bool) -> @Sendable (String) -> String? {
+    ///
+    /// `logRejects: false` is for streamed partials: a stream gates every
+    /// decoded token, and most early snapshots fail (a bare separator is
+    /// "empty after trimming") — logged, each keystroke pushed several raw
+    /// lines into the 400-entry ring. The final snapshot still logs.
+    func gate(cleanInstruct: Bool, logRejects: Bool = true) -> @Sendable (String) -> String? {
         let text = self.text
         let trailing = trailingSpaces
         let endsMidWord = self.endsMidWord
@@ -279,7 +286,7 @@ struct PreparedPrompt {
             return CompletionGates.postProcess(
                 raw, prompt: text, trailingSpaces: trailing,
                 endsMidWord: endsMidWord, endsCompleteWord: endsCompleteWord,
-                textAfterCaret: after
+                textAfterCaret: after, logRejects: logRejects
             )
         }
     }

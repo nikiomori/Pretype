@@ -55,6 +55,14 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
+    /// Fix and reply are explicit requests: an unavailable model is said so
+    /// (the status line carries why), never answered with "nothing to fix".
+    private func requireReady() throws {
+        guard case .ready = stateBox.get() else {
+            throw EngineNotReady(message: "Apple Intelligence isn't available — see the menu")
+        }
+    }
+
     init() {
         switch SystemLanguageModel.default.availability {
         case .available:
@@ -155,7 +163,7 @@ final class FoundationModelsEngine: CompletionEngine {
 
     func correct(selection: String, request: CompletionRequest,
                  redactLog: Bool) async throws -> String? {
-        guard case .ready = stateBox.get() else { return nil }
+        try requireReady()
         let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n") else { return nil }
 
@@ -207,7 +215,7 @@ final class FoundationModelsEngine: CompletionEngine {
     }
 
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
-        guard case .ready = stateBox.get() else { return nil }
+        try requireReady()
         let session = LanguageModelSession()
         let prompt = request.replyPrompt(
             conversation: conversation, instructions: instructionsBox.get())

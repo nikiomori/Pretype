@@ -188,6 +188,14 @@ final class LockedValue<Value>: @unchecked Sendable {
         value = newValue
         return old
     }
+
+    /// Read-modify-write under the one lock — a get then a set would let a
+    /// concurrent writer's change fall between them and be lost.
+    func mutate<R>(_ body: (inout Value) -> R) -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&value)
+    }
 }
 
 enum EngineState: Equatable {
@@ -196,6 +204,14 @@ enum EngineState: Equatable {
     case preparing(String)
     case ready
     case failed(String)
+}
+
+/// An explicit request (⌥⇥ fix, ⌥⇧⇥ reply) reached an engine with no model to
+/// run it on. Thrown, not returned as nil: nil means "nothing to fix" and
+/// shows "✓ looks fine" — a verdict on text no model ever read.
+struct EngineNotReady: Error {
+    /// Shown at the caret, so short and pointing at where the reason is.
+    var message = "model isn't loaded — see the menu"
 }
 
 /// A pluggable source of completions. Implementations must be fast: anything

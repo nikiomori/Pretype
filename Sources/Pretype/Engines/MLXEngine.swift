@@ -207,6 +207,11 @@ final class MLXEngine: CompletionEngine {
                 ?? baseOption?.instructModelID ?? baseOption?.correctionModelID ?? modelID
         }
         self.modelID = primaryID
+        // Once per engine, not per keystroke: the reason never changes while
+        // it lives, and logged inline it filled the 400-entry ring.
+        if config.style == .instruct, Self.promptVariant == nil, !Self.isFIMCapable(primaryID) {
+            DebugLog.shared.log("GATE", "fill-in-the-middle off — \(primaryID) is not E4B-class (unreliable here)")
+        }
 
         guard MLXSupport.isAvailable else {
             stateBox.set(.failed("Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh"))
@@ -296,9 +301,20 @@ final class MLXEngine: CompletionEngine {
         Memory.clearCache()
     }
 
+    /// Drafters whose background fetch already ran this launch. An idle-unload
+    /// reload retried it every time — offline, a failure per reload; on a slow
+    /// line, a second 150 MB fetch overlapping the first.
+    private static let drafterFetches = LockedValue<Set<String>>([])
+
+    /// `PRETYPE_TIED_TABLE_4BIT=off` is the A/B arm of `requantizeTiedTable`.
+    private static let requantizesTiedTable =
+        ProcessInfo.processInfo.environment["PRETYPE_TIED_TABLE_4BIT"] != "off"
+
     /// Loads a model, with its MTP drafter into `drafterBox` when `drafterID`
     /// names one that is already on disk. A missing drafter downloads in the
-    /// background for the next load — 150 MB must not hold up this one.
+    /// background for the next load — 150 MB must not hold up this one — once
+    /// per launch. It is part of the model the user already chose (listed and
+    /// deleted with it, see `ModelStorage.repos`), so it rides that consent.
     private static func loadTarget(
         _ configuration: ModelConfiguration, drafterID: String?,
         into drafterBox: LockedValue<(any MTPDrafterModel)?>, tokenizers: TokenizerCache,
@@ -315,13 +331,17 @@ final class MLXEngine: CompletionEngine {
                         from: #hubDownloader(), using: tokenizers,
                         configuration: configuration, progressHandler: progressHandler)
                     await dropUnusedTowers(vlm)
+                    // Same table, same reasons as the plain path below — this
+                    // return used to skip it, so an instruct model kept its
+                    // 8-bit table (+192…320 MB) from the load its drafter landed.
+                    if requantizesTiedTable { await requantizeTiedTable(vlm) }
                     drafterBox.set(try await loadDrafter(at: local))
                     return vlm
                 } catch {
                     drafterBox.set(nil)
                     DebugLog.shared.log("MLX", "MTP drafter unavailable (\(error.localizedDescription)) — plain decoding")
                 }
-            } else {
+            } else if drafterFetches.mutate({ $0.insert(drafterID).inserted }) {
                 Task.detached(priority: .utility) {
                     do {
                         _ = try await #hubDownloader().download(
@@ -339,10 +359,7 @@ final class MLXEngine: CompletionEngine {
         let container = try await LLMModelFactory.shared.loadContainer(
             from: #hubDownloader(), using: tokenizers,
             configuration: configuration, progressHandler: progressHandler)
-        // PRETYPE_TIED_TABLE_4BIT=off is the A/B arm.
-        if ProcessInfo.processInfo.environment["PRETYPE_TIED_TABLE_4BIT"] != "off" {
-            await requantizeTiedTable(container)
-        }
+        if requantizesTiedTable { await requantizeTiedTable(container) }
         return container
     }
 
@@ -389,7 +406,8 @@ final class MLXEngine: CompletionEngine {
 
     /// Marks a request in-flight and returns the model-load task, reloading it if
     /// it was idle-unloaded. Returns nil when the engine never initialized (e.g.
-    /// Metal missing) — callers then abstain, as before. Pair with `endRequest()`.
+    /// Metal missing) or is in its post-failure cooldown — callers then abstain.
+    /// Pair with `endRequest()`.
     private func beginRequest() -> Task<ModelContainer, Error>? {
         modelLock.lock(); defer { modelLock.unlock() }
         guard didInitLoad else { return nil }
@@ -407,6 +425,18 @@ final class MLXEngine: CompletionEngine {
         inFlightCount += 1
         lastActivity = Date()
         return loadTask
+    }
+
+    /// `beginRequest` for work that runs on the fix sibling only (base style's
+    /// fix and reply): holds off the idle unload without reloading — or, in its
+    /// failure cooldown, refusing on behalf of — the completion model, which
+    /// this request never touches. Pair with `endRequest()`.
+    private func beginSiblingRequest() -> Bool {
+        modelLock.lock(); defer { modelLock.unlock() }
+        guard didInitLoad else { return false }
+        inFlightCount += 1
+        lastActivity = Date()
+        return true
     }
 
     private func endRequest() {
@@ -463,10 +493,10 @@ final class MLXEngine: CompletionEngine {
     private func unload(reason: String, force: Bool = false) {
         modelLock.lock()
         let idleEnough = force || Date().timeIntervalSince(lastActivity) > 3
-        // Not mid-load and not failed; an idle-unloaded primary still lets a
-        // fix model that loaded on its own (prewarmCorrection) be freed.
+        // Not mid-load. An idle-unloaded or failed primary (its task is nil
+        // either way) still lets a fix model that loaded on its own
+        // (prewarmCorrection, a base-style ⌥⇥) be freed.
         let primary = stateBox.get()
-        if case .failed = primary { modelLock.unlock(); return }
         guard inFlightCount == 0, idleEnough,
               loadTask != nil || correctionLoadTask != nil,
               !Self.isLoading(primary: primary, primaryTaskLive: loadTask != nil,
@@ -476,16 +506,20 @@ final class MLXEngine: CompletionEngine {
         let before = Memory.snapshot().activeMemory
         loadTask?.cancel(); loadTask = nil
         correctionLoadTask?.cancel(); correctionLoadTask = nil
-        modelLock.unlock()
-
+        // Still under the lock: a request arriving the moment it drops starts
+        // a reload, and these writes landing after it would erase that load's
+        // drafter and paint "idle" over its "loading…".
         drafter.set(nil)
         correctionDrafter.set(nil)
         Memory.clearCache()
         promptCache.clear()
         if reason == "memory pressure" { tokenizers.clear() }
+        // A failure stays on screen until a retry replaces it.
+        if case .failed = primary {} else { stateBox.set(.preparing("idle — model unloaded")) }
+        modelLock.unlock()
+
         let freed = Int64(max(0, before - Memory.snapshot().activeMemory))
         let amount = ByteCountFormatter.string(fromByteCount: freed, countStyle: .memory)
-        stateBox.set(.preparing("idle — model unloaded"))
         DebugLog.shared.log("MLX", "unloaded model (\(reason)) — freed ~\(amount)")
     }
 
@@ -688,19 +722,16 @@ final class MLXEngine: CompletionEngine {
         let logProbSink = recording ? LockedValue<Double?>(nil) : nil
 
         let parameters = completionParameters(for: request)
-        let gate = prepared.gate(cleanInstruct: false)
         // Mid-word: decode from the word boundary and strip the re-generated
         // fragment (see tokenHealing).
         let heal = prepared.endsMidWord ? Self.tokenHealing(text: prepared.text) : nil
-        let healedGate: @Sendable (String) -> String?
-        if let heal {
-            let expected = heal.expected
-            healedGate = { out in
+        func healed(_ gate: @escaping @Sendable (String) -> String?) -> @Sendable (String) -> String? {
+            guard let expected = heal?.expected else { return gate }
+            return { out in
                 out.hasPrefix(expected) ? gate(String(out.dropFirst(expected.count))) : nil
             }
-        } else {
-            healedGate = gate
         }
+        let healedGate = healed(prepared.gate(cleanInstruct: false))
         let generationText = heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
             ?? prepared.generationText
         let promptCache = self.promptCache
@@ -769,18 +800,12 @@ final class MLXEngine: CompletionEngine {
         // Fill-in-the-Middle: emulate suffix-conditioning via the prompt (Gemma 4
         // has no FIM tokens). A set PRETYPE_PROMPT_VARIANT pins it ("infill" on,
         // anything else off) for the A/B; otherwise it applies only on E4B-class
-        // models — it's unreliable on the smaller E2B (measured), where we log
-        // the skip. Needs a non-trivial suffix, so it's a no-op at end-of-line.
-        let envVariant = ProcessInfo.processInfo.environment["PRETYPE_PROMPT_VARIANT"]
+        // models — it's unreliable on the smaller E2B (measured; the skip is
+        // logged once, in init). Needs a non-trivial suffix, so it's a no-op at
+        // end-of-line.
         let suffixForPrompt = String(request.textAfterCaret.prefix(200))
         let hasSuffix = !suffixForPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let infill: Bool = {
-            guard hasSuffix else { return false }
-            if let envVariant { return envVariant.contains("infill") }
-            if Self.isFIMCapable(modelID) { return true }
-            DebugLog.shared.log("GATE", "fill-in-the-middle off — \(modelID) is not E4B-class (unreliable here)")
-            return false
-        }()
+        let infill = hasSuffix && (Self.promptVariant.map { $0.contains("infill") } ?? Self.isFIMCapable(modelID))
 
         var directive = infill
             ? """
@@ -897,16 +922,22 @@ final class MLXEngine: CompletionEngine {
     /// The old production decoder is the A/B arm, one line of env away:
     /// `PRETYPE_EVAL_SAMPLING=1 PRETYPE_REP_PENALTY=1.05`.
     private func completionParameters(for request: CompletionRequest) -> GenerateParameters {
-        let env = ProcessInfo.processInfo.environment
-        return GenerateParameters(
+        GenerateParameters(
             maxTokens: tokenBudget(for: request),
-            temperature: Float(env["PRETYPE_TEMPERATURE"] ?? "") ?? (Self.greedy.get() ? 0.0 : 0.1),
+            temperature: Self.temperatureOverride ?? (Self.greedy.get() ? 0.0 : 0.1),
             topP: 0.7,
             topK: 20,
             minP: 0.08,
-            repetitionPenalty: Float(env["PRETYPE_REP_PENALTY"] ?? "")
+            repetitionPenalty: Self.repetitionPenalty
         )
     }
+
+    // The eval A/B pins, read once: `ProcessInfo.environment` builds a fresh
+    // dictionary on every access, and these used to be read per keystroke.
+    private static let temperatureOverride = Float(ProcessInfo.processInfo.environment["PRETYPE_TEMPERATURE"] ?? "")
+    private static let repetitionPenalty = Float(ProcessInfo.processInfo.environment["PRETYPE_REP_PENALTY"] ?? "")
+    /// Set → pins fill-in-the-middle ("infill" on, anything else off).
+    private static let promptVariant = ProcessInfo.processInfo.environment["PRETYPE_PROMPT_VARIANT"]
 
     func updateCompletion(length: CompletionLength, instructions: String) {
         lengthBox.set(length)
@@ -969,13 +1000,13 @@ final class MLXEngine: CompletionEngine {
         // NO repetition penalty here: fixing typos means re-emitting most of
         // the original tokens verbatim, which a penalty actively punishes.
         // Budget scales with the selection so long lines aren't clipped.
-        guard let output = try await chatGenerate(
+        let output = try await chatGenerate(
             "\(CorrectionGates.correctionDirective)\n\n\(trimmed)",
             maxTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count),
             // The generation log prints its own raw output — redacting only the
             // divergence-guard line below would leave the same sentence in the
             // buffer twenty lines earlier, on the SUCCESS path at that.
-            logRaw: !redactLog) else { return nil }
+            logRaw: !redactLog)
 
         let fixed = CorrectionGates.trimRunOn(
             CorrectionGates.cleanCorrectionOutput(output), original: trimmed)
@@ -1001,9 +1032,9 @@ final class MLXEngine: CompletionEngine {
         // ponytail: flat 200-token budget — a few sentences, doubled for the
         // Cyrillic case rather than measured per script. Tighten if replies ever
         // read as clipped.
-        guard let output = try await chatGenerate(
+        let output = try await chatGenerate(
             request.replyPrompt(conversation: conversation, instructions: instructionsBox.get()),
-            maxTokens: 200) else { return nil }
+            maxTokens: 200)
         return request.cleanReply(output)
     }
 
@@ -1011,12 +1042,22 @@ final class MLXEngine: CompletionEngine {
     /// stronger instruction following than a raw few-shot prompt. Instruct
     /// style already runs that model as primary; base style loads the instruct
     /// sibling lazily on first use. No prompt cache: each prompt is fresh.
-    private func chatGenerate(_ content: String, maxTokens: Int, logRaw: Bool = true) async throws -> String? {
-        guard let task = beginRequest() else { return nil }
+    private func chatGenerate(_ content: String, maxTokens: Int, logRaw: Bool = true) async throws -> String {
+        let primary: Task<ModelContainer, Error>?
+        if style == .instruct {
+            guard let task = beginRequest() else { throw EngineNotReady() }
+            primary = task
+        } else {
+            guard beginSiblingRequest() else { throw EngineNotReady() }
+            primary = nil
+        }
         defer { endRequest() }
-        let container = style == .instruct
-            ? try await task.value
-            : try await correctionContainer()
+        let container: ModelContainer
+        if let primary {
+            container = try await primary.value
+        } else {
+            container = try await correctionContainer()
+        }
         try Task.checkCancellation()
         let messages: [[String: any Sendable]] = [["role": "user", "content": content]]
         let output = try await Self.generate(
@@ -1068,6 +1109,9 @@ final class MLXEngine: CompletionEngine {
         idleTimer?.cancel(); idleTimer = nil
         memoryPressureSource?.cancel(); memoryPressureSource = nil
         modelLock.lock()
+        // A late `warmPrompt` or prewarm on this retired engine must not
+        // rebuild a whole model next to the replacement's.
+        didInitLoad = false
         loadTask?.cancel(); loadTask = nil
         correctionLoadTask?.cancel(); correctionLoadTask = nil
         modelLock.unlock()
@@ -1165,12 +1209,7 @@ final class TokenizerCache: TokenizerLoader, @unchecked Sendable {
     func load(from directory: URL) async throws -> any MLXLMCommon.Tokenizer {
         if let hit = byDirectory.get()[directory] { return hit }
         let tokenizer = try await #huggingFaceTokenizerLoader().load(from: directory)
-        // ponytail: two directories loading at once can drop one entry here —
-        // it re-parses on its next load; make LockedValue mutate in place if
-        // that ever shows up.
-        var all = byDirectory.get()
-        all[directory] = tokenizer
-        byDirectory.set(all)
+        byDirectory.mutate { $0[directory] = tokenizer }
         return tokenizer
     }
 
