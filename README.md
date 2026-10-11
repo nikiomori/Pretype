@@ -73,6 +73,37 @@ Pretype is free and has the MIT license. It is an alternative to [Cotypist](http
 
 ---
 
+## In Action
+
+<div align="center">
+
+<img src="docs/demo-typo.gif" alt="A misspelled word gets a correction pill above it. Tab applies the fix in place." width="720" />
+<p><sub><i><b>Inline typo fix.</b> <kbd>Tab</kbd> applies the fix. <kbd>Esc</kbd> removes it.</i></sub></p>
+
+<br/>
+
+<img src="docs/demo-fix.gif" alt="The user selects a messy line. Option-Tab sends it to the local model. The rewrite replaces the line in place." width="720" />
+<p><sub><i><b>Rewrite (<kbd>⌥Tab</kbd>).</b> <kbd>⏎</kbd> accepts the rewrite. <kbd>Esc</kbd> keeps your original text.</i></sub></p>
+
+<br/>
+
+<img src="docs/shot-modes.png" alt="Two presentation modes, side by side: inline ghost text on the line, and a floating panel above the line" width="720" />
+<p><sub><i><b>Two presentation modes.</b> The panel is the default. Inline ghost text is unstable: it can leave drawing errors on the screen.</i></sub></p>
+
+<br/>
+
+<img src="docs/shot-settings.png" alt="Settings window with a glass sidebar and a Live Impact inspector. The inspector shows the measured accuracy, speed, memory, and compute." width="720" />
+<p><sub><i><b>Settings show their cost.</b> Hover over an option. The meters for accuracy, speed, memory, and compute show the change before you apply it.</i></sub></p>
+
+<br/>
+
+<img src="docs/shot-personal.png" alt="Personalization tab with a persona field and style instructions for Mail, Messages, and Notes" width="720" />
+<p><sub><i><b>Your style, for each app.</b> Formal text in Mail, short replies in Messages.</i></sub></p>
+
+</div>
+
+---
+
 ## Features
 
 ### Keys
@@ -211,37 +242,6 @@ Pretype has no Dock icon and no main window. It operates from the **menu bar** o
    ```
 
 The [Contributing Guide](CONTRIBUTING.md#development-setup) gives the development loop, the headless harnesses, and the limits of SwiftPM with Metal.
-
----
-
-## In Action
-
-<div align="center">
-
-<img src="docs/demo-typo.gif" alt="A misspelled word gets a correction pill above it. Tab applies the fix in place." width="720" />
-<p><sub><i><b>Inline typo fix.</b> <kbd>Tab</kbd> applies the fix. <kbd>Esc</kbd> removes it.</i></sub></p>
-
-<br/>
-
-<img src="docs/demo-fix.gif" alt="The user selects a messy line. Option-Tab sends it to the local model. The rewrite replaces the line in place." width="720" />
-<p><sub><i><b>Rewrite (<kbd>⌥Tab</kbd>).</b> <kbd>⏎</kbd> accepts the rewrite. <kbd>Esc</kbd> keeps your original text.</i></sub></p>
-
-<br/>
-
-<img src="docs/shot-modes.png" alt="Two presentation modes, side by side: inline ghost text on the line, and a floating panel above the line" width="720" />
-<p><sub><i><b>Two presentation modes.</b> The panel is the default. Inline ghost text is unstable: it can leave drawing errors on the screen.</i></sub></p>
-
-<br/>
-
-<img src="docs/shot-settings.png" alt="Settings window with a glass sidebar and a Live Impact inspector. The inspector shows the measured accuracy, speed, memory, and compute." width="720" />
-<p><sub><i><b>Settings show their cost.</b> Hover over an option. The meters for accuracy, speed, memory, and compute show the change before you apply it.</i></sub></p>
-
-<br/>
-
-<img src="docs/shot-personal.png" alt="Personalization tab with a persona field and style instructions for Mail, Messages, and Notes" width="720" />
-<p><sub><i><b>Your style, for each app.</b> Formal text in Mail, short replies in Messages.</i></sub></p>
-
-</div>
 
 ---
 
