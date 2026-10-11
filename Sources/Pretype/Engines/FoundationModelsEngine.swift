@@ -24,26 +24,6 @@ final class FoundationModelsEngine: CompletionEngine {
     private static let temperatureOverride: Double? =
         ProcessInfo.processInfo.environment["PRETYPE_FM_TEMPERATURE"].flatMap(Double.init)
 
-    private static let instructions = """
-    You complete partially-typed text. The user is the author; you produce \
-    the next few words they would type, in their voice.
-
-    Output the continuation only: no greeting, no sign-off, no quotes, no \
-    markdown, no labels, no explanation.
-
-    Continue from the position immediately after the existing text. Do not \
-    repeat or quote the existing text.
-
-    Match the existing language, register, casing, and punctuation. Continue \
-    the current sentence or thought rather than restarting it.
-
-    Examples (quotes only mark boundaries; never output the quotes):
-    Existing text: "I just wanted to follow up on the "
-    Continuation: proposal we discussed last week.
-    Existing text: "Привет! Спасибо за письмо, я отвечу "
-    Continuation: тебе завтра утром.
-    """
-
     var state: EngineState { stateBox.get() }
 
     var statusLine: String? {
@@ -67,7 +47,7 @@ final class FoundationModelsEngine: CompletionEngine {
         case .available:
             stateBox.set(.ready)
             // Warm the system model so the first keystroke doesn't pay.
-            let session = LanguageModelSession(instructions: Self.instructions)
+            let session = LanguageModelSession(instructions: CompletionRequest.continuationDirective)
             session.prewarm()
         case .unavailable(let reason):
             // A sentence, not the enum case: this lands verbatim in the menu
@@ -105,27 +85,13 @@ final class FoundationModelsEngine: CompletionEngine {
         // is exactly when whole-word prediction can't help yet.
         guard let prepared = PreparedPrompt(String(request.textBeforeCaret.suffix(1200)), request: request,
                                             midWordFloor: 5, boundaryFloor: 8) else { return nil }
-        // Screen/app context, when present, rides ahead of the text.
-        var prompt = ""
-        if let screen = request.screenSummary, !screen.isEmpty {
-            prompt += "Screen context:\n\(screen)\n\n"
-        }
-        if let app = request.appName, !app.isEmpty {
-            prompt += "The user is typing in \(app).\n\n"
-        }
-        prompt += "Existing text: \"\(prepared.text)\"\nContinuation:"
-
-        // Persona (when set) sharpens voice; length caps the response.
-        let persona = request.persona(global: instructionsBox.get())
-        let instructions = persona.isEmpty
-            ? Self.instructions
-            : Self.instructions + "\n\nAbout the author (for voice only, never quote it):\n\(persona)"
+        let turn = request.continuationTurn(prepared.text, instructions: instructionsBox.get())
 
         // A fresh session per request: autocomplete must not accumulate a
         // multi-turn transcript.
-        let session = LanguageModelSession(instructions: instructions)
+        let session = LanguageModelSession(instructions: turn.system)
         do {
-            let response = try await session.respond(to: prompt, options: generationOptions())
+            let response = try await session.respond(to: turn.user, options: generationOptions())
             try Task.checkCancellation()
             // The model answers flush and sometimes quoted, like any instruct model.
             return prepared.gate(cleanInstruct: true)(response.content)

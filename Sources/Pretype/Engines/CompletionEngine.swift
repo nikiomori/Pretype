@@ -216,6 +216,43 @@ extension CompletionRequest {
         return persona
     }
 
+    /// The instruct directive shared by the chat-model engines (Apple
+    /// Intelligence, hosted APIs): continue the user's text, don't answer it.
+    /// Prompting recipe adapted from Cotabby's Foundation Models path.
+    static let continuationDirective = """
+    You complete partially-typed text. The user is the author; you produce \
+    the next few words they would type, in their voice.
+
+    Output the continuation only: no greeting, no sign-off, no quotes, no \
+    markdown, no labels, no explanation.
+
+    Continue from the position immediately after the existing text. Do not \
+    repeat or quote the existing text.
+
+    Match the existing language, register, casing, and punctuation. Continue \
+    the current sentence or thought rather than restarting it.
+
+    Examples (quotes only mark boundaries; never output the quotes):
+    Existing text: "I just wanted to follow up on the "
+    Continuation: proposal we discussed last week.
+    Existing text: "Привет! Спасибо за письмо, я отвечу "
+    Continuation: тебе завтра утром.
+    """
+
+    /// One continuation turn for a chat model: the directive (+ persona, for
+    /// voice) as the system message; screen and app context ahead of the
+    /// typed text in the user message.
+    func continuationTurn(_ text: String, instructions: String) -> (system: String, user: String) {
+        var user = ""
+        if let screen = screenSummary, !screen.isEmpty { user += "Screen context:\n\(screen)\n\n" }
+        if let appName, !appName.isEmpty { user += "The user is typing in \(appName).\n\n" }
+        user += "Existing text: \"\(text)\"\nContinuation:"
+        let persona = persona(global: instructions)
+        let system = persona.isEmpty ? Self.continuationDirective
+            : Self.continuationDirective + "\n\nAbout the author (for voice only, never quote it):\n\(persona)"
+        return (system, user)
+    }
+
     /// Chat-style apps want short, informal continuations.
     var isChatApp: Bool {
         guard let appBundleID = appBundleID?.lowercased() else { return false }
