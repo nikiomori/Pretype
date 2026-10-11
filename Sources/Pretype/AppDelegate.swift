@@ -98,5 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Settings.dictationEnabled, Settings.dictationParakeet, Parakeet.isDownloaded {
             Task.detached(priority: .utility) { _ = try? await Parakeet.prepare() }
         }
+        let selected = Settings.mlxModelID
+        Task.detached(priority: .background) { await ModelStorage.upgradeToSlim(selected: selected) }
     }
 }

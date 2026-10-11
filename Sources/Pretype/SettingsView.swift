@@ -709,7 +709,7 @@ final class SettingsStore {
             var sizes: [String: Int64] = [:]
             for id in ids {
                 let bytes = ModelStorage.deletableRepos(for: id, selected: selected)
-                    .compactMap(ModelStorage.directory(for:))
+                    .compactMap(ModelStorage.cacheDirectory(repo:))
                     .reduce(Int64(0)) { $0 + ModelStorage.bytes(at: $1) }
                 if bytes > 0 { sizes[id] = bytes }
             }
@@ -726,7 +726,7 @@ final class SettingsStore {
 
     func deleteDownload(_ id: String) {
         for repo in ModelStorage.deletableRepos(for: id, selected: modelID) {
-            try? ModelStorage.delete(repo)
+            try? ModelStorage.delete(repo: repo)
         }
         refreshModelDiskUsage()
     }

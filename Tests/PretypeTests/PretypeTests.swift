@@ -1729,6 +1729,13 @@ final class PretypeTests: XCTestCase {
         let downloaded = Set(ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] })
         XCTAssertTrue(Set(ModelCatalog.slimRepos.keys).isSubset(of: downloaded))
         XCTAssertEqual(ModelCatalog.repo(for: "openbmb/MiniCPM5-1B-Base"), "openbmb/MiniCPM5-1B-Base")
+        // The re-pack wins whenever it's here; the original only while it's all there is.
+        let slim = "nikimori/gemma-4-e2b-4bit-slim"
+        for (have, expected) in [([String](), slim), ([id], id), ([id, slim], slim), ([slim], slim)] {
+            XCTAssertEqual(ModelCatalog.repo(for: id, isFetched: have.contains), expected, "\(have)")
+        }
+        // Both builds are this entry's to count and delete — an install may hold either.
+        XCTAssertTrue(ModelStorage.repos(for: id).isSuperset(of: [id, slim]))
 
         // Nothing is deletable when the entry being inspected is the selected one.
         XCTAssertTrue(ModelStorage.deletableRepos(

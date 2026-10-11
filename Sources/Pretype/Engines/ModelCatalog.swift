@@ -218,16 +218,15 @@ enum ModelCatalog {
         "gemma-4-e4b-it-6bit", "gemma-4-e4b-it-4bit", "gemma-4-e2b-it-4bit",
     ].map { ("mlx-community/\($0)", "nikimori/\($0)-slim") })
 
-    /// The Hub repo `id`'s weights come from: its slim re-pack, unless the
-    /// original is already downloaded — that one keeps loading as before
-    /// rather than fetching gigabytes to replace it.
-    /// ponytail: an original left half-downloaded by an older build stays
-    /// orphaned in the cache; the Models tab only deletes the repo in use.
-    static func repo(for id: String) -> String {
-        guard let slim = slimRepos[id],
-              !(ModelStorage.cacheDirectory(repo: id).map(ModelStorage.isFetched(at:)) ?? false)
-        else { return id }
-        return slim
+    /// The Hub repo `id`'s weights come from: its slim re-pack, unless only the
+    /// original is on disk — an install from before the re-packs keeps loading
+    /// that until `ModelStorage.upgradeToSlim` has fetched the re-pack.
+    static func repo(
+        for id: String,
+        isFetched: (String) -> Bool = { ModelStorage.cacheDirectory(repo: $0).map(ModelStorage.isFetched(at:)) ?? false }
+    ) -> String {
+        guard let slim = slimRepos[id] else { return id }
+        return isFetched(id) && !isFetched(slim) ? id : slim
     }
 
     /// Pseudo-model id for the system Apple Intelligence model (macOS 26+):

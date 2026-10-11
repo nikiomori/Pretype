@@ -1,5 +1,8 @@
 import Foundation
 import HuggingFace
+import MLXHuggingFace
+import MLXLMCommon
+import Network
 
 /// Disk accounting for the Hugging Face cache the app downloads into, so the
 /// Models tab can show what a model costs on disk and hand back the space.
@@ -167,15 +170,18 @@ enum ModelStorage {
         }
     }
 
-    /// Every repo a catalog entry pulls: its own weights plus the ⌥Tab rewrite
-    /// siblings and their MTP drafters, all downloaded lazily and invisible in
-    /// the entry's advertised size. Leaving orphaned siblings behind is exactly
-    /// how 82 GB of cache accumulates without anyone noticing.
+    /// Every Hub repo a catalog entry pulls: its own weights plus the ⌥Tab
+    /// rewrite siblings and their MTP drafters, all downloaded lazily and
+    /// invisible in the entry's advertised size. Leaving orphaned siblings
+    /// behind is exactly how 82 GB of cache accumulates without anyone noticing.
+    /// Repo names, taken literally — both builds of a model with a slim
+    /// re-pack, since an install may hold either, or both mid-upgrade.
     static func repos(for id: String) -> Set<String> {
         guard let option = ModelCatalog.option(for: id) else { return [] }
         let models = [option.id, option.correctionModelID, option.instructModelID]
-        return Set((models + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
-            .filter { directory(for: $0) != nil })
+        let slim = models.compactMap { ModelCatalog.slimRepos[$0] }
+        return Set((models + slim + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
+            .filter { cacheDirectory(repo: $0) != nil })
     }
 
     /// Repos that can be freed if `id` is dropped while `selected` stays.
@@ -193,21 +199,84 @@ enum ModelStorage {
         repos(for: id).subtracting(repos(for: selected))
     }
 
-    /// Remove one repo from the cache. Belt and braces on purpose: this is the
-    /// one place where a malformed id could steer `removeItem` at the user's
-    /// own files, so the target must be a `models--…` directory sitting
-    /// directly in the resolved cache root, and `directory(for:)` must have
-    /// accepted the id in the first place. Anything else is a silent no-op.
+    /// Remove one Hub repo (a `repos(for:)` member) from the cache. Belt and
+    /// braces on purpose: this is the one place where a malformed id could
+    /// steer `removeItem` at the user's own files, so the target must be a
+    /// `models--…` directory sitting directly in the resolved cache root, and
+    /// `cacheDirectory(repo:)` must have accepted the id in the first place.
+    /// Anything else is a silent no-op.
     ///
     /// `<cache>/.locks/…` and `<cache>/.metadata/…` leftovers survive this;
     /// they are zero-byte in practice, so chasing them isn't worth the extra
     /// paths pointed at a delete call.
-    static func delete(_ id: String) throws {
-        guard let directory = directory(for: id),
+    static func delete(repo id: String) throws {
+        guard let directory = cacheDirectory(repo: id),
               directory.lastPathComponent.hasPrefix("models--"),
               directory.deletingLastPathComponent().standardizedFileURL.path
                 == HubCache.default.cacheDirectory.standardizedFileURL.path
         else { return }
         try FileManager.default.removeItem(at: directory)
+    }
+
+    /// Moves an install that downloaded an original Gemma build before the
+    /// slim re-packs existed onto them: fetch the re-pack in the background
+    /// while the original keeps serving, then delete the original.
+    /// `ModelCatalog.repo(for:)` prefers a fetched re-pack, so the next load
+    /// (idle reload or relaunch) picks it up — the same weights the engine
+    /// already held in memory, so all that changes is disk (−0.6…2.7 GB per
+    /// model) and a faster reload.
+    ///
+    /// Only the selected model's repos: a model nobody uses isn't worth
+    /// gigabytes of the user's bandwidth. Skipped on an expensive (cellular,
+    /// hotspot) or Low Data Mode network and when the disk can't hold both
+    /// builds at once; the next launch tries again.
+    static func upgradeToSlim(selected: String) async {
+        let inUse = repos(for: selected)
+        var networkOK: Bool?
+        for (original, slim) in ModelCatalog.slimRepos where inUse.contains(original) {
+            guard let originalDir = cacheDirectory(repo: original), let slimDir = cacheDirectory(repo: slim),
+                  FileManager.default.fileExists(atPath: originalDir.path) else { continue }
+            if !isFetched(at: slimDir) {
+                // Half an original: the engine already loads (and fetches) the
+                // re-pack; this one is deleted on a later pass, once it's here.
+                guard isFetched(at: originalDir) else { continue }
+                let free = (try? originalDir.deletingLastPathComponent()
+                    .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+                    .volumeAvailableCapacityForImportantUsage ?? 0
+                guard free > bytes(at: originalDir) + 2_000_000_000 else { continue }
+                if networkOK == nil { networkOK = await isNetworkUnmetered() }
+                guard networkOK == true else { continue }
+                DebugLog.shared.log("MLX", "fetching slim re-pack \(slim) to replace \(original)")
+                do {
+                    _ = try await resolve(configuration: ModelConfiguration(id: slim), from: #hubDownloader(),
+                                          useLatest: false, progressHandler: { _ in })
+                } catch {
+                    DebugLog.shared.log("MLX", "slim re-pack fetch failed: \(error.localizedDescription)")
+                    continue
+                }
+                guard isFetched(at: slimDir) else { continue }
+            }
+            // An engine holding the original keeps it: its weights are in
+            // memory, and an unlinked file stays readable while open.
+            // ponytail: a reload resolving the original in the instant before
+            // this delete fails once and retries after the load cooldown.
+            try? delete(repo: original)
+            DebugLog.shared.log("MLX", "replaced \(original) with \(slim)")
+        }
+    }
+
+    /// Whether the network is one a multi-GB background fetch may use: up, not
+    /// cellular or a hotspot (`isExpensive`), not in Low Data Mode (`isConstrained`).
+    private static func isNetworkUnmetered() async -> Bool {
+        let monitor = NWPathMonitor()
+        defer { monitor.cancel() }
+        let answered = LockedValue(false)
+        return await withCheckedContinuation { done in
+            monitor.pathUpdateHandler = { path in
+                guard !answered.exchange(true) else { return }
+                done.resume(returning: path.status == .satisfied && !path.isExpensive && !path.isConstrained)
+            }
+            monitor.start(queue: .global(qos: .utility))
+        }
     }
 }
