@@ -30,3 +30,6 @@ Scripts/finetune.sh
 Scripts/build-eval-real.py
 Scripts/build-register-corpus.py
 Scripts/build-eval-tasks.py
+
+# Local review notes in the repo root — a `git add -A` must not publish them.
+/EVAL_REVIEW*.md
