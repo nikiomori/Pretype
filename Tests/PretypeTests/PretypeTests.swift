@@ -467,6 +467,23 @@ final class PretypeTests: XCTestCase {
         XCTAssertFalse(MLXEngine.isLoading(primary: .failed("x"), primaryTaskLive: false, correctionStatus: nil))
     }
 
+    // Prompt lookup drafts the fix from its own input: longest n-gram first,
+    // newest prompt occurrence, never past the prompt or the key itself.
+    func testPromptLookupDraft() {
+        typealias L = MLXEngine.PromptLookupIterator
+        // prompt = 1 2 3 4 5 | 9 1 2 3 4 5 6 7 8 | 0 ; output so far: 2 3
+        let prompt = [1, 2, 3, 4, 5, 9, 1, 2, 3, 4, 5, 6, 7, 8, 0]
+        XCTAssertEqual(L.draft(after: prompt + [2, 3], promptCount: prompt.count, max: 4), [4, 5, 6, 7])
+        // Budget and prompt end cap the draft.
+        XCTAssertEqual(L.draft(after: prompt + [7], promptCount: prompt.count, max: 8), [8, 0])
+        XCTAssertEqual(L.draft(after: prompt + [2, 3], promptCount: prompt.count, max: 0), [])
+        // 3-gram miss falls back to the 1-gram.
+        XCTAssertEqual(L.draft(after: prompt + [42, 9], promptCount: prompt.count, max: 2), [1, 2])
+        // The prompt's own last token never matches itself; no match → no draft.
+        XCTAssertEqual(L.draft(after: [5, 6, 7], promptCount: 3, max: 4), [])
+        XCTAssertEqual(L.draft(after: prompt + [77], promptCount: prompt.count, max: 4), [])
+    }
+
     // Confidence trim decides how much of a decoded suggestion the user actually
     // sees — pin the boundary rules (first word protected, stranded word heads
     // dropped, cut lands on a word boundary).

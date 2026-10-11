@@ -159,6 +159,101 @@ extension MLXEngine {
     /// best on E2B-it with a cached prompt (block 2 −5%, 4 −11%, 3 −18…−32%).
     static let mtpBlock = 3
 
+    /// Longest draft a prompt-lookup round proposes. Past 8 the wider
+    /// verify forward eats the gain on 4-bit weights: E4B-it fix, release,
+    /// five interleaved rounds — draft 8 beat the MTP drafter in all five
+    /// (median −11%), 16 tied it; E2B-it 109 → 78 ms at 8, 86 at 16.
+    static let lookupDraft = Int(ProcessInfo.processInfo.environment["PRETYPE_LOOKUP_DRAFT"] ?? "") ?? 8
+    static let lookupEnabled = ProcessInfo.processInfo.environment["PRETYPE_LOOKUP"] != "off"
+
+    /// Prompt-lookup decoding (LLMA, arXiv 2304.04487): a fix or a dictation
+    /// tidy-up re-emits most of its input verbatim, so the
+    /// draft is whatever followed the newest prompt occurrence of the last
+    /// 1–3 output tokens. The target checks the whole draft in one forward
+    /// and keeps the prefix its own greedy pick agrees with, plus that pick —
+    /// the output is the greedy decode's, so temperature 0 only. No draft
+    /// model; needs a cache that can rewind the rejected tail.
+    /// eval-correct (680 rows, release, paired runs): fix p50 against the MTP
+    /// drafter E2B-it 109 → 78 ms, E4B-it −11%, E4B-it-6bit a tie; against
+    /// plain decoding Qwen2.5-0.5B-it 73 → 39, MiniCPM5-1B 177 → 66,
+    /// Bonsai 265 → 216. Exact fixes unchanged; 6/680 outputs differ
+    /// (argmax near-ties between the batched and the one-token forward).
+    /// `Eval/runs-2026-10-11-lookup`.
+    struct PromptLookupIterator {
+        private let model: any LanguageModel
+        private let cache: [KVCache]
+        private let prompt: [Int]
+        private let maxTokens: Int
+        private let maxDraft: Int
+        /// Tokens the next forward must feed before any draft: the unread
+        /// prompt tail at first, then the last sampled token.
+        private var feed: [Int]
+        private var emitted: [Int] = []
+        private var pending: ArraySlice<Int> = []
+        private(set) var drafted = 0
+        private(set) var accepted = 0
+
+        init(input: [Int], prompt: [Int], model: any LanguageModel, cache: [KVCache],
+             maxTokens: Int, maxDraft: Int = MLXEngine.lookupDraft) {
+            self.feed = input
+            self.prompt = prompt
+            self.model = model
+            self.cache = cache
+            self.maxTokens = maxTokens
+            self.maxDraft = maxDraft
+        }
+
+        mutating func next() -> Int? {
+            if pending.isEmpty {
+                guard emitted.count < maxTokens else { return nil }
+                round()
+            }
+            return pending.popFirst()
+        }
+
+        private mutating func round() {
+            // Drafts past the token budget would only be thrown away.
+            var draft = Self.draft(after: prompt + emitted, promptCount: prompt.count,
+                                   max: min(maxDraft, maxTokens - emitted.count - 1))
+            if !draft.isEmpty, !cache.allSatisfy({ $0.isTrimmable(after: feed.count + draft.count) }) {
+                draft = []
+            }
+            let input = MLXArray((feed + draft).map { Int32($0) })[.newAxis]
+            let logits = model(input, cache: cache)
+            // The pick after the last fed token, then one per draft position.
+            let picks = argMax(logits[0, (feed.count - 1)...], axis: -1).asArray(Int.self)
+            var agreed = 0
+            while agreed < draft.count, draft[agreed] == picks[agreed] { agreed += 1 }
+            if agreed < draft.count { trimPromptCache(cache, numTokens: draft.count - agreed) }
+            let out = Array(draft[..<agreed]) + [picks[agreed]]
+            drafted += draft.count
+            accepted += agreed
+            emitted += out
+            pending = ArraySlice(out)
+            feed = [picks[agreed]]
+        }
+
+        /// What followed the newest prompt occurrence of the sequence's last
+        /// n tokens (n = 3, 2, 1 — the longest that matches), up to `max`.
+        static func draft(after seq: [Int], promptCount: Int, max: Int) -> [Int] {
+            guard max > 0 else { return [] }
+            for n in stride(from: min(3, seq.count - 1), through: 1, by: -1) {
+                let key = seq[(seq.count - n)...]
+                // An occurrence needs ≥1 prompt token after it, and must not
+                // be the key itself.
+                var start = min(promptCount - 1, seq.count - 1) - n
+                while start >= 0 {
+                    if seq[start ..< start + n].elementsEqual(key) {
+                        let from = start + n
+                        return Array(seq[from ..< min(from + max, promptCount)])
+                    }
+                    start -= 1
+                }
+            }
+            return []
+        }
+    }
+
     /// The instruct path's per-keystroke tokenization without re-rendering the
     /// chat template: the rendered prompt is head + body(text) + tail, where
     /// only the text changes between keystrokes (directive, persona and turn
@@ -503,6 +598,10 @@ extension MLXEngine {
         /// logprob gate; the confidence trim and the first-word logprob
         /// are skipped on this path (the iterator exposes no per-token logits).
         drafter: (any MTPDrafterModel)? = nil,
+        /// Copy-heavy output (fix, tidy-up): draft from the prompt
+        /// itself (`PromptLookupIterator`) instead of the drafter. Greedy and
+        /// processor-free generations only; anything else decodes as usual.
+        lookup: Bool = false,
         /// False when the generated text is not ours to print: the dictation
         /// tidy-up pass hands this path a SPOKEN sentence, and the debug buffer
         /// is exported into bug reports under a dialog that only warns about
@@ -658,13 +757,22 @@ extension MLXEngine {
             // Speculative path: drafts of `mtpBlock` tokens verified by the
             // target in one forward (block 3 measured best on E2B-it).
             var mtp: MTPSpeculativeTokenIterator?
-            if let drafter, healExpected == nil, bias == nil, gateLogProb == nil {
+            var copier: PromptLookupIterator?
+            // A recurrent layer (Qwen3.5) can't rewind a rejected draft; there
+            // the unpipelined rounds would only be slower than plain decoding.
+            if lookup, Self.lookupEnabled, processor == nil, parameters.temperature == 0,
+               cache.allSatisfy(\.isTrimmable) {
+                copier = PromptLookupIterator(
+                    input: Array(fullTokens[splitAt...]), prompt: fullTokens, model: context.model,
+                    cache: cache, maxTokens: maxTokens)
+            } else if let drafter, healExpected == nil, bias == nil, gateLogProb == nil {
                 mtp = try MTPSpeculativeTokenIterator(
                     input: LMInput(tokens: firstInput), mainModel: context.model, drafter: drafter,
                     mainCache: cache, parameters: parameters, blockSize: mtpBlock)
                 recorder = nil
             }
-            var current: MLXArray? = mtp == nil ? step(firstInput) : nil
+            let speculative = mtp != nil || copier != nil
+            var current: MLXArray? = speculative ? nil : step(firstInput)
             let decodeStart = Date()
             var generated: [Int] = []       // sampled tokens, in order
             var cachedGenerated = 0         // of those, how many the cache holds
@@ -679,6 +787,9 @@ extension MLXEngine {
                 var next: MLXArray?
                 if mtp != nil {
                     guard let t = mtp?.next() else { break }
+                    token = t
+                } else if copier != nil {
+                    guard let t = copier?.next() else { break }
                     token = t
                 } else {
                     guard let cur = current else { break }
@@ -727,12 +838,12 @@ extension MLXEngine {
                 }
                 if gateOpen { onPartial?(text) }
                 if text.contains("\n") { break }
-                if mtp == nil {
+                if !speculative {
                     guard let next else { break }
                     current = next
                 }
             }
-            if mtp != nil {
+            if speculative {
                 // The speculative iterator leaves the cache holding the prompt
                 // plus whatever it committed; bring it back to the prompt so the
                 // live state below describes exactly `fullTokens`.
@@ -786,7 +897,8 @@ extension MLXEngine {
                 prefillSeconds > 0 ? Double(prefilled) / prefillSeconds : 0,
                 generated.count, decodeSeconds * 1000,
                 decodeSeconds > 0 ? Double(generated.count) / decodeSeconds : 0,
-                checkpoint?.tokens.count ?? 0
+                checkpoint?.tokens.count ?? 0,
+                copier.map { " lookup=\($0.accepted)/\($0.drafted)" } ?? ""
             )
             DebugLog.shared.log(
                 "GEN", summary,

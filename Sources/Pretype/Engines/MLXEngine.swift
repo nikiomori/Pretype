@@ -1058,6 +1058,7 @@ final class MLXEngine: CompletionEngine {
         let output = try await chatGenerate(
             "\(CorrectionGates.correctionDirective)\n\n\(trimmed)",
             maxTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count),
+            copiesInput: true,
             // The generation log prints its own raw output — redacting only the
             // divergence-guard line below would leave the same sentence in the
             // buffer twenty lines earlier, on the SUCCESS path at that.
@@ -1111,7 +1112,12 @@ final class MLXEngine: CompletionEngine {
     /// stronger instruction following than a raw few-shot prompt. Instruct
     /// style already runs that model as primary; base style loads the instruct
     /// sibling lazily on first use. No prompt cache: each prompt is fresh.
-    private func chatGenerate(_ content: String, maxTokens: Int, logRaw: Bool = true) async throws -> String {
+    /// `copiesInput`: the answer mostly re-types the prompt's text (the fix,
+    /// and the dictation tidy-up that runs through it) — draft from it rather
+    /// than from the MTP drafter. Not voice rewrites: "translate this" copies
+    /// nothing, and that path was never measured.
+    private func chatGenerate(_ content: String, maxTokens: Int, copiesInput: Bool = false,
+                              logRaw: Bool = true) async throws -> String {
         let primary: Task<ModelContainer, Error>?
         if style == .instruct {
             guard let task = beginRequest() else { throw EngineNotReady() }
@@ -1146,6 +1152,7 @@ final class MLXEngine: CompletionEngine {
             extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
             promptCache: nil,
             drafter: style == .instruct ? drafter.get() : correctionDrafter.get(),
+            lookup: copiesInput,
             logRaw: logRaw
         )
         try Task.checkCancellation()
