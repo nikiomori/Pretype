@@ -1,5 +1,6 @@
 %% Data flow: what stays on the Mac, what the app downloads.
 %% Every arrow from the internet points in: downloads and one version number.
+%% The one exception is opt-in: an API provider that the user turns on.
 flowchart TB
   subgraph mac["Your Mac"]
     direction TB
@@ -21,11 +22,14 @@ flowchart TB
     hf["Hugging Face"]
     apple["Apple servers"]
     gh["GitHub Releases API"]
+    api["API provider<br/>(off by default)"]
   end
   hf -- "model weights (download)" --> model
   apple -- "speech model (download)" --> speech
   gh -- "latest version number" --> app
-  app -. "your text: never sent" .-x net
+  app -. "your text: not sent by default" .-x net
+  app -. "opt-in:<br/>Settings → API" .-> api
   classDef ext fill:#f2f2f5,stroke:#8e8e93,color:#1d1d1f
-  class hf,apple,gh ext
+  class hf,apple,gh,api ext
   linkStyle 9 stroke:#ff3b30,color:#d70015
+  linkStyle 10 stroke:#ff9500,color:#c93400

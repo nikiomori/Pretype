@@ -25,6 +25,19 @@ Do the checks from left to right. Each check reads one line of **Diagnostics**.
 | `open build/Pretype.app` fails<br>with `-600`, or Finder shows<br>"the application is not open<br>anymore" (source builds) | An old instance was running<br>when you replaced its bundle.<br>LaunchServices activates the<br>old process, not the new build. | Quit Pretype from the menu bar before you rebuild. Or start the build with `open -n build/Pretype.app`. On a current checkout, `make-app.sh` quits the running instance of that build first. It does not quit a copy in `/Applications`, so you can use that copy while you rebuild. |
 | Gatekeeper blocks<br>the first launch | Releases up to 2.4.0 have<br>an ad-hoc signature. | Releases 2.5.0 and later are notarized and open normally. For an older release, remove the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`. Or click **System Settings → Privacy & Security → Open Anyway**. |
 
+### API providers
+
+These lines show in the menu and in **Settings → API → Test connection**.
+
+| Symptom | Cause | Remedy |
+|---|---|---|
+| `add an API key in Settings → API` | API text or dictation is on, and the provider has no key. | Paste the key in **Settings → API**. Click **Test connection**. |
+| `the API key was rejected (401)` or `(403)` | The key is incorrect, expired, or for a different provider. | Make a new key with **Get a key**. Paste it, then click **Test connection**. |
+| `HTTP 404` or `HTTP 400` with a model name | The provider does not know the model name. | Type a model name from the list of the provider. Or select the provider again to get the preset model. |
+| `Could not connect to the server` with Ollama or LM Studio | The local server does not run. | Start Ollama or the LM Studio server. Make sure that the model is downloaded, for example with `ollama pull gemma4:e4b`. |
+| Suggestions come late with API text on | The network, or a model that reasons before it answers. | Use the preset model of the provider, or a provider near you. Or turn off API text to use the local model. |
+| Dictation types nothing with API dictation on | The upload failed, or the provider timed out after 60 s. | Click **Test connection** in the Dictation section. For long takes, use a shorter capture. |
+
 ## FAQ
 
 ### What happens to <kbd>Tab</kbd> when I want a Tab character?
@@ -105,7 +118,7 @@ Inline typo fixes use the macOS spell checker, in the language that it detects. 
 
 ### Where does my data go?
 
-Pretype does not send your data. [Privacy & permissions](privacy.md) shows what Pretype stores on your Mac and how to remove it.
+By default, Pretype does not send your data. If you turn on an API provider in **Settings → API**, your text or your audio goes to that provider. [Privacy & permissions](privacy.md) shows what Pretype sends, what it stores on your Mac, and how to remove it.
 
 ---
 

@@ -1,6 +1,8 @@
 %% Transcription.start: which speech model serves the dictation language.
 flowchart TB
-  lang("Keyboard language") --> a{{"In the 30 locales of<br/>SpeechTranscriber?"}}
+  lang("Keyboard language") --> api{{"API dictation is on?<br/>(Settings → API)"}}
+  api -- yes --> cloud["API provider<br/>(all languages)"]
+  api -- no --> a{{"In the 30 locales of<br/>SpeechTranscriber?"}}
   a -- yes --> st["SpeechTranscriber"]
   a -- no --> p{{"Parakeet is on, and the<br/>language is one of its 25?"}}
   p -- yes --> pk["Parakeet"]

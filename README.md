@@ -8,7 +8,7 @@
 # Pretype
 
 **System-wide AI autocomplete for macOS.**<br/>
-Pretype shows a suggestion at the caret in each text field. A local model makes it. Your text stays on your Mac.
+Pretype shows a suggestion at the caret in each text field. A local model makes it. Your text stays on your Mac, unless you connect an API provider.
 
 [![Latest release](https://img.shields.io/github/v/release/nikiomori/Pretype?label=release&color=brightgreen)](https://github.com/nikiomori/Pretype/releases/latest)
 [![CI](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml/badge.svg)](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml)
@@ -42,10 +42,10 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 > **What Pretype must have, and what goes off your Mac.**
 > Pretype must have the **Accessibility** permission. A keylogger asks for the same permission. Pretype uses it for three tasks: to read the focused text field, to catch the accept key, and to type the suggestion.
 >
-> Pretype does not upload the text that you type. A local model makes all suggestions. The app uses the network only for the downloads and the version check in the diagram below.
+> By default, Pretype does not upload the text that you type. A local model makes all suggestions. The app uses the network only for the downloads and the version check in the diagram below. An API provider is optional and off by default. If you turn one on in **Settings → API**, your text or audio goes to that provider.
 
 <div align="center">
-<img src="docs/diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. Your text is never sent to the internet." />
+<img src="docs/diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. By default, your text is not sent to the internet. A dashed arrow goes to an API provider: text or audio goes there only if you turn it on in Settings → API." />
 </div>
 
 | Connection | What Pretype gets | When |
@@ -54,6 +54,7 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 | Apple servers | The on-device speech model | When you enable dictation |
 | Hugging Face | The Parakeet speech model | Only if you select Parakeet |
 | GitHub Releases API | The latest version number. Pretype sends no data about you. | One time each day. You can disable it in **Settings → General**. |
+| The API provider that you select *(optional)* | Suggestions, fixes and replies, or transcripts. Pretype sends your text or your audio. | Only if you turn it on in **Settings → API**. Off by default. |
 
 Do not trust these statements without proof. Three files contain all of the input path. Read them:
 
@@ -67,7 +68,7 @@ Do not trust these statements without proof. Three files contain all of the inpu
 
 ## Why Pretype?
 
-Most autocomplete tools operate in one editor only, and they send your text to a server. Pretype operates in all macOS text fields, for example Mail, Slack, Notes, Safari, and VS Code. Your text stays on your Mac. You do not need an account, a subscription, or an API key.
+Most autocomplete tools operate in one editor only, and they send your text to a server. Pretype operates in all macOS text fields, for example Mail, Slack, Notes, Safari, and VS Code. Your text stays on your Mac. You do not need an account, a subscription, or an API key. If you prefer a hosted model, you can connect one. This is optional.
 
 Pretype is free and has the MIT license. It is an alternative to [Cotypist](https://cotypist.app). We wrote Pretype from the start with the same idea. Pretype has no connection with Cotypist.
 
@@ -134,6 +135,7 @@ Pretype is free and has the MIT license. It is an alternative to [Cotypist](http
 | **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes a draft of your next message from the conversation on the screen. |
 | **Speed** | Warm suggestions take 49–145 ms on the local models. Pretype calculates only the new tokens and uses the KV cache again. |
 | **Your style** | You can set one persona and a style instruction for each app. Pretype learns from a local journal. You can clear the journal or disable it at any time. |
+| **API models** *(optional, off)* | Use a hosted model for text, for dictation, or for both. Presets for OpenAI, Anthropic, Google Gemini, Groq, Mistral, OpenRouter and DeepSeek. Local servers (Ollama, LM Studio) and any OpenAI-compatible server. Keys stay in your keychain. See [Hosted models](docs/models.md#hosted-models-api). |
 | **Shared app styles** | The community shares styles for each app. One click adds the styles for the apps on your Mac. To share your style, add [one text file](AppStyles/README.md) or use the share button in Settings. |
 
 Rewrites and reply drafts have measurements for each model. The best model fixes 69% of noisy lines exactly, and it writes a usable reply 97% of the time. [Choosing a model](docs/models.md#fixing-and-replying) has the table.
@@ -160,13 +162,14 @@ Pretype types what you say into the current text field.
 * For longer text, use the hands-free chord <kbd>⌃⌥D</kbd>. Push it one time to start and one time to stop. You can scroll and click during the capture.
 * The chord starts the recording at the keypress, not half a second later. No other function on the system uses this chord.
 * If a hands-free capture gets no speech for a few seconds, it types the text that it has and stops. Thus a capture that you forget does not keep the microphone open.
-* The speech models of macOS do the transcription on your Mac. Pretype does not download them from its own servers. Audio does not go to the disk or to the network.
+* The speech models of macOS do the transcription on your Mac. Pretype does not download them from its own servers. Audio does not go to the disk. It goes to the network only if you select an API provider for dictation.
 
 | Language | Speech model | Punctuation |
 |---|---|---|
 | 30 locales: English, German, Spanish, French, Italian, Japanese, Korean, Portuguese, Cantonese, Chinese | Apple `SpeechTranscriber` (the newer model) | Yes |
 | All other languages, **Russian included** | Apple `DictationTranscriber`: the model of the macOS dictation key. It is older and less accurate. | No |
-| Opt-in, for the languages in the row above | **Parakeet**: the open 0.6B speech model from NVIDIA, with the Ultra post-training from moondream. It runs on the Neural Engine. One download of ~610 MB. | Yes. On Russian, it makes less than half the word errors of the system model: 5.4% WER against 12.6% on FLEURS. |
+| Opt-in, all languages | **API provider**: OpenAI `gpt-transcribe`, Groq Whisper, Mistral Voxtral, or an OpenAI-compatible server. Set it in **Settings → API**. | Depends on the model |
+| Opt-in, for the languages in the "All other languages" row | **Parakeet**: the open 0.6B speech model from NVIDIA, with the Ultra post-training from moondream. It runs on the Neural Engine. One download of ~610 MB. | Yes. On Russian, it makes less than half the word errors of the system model: 5.4% WER against 12.6% on FLEURS. |
 
 * **Tidy-up.** The transcript goes through the same minimal-edit fix that <kbd>⌥Tab</kbd> uses. This pass adds the punctuation and the capital letters that speech does not give.
 * On models that use an instruct sibling, the tidy-up needs the same one-time download as <kbd>⌥Tab</kbd>. Dictation does not wait for it. Pretype types the text as it heard it, and downloads the sibling in the background on an unmetered network. The tidy-up starts when the download is complete.
@@ -293,9 +296,9 @@ You can read the documentation at **[pretype.app/docs](https://pretype.app/docs)
 
 | Page | Contents |
 |---|---|
-| [**Architecture**](docs/ARCHITECTURE.md) | The engines, the model catalog, the quantization tiers, the KV cache, and how the app decides to show no suggestion |
-| [**Choosing a model**](docs/models.md) | The eval for the defaults, the RAM and latency of each tier, and how to select a model for your languages |
-| [**Privacy & permissions**](docs/privacy.md) | Each permission and why Pretype needs it, the data on disk, and how to remove all of it |
+| [**Architecture**](docs/ARCHITECTURE.md) | The engines (local and API), the model catalog, the quantization tiers, the KV cache, and how the app decides to show no suggestion |
+| [**Choosing a model**](docs/models.md) | The eval for the defaults, the RAM and latency of each tier, how to select a model for your languages, and the hosted-model presets |
+| [**Privacy & permissions**](docs/privacy.md) | Each permission and why Pretype needs it, what an API provider gets, the data on disk, and how to remove all of it |
 | [**Troubleshooting & FAQ**](docs/troubleshooting.md) | How to read Diagnostics, the usual problems, and the frequent questions |
 
 ---

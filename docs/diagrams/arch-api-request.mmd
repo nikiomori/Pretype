@@ -1,0 +1,10 @@
+%% APIClient.chat: one chat request to a hosted model, with the preset's
+%% switches that turn reasoning off, and the plain retry.
+flowchart TB
+  req("Chat request") --> known{{"This base URL and model<br/>refused the switches before?"}}
+  known -- yes --> plain["Send without the switches"]
+  known -- no --> fast["Send with the preset's switches<br/>(reasoning off or low)"]
+  fast --> r{{"HTTP 400?"}}
+  r -- no --> done("Answer or error")
+  r -- yes --> mark["Remember this base URL and model<br/>(until Pretype quits)"] --> plain
+  plain --> done

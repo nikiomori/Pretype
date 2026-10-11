@@ -186,4 +186,37 @@ On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one ti
 | Bonsai | None. Bonsai corrects with itself. |
 | A Gemma tier in its recommended Instruct style | None. The loaded model is already the instruct build. |
 
+## Hosted models (API)
+
+You can use a hosted model in place of the local model. You can also use a local server, such as Ollama. Text and dictation have separate settings. Both are off by default.
+
+1. Open **Settings → API**.
+2. Turn on **Use an API model for text**, or **Use an API model for dictation**, or both.
+3. Select a provider. Pretype fills in the base URL and a model.
+4. Paste your API key. Click **Get a key** if you do not have one.
+5. Click **Test connection**. A ✓ and the round-trip time show that the key, the URL and the model are correct.
+
+> **CAUTION:** With API text on, the text that you type goes to the provider at each suggestion. With API dictation on, each recording goes to the provider. See [Privacy → API providers](privacy.md#api-providers).
+
+We checked these presets against the documentation of each provider on 2026-10-12. You can type a different model.
+
+| Provider | Text model | Dictation model | Reasoning setting that Pretype sends |
+|---|---|---|---|
+| OpenAI | `gpt-6-luna` | `gpt-transcribe` | `reasoning_effort: none` |
+| Anthropic | `claude-haiku-5-5` | — | `effort: low` |
+| Google Gemini | `gemini-3.5-flash-lite` | — | None. Gemini 3 models always reason, and this model starts at its lowest level. |
+| Groq | `llama-3.1-8b-instant` | `whisper-large-v3-turbo` | None. This model does not reason. |
+| Mistral | `mistral-small-latest` (Small 4) | `voxtral-mini-latest` | `reasoning_effort: none` |
+| OpenRouter | `google/gemma-4-26b-a4b-it` | — | `reasoning.effort: none` |
+| DeepSeek | `deepseek-flash` | — | `thinking: disabled` |
+| Ollama *(local)* | `gemma4:e4b` | — | `reasoning_effort: none` |
+| LM Studio *(local)* | `google/gemma-4-e4b` | — | None |
+| Custom | You type it. | You type it. | None |
+
+* **Reasoning.** Most current models reason before they answer, by default. For autocomplete, this adds seconds to each suggestion. Thus Pretype turns it off where the provider permits it.
+* **No measured figures.** The eval on this page does not include hosted models. The Live Impact meters do not show figures while API text is on.
+* **Latency.** The network adds to each suggestion. **Test connection** shows the round trip from your Mac.
+* **Cost.** Each suggestion is one request. The provider charges for each request.
+* **Local servers.** Ollama and LM Studio run on your Mac and need no key. The data does not leave the Mac. Pretype can connect to `http://localhost`.
+
 For quantization tiers, the engine split and the confidence gate, see [Architecture](ARCHITECTURE.md).

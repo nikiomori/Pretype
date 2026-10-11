@@ -1,9 +1,9 @@
 # Privacy & permissions
 
-Pretype needs the **Accessibility** permission. A keylogger asks for the same permission. Pretype uses it to read the focused text field, catch the accept key, and type suggestions back. Pretype never uploads the text that you type.
+Pretype needs the **Accessibility** permission. A keylogger asks for the same permission. Pretype uses it to read the focused text field, catch the accept key, and type suggestions back. Pretype does not upload the text that you type, unless you turn on an API provider. See [API providers](#api-providers).
 
 <div align="center">
-<img src="diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. Your text is never sent to the internet." />
+<img src="diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. By default, your text is not sent to the internet. A dashed arrow goes to an API provider: text or audio goes there only if you turn it on in Settings → API." />
 </div>
 
 ## Read the code yourself
@@ -20,8 +20,8 @@ Do not trust this page without proof. Three files contain the full input path:
 
 | | |
 |---|---|
-| **Your text** | Pretype never uploads it. A local MLX model or the Apple Intelligence system model computes every completion on the Mac. |
-| **Network** | Only downloads and one version check. No request contains your text. See [Network requests](#network-requests). |
+| **Your text** | By default, Pretype does not upload it. A local MLX model or the Apple Intelligence system model computes every completion on the Mac. If you turn on an API provider for text, your text goes to that provider. See [API providers](#api-providers). |
+| **Network** | By default, only downloads and one version check. No request contains your text. See [Network requests](#network-requests). |
 | **Accessibility** *(required)* | Pretype uses it to read the focused field, catch the accept key, and type text back. Pretype cannot do this without it. On macOS 27, this permission has the name **Device Control and Data Access**. See [Websites](#websites). |
 | **Screen Recording** *(optional, off)* | Pretype uses it only for on-screen OCR context, and only for the focused window. The debug log does not contain OCR text or clipboard contents. An exported log shows a character count in their place, never the text. |
 | **Microphone** *(optional, off)* | Pretype uses it only for dictation, and only while a capture runs. See [Microphone](#microphone). |
@@ -33,7 +33,7 @@ To stop Pretype in more apps, add them to the blacklist in **Settings → Genera
 
 ### Network requests
 
-None of these requests contains your text.
+None of these requests contains your text. The optional API providers are different. See [API providers](#api-providers).
 
 | Request | Source | When | Notes |
 |---|---|---|---|
@@ -62,13 +62,29 @@ A capture runs only in these conditions:
 | Hold | You hold the key down. | You release the key, press a different key, or switch apps. |
 | Hands-free chord | First press. | Second press, or after a few seconds of silence. |
 
-* Pretype never writes audio to disk and never sends it. It resamples the audio in memory, gives it to the system's on-device speech models, and then discards it. If you opt in to Parakeet, Parakeet does the transcription on this Mac.
+* Pretype never writes audio to disk. It resamples the audio in memory, gives it to the system's on-device speech models, and then discards it. If you opt in to Parakeet, Parakeet does the transcription on this Mac.
+* Pretype sends audio only if you turn on an API provider for dictation. See [API providers](#api-providers).
 * Pretype gives the names and terms that are already in the field to the same on-device recognizer. These are spelling hints for that one capture.
 * The dictation flow never journals the transcript. The debug log does not contain it, as for OCR and clipboard text. An exported log shows a character count in its place.
 * Sometimes Pretype cannot type a transcript, for example when the focus moved to a password field or to a Pretype window. Then Pretype puts the transcript on the clipboard.
   * This clipboard is for this Mac only (no Universal Clipboard).
   * Pretype marks it as transient, so clipboard managers do not keep it in their history.
 * After Pretype types the transcript, it is ordinary text in the field. A later suggestion can see it as surrounding context, as it sees text that you type by hand.
+
+### API providers
+
+**Settings → API** can send text, audio or both to a hosted model. Each one is **off** by default. You turn each one on separately.
+
+| | Text | Dictation |
+|---|---|---|
+| **What goes to the provider** | The text before the caret (up to 1,200 characters), at each suggestion. The selection for the fix chord and voice commands. The conversation for the reply chord. The screen and clipboard context, if you turned them on. A dictated transcript, if “Tidy up” is on. | The audio of each capture, as one WAV file, when the capture stops. With OpenAI `gpt-transcribe` and Whisper models, also the names and terms that are already in the field. These are spelling hints, as for the on-device recognizer. |
+| **When** | Each time that a suggestion is due. | One time for each capture. |
+| **Never** | Text in password fields, in blacklisted apps, or while macOS reports secure input. | Audio from a capture that you cancel. |
+
+* Pretype keeps each API key in your login keychain. It never writes the key to Settings or to the debug log.
+* The debug log never contains the audio or a dictated transcript. For a failed request, it shows the error message from the provider.
+* The provider's own privacy policy applies to the data that it gets. Most providers charge for each request.
+* A local server, such as Ollama or LM Studio, runs on your Mac. With a local server, the data does not leave the Mac.
 
 ### Journal
 
@@ -131,7 +147,13 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
    rm -rf ~/Library/Application\ Support/Pretype
    ```
 
-5. Delete the settings and reset the permission grants. If you never turned on screen context or dictation, you do not need the last two commands.
+5. Delete the API keys. Do this step only if you added a key in **Settings → API**. Do the command one time for each provider (`openai`, `anthropic`, `gemini`, `groq`, `mistral`, `openrouter`, `deepseek`, `custom`).
+
+   ```bash
+   security delete-generic-password -s app.pretype.api-key -a openai
+   ```
+
+6. Delete the settings and reset the permission grants. If you never turned on screen context or dictation, you do not need the last two commands.
 
    ```bash
    defaults delete app.pretype.Pretype

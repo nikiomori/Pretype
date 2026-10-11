@@ -44,16 +44,56 @@ holds the key only while a suggestion is on the screen.
 
 ## Inference engines
 
-Two engines implement the `CompletionEngine` protocol
+Three engines implement the `CompletionEngine` protocol
 (`Sources/Pretype/Engines/CompletionEngine.swift`):
 
 | Engine | What it runs | Notes |
 |---|---|---|
 | `MLXEngine` *(default)* | The selected model, in the Pretype process, through Apple's `mlx-swift-lm`. | The weights download from Hugging Face on first launch. The cache is in `~/.cache/huggingface`. |
 | `FoundationModelsEngine` *(macOS 26 and later)* | The Apple Intelligence system model, on the Neural Engine, through the `FoundationModels` framework. | No download and no app memory. It gives no logprobs, thus the confidence gate cannot run on it. |
+| `CloudEngine` *(optional, off by default)* | A hosted model, or a local server such as Ollama, over HTTP. | The user turns it on in **Settings → API**. Then it replaces the other two engines for suggestions, the fix chord, the reply chord and voice commands. See [API providers](#api-providers). |
 
-To add a third engine, use `FoundationModelsEngine.swift` as a compact
+To add an engine, use `FoundationModelsEngine.swift` as a compact
 reference.
+
+### API providers
+
+`CloudEngine` (`Engines/CloudAPI.swift`) and `CloudTranscription`
+(`Dictation/CloudTranscription.swift`) send requests to a provider that the
+user selects. Text and dictation have separate settings. Both are off by
+default.
+
+| Item | Text (`CloudEngine`) | Dictation (`CloudTranscription`) |
+|---|---|---|
+| Request | `chat/completions` in the OpenAI format, or `messages` in the Anthropic format. | `audio/transcriptions` in the OpenAI format. |
+| Prompt or payload | The continuation prompt of `FoundationModelsEngine` (`CompletionRequest.continuationTurn`). The fix, reply and command prompts of the local engines. | One WAV file (16 kHz, 16-bit, mono) when the capture stops. No live preview. |
+| Output | The shared output gates of the local engines. | The same tidy-up pass as a local transcript. |
+| Length | A words hint in the prompt, and a word cap on the result (`CloudEngine.wordCap`). A token budget cannot set the length, because a reasoning model uses tokens before its first word. | One take. OpenAI and Groq accept up to 25 MB, which is ≈13 minutes. |
+| Spelling hints | — | The names and terms in the field. `gpt-transcribe` gets them as `keywords[]`. Whisper models get them as `prompt`. |
+| Failure | A suggestion abstains and logs the reason. A rejected key (401 or 403) sets the engine to failed. The fix and reply chords show the error. | The watchdog waits 60 s, not 10 s, because the take must upload. |
+
+* **Two wire formats.** Most providers and local servers use the OpenAI
+  format. Anthropic uses its own Messages API, with the `x-api-key` and
+  `anthropic-version` headers. Pretype uses no SDK.
+* **Reasoning off.** Most current models reason before they answer, by
+  default. For autocomplete, this adds seconds. Thus each preset has
+  `textExtras`: the switch of that provider that turns reasoning off or
+  down.
+* **A model that refuses the switches.** The user can type a different
+  model. If the server then answers HTTP 400, Pretype sends the request
+  again without the switches. It remembers that model until it quits.
+* **Keys.** Pretype keeps each key in the login keychain (service
+  `app.pretype.api-key`, one item for each provider). Settings and the log
+  never contain a key.
+* **Cancellation.** A new keystroke cancels the request in flight. The
+  client reports this as `CancellationError`, as the local engines do.
+
+<div align="center">
+<img src="diagram-arch-api-request.svg" width="440" alt="One chat request to a hosted model. If this base URL and model refused the switches before, send the request without them. Else, send it with the preset's switches, which turn reasoning off or low. If the answer is HTTP 400, remember this base URL and model until Pretype quits, and send the request again without the switches. Else, the result is the answer or an error." />
+</div>
+
+[Choosing a model → Hosted models](models.md#hosted-models-api) lists
+the presets.
 
 ## Model catalog
 
@@ -258,7 +298,7 @@ without this suffix.
 ### Which speech model
 
 <div align="center">
-<img src="diagram-arch-speech-model.svg" width="560" alt="Speech model selection for the keyboard language. If SpeechTranscriber supports it, one of 30 locales, use SpeechTranscriber. Else, if Parakeet is on and the language is one of its 25, use Parakeet. Else, if DictationTranscriber supports it, use DictationTranscriber, which serves Russian and most other languages. Else there is no dictation for this language." />
+<img src="diagram-arch-speech-model.svg" width="560" alt="Speech model selection for the keyboard language. If API dictation is on in Settings → API, use the API provider, for all languages. Else, if SpeechTranscriber supports the language, one of 30 locales, use SpeechTranscriber. Else, if Parakeet is on and the language is one of its 25, use Parakeet. Else, if DictationTranscriber supports it, use DictationTranscriber, which serves Russian and most other languages. Else there is no dictation for this language." />
 </div>
 
 * **SpeechTranscriber.** The newer and better model. It covers exactly 30
@@ -271,12 +311,16 @@ without this suffix.
   (`Parakeet.swift`). It downloads one time into
   `~/Library/Application Support/FluidAudio`. It serves the languages for
   which Apple has only the older model.
+* **API provider (opt-in).** A hosted speech model, for all languages
+  (`CloudTranscription.swift`). It overrides the three models above. See
+  [API providers](#api-providers).
 * **The support rule.** Pretype checks *membership* in `supportedLocales`.
   It does not use `supportedLocale(equivalentTo:)`. That function changes an
   identifier ("ru" → "ru_RU") also when no model exists. The result looks
   like support and then fails at load.
 * **One protocol.** `Transcription` wraps Apple's `SpeechAnalyzer` behind the
-  `TranscriptionSession` protocol. Parakeet uses the same protocol. Thus the
+  `TranscriptionSession` protocol. Parakeet and the API provider use the same
+  protocol. Thus the
   controller has no version checks.
 * **Zero bytes from us.** The Apple models belong to the system. macOS
   downloads them for each language on first use, and all apps share them.
@@ -312,7 +356,7 @@ without this suffix.
 ## Where things live
 
 <div align="center">
-<img src="diagram-arch-modules.svg" width="720" alt="Main components. The focused app sends AX text to FocusTracker and AXText, and key events to KeyTap. Both send to SuggestionController. CorrectionController exchanges data with SuggestionController. DictationController sends to SuggestionController through DictationHost. SuggestionController sends to EngineCoordinator, which runs MLXEngine or FoundationModelsEngine. SettingsStore sends to EngineCoordinator. SuggestionController writes to SuggestionJournal and PersonalNgram, shows SuggestionWindow, and sends text to TextInjector, which types synthetic keys into the focused app." />
+<img src="diagram-arch-modules.svg" width="720" alt="Main components. The focused app sends AX text to FocusTracker and AXText, and key events to KeyTap. Both send to SuggestionController. CorrectionController exchanges data with SuggestionController. DictationController sends to SuggestionController through DictationHost. SuggestionController sends to EngineCoordinator, which runs MLXEngine, FoundationModelsEngine, or the optional CloudEngine for an API provider. SettingsStore sends to EngineCoordinator. SuggestionController writes to SuggestionJournal and PersonalNgram, shows SuggestionWindow, and sends text to TextInjector, which types synthetic keys into the focused app." />
 </div>
 
 All app code is in `Sources/Pretype/`:
@@ -323,8 +367,8 @@ All app code is in `Sources/Pretype/`:
 | Read the field | `FocusTracker`, `AXText`, `AgentPrompt`, `ScreenContext`, `AppPolicy` | Follow the focused element with `AXObserver`. Read text, caret and font. Find an agent prompt in a terminal. Opt-in OCR. Rules for each app and site. |
 | Input and output | `KeyTap`, `TextInjector`, `SuggestionWindow`, `CaretIndicator`, `BackgroundProbe` | Event tap, accept keys and modifier gestures. Synthetic key events. The panel, inline ghost text and pills. Light or dark below the overlay. |
 | Pipeline | `SuggestionController`, `EngineCoordinator`, `CorrectionController`, `SpellChecker`, `EmojiShortcodes`, `InlineCalculator` | `SuggestionController` is the hub: text → engine → overlay → accept → inject, and dictation inserts. `EngineCoordinator` controls the life of the engine. `CorrectionController` runs ⌥⇥, last-word fixes and inline spell fixes. |
-| Engines (`Engines/`) | `CompletionEngine`, `MLXEngine`, `MLXEngine+Generation`, `FoundationModelsEngine`, `CompletionGates`, `CorrectionGates`, `ModelCatalog`, `ModelMetrics`, `ModelStorage`, `ConfigProjection` | The protocol. Load, KV cache and decode loop. The Apple Intelligence engine. Shared output gates. Catalog entries, RAM ladder and recommended settings. Measured figures. Disk, deletes and the slim upgrade. |
+| Engines (`Engines/`) | `CompletionEngine`, `MLXEngine`, `MLXEngine+Generation`, `FoundationModelsEngine`, `CloudAPI`, `CompletionGates`, `CorrectionGates`, `ModelCatalog`, `ModelMetrics`, `ModelStorage`, `ConfigProjection` | The protocol. Load, KV cache and decode loop. The Apple Intelligence engine. API presets, keys, the HTTP client and `CloudEngine`. Shared output gates. Catalog entries, RAM ladder and recommended settings. Measured figures. Disk, deletes and the slim upgrade. |
 | Personalization | `SuggestionJournal`, `PersonalNgram`, `TypedLanguage`, `Stats` | The local journal, the personal n-gram model, the typed language and the usage statistics. |
-| Dictation (`Dictation/`) | `DictationController`, `DictationHost`, `AudioCapture`, `AudioDevices`, `Transcription`, `Parakeet` | The state machine and its host protocol. Microphone capture and device selection. Apple's `SpeechAnalyzer`. The opt-in Parakeet engine. |
-| Settings UI | `Settings`, `SettingsWindowController`, `SettingsStore`, `SettingsView`, `SettingsUI`, `ModelTabView`, `ImpactRailView` | Stored defaults. The observable bridge to the pipeline. Tabs. Presets, sharing and alerts. The model map and list. The Live Impact meters. |
+| Dictation (`Dictation/`) | `DictationController`, `DictationHost`, `AudioCapture`, `AudioDevices`, `Transcription`, `Parakeet`, `CloudTranscription` | The state machine and its host protocol. Microphone capture and device selection. Apple's `SpeechAnalyzer`. The opt-in Parakeet engine. The opt-in API transcription. |
+| Settings UI | `Settings`, `SettingsWindowController`, `SettingsStore`, `SettingsView`, `SettingsUI`, `ModelTabView`, `ImpactRailView`, `APITabView` | Stored defaults. The observable bridge to the pipeline. Tabs. Presets, sharing and alerts. The model map and list. The Live Impact meters. The API tab. |
 | Debugging | `DebugLog`, `ConsoleMetrics` | Ring buffer and Debug Console. |

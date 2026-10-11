@@ -5,16 +5,18 @@
 Pretype is a local-first macOS utility. It reads text in all apps, thus its trust model is important. This section tells exactly what Pretype does.
 
 <div align="center">
-<img src="docs/diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. Your text is never sent to the internet." />
+<img src="docs/diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. By default, your text is not sent to the internet. A dashed arrow goes to an API provider: text or audio goes there only if you turn it on in Settings → API." />
 </div>
 
-### All inference occurs on the device
+### By default, all inference occurs on the device
 
-Completions run locally. They use MLX (Gemma 4, Qwen, and the other models of the catalog, in the app process) or Apple's on-device Foundation Models. Pretype **never** sends your typed text, your selections, or the screen context to a server.
+By default, completions run locally. They use MLX (Gemma 4, Qwen, and the other models of the catalog, in the app process) or Apple's on-device Foundation Models. In this configuration, Pretype **never** sends your typed text, your selections, or the screen context to a server.
+
+The one exception is opt-in. In **Settings → API**, you can turn on a hosted model for text, for dictation, or for both. Each one is off by default. When it is on, Pretype sends the text or the audio to the provider that you selected. The key stays in the login keychain. [docs/privacy.md](docs/privacy.md#api-providers) lists exactly what goes to the provider.
 
 ### Network connections
 
-Pretype connects to the network only for downloads and for one version check. None of these connections carry your text. [docs/privacy.md](docs/privacy.md) gives the full list.
+By default, Pretype connects to the network only for downloads and for one version check. None of these connections carry your text. An API provider that you turn on is the one exception. [docs/privacy.md](docs/privacy.md) gives the full list.
 
 | Source | What Pretype gets | When | Opt-out |
 |---|---|---|---|
@@ -26,7 +28,7 @@ Pretype connects to the network only for downloads and for one version check. No
 | Apple servers (macOS downloads it) | The on-device speech model for your dictation language | When you enable dictation or change the dictation language | Keep dictation off |
 | Hugging Face | The Parakeet model, ~610 MB (`FluidInference/parakeet-ultra-coreml`). An install that opted in before this model replaces its `parakeet-tdt-0.6b-v3-coreml` one time, in the background, on an unmetered network. | Only if you opt in to Parakeet dictation | Opt-in only |
 
-When the models are on the disk, completions, fixes, and dictation operate fully offline.
+When the models are on the disk, completions, fixes, and dictation operate fully offline. This is not true while an API provider is on, unless it is a local server such as Ollama.
 
 ### Other protections
 
