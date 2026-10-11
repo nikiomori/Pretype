@@ -14,8 +14,8 @@ private final class StubProtocol: URLProtocol {
         set { responses = [newValue]; bodies = [] }
     }
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         Self.lastRequest = request
@@ -51,6 +51,12 @@ final class CloudAPITests: XCTestCase {
         let provider = APIProvider.named(id)
         return APIEndpoint(provider: provider, baseURL: URL(string: provider.baseURL)!,
                            model: model ?? provider.textModel ?? "m", key: key)
+    }
+
+    /// The multipart body as text. It carries raw WAV bytes, which strict
+    /// UTF-8 rejects; Latin-1 maps every byte, and the fields checked are ASCII.
+    private var multipartText: String {
+        String(bytes: StubProtocol.lastBody, encoding: .isoLatin1) ?? ""
     }
 
     private var sentJSON: [String: Any] {
@@ -141,7 +147,7 @@ final class CloudAPITests: XCTestCase {
                                                   language: "ru", hints: ["Dubina", "bad<word"], timeout: 5)
         XCTAssertEqual(text, "привет")
         XCTAssertEqual(StubProtocol.lastRequest?.url?.absoluteString, "https://api.openai.com/v1/audio/transcriptions")
-        let body = String(decoding: StubProtocol.lastBody, as: UTF8.self)
+        let body = multipartText
         // gpt-transcribe: a language LIST, never the singular field, plus keywords.
         XCTAssertTrue(body.contains("name=\"languages[]\"\r\n\r\nru\r\n"))
         XCTAssertFalse(body.contains("name=\"language\""))
@@ -155,7 +161,7 @@ final class CloudAPITests: XCTestCase {
         _ = try await APIClient.transcribe(endpoint("groq", model: "whisper-large-v3-turbo"),
                                            wav: CloudTranscription.wav([0]), language: "en",
                                            hints: ["MLX", "Pretype"], timeout: 5)
-        let body = String(decoding: StubProtocol.lastBody, as: UTF8.self)
+        let body = multipartText
         XCTAssertTrue(body.contains("name=\"language\"\r\n\r\nen\r\n"))
         XCTAssertTrue(body.contains("name=\"prompt\"\r\n\r\nMLX, Pretype\r\n"))
         XCTAssertFalse(body.contains("keywords[]"))
@@ -176,8 +182,8 @@ final class CloudAPITests: XCTestCase {
     func testWAVHeaderAndClamp() {
         let wav = CloudTranscription.wav([0, 1, -2])
         XCTAssertEqual(wav.count, 44 + 6)
-        XCTAssertEqual(String(decoding: wav[0..<4], as: UTF8.self), "RIFF")
-        XCTAssertEqual(String(decoding: wav[8..<16], as: UTF8.self), "WAVEfmt ")
+        XCTAssertEqual(String(bytes: wav[0..<4], encoding: .utf8), "RIFF")
+        XCTAssertEqual(String(bytes: wav[8..<16], encoding: .utf8), "WAVEfmt ")
         let rate = wav[24..<28].withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
         XCTAssertEqual(UInt32(littleEndian: rate), 16_000)
         let last = wav[48..<50].withUnsafeBytes { $0.loadUnaligned(as: Int16.self) }
