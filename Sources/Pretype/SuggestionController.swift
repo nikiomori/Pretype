@@ -21,6 +21,11 @@ final class SuggestionController: NSObject {
     /// otherwise). Without this the reference lingers after a normal finish and
     /// `isQueryRunning` reads true forever.
     private var refreshSeq = 0
+    /// The text a scheduled completion query was made for — nil for a reply.
+    /// One edit reaches `textDidChange` twice (the AX notification, then the
+    /// keystroke timer); the second must not restart the debounce, or cancel
+    /// the stream, of a query already running for exactly this text.
+    private var refreshKey: (before: String, after: String)?
     /// A completion query is scheduled or streaming (the indicator's dots).
     var isCompleting: Bool { refreshTask != nil }
 
@@ -166,7 +171,21 @@ final class SuggestionController: NSObject {
             if !dictating { self.dropOverlay(why: "the view scrolled") }
         }
         keyTap.mouseDownHandler = { [weak self] in
-            self?.dictationController.mouseDown()
+            guard let self else { return }
+            // Dictation keeps the overlay while busy, as for scroll — read
+            // before `mouseDown()`, which may end the capture.
+            let dictating = self.dictationController.isBusy
+            self.dictationController.mouseDown()
+            self.dropCompletion(afterUnseenCaretMove: "mouse click", overlay: !dictating)
+        }
+        keyTap.reenabledHandler = { [weak self] in
+            // macOS turned the tap off (a callback ran past its timeout, or
+            // input was held off) and keystrokes went by unseen.
+            guard let self else { return }
+            self.lastAcceptedChunk = nil
+            self.dropCompletion(afterUnseenCaretMove: "the key tap was paused",
+                                overlay: !self.dictationController.isBusy)
+            DebugLog.shared.log("TAP", "re-enabled after macOS disabled it")
         }
         keyTap.flagsHandler = { [weak self] event in
             // Both gestures read every modifier edge. They cannot collide: a
@@ -261,6 +280,11 @@ final class SuggestionController: NSObject {
     private func retire(_ outcome: SuggestionJournal.Outcome, typed: String? = nil) {
         resolveJournal(outcome, typed: typed)
         active = nil
+        // The query behind this ghost may still be streaming; once its ghost
+        // is gone the same text must re-query, not ride the dedupe in
+        // `textDidChange` (backspacing onto a retired ghost's text found no
+        // suggestion at all).
+        refreshKey = nil
         window.hide()
     }
 
@@ -294,6 +318,21 @@ final class SuggestionController: NSObject {
         // stranded as a ghost would be.
         window.clearNoticeProtection()
         dismiss()
+    }
+
+    /// A click, or keystrokes the tap never saw, can move the caret where no
+    /// AX notification says so (Electron): a ghost would sit at the old caret
+    /// with ⇥ armed to type it there, and a completion query anchored on the
+    /// old text is moot. Drop both, and the cache; the next keystroke re-reads.
+    /// A reply or fix in flight is left alone — both re-check the live field
+    /// before they show or apply anything, and a click while waiting for one
+    /// (into the very chat box being answered) must not silently lose it.
+    private func dropCompletion(afterUnseenCaretMove why: String, overlay: Bool) {
+        latestTextBeforeCaret = nil
+        guard overlay, active != nil || (refreshTask != nil && refreshKey != nil) else { return }
+        lastEvent = "dismissed — \(why)"
+        clearActiveCompletion()
+        if window.showsSuggestion { window.hide() }
     }
 
     /// Drop any live completion without touching the overlay — used when a
@@ -606,6 +645,9 @@ final class SuggestionController: NSObject {
         // Personal n-gram fast-path: a confident hit from the user's own
         // recurring phrases shows at ~0 ms, before the debounce even starts;
         // the LLM stream below then supersedes it through the same apply path.
+        if refreshTask != nil, let key = refreshKey,
+           key.before == text, key.after == ctx.textAfterCaret { return }
+
         if let instant = instantSuggestion(text: text, after: ctx.textAfterCaret) {
             apply(instant, requestText: text, cachedContext: ctx, instant: true)
         }
@@ -646,6 +688,9 @@ final class SuggestionController: NSObject {
 
     private func scheduleRefresh(for text: String, after: String, context: TextContext) {
         refreshTask?.cancel()
+        // Nil, not just cancelled: the early returns below would otherwise
+        // leave `isCompleting` reading true over a task that will never finish.
+        refreshTask = nil
         indicator.stop()
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             // Nothing left to complete (e.g. the user cleared the field):
@@ -674,6 +719,7 @@ final class SuggestionController: NSObject {
 
         refreshSeq += 1
         let refreshID = refreshSeq
+        refreshKey = (text, after)
         refreshTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Settings.debounceMs))
             if Task.isCancelled { return }
@@ -705,57 +751,44 @@ final class SuggestionController: NSObject {
                 // so the first word appears after ~one token instead of after the
                 // whole generation — the dominant wait on slow machines. Latency
                 // is recorded at the first token (what the user actually feels).
+                // The task inherits the main actor, so everything between two
+                // awaits runs uninterrupted: a cancellation check right after
+                // the await is current for the code that follows it.
                 for try await partial in engine.completions(for: request) {
-                    if Task.isCancelled { return }
+                    guard let self, !Task.isCancelled else { return }
                     if !measured {
-                        let latency = Date().timeIntervalSince(started)
-                        await MainActor.run {
-                            Stats.recordLatency(latency)
-                        }
+                        Stats.recordLatency(Date().timeIntervalSince(started))
                         measured = true
                     }
-                    let countShown = !shown
-                    let didShow = await MainActor.run { [weak self] () -> Bool in
-                        guard let self, !Task.isCancelled else { return false }
-                        return self.apply(partial, requestText: request.textBeforeCaret,
-                                          cachedContext: context, countShown: countShown)
+                    if self.apply(partial, requestText: request.textBeforeCaret,
+                                  cachedContext: context, countShown: !shown) {
+                        shown = true
                     }
-                    if didShow { shown = true }
                 }
             } catch is CancellationError {
                 return
             } catch {
-                await MainActor.run { [weak self] in
-                    guard let self, !Task.isCancelled else { return }
-                    if self.refreshSeq == refreshID { self.refreshTask = nil }
-                    self.lastEvent = "engine error: \(error.localizedDescription)"
-                    DebugLog.shared.log("ERROR", error.localizedDescription)
-                    self.indicator.stop()
-                    self.indicator.flashTransient(.error("engine error"))
-                }
-                return
-            }
-            if Task.isCancelled { return }
-            let finalShown = shown
-            await MainActor.run { [weak self] in
-                // Re-check cancellation on the main actor (like the sibling hops):
-                // a newer keystroke can supersede this task between the check above
-                // and this closure running, and the terminal apply(nil) below would
-                // otherwise stomp the newer query's overlay/indicator/journal.
                 guard let self, !Task.isCancelled else { return }
                 if self.refreshSeq == refreshID { self.refreshTask = nil }
-                self.lastPromptDescription = request.completionPrompt(maxChars: 1000)
-                if finalShown {
-                    self.lastResultDescription = self.active?.text
-                } else if self.activeIsInstant, self.active != nil {
-                    // The LLM abstained but the personal n-gram suggestion is
-                    // up — a confident personal phrase beats showing nothing.
-                    self.lastResultDescription = self.active?.text
-                } else {
-                    // Nothing passed the gates — hide and record the abstain.
-                    self.lastResultDescription = nil
-                    self.apply(nil, requestText: request.textBeforeCaret)
-                }
+                self.lastEvent = "engine error: \(error.localizedDescription)"
+                DebugLog.shared.log("ERROR", error.localizedDescription)
+                self.indicator.stop()
+                self.indicator.flashTransient(.error("engine error"))
+                return
+            }
+            guard let self, !Task.isCancelled else { return }
+            if self.refreshSeq == refreshID { self.refreshTask = nil }
+            self.lastPromptDescription = request.completionPrompt(maxChars: 1000)
+            if shown {
+                self.lastResultDescription = self.active?.text
+            } else if self.activeIsInstant, self.active != nil {
+                // The LLM abstained but the personal n-gram suggestion is
+                // up — a confident personal phrase beats showing nothing.
+                self.lastResultDescription = self.active?.text
+            } else {
+                // Nothing passed the gates — hide and record the abstain.
+                self.lastResultDescription = nil
+                self.apply(nil, requestText: request.textBeforeCaret)
             }
         }
     }
@@ -858,11 +891,15 @@ final class SuggestionController: NSObject {
         // of the same suggestion (countShown == false, no recordShown); reset it
         // only for a genuinely fresh suggestion. Keeps accepted ≤ shown even when
         // the user accepts word-by-word while the model is still streaming.
+        // A stream whose ghost was retired under it (a backspace, a ⌘-chord)
+        // re-showing it is a fresh offer too: with no record open it would be
+        // shown — and acceptable — with nothing booked against it.
+        let opensRecord = countShown || pendingJournal == nil
         active = Active(anchor: current, text: suggestion,
-                        accepted: countShown ? false : (active?.accepted ?? false),
+                        accepted: opensRecord ? false : (active?.accepted ?? false),
                         trimToLine: trimToLine)
         activeIsInstant = instant
-        if countShown {
+        if opensRecord {
             // A fresh suggestion opens a journal record; an unresolved one at
             // this point was replaced before the user reacted to it. The offer
             // itself is booked when this record resolves — resolveJournal.
@@ -1025,6 +1062,7 @@ final class SuggestionController: NSObject {
         let generation = focusGeneration
         refreshSeq += 1
         let refreshID = refreshSeq
+        refreshKey = nil
         refreshTask = Task { [weak self] in
             // A fresh, wider capture — not the 25 s-cached completion context:
             // the message being answered may have landed a second ago. No caret
@@ -1046,41 +1084,47 @@ final class SuggestionController: NSObject {
             } else {
                 outcome = .success(nil)
             }
-            await MainActor.run { [weak self] in
-                guard let self, !Task.isCancelled else { return }
-                if self.refreshSeq == refreshID { self.refreshTask = nil }
-                self.indicator.stop()
-                guard self.focusGeneration == generation else {
-                    DebugLog.shared.log("REPLY", "dropped — focus changed")
-                    return
-                }
-                // Count only, never the text: this is OTHER people's on-screen
-                // text and the log is exportable (same rule as the OCR log).
-                DebugLog.shared.log(
-                    "REPLY", "\(conversation?.count ?? 0) chars of screen context")
-                switch outcome {
-                case .success(let reply?):
-                    // Through the normal apply path: same anchoring, settle and
-                    // journal rules as a completion — only longer, reading an
-                    // empty field as a real (empty) context, and never trimmed to
-                    // the line: a reply cut to its first 70 chars lost the rest.
-                    let shown = self.apply(reply, requestText: ctx.textBeforeCaret,
-                                           cachedContext: ctx, maxChars: 400, allowEmpty: true,
-                                           trimToLine: false)
-                    DebugLog.shared.log("REPLY", shown ? "shown" : "dropped — \(self.lastEvent)")
-                case .success(nil):
-                    // Two different silences: nothing readable on screen, or the
-                    // model had nothing to say about it.
-                    let why = conversation == nil ? "nothing to reply to" : "no answer from the model"
-                    self.lastEvent = "reply: \(why)"
-                    self.indicator.flashTransient(.hint(why))
-                case .failure(let error):
-                    self.lastEvent = "reply failed: \(error.localizedDescription)"
-                    DebugLog.shared.log("ERROR", "reply failed: \(error.localizedDescription)")
-                    self.indicator.flashTransient(.error("reply failed"))
-                }
+            guard let self, !Task.isCancelled else { return }
+            if self.refreshSeq == refreshID { self.refreshTask = nil }
+            self.indicator.stop()
+            guard self.focusGeneration == generation else {
+                DebugLog.shared.log("REPLY", "dropped — focus changed")
+                return
+            }
+            // Count only, never the text: this is OTHER people's on-screen
+            // text and the log is exportable (same rule as the OCR log).
+            DebugLog.shared.log(
+                "REPLY", "\(conversation?.count ?? 0) chars of screen context")
+            switch outcome {
+            case .success(let reply?):
+                // Through the normal apply path: same anchoring, settle and
+                // journal rules as a completion — only longer, reading an
+                // empty field as a real (empty) context, and never trimmed to
+                // the line: a reply cut to its first 70 chars lost the rest.
+                let shown = self.apply(reply, requestText: ctx.textBeforeCaret,
+                                       cachedContext: ctx, maxChars: 400, allowEmpty: true,
+                                       trimToLine: false)
+                DebugLog.shared.log("REPLY", shown ? "shown" : "dropped — \(self.lastEvent)")
+            case .success(nil):
+                // Two different silences: nothing readable on screen, or the
+                // model had nothing to say about it.
+                let why = conversation == nil ? "nothing to reply to" : "no answer from the model"
+                self.lastEvent = "reply: \(why)"
+                self.indicator.flashTransient(.hint(why))
+            case .failure(let error):
+                self.lastEvent = "reply failed: \(error.localizedDescription)"
+                DebugLog.shared.log("ERROR", "reply failed: \(error.localizedDescription)")
+                self.indicator.flashTransient(Self.failureNotice(error, fallback: "reply failed"))
             }
         }
+    }
+
+    /// The notice for a failed explicit request (⌥⇥, ⌥⇧⇥). An engine that
+    /// isn't loaded says so: "failed" would read as a bug, and "looks fine"
+    /// (what a bare nil used to show) as a verdict that never ran.
+    nonisolated static func failureNotice(_ error: Error, fallback: String) -> SuggestionDisplayMode {
+        if let notReady = error as? EngineNotReady { return .hint(notReady.message) }
+        return .error(fallback)
     }
 
     // MARK: - Key handling
@@ -1307,6 +1351,34 @@ final class SuggestionController: NSObject {
         latestTextBeforeCaret? += s
     }
 
+    /// The one way text is typed into the host — accept, dictation, ⌘Z undo
+    /// and every fix. Backspaces `deleteCount` characters, types `text`, moves
+    /// the synchronous cache in step and opens the settle window, so an AX
+    /// read that still trails the synthetic keys can't re-offer, resurrect or
+    /// re-fix what was just typed (a lagging read of the old typo re-showed its
+    /// pill, and a second ⇥ applied the fix twice). `before` is the text
+    /// before the caret as the edit starts — nil when unknown (a selection
+    /// being typed over), which leaves the cache unknown too. Returns the
+    /// cache after the edit.
+    @discardableResult
+    func inject(_ text: String, deletingBackward deleteCount: Int = 0,
+                over before: String?) -> String? {
+        if deleteCount > 0 { TextInjector.deleteBackward(deleteCount) }
+        if !text.isEmpty { TextInjector.insert(text) }
+        latestTextBeforeCaret = Self.textAfterInjection(text, deletingBackward: deleteCount, over: before)
+        injectionSettleDeadline = Date().addingTimeInterval(0.3)
+        return latestTextBeforeCaret
+    }
+
+    /// Pure half of `inject` (testable): the text before the caret once
+    /// `deleteCount` backspaces and `text` have landed on `before` — nil when
+    /// that can't be known.
+    nonisolated static func textAfterInjection(_ text: String, deletingBackward deleteCount: Int,
+                                               over before: String?) -> String? {
+        guard let before, before.count >= deleteCount else { return nil }
+        return before.dropLast(deleteCount) + text
+    }
+
     /// Pure narrowing decision (testable): the suggestion remainder after the
     /// user typed `typed`, or nil when the keystroke invalidates it — control
     /// input (backspace, arrows, function keys), a diverging character, or
@@ -1381,15 +1453,11 @@ final class SuggestionController: NSObject {
             DebugLog.shared.log("UNDO", "skipped — field no longer matches the post-accept snapshot")
             return
         }
-        TextInjector.deleteBackward(accepted.count)
         // Roll the pipeline back with the text: the shrunk ghost, the live
         // stream and the advanced cache all still assume the chunk is in the
         // field — a Tab or a streamed partial landing before the 0.09 s AX
         // refresh would re-accept or resurrect the just-undone word.
-        if latestTextBeforeCaret?.hasSuffix(accepted) == true {
-            latestTextBeforeCaret?.removeLast(accepted.count)
-        }
-        injectionSettleDeadline = Date().addingTimeInterval(0.3)
+        inject("", deletingBackward: accepted.count, over: ctx.textBeforeCaret)
         let wasDictated = lastAcceptedWasDictated
         dismiss()
         // A dictated chunk is a spoken sentence: it may be named by length
@@ -1431,15 +1499,12 @@ final class SuggestionController: NSObject {
         // assignments leave it alone on purpose: it is only ever read
         // alongside a non-nil chunk.
         lastAcceptedWasDictated = false
-        TextInjector.insert(chunk)
-        // Advance the cached marker in step with the injection (mirrors
-        // narrowActive for user-typed keys). Until the 0.09 s AX refresh lands,
-        // a streamed partial and the ⌘Z gate both read this cache — a stale
-        // marker re-arms the just-accepted word (double insert on a second Tab)
-        // and makes an immediate ⌘Z fall through to the app.
-        advanceCache(chunk)
-        lastAcceptedSnapshot = latestTextBeforeCaret
-        injectionSettleDeadline = Date().addingTimeInterval(0.3)
+        // The cache advances in step with the injection (mirrors narrowActive
+        // for user-typed keys). Until the 0.09 s AX refresh lands, a streamed
+        // partial and the ⌘Z gate both read it — a stale marker re-arms the
+        // just-accepted word (double insert on a second Tab) and makes an
+        // immediate ⌘Z fall through to the app.
+        lastAcceptedSnapshot = inject(chunk, over: latestTextBeforeCaret)
         // Count the suggestion once even when accepted word-by-word (chars still
         // accrue per chunk), so the menu's "accepted of shown" can't exceed 100%.
         Stats.recordAccepted(chunk: chunk, countSuggestion: !current.accepted,
@@ -1511,31 +1576,34 @@ final class SuggestionController: NSObject {
         // failure the refusal ladder in `begin()` was built to prevent. The
         // secure-input case especially can engage with no user action that
         // would explain the disappearance.
+        //
+        // A hands-free capture can be minutes of speech, so the words are not
+        // thrown away with the notice: see `parkDictation`.
         func drop(_ why: String, hint: String) {
-            lastEvent = "dictation dropped — \(why)"
-            DictationController.note("dropped \(text.count) chars — \(why)")
-            showTransientOverlay(.hint(hint),
-                                 at: lastCaretRect ?? DictationController.pointerAnchor(),
-                                 host: lastHostStyle)
+            DictationController.note("dropped \(text.count) chars to the clipboard — \(why)")
+            parkDictation(text, why: why, hint: hint)
+        }
+        // Paused while the words were being written down (pausing finishes a
+        // hands-free capture rather than throwing it away): the switch means
+        // nothing gets typed, so the sentence goes to the clipboard.
+        guard Settings.enabled else {
+            return drop("Pretype was paused", hint: "paused")
         }
         guard !NSApp.isActive else {
-            return drop("our own window took focus",
-                        hint: "dictation dropped — click back into your text field")
+            return drop("our own window took focus", hint: "Pretype's window took focus")
         }
         guard !AXText.isSecureInputActive() else {
-            return drop("secure input engaged",
-                        hint: "dictation dropped — a password field took focus")
+            return drop("secure input engaged", hint: "a password field took focus")
         }
         guard currentTextElement() != nil else {
-            return drop("no text field", hint: "dictation dropped — no text field in focus")
+            return drop("no text field", hint: "no text field in focus")
         }
         // Remade at injection time like the rest: a composition opened during
         // the capture (the transcript arrives hundreds of milliseconds after
         // the words) would swallow the synthetic keystrokes into its marked
         // text. Precise marked-text only — see `isComposingInFocusedField`.
         guard !isComposingInFocusedField() else {
-            return drop("an IME composition is open",
-                        hint: "dictation dropped — finish composing that word first")
+            return drop("an IME composition is open", hint: "a composition is open")
         }
         // Advisory, exactly as at capture time: a field that publishes no caret
         // (web and Electron inputs before their first keystroke) must still
@@ -1547,7 +1615,6 @@ final class SuggestionController: NSObject {
         let before = context?.textBeforeCaret
         clearActiveCompletion()
         window.hide()
-        latestTextBeforeCaret = before
         // Both seams come out of that one read: the caret can sit mid-sentence
         // (dictating into a half-written line), and the text after it decides
         // the trailing space exactly as the text before it decides the leading
@@ -1555,16 +1622,15 @@ final class SuggestionController: NSObject {
         let chunk = context.map {
             Self.spacedForInsertion(text, after: $0.textBeforeCaret, before: $0.textAfterCaret)
         } ?? text
-        TextInjector.insert(chunk)
+        // Without a read the cache is unknown, not the old field's text.
+        let snapshot = inject(chunk, over: before)
         if before != nil {
             lastAcceptedChunk = chunk
             // ⌘Z removes it exactly like an accepted suggestion — but the undo
             // path books what it removed, and this chunk was spoken.
             lastAcceptedWasDictated = true
-            advanceCache(chunk)
-            lastAcceptedSnapshot = latestTextBeforeCaret
+            lastAcceptedSnapshot = snapshot
         }
-        injectionSettleDeadline = Date().addingTimeInterval(0.3)
         // The transcript's own length, not the chunk's: the seam spaces are
         // typing mechanics, and the counter claims to measure what was said.
         Stats.recordDictated(chars: text.count)
@@ -1575,6 +1641,23 @@ final class SuggestionController: NSObject {
         // redacts the same way. The count is the whole diagnostic value here.
         DictationController.note("typed \(chunk.count) characters")
         scheduleKeystrokeRefresh(after: 0.09)
+    }
+
+    /// A transcript that can't be typed goes to the clipboard, one ⌘V from
+    /// wherever it was meant to land, and the notice says so. Marked
+    /// transient, so clipboard managers keep it out of their on-disk history —
+    /// no transcript is ever written to disk — and kept off other devices.
+    private func parkDictation(_ text: String, why: String, hint: String) {
+        let pasteboard = NSPasteboard.general
+        // This Mac only: Universal Clipboard ignores the transient marker and
+        // would offer the transcript to every device on the iCloud account.
+        pasteboard.prepareForNewContents(with: .currentHostOnly)
+        pasteboard.setString(text, forType: .string)
+        pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
+        lastEvent = "dictation copied to the clipboard — \(why)"
+        showTransientOverlay(.hint("\(hint) — dictation copied, ⌘V to paste"),
+                             at: lastCaretRect ?? DictationController.pointerAnchor(),
+                             host: lastHostStyle)
     }
 
     /// The spaces between what is already in the field and what was just

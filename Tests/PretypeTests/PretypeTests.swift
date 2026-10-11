@@ -753,19 +753,29 @@ final class PretypeTests: XCTestCase {
         XCTAssertNil(PerAppPresets.template(for: "com.example.mystery"))
     }
 
-    @MainActor
-    func testSuggestionControllerUndo() {
-        let controller = SuggestionController()
-        let mirror = Mirror(reflecting: controller)
+    // Every synthetic edit (accept, fix, ⌘Z undo, dictation) moves the cache
+    // through this one rule — the settle window and the undo snapshot compare
+    // against what it returns.
+    func testTextAfterInjection() {
+        typealias C = SuggestionController
+        XCTAssertEqual(C.textAfterInjection("lo there", deletingBackward: 0, over: "hel"), "hello there")
+        XCTAssertEqual(C.textAfterInjection("hello", deletingBackward: 4, over: "say helo"), "say hello")
+        XCTAssertEqual(C.textAfterInjection("", deletingBackward: 6, over: "hello there"), "hello")
+        XCTAssertEqual(C.textAfterInjection("🤷", deletingBackward: 7, over: "ok :shrug:"), "ok 🤷")
+        // Unknown stays unknown, and a delete past the known text can't be placed.
+        XCTAssertNil(C.textAfterInjection("x", deletingBackward: 0, over: nil))
+        XCTAssertNil(C.textAfterInjection("x", deletingBackward: 5, over: "abc"))
+    }
 
-        // It should be nil on start
-        let initial = mirror.descendant("lastAcceptedChunk") as? String?
-        XCTAssertEqual(initial, nil)
-
-        // Calling dismiss should clear it
-        controller.dismiss()
-        let afterDismiss = mirror.descendant("lastAcceptedChunk") as? String?
-        XCTAssertEqual(afterDismiss, nil)
+    // An explicit ⌥⇥/⌥⇧⇥ that reached an unloaded engine says so — it used to
+    // come back as nil and show "✓ looks fine" for text no model read.
+    func testFailureNoticeNamesAnUnloadedEngine() {
+        guard case .hint(let message) = SuggestionController.failureNotice(
+            EngineNotReady(), fallback: "fix failed") else { return XCTFail("not-ready must be a hint") }
+        XCTAssertEqual(message, EngineNotReady().message)
+        guard case .error(let fallback) = SuggestionController.failureNotice(
+            CocoaError(.fileNoSuchFile), fallback: "fix failed") else { return XCTFail("other errors stay errors") }
+        XCTAssertEqual(fallback, "fix failed")
     }
 
     // The overlay's background probe decides dark-vs-light text from this mean;

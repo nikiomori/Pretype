@@ -29,6 +29,9 @@ final class KeyTap {
     /// held for the click (⌥-click, ⌥-drag) rather than for talking — and it has
     /// just moved the caret out from under the transcript besides.
     var mouseDownHandler: (() -> Void)?
+    /// After macOS disabled the tap and it was turned back on: whatever was
+    /// typed in between was never seen. Runs after the callback returns.
+    var reenabledHandler: (() -> Void)?
 
     private var tapPort: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -108,6 +111,7 @@ final class KeyTap {
         if let tapPort {
             CGEvent.tapEnable(tap: tapPort, enable: true)
         }
+        DispatchQueue.main.async { [weak self] in self?.reenabledHandler?() }
     }
 
     /// Tear the tap down completely: disable it, drop the run-loop source, and

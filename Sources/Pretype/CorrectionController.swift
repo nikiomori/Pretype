@@ -302,45 +302,45 @@ final class CorrectionController {
                 outcome = .failure(error)
             }
             let elapsed = Date().timeIntervalSince(started)
-            await MainActor.run { [weak self] in
-                guard let self, let owner = self.owner else { return }
-                // reset() cancelled this task: its late result must not
-                // resurrect the state reset() just cleared, nor stomp a newer
-                // request's single-flight flag.
-                guard !Task.isCancelled else { return }
-                self.inFlight = false
-                owner.indicator.stop()
-                Stats.recordLatency(elapsed)
-                // The user moved on while the engine ran: don't show a fix for
-                // context that's no longer in front.
-                guard owner.focusGeneration == generation else {
-                    DebugLog.shared.log("FIX", "dropped stale fix (focus changed)")
+            // The task inherits the main actor: nothing runs between this
+            // check and the code below it.
+            guard let self, let owner = self.owner else { return }
+            // reset() cancelled this task: its late result must not
+            // resurrect the state reset() just cleared, nor stomp a newer
+            // request's single-flight flag.
+            guard !Task.isCancelled else { return }
+            self.inFlight = false
+            owner.indicator.stop()
+            Stats.recordLatency(elapsed)
+            // The user moved on while the engine ran: don't show a fix for
+            // context that's no longer in front.
+            guard owner.focusGeneration == generation else {
+                DebugLog.shared.log("FIX", "dropped stale fix (focus changed)")
+                return
+            }
+            switch outcome {
+            case .success(let fixed?):
+                let fix = makePending(fixed)
+                // Nothing cancels the task while the user types on in the
+                // same field, so a slow result can arrive for text that's
+                // gone — showing it would swallow the next ⏎ (Enter-to-send)
+                // for a fix that can never apply. Same check as inject().
+                guard self.liveRead(confirming: fix) != nil else {
+                    DebugLog.shared.log("FIX", "dropped stale fix — text changed while engine ran")
                     return
                 }
-                switch outcome {
-                case .success(let fixed?):
-                    let fix = makePending(fixed)
-                    // Nothing cancels the task while the user types on in the
-                    // same field, so a slow result can arrive for text that's
-                    // gone — showing it would swallow the next ⏎ (Enter-to-send)
-                    // for a fix that can never apply. Same check as inject().
-                    guard self.stillValid(fix) else {
-                        DebugLog.shared.log("FIX", "dropped stale fix — text changed while engine ran")
-                        return
-                    }
-                    self.pendingFix = fix
-                    owner.lastEvent = proposedEvent
-                    DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
-                    self.showPreview(fix)
-                case .success(nil):
-                    owner.lastEvent = "nothing to fix"
-                    DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
-                    owner.indicator.flashTransient(.hint("✓ looks fine"))
-                case .failure(let error):
-                    owner.lastEvent = "fix failed: \(error.localizedDescription)"
-                    DebugLog.shared.log("ERROR", "correction failed: \(error.localizedDescription)")
-                    owner.indicator.flashTransient(.error("fix failed"))
-                }
+                self.pendingFix = fix
+                owner.lastEvent = proposedEvent
+                DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
+                self.showPreview(fix)
+            case .success(nil):
+                owner.lastEvent = "nothing to fix"
+                DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
+                owner.indicator.flashTransient(.hint("✓ looks fine"))
+            case .failure(let error):
+                owner.lastEvent = "fix failed: \(error.localizedDescription)"
+                DebugLog.shared.log("ERROR", "correction failed: \(error.localizedDescription)")
+                owner.indicator.flashTransient(SuggestionController.failureNotice(error, fallback: "fix failed"))
             }
         }
     }
@@ -374,30 +374,38 @@ final class CorrectionController {
     /// of typing) would otherwise delete and replace the wrong characters.
     private func inject(_ fix: PendingFix, event: String) {
         guard let owner else { return }
-        guard stillValid(fix) else {
+        guard let live = liveRead(confirming: fix) else {
             DebugLog.shared.log("FIX", "dropped stale fix — text changed before apply")
             return
         }
-        if fix.deleteCount > 0 { TextInjector.deleteBackward(fix.deleteCount) }
-        TextInjector.insert(fix.replacement)
+        // Through the shared path, so the settle window covers a fix too: an
+        // AX read still showing the typo would re-raise its pill, and a second
+        // ⇥ — validated against that same stale read — would apply it twice.
+        owner.inject(fix.replacement, deletingBackward: fix.deleteCount, over: live.textBeforeCaret)
         Stats.recordCorrection()
         owner.lastEvent = event
         DebugLog.shared.log("FIX", "applied \"\(fix.original)\" → \"\(fix.replacement)\"")
         owner.scheduleKeystrokeRefresh(after: 0.12)
     }
 
-    /// True while the live text still matches what `fix` was computed against —
-    /// a last-word fix needs its word still just before the caret, a selection
-    /// fix the same selection. Synchronous AX read: never call inside the
-    /// event-tap callback.
-    private func stillValid(_ fix: PendingFix) -> Bool {
-        guard let owner, let element = owner.currentTextElement() else { return false }
+    /// What a confirming live read saw: the text before the caret for a
+    /// last-word fix, nil for a selection (typed over, so unknown).
+    private struct LiveRead { var textBeforeCaret: String? }
+
+    /// A live read, non-nil only while the text still matches what `fix` was
+    /// computed against — a last-word fix needs its word still just before the
+    /// caret, a selection fix the same selection. Synchronous AX read: never
+    /// call inside the event-tap callback.
+    private func liveRead(confirming fix: PendingFix) -> LiveRead? {
+        guard let owner, let element = owner.currentTextElement() else { return nil }
         if fix.deleteCount > 0 {
-            guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) else { return false }
-            return ctx.textAfterCaret.first?.isLetter != true
-                && Self.lastToken(of: ctx.textBeforeCaret) == fix.original
+            guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars),
+                  ctx.textAfterCaret.first?.isLetter != true,
+                  Self.lastToken(of: ctx.textBeforeCaret) == fix.original else { return nil }
+            return LiveRead(textBeforeCaret: ctx.textBeforeCaret)
         }
-        return AXText.selectionInfo(for: element)?.text == fix.original
+        guard AXText.selectionInfo(for: element)?.text == fix.original else { return nil }
+        return LiveRead(textBeforeCaret: nil)
     }
 
     /// Dismiss the previewed fix and keep the original text untouched.
