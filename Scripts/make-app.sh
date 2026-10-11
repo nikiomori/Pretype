@@ -97,7 +97,11 @@ cat > "$APP/Contents/Info.plist" <<EOF
          microphone without this string, so it ships whether or not the feature
          is switched on; the text is what the permission dialog shows. -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>Pretype transcribes what you say into the text field you are typing in, on this Mac. Audio is never recorded to disk and never leaves your computer.</string>
+    <string>Pretype transcribes what you say into the text field you are typing in, on this Mac. Audio is never recorded to disk, and it leaves your computer only if you choose a cloud speech provider in Settings → API.</string>
+    <!-- Settings → API offers local servers (Ollama, LM Studio) over plain
+         http://localhost; ATS blocks that without this key. -->
+    <key>NSAppTransportSecurity</key>
+    <dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>
 </plist>
 EOF
