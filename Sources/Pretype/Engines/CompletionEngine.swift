@@ -176,16 +176,32 @@ extension CompletionRequest {
     /// carries one of its lines (8+ characters) verbatim. Small instruct
     /// models do this a lot — eval-reply 2026-10-11 caught it on 29–57% of
     /// the Qwen / MiniCPM5 / Bonsai rows, against 2–6% on the Gemmas.
+    /// Compared as words — punctuation is a boundary like a space, so "Sure"
+    /// is not in "measure" and a dropped "?" still matches — and a one-word
+    /// line is a label ("Delivered", a name), not a restatement. Scripts
+    /// written without spaces (Chinese, Japanese, Thai…): there a plain
+    /// substring of the letters decides, as it always did.
     static func isEcho(_ reply: String, of conversation: String) -> Bool {
-        func norm(_ s: String) -> String {
-            s.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased()
+        func words(_ s: String) -> [Substring] { s.lowercased().split { !($0.isLetter || $0.isNumber) } }
+        // Kana, Thai, Lao, Tibetan, Myanmar, Khmer — plus every ideograph.
+        let unspacedBlocks: [ClosedRange<UInt32>] = [0x3040...0x30FF, 0x0E00...0x0FFF, 0x1000...0x109F, 0x1780...0x17FF]
+        func unspaced(_ s: String) -> Bool {
+            s.unicodeScalars.contains { c in
+                c.properties.isIdeographic || unspacedBlocks.contains { $0.contains(c.value) }
+            }
         }
-        let r = norm(reply)
-        guard !r.isEmpty, !conversation.isEmpty else { return false }
-        if norm(conversation).contains(r) { return true }
+        func contains(_ haystack: String, _ needle: String) -> Bool {
+            let n = words(needle), h = words(haystack)
+            guard !n.isEmpty else { return false }
+            if unspaced(needle) { return h.joined().contains(n.joined()) }
+            return (" " + h.joined(separator: " ") + " ").contains(" " + n.joined(separator: " ") + " ")
+        }
+        guard !conversation.isEmpty, !words(reply).isEmpty else { return false }
+        if contains(conversation, reply) { return true }
         return conversation.split(separator: "\n").contains { line in
-            let l = norm(String(line))
-            return l.count >= 8 && r.contains(l)
+            let l = String(line), w = words(l)
+            guard w.joined().count >= 8, w.count > 1 || unspaced(l) else { return false }
+            return contains(reply, l)
         }
     }
 

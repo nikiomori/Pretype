@@ -14,4 +14,20 @@ final class PrivacyAndReplyTests: XCTestCase {
         XCTAssertFalse(logged.contains("secret clipboard"))
         XCTAssertTrue(logged.contains("redacted from log"))
     }
+
+    // A reply that restates the screen is dropped — on word boundaries only,
+    // and never for sharing a one-word label with it.
+    func testReplyEchoMatchesWholeWords() {
+        let conversation = "Bob: are you coming to the review tonight?\nDelivered\nmeasure twice"
+        XCTAssertTrue(CompletionRequest.isEcho("Are you coming to the review tonight?", of: conversation))
+        XCTAssertTrue(CompletionRequest.isEcho("ok — bob: are you coming to the review tonight? yes", of: conversation))
+        XCTAssertTrue(CompletionRequest.isEcho("Are you coming to the review tonight", of: conversation), "dropped ?")
+        XCTAssertFalse(CompletionRequest.isEcho("Sure", of: conversation), "\"sure\" sits inside \"measure\"")
+        XCTAssertFalse(CompletionRequest.isEcho("Has it been delivered yet", of: conversation), "one-word label")
+        XCTAssertFalse(CompletionRequest.isEcho("Yes, I'll be there at eight", of: conversation))
+        // No spaces to find word boundaries by: a restated line still counts.
+        let chat = "小王：你明天下午来开会吗？\n已读"
+        XCTAssertTrue(CompletionRequest.isEcho("好的小王你明天下午来开会吗我会去", of: chat))
+        XCTAssertFalse(CompletionRequest.isEcho("好的，我明天下午一定到", of: chat))
+    }
 }
