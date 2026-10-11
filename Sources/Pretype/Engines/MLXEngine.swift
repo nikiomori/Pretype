@@ -309,6 +309,10 @@ final class MLXEngine: CompletionEngine {
     /// `PRETYPE_TIED_TABLE_4BIT=off` is the A/B arm of `requantizeTiedTable`.
     private static let requantizesTiedTable =
         ProcessInfo.processInfo.environment["PRETYPE_TIED_TABLE_4BIT"] != "off"
+    /// `PRETYPE_PLE_4BIT=off` leaves the per-layer-embedding table alone — the
+    /// A/B arm for that half of `requantizeTiedTable`.
+    private static let requantizesPLETable =
+        ProcessInfo.processInfo.environment["PRETYPE_PLE_4BIT"] != "off"
 
     /// Loads a model, with its MTP drafter into `drafterBox` when `drafterID`
     /// names one that is already on disk. A missing drafter downloads in the
@@ -368,18 +372,56 @@ final class MLXEngine: CompletionEngine {
     /// 4-bit at load, for both uses. Resident memory: E4B-8bit −320 MB, E4B-6bit
     /// −160 MB, E2B-8bit −192 MB; reload +15 ms. eval-real core 870 first-word,
     /// ungated: 28% = 28% (p = 0.77), 28% = 28% (p = 1.0), 27% = 27% (p = 1.0).
+    ///
+    /// The per-layer-embedding table (`embed_tokens_per_layer`) is the bigger
+    /// one — 2.35B rows×cols on E2B, 2.50 GB of E2B-8bit — and only ever
+    /// gathered a row per token, so 4-bit costs it no decode time at all.
     private static func requantizeTiedTable(_ container: ModelContainer) async {
         await container.perform { (context: ModelContext) in
-            guard context.model is Gemma4Model || context.model is Gemma4TextModel,
-                  let (key, module) = context.model.leafModules().flattened().first(where: { $0.0.hasSuffix(".embed_tokens") }),
-                  let table = module as? QuantizedEmbedding, table.bits > 4 else { return }
-            let full = dequantized(table.weight, scales: table.scales, biases: table.biases,
-                                   groupSize: table.groupSize, bits: table.bits, mode: table.mode)
-            let smaller = QuantizedEmbedding(weight: full, groupSize: 64, bits: 4, mode: .affine)
-            eval(smaller)
-            try? context.model.update(modules: ModuleChildren.unflattened([key: smaller]), verify: [.none])
+            guard context.model is Gemma4Model || context.model is Gemma4TextModel
+                    || context.model is MLXVLM.Gemma4 else { return }
+            let suffixes = requantizesPLETable
+                ? [".embed_tokens", ".embed_tokens_per_layer"] : [".embed_tokens"]
+            let tables = context.model.leafModules().flattened().filter { key, _ in
+                suffixes.contains(where: { key.hasSuffix($0) })
+            }
+            // One table at a time, swapped in as soon as it is done, so the
+            // 8-bit original is freed before the next one is built.
+            for (key, module) in tables {
+                guard let table = module as? QuantizedEmbedding, table.bits > 4 else { continue }
+                try? context.model.update(modules: ModuleChildren.unflattened([key: requantized(table)]),
+                                          verify: [.none])
+                Memory.clearCache()
+            }
         }
-        Memory.clearCache()
+    }
+
+    /// `table` at 4-bit, a block of rows at a time, written into preallocated
+    /// outputs (each slice update donates its buffer): dequantizing the PLE
+    /// table whole would spike ~4.7 GB of bf16 at load on E2B, and building it
+    /// from concatenated blocks held every block AND the result at once.
+    private static func requantized(_ table: QuantizedEmbedding) -> QuantizedEmbedding {
+        let rows = table.weight.dim(0), step = 16_384
+        func block(_ r: Range<Int>) -> (wq: MLXArray, scales: MLXArray, biases: MLXArray?) {
+            let full = dequantized(table.weight[r], scales: table.scales[r], biases: table.biases?[r],
+                                   groupSize: table.groupSize, bits: table.bits, mode: table.mode)
+            return quantized(full, groupSize: 64, bits: 4, mode: .affine)
+        }
+        // The first block sizes the outputs; every later one is written in place.
+        let first = block(0 ..< min(step, rows))
+        var weight = MLXArray.zeros([rows, first.wq.dim(1)], dtype: first.wq.dtype)
+        var scales = MLXArray.zeros([rows, first.scales.dim(1)], dtype: first.scales.dtype)
+        var biases = first.biases.map { MLXArray.zeros([rows, $0.dim(1)], dtype: $0.dtype) }
+        for start in stride(from: 0, to: rows, by: step) {
+            let r = start ..< min(start + step, rows)
+            let q = start == 0 ? first : block(r)
+            weight[r] = q.wq
+            scales[r] = q.scales
+            if let b = q.biases { biases?[r] = b }
+            eval([weight, scales] + (biases.map { [$0] } ?? []))
+        }
+        return QuantizedEmbedding(weight: weight, scales: scales, biases: biases,
+                                  groupSize: 64, bits: 4)
     }
 
     private static func loadDrafter(at directory: URL) async throws -> any MTPDrafterModel {

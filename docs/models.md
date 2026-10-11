@@ -56,6 +56,8 @@ Three things worth knowing before reading it as a ranking:
 
 Disk and memory track each other: the default holds **≈1.6–6.8 GB** resident — sized to about a quarter of the Mac's memory, per the ladder above — the catalog goes down to ≈1 GB, and Gemma 4 E4B 8-bit tops it at ≈8.6 GB. Warm completions run **49–145 ms** across the local models, against 430 ms for Apple Intelligence, which downloads nothing and holds no app memory at all.
 
+Those are download sizes; once loaded, the 8- and 6-bit Gemma tiers hold less, because both of Gemma's embedding tables (the shared input/output table and the far bigger per-layer one) are re-quantized to 4-bit at load — a pure lookup, so it costs no speed, and first-word accuracy is unchanged (paired p≥0.72 on all three tiers). Measured model memory: E2B 8-bit 3.4 GB instead of 4.5, E4B 6-bit 5.0 instead of 5.7, E4B 8-bit 6.0 instead of 7.3.
+
 That resident figure is what a model holds *while you type*, not all day: it unloads itself after five idle minutes and reloads on your next keystroke, and unloads early if macOS reports memory pressure. Using <kbd>⌥Tab</kbd> rewrites can add a one-time instruct sibling on some models — ≈2.2 GB on MiniCPM5, up to ≈5 GB on a Gemma running Base style; none on Qwen3.5 or Bonsai, which correct with themselves, and none on a Gemma tier in its recommended Instruct style, where the loaded model already is the instruct build.
 
 Quantization tiers, the engine split and the confidence gate are in [Architecture](ARCHITECTURE.md). Training a model on your own writing is in [Fine-tuning](finetuning.md).
