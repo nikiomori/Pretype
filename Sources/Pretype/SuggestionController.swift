@@ -491,7 +491,7 @@ final class SuggestionController: NSObject {
     /// the next keystroke (where a cold prefill measured ~0.45 s on E4B-8bit).
     private func warmPromptForCurrentText(_ typed: String? = nil) {
         guard Settings.enabled, !isOwnUIFrontmost, !dictationController.isBusy,
-              !AppPolicy.isBlacklisted(typingContext),
+              !AppPolicy.pausedForBattery, !AppPolicy.isBlacklisted(typingContext),
               !Stats.isUnproductive(typingContext.bundleID),
               let text = typed ?? latestTextBeforeCaret,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -530,9 +530,11 @@ final class SuggestionController: NSObject {
     }
 
     /// Refreshes the window OCR at most every 25 s, off the typing path.
+    /// Paused on battery: the capture only feeds completions (a reply takes
+    /// its own fresh one), and its landing would warm a prompt nobody runs.
     private func refreshScreenContextIfNeeded(typed: String) {
         guard Settings.enabled, Settings.screenContextEnabled, ScreenContext.hasPermission,
-              AppPolicy.allowsScreenContext(typingContext) else { return }
+              !AppPolicy.pausedForBattery, AppPolicy.allowsScreenContext(typingContext) else { return }
         guard !screenCaptureInFlight,
               Date().timeIntervalSince(screenCapturedAt) > 25,
               focusTracker.observedPID > 0 else { return }
@@ -1851,9 +1853,10 @@ extension SuggestionController: FocusTrackerDelegate {
         // Capture shortly after focus settles: passing through apps with
         // cmd-tab must not trigger screenshots, but a chat's first message
         // should still have context before the first keystroke lands.
-        // Paused, blacklisted or quiet: no reload, no indicator, no screenshot.
+        // Paused (or on battery), blacklisted or quiet: no reload, no
+        // indicator, no screenshot.
         if let element = tracker.focusedTextElement, Settings.enabled,
-           !AppPolicy.isBlacklisted(typingContext),
+           !AppPolicy.pausedForBattery, !AppPolicy.isBlacklisted(typingContext),
            !Stats.isUnproductive(typingContext.bundleID) {
             // Entered a text field — start reloading the model now (no-op unless
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
