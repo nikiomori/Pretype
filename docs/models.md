@@ -66,6 +66,8 @@ Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it use
 * Speed: about 30% faster per suggestion.
 * A 6-bit build is a little worse, and a 4-bit build is worse (12%, p<0.001).
 
+The fix and reply chords of MiniCPM5 now run on the post-trained Qwen3.5 2B build. MiniCPM5's own instruct build fixed 4% of rows and wrote 35% usable replies. The Qwen3.5 build fixes 33% and writes 76%. It is also smaller: 1.6 GB, against 2.2 GB.
+
 If your install has the bf16 build, Pretype downloads the 8-bit build in the background. When the 8-bit build has loaded, Pretype deletes the bf16 build.
 
 ### The E2B tiers use Base style
@@ -94,7 +96,7 @@ Since 2026-07-25, Pretype selects the default from the memory of your Mac. Befor
 The rule does not use language, for two reasons:
 
 1. No per-language gap between the small models is statistically significant. MiniCPM5's English lead over Qwen3.5 is only a trend (p=0.014). Russian is a tie (p=0.79). Japanese is p=0.064.
-2. The chord measurements are strongly against the old English/Russian default. MiniCPM5's fix works on only 4% of rows.
+2. The chord measurements were strongly against the old English/Russian default. MiniCPM5's own fix worked on only 4% of rows. Since 2026-10-15, MiniCPM5 runs the chords on the Qwen3.5 sibling.
 
 Two models stay as manual selections:
 
@@ -129,10 +131,10 @@ We measured the chords on 2026-10-11, each on its own held-out set:
 | Gemma E4B-it 6-bit | Gemma E4B 8-bit and 6-bit | **69%** [65–73] | 18% | 0.26 s | **97%** [94–98] | 0.33 s |
 | Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 21% | 0.21 s | 95% [92–97] | 0.25 s |
 | Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [45–54] | 29% | 0.08 s | 96% [93–97] | 0.09 s |
-| Qwen3.5 2B (post-trained) | Qwen3.5 2B Base — the 8 GB default | 33% [29–37] | 28% | 0.14 s | 76% [72–80] | 0.15 s |
+| Qwen3.5 2B (post-trained) | Qwen3.5 2B Base — the 8 GB default; MiniCPM5 1B | 33% [29–37] | 28% | 0.14 s | 76% [72–80] | 0.15 s |
 | Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.21 s | 39% [34–44] | 0.21 s |
 | Qwen2.5 0.5B-it | Qwen2.5 0.5B | 11% [9–14] | 19% | 0.03 s | 52% [47–57] | 0.07 s |
-| MiniCPM5 1B-it | MiniCPM5 1B | 4% [2–6] | 14% | 0.05 s | 35% [31–40] | 0.21 s |
+| MiniCPM5 1B-it | No model since 2026-10-15 (MiniCPM5 1B before) | 4% [2–6] | 14% | 0.05 s | 35% [31–40] | 0.21 s |
 
 Read these notes before you use the table as a ranking:
 
@@ -204,7 +206,7 @@ On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one ti
 
 | Model | Instruct sibling download |
 |---|---|
-| MiniCPM5 | ≈2.2 GB |
+| MiniCPM5 | ≈1.6 GB (the post-trained Qwen3.5 build) |
 | Qwen3.5 | ≈1.6 GB (its post-trained build) |
 | A Gemma tier in Base style | up to ≈5 GB |
 | Bonsai | None. Bonsai corrects with itself. |

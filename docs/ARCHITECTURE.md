@@ -134,8 +134,8 @@ per-language nudge in the menu. You select all other models manually in
 The sizes are the download sizes of the catalog (`ModelMetrics.ramGB`).
 The Gemma tiers download slim re-packs (`ModelCatalog.slimRepos`). Qwen3.5
 completes text on its Base build, and MiniCPM5 on an 8-bit build. Both are our
-own conversions. On Qwen3.5, the fix chord (⌥⇥) and the reply draft run on the
-post-trained build.
+own conversions. On both models, the fix chord (⌥⇥) and the reply draft run on
+the post-trained Qwen3.5 build.
 
 ### Quantization
 

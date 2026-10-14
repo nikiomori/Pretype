@@ -1438,8 +1438,8 @@ final class PretypeTests: XCTestCase {
                        ["mlx-community/gemma-4-e4b-8bit", "mlx-community/gemma-4-e4b-6bit"])
         XCTAssertEqual(ModelMetrics.taskUserIDs(of: "mlx-community/gemma-4-e4b-it-4bit"),
                        ["mlx-community/gemma-4-e2b-8bit"])
-        XCTAssertEqual(ModelMetrics.taskUserIDs(of: "openbmb/MiniCPM5-1B"),
-                       ["nikimori/MiniCPM5-1B-Base-8bit"])
+        XCTAssertEqual(ModelMetrics.taskUserIDs(of: "mlx-community/Qwen3.5-2B-4bit"),
+                       ["nikimori/MiniCPM5-1B-Base-8bit", "nikimori/Qwen3.5-2B-Base-6bit"])
         // Instruct style on E2B 8-bit runs the E4B-it 4-bit primary — the
         // measured 65% fixer — not E2B's own correction sibling.
         let e2b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e2b-8bit", style: .instruct)
@@ -1453,11 +1453,11 @@ final class PretypeTests: XCTestCase {
         // Base style routes to the lazy correction sibling instead.
         let e4bBase = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .base)
         XCTAssertEqual(e4bBase?.measuredID, "mlx-community/gemma-4-e4b-it-4bit")
-        // MiniCPM5: a near-inert fixer, and — once echoes stopped counting as
-        // replies — a weak replier too.
+        // MiniCPM5's own RL build fixed 4% and replied 35%, so its chords
+        // borrow Qwen3.5's sibling.
         let minicpm = ModelMetrics.taskMetrics(for: "nikimori/MiniCPM5-1B-Base-8bit", style: .base)
-        XCTAssertEqual(minicpm?.m.fixPct, 4)
-        XCTAssertEqual(minicpm?.m.replyPct, 35)
+        XCTAssertEqual(minicpm?.measuredID, "mlx-community/Qwen3.5-2B-4bit")
+        XCTAssertEqual(minicpm?.m.fixPct, 33)
         // Bonsai corrects with itself, through its own chat template.
         let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .base)
         XCTAssertEqual(bonsai?.m.fixPct, 19)

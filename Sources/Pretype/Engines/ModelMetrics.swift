@@ -319,7 +319,9 @@ struct ModelMetrics {
     /// build (p=9e-4). On replies the three Gemma siblings tie (95–97%,
     /// p≥0.45), then Qwen3.5 > Qwen0.5B-it > Bonsai (p<0.001 each), Bonsai
     /// tying MiniCPM5 (p=0.27) — the small models' drafts mostly restate the
-    /// screen, which `cleanReply` now drops.
+    /// screen, which `cleanReply` now drops. MiniCPM5's own row (fix 4% /
+    /// reply 35%) left the table on 2026-10-15 with its chords, which now
+    /// ride Qwen3.5's sibling — no pick runs it at recommended settings.
     struct TaskMetrics {
         /// % of typo rows restored exactly (n=510; Wilson 95% CI in `fixCI`).
         let fixPct: Int
@@ -363,9 +365,6 @@ struct ModelMetrics {
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
             fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 34,
             replyPct: 52, replyCI: 47...57, replyP50Ms: 73),
-        "openbmb/MiniCPM5-1B": TaskMetrics(
-            fixPct: 4, fixCI: 2...6, falseFixPct: 14, fixP50Ms: 52,
-            replyPct: 35, replyCI: 31...40, replyP50Ms: 208),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": TaskMetrics(
             fixPct: 19, fixCI: 16...23, falseFixPct: 12, fixP50Ms: 205,
             replyPct: 39, replyCI: 34...44, replyP50Ms: 210),
@@ -379,7 +378,6 @@ struct ModelMetrics {
         "mlx-community/gemma-4-e2b-it-4bit": "Gemma E2B-it 4-bit",
         "mlx-community/Qwen3.5-2B-4bit": "Qwen3.5 2B",
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "Qwen2.5 0.5B-it",
-        "openbmb/MiniCPM5-1B": "MiniCPM5 1B-it",
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": "Bonsai 4B",
     ]
 

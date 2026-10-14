@@ -73,13 +73,15 @@ enum ModelCatalog {
         // style. Our own 8-bit conversion since 2026-10-15: it ties the hub's
         // bf16 (15% of all rows each on the 17-language set, 14 vs 21
         // discordant) at 1.1 GB instead of 2.0 and ~30% less time per
-        // suggestion; 6-bit trends down, 4-bit loses (p<0.001)
+        // suggestion; 6-bit trends down, 4-bit loses (p<0.001). The chords
+        // ride Qwen3.5's post-trained build (fix 33% / reply 76%) — MiniCPM5's
+        // own RL build fixes 4% and replies 35%, in 2.2 GB
         // (Eval/runs-2026-10-14-small).
         ModelOption(
             id: "nikimori/MiniCPM5-1B-Base-8bit",
             title: "MiniCPM5 1B — fastest, English & Russian",
-            correctionModelID: "openbmb/MiniCPM5-1B",  // fixes are instruction-following — the RL model handles them
-            instructModelID: "openbmb/MiniCPM5-1B"     // manual instruct flip only; completion there is broken (see above)
+            correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
+            instructModelID: "openbmb/MiniCPM5-1B"  // manual instruct flip only; completion there is broken (see above)
         ),
         // Lowest-RAM pick (eval-real 2026-07-15, base·greedy·short, n=870): at
         // ~1 GB it STATISTICALLY TIES the 2.2 GB MiniCPM5 and the 5.7 GB
@@ -137,7 +139,8 @@ enum ModelCatalog {
     /// Russian is a tie, p=0.79; Japanese p=0.064 — direct McNemar over the
     /// runs-2026-07-16 dumps), while the task eval splits hard AGAINST the
     /// old EN/RU default — MiniCPM5's instruct build fixes 4% of noisy lines
-    /// where Qwen3.5 manages 33% and the Gemma siblings 50–69% — and E2B
+    /// where Qwen3.5 manages 33% and the Gemma siblings 50–69% (its chords
+    /// moved to Qwen3.5's sibling on 2026-10-15) — and E2B
     /// 4-bit beats BOTH smalls on Russian outright (p=0.0007 / 0.0012).
     /// Keyboard languages still drive the persona and the per-language menu
     /// nudge; MiniCPM5 stays the manual pick for the lowest latency.
@@ -154,7 +157,7 @@ enum ModelCatalog {
     /// Below the smallest Gemma tier the floor is Qwen3.5 2B: ties MiniCPM5
     /// on EN/RU completions, beats every other small multilingually
     /// (p<0.001) — 1.5 GB, plus its 1.6 GB post-trained sibling once the
-    /// chords are used (fix 33% / reply 76% against MiniCPM5's 4% / 35%).
+    /// chords are used (fix 33% / reply 76%, the sibling MiniCPM5 borrows).
     ///
     /// A fixed table, not derived from the size tables: the thresholds are 4×
     /// each tier's resident size as booked on 2026-07-25 (6.8 / 5.0 / 3.5 GB);
