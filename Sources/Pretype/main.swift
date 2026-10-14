@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 
-Settings.registerDefaults()
+Settings.migrate()
 
 MainActor.assumeIsolated {
     // Diagnostic: print what Accessibility exposes for the focused text field, to

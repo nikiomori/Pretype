@@ -13,7 +13,7 @@ struct ModelTab: View {
     /// Which task the map plots. Local @State — a lens, not a setting: it
     /// changes on a click and resets to completions with the window.
     @State private var mapLens = MapLens.completion
-    @AppStorage("idleUnloadMinutes") private var idleUnloadMinutes = 5
+    @AppStorage("idleUnloadMinutes") private var idleUnloadMinutes = Settings.idleUnloadMinutes
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
@@ -99,7 +99,7 @@ struct ModelTab: View {
                     (MapLens.fix, "Fix a line (\(store.hotkeyStyle.correctionLabel))"),
                     (MapLens.reply, "Reply (\(store.hotkeyStyle.replyLabel))"),
                 ], selection: mapLens, select: { mapLens = $0 })
-                ModelMapView(store: store, hover: store.hoverState, lens: mapLens)
+                ModelMapView(store: store, lens: mapLens)
             } header: {
                 Text("The model map")
             } footer: {
@@ -330,26 +330,12 @@ struct ModelTab: View {
                     }
                 }
                 // Apple Intelligence is the system model: style is moot (setupLine
-                // omits it too) and the "below E4B class" fill-in reasoning is an
-                // on-device-tier concept that doesn't apply — so suppress the
-                // measured-config row and describe how the system model runs.
+                // omits it too) — so suppress the measured-config row.
                 if !store.isAppleIntelligence {
                     LabeledContent("Best measured config") {
                         Text(store.recommendation.summary)
                     }
                 }
-                LabeledContent("Mid-sentence edits") {
-                    Text(store.isAppleIntelligence
-                        ? "handled by the system model"
-                        : (store.recommendation.fim
-                            ? "fill-in — also reads the text after the cursor"
-                            : "left context only — fill-in is unreliable below E4B class"))
-                }
-                .help(store.isAppleIntelligence
-                    ? "Apple Intelligence runs on the Neural Engine as the system model — Pretype doesn't set its style or fill-in; those are on-device-model settings."
-                    : (store.recommendation.fim
-                        ? "Mid-line edits condition on what follows the cursor, so the completion meets the existing text instead of re-typing it."
-                        : "Fill-in-the-middle is reliable on E4B-class models only, so it's skipped automatically here — not a setting, just how this model is driven."))
                 ChordTaskRows(store: store)
                 if let note = m.note {
                     Caption(note)
@@ -677,9 +663,6 @@ enum MapLens: Hashable {
 /// completion-only and hides.
 struct ModelMapView: View {
     @Bindable var store: SettingsStore
-    /// Hover previews live on their own observable so pointer movement
-    /// re-renders the map and rail — never the scrolling Form around them.
-    var hover: HoverState
     var lens: MapLens = .completion
     /// Hovered sibling bubble on the chord lenses. Local @State: sibling ids
     /// aren't models the Live Impact rail can preview, so they never touch
@@ -1075,8 +1058,7 @@ struct ModelMapView: View {
                 Text(m.shortName).font(.caption.weight(.bold))
                 HStack(spacing: 10) {
                     stat("ACC", "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%", .green)
-                    stat("SPEED", m.p50Ms >= 1000
-                        ? String(format: "%.1f s", Double(m.p50Ms) / 1000) : "\(m.p50Ms) ms", .blue)
+                    stat("SPEED", latencyLabel(ms: m.p50Ms), .blue)
                     stat("MEM", m.ramGB <= 0 ? "0 GB" : String(format: "%.1f GB", m.ramGB), .teal)
                 }
             }
@@ -1218,8 +1200,7 @@ struct ModelMapView: View {
                 HStack(spacing: 10) {
                     stat(lens == .fix ? "EXACT FIX" : "USABLE REPLY",
                          "\(s.pct)% [\(s.ci.lowerBound)–\(s.ci.upperBound)]", chordTint)
-                    stat("SPEED", s.p50Ms >= 1000
-                        ? String(format: "%.1f s", Double(s.p50Ms) / 1000) : "\(s.p50Ms) ms", .blue)
+                    stat("SPEED", latencyLabel(ms: s.p50Ms), .blue)
                     stat("MEM", String(format: "%.1f GB", s.ramGB), .teal)
                 }
                 if lens == .fix, let t = ModelMetrics.tasks[s.id] {

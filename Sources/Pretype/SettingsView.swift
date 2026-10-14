@@ -162,6 +162,11 @@ struct Caption: View {
     }
 }
 
+/// "640 ms", "1.2 s": past a second, milliseconds read as seconds.
+func latencyLabel(ms: Int) -> String {
+    ms >= 1000 ? String(format: "%.1f s", Double(ms) / 1000) : "\(ms) ms"
+}
+
 // MARK: - Root
 
 enum SettingsTab: String, CaseIterable {
@@ -207,7 +212,7 @@ struct SettingsRootView: View {
         } detail: {
             detail
                 .inspector(isPresented: .constant(true)) {
-                    ImpactRailView(store: store, hover: store.hoverState)
+                    ImpactRailView(store: store)
                         .inspectorColumnWidth(min: 250, ideal: 280, max: 340)
                 }
         }
@@ -418,16 +423,18 @@ struct HoverSegments<T: Hashable>: View {
 struct GeneralTab: View {
     @Bindable var store: SettingsStore
     @State private var blacklistDraft = ""
-    @AppStorage("replyGesture") private var replyGesture = ReplyGesture.option
-    @AppStorage("ghostOpacity") private var ghostOpacity = 0.7
-    @AppStorage("dictationGesture") private var dictationGesture = DictationGesture.option
-    @AppStorage("dictationLatch") private var dictationLatch = DictationLatch.controlOptionD  // = the registered default
+    // An initial value only answers an unset key: reading it from `Settings`
+    // keeps each default in one place.
+    @AppStorage("replyGesture") private var replyGesture = Settings.replyGesture
+    @AppStorage("ghostOpacity") private var ghostOpacity = Settings.ghostOpacity
+    @AppStorage("dictationGesture") private var dictationGesture = Settings.dictationGesture
+    @AppStorage("dictationLatch") private var dictationLatch = Settings.dictationLatch
     /// Silence budget for a hands-free capture, in seconds; 0 is off.
-    @AppStorage("dictationSilence") private var dictationSilence = 5.0
-    @AppStorage("dictationPolish") private var dictationPolish = true
-    @AppStorage("dictationCommands") private var dictationCommands = false
-    @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = true
-    @AppStorage("clipboardContext") private var clipboardContext = false
+    @AppStorage("dictationSilence") private var dictationSilence = Settings.dictationSilence
+    @AppStorage("dictationPolish") private var dictationPolish = Settings.dictationPolish
+    @AppStorage("dictationCommands") private var dictationCommands = Settings.dictationCommands
+    @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = Settings.automaticUpdateCheck
+    @AppStorage("clipboardContext") private var clipboardContext = Settings.clipboardContextEnabled
 
     /// Floored like `Settings.ghostOpacity`: a value stored under the old 0.1
     /// floor must not preview fainter than the ghost actually draws.
@@ -442,12 +449,12 @@ struct GeneralTab: View {
                     // animate its own insertion from a Section modifier.
                     PresentationCard(mode: .panel, title: "Panel",
                                      isSelected: store.presentation == .panel,
-                                     hotkeyLabel: store.hotkeyStyle.label) {
+                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghost) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
                     }
                     PresentationCard(mode: .inline, title: "Inline", badge: "Unstable",
                                      isSelected: store.presentation == .inline,
-                                     hotkeyLabel: store.hotkeyStyle.label) {
+                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghost) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
                     }
                 }
@@ -951,15 +958,25 @@ struct OverlayPreview: View {
     private func half(light: Bool) -> some View {
         ZStack(alignment: .leading) {
             (light ? Color.white : Color(white: 0.09))
-            line(light: light).padding(.horizontal, 14)
+            SuggestionLineMock(presentation: presentation, opacity: opacity, hotkey: hotkey.label,
+                               ink: light ? .black : .white)
+                .padding(.horizontal, 14)
         }
         // Each half is its own appearance, so the keycaps' semantic colours
         // resolve against the page they sit on, not the Settings window.
         .environment(\.colorScheme, light ? .light : .dark)
     }
+}
 
-    private func line(light: Bool) -> some View {
-        let ink: Color = light ? .black : .white
+/// The sample line at the caret — the inline ghost, or the panel pill above
+/// the line — drawn by the live preview and by the presentation cards.
+struct SuggestionLineMock: View {
+    let presentation: SuggestionPresentation
+    let opacity: Double
+    let hotkey: String
+    var ink: Color = .primary
+
+    var body: some View {
         // The slider dims inline ghost text; the panel pill is an opaque HUD and
         // stays full-strength, so the preview must not move it either — else it
         // promises an effect the real panel never applies.
@@ -974,7 +991,7 @@ struct OverlayPreview: View {
                 // The ghost, then the accept keycap a new user sees beside it.
                 HStack(spacing: 6) {
                     Text("\(Text("Write ").foregroundColor(ink))\(Text("a reply").foregroundColor(head))\(Text(" to Anna").foregroundColor(tail))")
-                    MenuHintsView.keycap(hotkey.label)
+                    MenuHintsView.keycap(hotkey)
                         .opacity(min(1, effective / 0.7))
                 }
             } else {
@@ -985,7 +1002,7 @@ struct OverlayPreview: View {
                         Text("Write ").hidden()
                         HStack(spacing: 6) {
                             Text("\(Text("a reply").foregroundColor(ink))\(Text(" to Anna").foregroundColor(ink.opacity(0.55)))")
-                            MenuHintsView.keycap(hotkey.label)
+                            MenuHintsView.keycap(hotkey)
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -1015,9 +1032,11 @@ private struct PresentationCard: View {
     /// Short status tag beside the title (e.g. "Unstable").
     var badge: String? = nil
     let isSelected: Bool
-    /// The chosen accept key, shown in the panel mockup's hint pill so it
-    /// matches the live overlay instead of a hardcoded ⇥.
+    /// The chosen accept key, shown in the mockup so it matches the live
+    /// overlay instead of a hardcoded ⇥.
     var hotkeyLabel: String = "Tab"
+    /// The configured ghost opacity, so the inline mockup dims like the caret.
+    let ghost: Double
     let action: () -> Void
     /// Local hover only — a card highlight, never published to the store the
     /// Form observes (that path hitches list scrolling).
@@ -1031,7 +1050,8 @@ private struct PresentationCard: View {
                         .fill(Color(nsColor: .textBackgroundColor))
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
-                    previewLine.padding(.horizontal, 10)
+                    SuggestionLineMock(presentation: mode, opacity: ghost, hotkey: hotkeyLabel)
+                        .padding(.horizontal, 10)
                 }
                 .frame(height: 44)
                 HStack {
@@ -1070,28 +1090,6 @@ private struct PresentationCard: View {
         .frame(maxWidth: .infinity)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
-    }
-
-    @ViewBuilder private var previewLine: some View {
-        if mode == .inline {
-            Text("\(Text("Write ").foregroundColor(.primary))\(Text("a reply").foregroundColor(.secondary))")
-                .font(.system(size: 13))
-        } else {
-            // Above the line, from the caret — where the real pill floats.
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 0) {
-                    Text("Write ").font(.system(size: 13)).hidden()
-                    HStack(spacing: 4) {
-                        Text("a reply").font(.system(size: 12))
-                        MenuHintsView.keycap(hotkeyLabel)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.14), in: Capsule())
-                }
-                Text("Write ").font(.system(size: 13))
-            }
-        }
     }
 }
 
@@ -1258,7 +1256,7 @@ struct SuggestionsTab: View {
         func ms(_ length: CompletionLength) -> String {
             guard let baseMs else { return "" }
             let v = Int((Double(baseMs) * ConfigProjection.latencyFactor(length)).rounded())
-            return v >= 1000 ? String(format: "%.1f s", Double(v) / 1000) : "\(v) ms"
+            return latencyLabel(ms: v)
         }
         // The ratios come from the projection's own table, so a re-measured
         // sweep can't leave these strings quoting the old one.
@@ -1386,12 +1384,10 @@ struct PersonalTab: View {
             // learning would collect words it can never apply. On-device models only.
             if !store.isAppleIntelligence {
                 Section("Learning") {
-                    Picker("Learn my words", selection: $store.personalization) {
-                        ForEach(PersonalizationLevel.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
-                    }
+                    Toggle("Learn my words", isOn: $store.personalization)
                     BadgeRow(badges: [
                         EffectBadge(icon: "flask", text: "no measured gain yet", tone: .neutral,
-                                    source: "Boost = level × ln(1 + times you typed this word after this context, capped), applied to the first token. A first time-split replay leaned its way (3/0, p=0.25, n=54); the 2026-07-20 re-measure on a larger replay (n=64, β 0.6 and 1.2) found zero changed outcomes — the bias only fires at clean word boundaries. The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
+                                    source: "Boost = 0.6 × ln(1 + times you typed this word after this context, capped), applied to the first token. A first time-split replay leaned its way (3/0, p=0.25, n=54); the 2026-07-20 re-measure on a larger replay (n=64, β 0.6 and 1.2) found zero changed outcomes — the bias only fires at clean word boundaries. The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
                     ])
                     HStack {
                         Caption("Boosts the words you habitually type next — learned from your suggestion journal. Clear the journal to forget them.")
@@ -1446,24 +1442,6 @@ struct PersonalTab: View {
                 if let status = store.importStatus {
                     Caption(status)
                 }
-                // The journal itself still records (retention is the toggle above),
-                // but its few-shot reuse never reaches Apple Intelligence — FM's
-                // complete() ignores personalExamples — so the "reused as examples"
-                // rows and the measured-win badges are on-device-only.
-                if !store.isAppleIntelligence {
-                    LabeledContent("Accepted phrases") {
-                        Text("reused as prompt examples — automatic")
-                    }
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "checkmark.seal", text: "measured win on Instruct style", tone: .quality,
-                                    source: "Few-shot from your own accepted phrases: first-word 4% → 10% on the journal replay, all 7 discordant samples in its favor, exact p=0.016 (Instruct path)."),
-                        EffectBadge(icon: "checkmark.seal", text: "measured win on Base style", tone: .quality,
-                                    source: "Journal replay (n=158, base, gates off): first-word of all 25% → 49% on MiniCPM5-1B and 37% → 51% on Gemma E2B 8-bit, both p<0.001. Replay rewards your own repetitiveness, so expect a smaller live win."),
-                        EffectBadge(icon: "clock", text: "+20–190 ms to the first suggestion", tone: .caution,
-                                    source: "The examples lengthen the prompt: p50 93 → 115 ms on MiniCPM5-1B, 207 → 399 ms on Gemma E2B (the few-shot block about doubles its prefill)."),
-                    ])
-                    Caption("A measured win on both styles, so it's always on. Clear the journal above to forget the phrases.")
-                }  // end few-shot rows (hidden for Apple Intelligence)
             }
         }
         .formStyle(.grouped)

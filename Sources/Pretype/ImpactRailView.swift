@@ -8,9 +8,19 @@ import SwiftUI
 /// `ConfigProjection` (eval-backed); compute is the one estimate, labeled so.
 struct ImpactRailView: View {
     @Bindable var store: SettingsStore
-    /// Hover previews publish here (not on the store) so pointer movement
-    /// re-renders the rail and map only — never the scrolling Form.
-    var hover: HoverState
+
+    /// The four meters, top to bottom. Indigo, not red, for Compute: that
+    /// meter is mostly full in the default state (longer = lighter load), and
+    /// a full red bar reads as an alarm, not a resting figure.
+    private static let meters: [(icon: String, tint: Color, label: String,
+                                 value: KeyPath<ConfigProjection, String>,
+                                 sub: KeyPath<ConfigProjection, String>,
+                                 fraction: KeyPath<ConfigProjection, Double?>)] = [
+        ("scope", .green, "Accuracy", \.accuracyText, \.accuracySub, \.accuracyFraction),
+        ("bolt.fill", .blue, "Speed", \.latencyText, \.latencySub, \.speedFraction),
+        ("memorychip", .teal, "Memory", \.memoryText, \.memorySub, \.memoryFraction),
+        ("gauge.with.needle", .indigo, "Compute", \.computeText, \.computeSub, \.computeFraction),
+    ]
 
     var body: some View {
         let base = store.projection
@@ -33,33 +43,14 @@ struct ImpactRailView: View {
                         + "“Test connection” in Settings → API shows its round trip.")
                 } else {
                     VStack(alignment: .leading, spacing: 14) {
-                        MeterView(icon: "scope", tint: .green, label: "Accuracy",
-                                  value: base.accuracyText, sub: base.accuracySub,
-                                  fraction: base.accuracyFraction,
-                                  previewFraction: target?.accuracyFraction,
-                                  previewValue: target?.accuracyText,
-                                  delta: deltas.first { $0.label == "Accuracy" })
-                        MeterView(icon: "bolt.fill", tint: .blue, label: "Speed",
-                                  value: base.latencyText, sub: base.latencySub,
-                                  fraction: base.speedFraction,
-                                  previewFraction: target?.speedFraction,
-                                  previewValue: target?.latencyText,
-                                  delta: deltas.first { $0.label == "Speed" })
-                        MeterView(icon: "memorychip", tint: .teal, label: "Memory",
-                                  value: base.memoryText, sub: base.memorySub,
-                                  fraction: base.memoryFraction,
-                                  previewFraction: target?.memoryFraction,
-                                  previewValue: target?.memoryText,
-                                  delta: deltas.first { $0.label == "Memory" })
-                        // Indigo, not red: this meter is mostly full in the
-                        // default state (longer = lighter load), and a full red
-                        // bar reads as an alarm, not a resting figure.
-                        MeterView(icon: "gauge.with.needle", tint: .indigo, label: "Compute",
-                                  value: base.computeText, sub: base.computeSub,
-                                  fraction: base.computeFraction,
-                                  previewFraction: target?.computeFraction,
-                                  previewValue: target?.computeText,
-                                  delta: deltas.first { $0.label == "Compute" })
+                        ForEach(Self.meters, id: \.label) { m in
+                            MeterView(icon: m.icon, tint: m.tint, label: m.label,
+                                      value: base[keyPath: m.value], sub: base[keyPath: m.sub],
+                                      fraction: base[keyPath: m.fraction],
+                                      previewFraction: target?[keyPath: m.fraction],
+                                      previewValue: target?[keyPath: m.value],
+                                      delta: deltas.first { $0.label == m.label })
+                        }
                     }
                     .opacity(store.enabled ? 1 : 0.4)
                     .animation(.easeOut(duration: 0.25), value: store.enabled)

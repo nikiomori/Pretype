@@ -56,9 +56,7 @@ final class SettingsStore {
         didSet { guard !syncing, oldValue != dictation else { return }
             SettingsUI.setDictation(dictation) { [weak self] granted in
                 guard let self, !granted else { return }
-                self.syncing = true
-                self.dictation = false
-                self.syncing = false
+                self.quietly { self.dictation = false }
             } }
     }
     var dictationInput = "auto" {
@@ -165,7 +163,7 @@ final class SettingsStore {
                 self?.resync()
             }
             // Held for the download confirmation: keep showing what runs.
-            if !now { syncing = true; useRecommended = oldValue; syncing = false } }
+            if !now { quietly { useRecommended = oldValue } } }
     }
     var style = CompletionStyle.instruct {
         didSet { guard !syncing, oldValue != style else { return }
@@ -176,7 +174,7 @@ final class SettingsStore {
                 self?.controller?.engineCoordinator.apply(.style(picked))
                 self?.resync()
             }
-            if !now { syncing = true; style = oldValue; syncing = false } }
+            if !now { quietly { style = oldValue } } }
     }
     var length = CompletionLength.short {
         didSet { guard !syncing, oldValue != length else { return }
@@ -190,12 +188,12 @@ final class SettingsStore {
             controller?.engineCoordinator.apply(.logprobGate(logprobGate))
             resync() }
     }
-    var personalization = PersonalizationLevel.off {
+    var personalization = false {
         didSet { guard !syncing, oldValue != personalization else { return }
-            controller?.engineCoordinator.setPersonalization(personalization)
+            controller?.engineCoordinator.setPersonalization(personalization ? .on : .off)
             // Enabling mid-session must start the journal build right away —
             // otherwise live learning stays inert until the next keystroke.
-            if personalization != .off { PersonalNgram.shared.prepareIfNeeded() }
+            if personalization { PersonalNgram.shared.prepareIfNeeded() }
             learnedWords = PersonalNgram.shared.wordCount }
     }
     var journalEnabled = true {
@@ -260,7 +258,7 @@ final class SettingsStore {
     /// Control being hovered right now — the Live Impact rail, the delta
     /// strips and the model map preview its effect before anything commits.
     /// On `HoverState`, not the store, so hovering never re-renders the Form.
-    let hoverState = HoverState()
+    private let hoverState = HoverState()
     var preview: ProjectionConfig.Change? {
         get { hoverState.preview }
         set { hoverState.preview = newValue }
@@ -278,10 +276,15 @@ final class SettingsStore {
     /// the controls stay live instead of reading as broken while auto is on.
     private func unlockManualTuning() {
         guard useRecommended else { return }
-        syncing = true
-        useRecommended = false
-        syncing = false
+        quietly { useRecommended = false }
         Settings.useRecommendedSettings = false
+    }
+
+    /// Set mirrors without their didSets forwarding the change to the pipeline.
+    private func quietly(_ update: () -> Void) {
+        syncing = true
+        update()
+        syncing = false
     }
 
     var learnedWords = 0
@@ -833,7 +836,7 @@ final class SettingsStore {
         // coordinator's hygiene never saw must not render as
         // on-but-doing-nothing.
         logprobGate = Settings.logprobGate && style == .base
-        personalization = Settings.personalizationLevel
+        personalization = Settings.personalizationLevel == .on
         journalEnabled = Settings.suggestionJournalEnabled
         instructions = Settings.customInstructions
         perAppInstructions = Settings.perAppInstructions

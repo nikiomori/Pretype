@@ -41,25 +41,21 @@ enum CompletionLength: String, CaseIterable {
     }
 }
 
-/// How strongly to bias the model toward the user's previously-accepted words.
-/// Off by default; collection only happens while this is non-off.
-enum PersonalizationLevel: String, CaseIterable {
+/// Whether to bias the model toward the user's previously-accepted words.
+/// Collection only happens while on.
+enum PersonalizationLevel: String {
     case off
-    case subtle
-    case medium
-    case strong
+    case on
+
+    /// Builds before 2026-10 stored a strength (subtle/medium/strong); every
+    /// one of them reads as on.
+    init?(rawValue: String) { self = rawValue == "off" ? .off : .on }
 
     /// β in the first-token n-gram boost: β × ln(1+count) logits on a personal
-    /// next-word candidate's start token. Kept modest — too high favors a
-    /// habitual word over a better-fitting one.
-    var bias: Float {
-        switch self {
-        case .off: return 0
-        case .subtle: return 0.6
-        case .medium: return 1.2
-        case .strong: return 2.2
-        }
-    }
+    /// next-word candidate's start token — the former "subtle" strength, the
+    /// shipped default. Kept modest — too high favors a habitual word over a
+    /// better-fitting one; the stronger levels measured no different.
+    var bias: Float { self == .on ? 0.6 : 0 }
 }
 
 /// How a completion is shown at the caret.
@@ -327,6 +323,38 @@ struct CompletionConfig {
     }
 }
 
+/// One UserDefaults key and its default, stated once: a read of an unset key
+/// returns the default (nothing is registered). Plist values store as
+/// themselves, String-backed enums as their raw value.
+@propertyWrapper
+struct Pref<Value> {
+    let key: String
+    private let defaultValue: Value
+    private let decode: (Any) -> Value?
+    private let encode: (Value) -> Any
+
+    init(_ key: String, _ defaultValue: Value) {
+        self.key = key
+        self.defaultValue = defaultValue
+        decode = { $0 as? Value }
+        encode = { $0 }
+    }
+
+    var wrappedValue: Value {
+        get { UserDefaults.standard.object(forKey: key).flatMap(decode) ?? defaultValue }
+        nonmutating set { UserDefaults.standard.set(encode(newValue), forKey: key) }
+    }
+}
+
+extension Pref where Value: RawRepresentable, Value.RawValue == String {
+    init(_ key: String, _ defaultValue: Value) {
+        self.key = key
+        self.defaultValue = defaultValue
+        decode = { ($0 as? String).flatMap(Value.init(rawValue:)) }
+        encode = { $0.rawValue }
+    }
+}
+
 enum Settings {
     private static let defaults = UserDefaults.standard
 
@@ -425,93 +453,13 @@ enum Settings {
         return !isFetched(model) && isFetched(instruct)
     }
 
-    static func registerDefaults() {
-        // Per-app "this is useless here" verdicts predate the fair denominator.
-        Stats.migrateAppRecordsIfNeeded()
-        // "core" stopped being a choice in the language picker 2026-07-25: it
-        // pooled English and Russian, which measure differently, into one entry
-        // sitting among real languages. The sample still exists — it is the only
-        // one the settings projections are anchored to — but it is now a mode
-        // (`settingsMapMode`) rather than a language, so picking a language and
-        // looking at the settings map are no longer the same gesture.
-        if defaults.string(forKey: "accuracyAxis") == "core" {
-            defaults.set(true, forKey: "settingsMapMode")
-            defaults.set("*", forKey: "accuracyAxis")
+    /// One-shot rewrites of stored values. Runs first thing in main.
+    static func migrate() {
+        // `object(forKey:)`, not `completionStyle`: the property answers an
+        // unset key with its default.
+        if defaults.object(forKey: "completionStyle") == nil, keepsLegacyInstruct(model: mlxModelID) {
+            completionStyle = .instruct
         }
-        // Read before `register`, which would answer for an unset key.
-        if defaults.object(forKey: "completionStyle") == nil,
-           keepsLegacyInstruct(model: defaults.string(forKey: "mlxModelID") ?? ModelCatalog.defaultID) {
-            defaults.set(CompletionStyle.instruct.rawValue, forKey: "completionStyle")
-        }
-        // Style/length ship pre-matched to the default model's recommendation:
-        // nothing applies it at boot (main only registers defaults), and the
-        // engine reads the stored style directly — so the base-only Qwen3.5
-        // floor (small-RAM Macs) would otherwise launch in its broken
-        // instruct mode.
-        let rec = ModelCatalog.recommended(for: ModelCatalog.defaultID)
-        defaults.register(defaults: [
-            "enabled": true,
-            "pauseOnBattery": false,
-            "mlxModelID": ModelCatalog.defaultID,
-            // Wait after a keystroke before querying. Replayed typing (lognormal
-            // gaps, median 190 ms): 120 → 60 ms cut pause→ghost p50 by 55–76 ms
-            // across E4B/E2B/Qwen3.5 for +12–18% engine work — most gaps clear
-            // 120 ms anyway, so the old value mostly added latency.
-            "debounceMs": 60,
-            // A reload after the idle unload costs ~0.6–1.2 s even with the
-            // tokenizer kept; on 32 GB+ Macs, where the memory-pressure unload
-            // still frees the model the moment macOS needs the RAM, the model
-            // waits out a longer pause instead. A picked value always wins.
-            "idleUnloadMinutes": ModelCatalog.machineRamGB >= 32 ? 15 : 5,
-            // Follows the default model's recommendation (base·short on the
-            // Qwen3.5 floor; instruct·short on the Gemma tiers).
-            "completionStyle": rec.style.rawValue,
-            "completionLength": rec.length.rawValue,
-            "customInstructions": defaultInstructions,
-            // Subtle by default: powers the n-gram first-token boost AND the
-            // personal n-gram fast-path; everything stays on-device.
-            "personalizationLevel": PersonalizationLevel.subtle.rawValue,
-            "suggestionPresentation": SuggestionPresentation.panel.rawValue,
-            "useRecommendedSettings": true,
-            "automaticUpdateCheck": true,
-            "logprobGate": false,
-            // Mean first-word logprob floor. Q3 boundary from the eval-real
-            // calibration (~11% Net-KSS at ~49% coverage); tune from the journal's
-            // captured firstWordLogProb. More negative = laxer, toward 0 = stricter.
-            "logprobGateThreshold": -1.5,
-            "userBlacklist": [String](),
-            "suggestionJournal": true,
-            // 0.45 read as near-invisible over real app backgrounds; 0.7 is
-            // still clearly "ghost" next to the host text but survives noise.
-            "ghostOpacity": 0.7,
-            "hotkeyStyle": HotkeyStyle.tab.rawValue,
-            "replyGesture": ReplyGesture.option.rawValue,
-            // Dictation is OFF until asked for: it is the one feature that
-            // opens the microphone, and a third permission prompt at first
-            // launch (after Accessibility and Screen Recording) is not
-            // something to spring on someone who came for autocomplete.
-            "dictation": false,
-            "dictationGesture": DictationGesture.option.rawValue,
-            // The hands-free half. On by default *within* dictation (which is
-            // itself off): someone who has just turned the microphone on should
-            // find both halves of the feature there, and a chord that starts
-            // nothing until dictation is enabled costs an unused key binding.
-            "dictationLatch": DictationLatch.controlOptionD.rawValue,
-            // Long enough to think mid-sentence, short enough that a capture
-            // forgotten about doesn't run to the ceiling. Only ever consulted
-            // for a latched capture — a held key says when it is done.
-            "dictationSilence": 5.0,
-            // The transcript goes through the same minimal-edit fix the ⌥⇥
-            // flow uses — free on top of a generation the user is already
-            // waiting for, and it is what makes this Pretype's dictation
-            // rather than a second copy of the system's.
-            "dictationPolish": true,
-            "dictationCommands": false,
-            "dictationParakeet": false,
-            "dictationLanguage": "auto",
-            "dictationInput": "auto",
-            "onboardingCompleted": false,
-        ])
         // Qwen3.5 2B completes on its Base build since 2026-10-11, at 6-bit
         // since 2026-10-14; a user who picked it keeps the pick (the
         // post-trained build stays its ⌥⇥ sibling).
@@ -525,67 +473,40 @@ enum Settings {
         }
     }
 
-    static var onboardingCompleted: Bool {
-        get { defaults.bool(forKey: "onboardingCompleted") }
-        set { defaults.set(newValue, forKey: "onboardingCompleted") }
-    }
+    @Pref("onboardingCompleted", false) static var onboardingCompleted: Bool
 
-    static var enabled: Bool {
-        get { defaults.bool(forKey: "enabled") }
-        set { defaults.set(newValue, forKey: "enabled") }
-    }
+    @Pref("enabled", true) static var enabled: Bool
 
     /// No completions while the Mac runs on battery: every suggestion is a GPU
     /// burst, and battery drain is the most-cited reason people quit local
     /// autocomplete. Off by default; see `AppPolicy.pausedForBattery`.
-    static var pauseOnBattery: Bool {
-        get { defaults.bool(forKey: "pauseOnBattery") }
-        set { defaults.set(newValue, forKey: "pauseOnBattery") }
-    }
+    @Pref("pauseOnBattery", false) static var pauseOnBattery: Bool
 
-    static var userBlacklist: [String] {
-        get { defaults.stringArray(forKey: "userBlacklist") ?? [] }
-        set { defaults.set(newValue, forKey: "userBlacklist") }
-    }
+    @Pref("userBlacklist", []) static var userBlacklist: [String]
 
     /// Local JSONL journal of suggestion outcomes (accepted / dismissed /
     /// typed-past) — the dataset for the offline replay bench and future
     /// personalization. Never leaves the Mac.
-    static var suggestionJournalEnabled: Bool {
-        get { defaults.bool(forKey: "suggestionJournal") }
-        set { defaults.set(newValue, forKey: "suggestionJournal") }
-    }
+    @Pref("suggestionJournal", true) static var suggestionJournalEnabled: Bool
 
     /// Whether Pretype may ask GitHub once a day whether a newer release exists
     /// (see `UpdateChecker`). Off means the app makes no outbound request the
     /// user didn't start. The menu's manual check works either way.
-    static var automaticUpdateCheck: Bool {
-        get { defaults.bool(forKey: "automaticUpdateCheck") }
-        set { defaults.set(newValue, forKey: "automaticUpdateCheck") }
-    }
+    @Pref("automaticUpdateCheck", true) static var automaticUpdateCheck: Bool
 
     /// Opt-in OCR of the focused window for richer model context.
-    static var screenContextEnabled: Bool {
-        get { defaults.bool(forKey: "screenContext") }
-        set { defaults.set(newValue, forKey: "screenContext") }
-    }
+    @Pref("screenContext", false) static var screenContextEnabled: Bool
 
     /// Opt-in: feed the current clipboard text to the model as extra context
     /// (the thing being replied to is often just-copied). Same label-free
     /// prompt block as the screen context; concealed/transient pasteboards
     /// (password managers mark both) are never read.
-    static var clipboardContextEnabled: Bool {
-        get { defaults.bool(forKey: "clipboardContext") }
-        set { defaults.set(newValue, forKey: "clipboardContext") }
-    }
+    @Pref("clipboardContext", false) static var clipboardContextEnabled: Bool
 
     /// Extra persona lines for one specific app (exact lowercased bundle ID →
     /// text), appended to `customInstructions` in the instruct directive —
     /// "formal, no emoji" for Mail, "casual and short" for Slack.
-    static var perAppInstructions: [String: String] {
-        get { defaults.dictionary(forKey: "perAppInstructions") as? [String: String] ?? [:] }
-        set { defaults.set(newValue, forKey: "perAppInstructions") }
-    }
+    @Pref("perAppInstructions", [:]) static var perAppInstructions: [String: String]
 
     /// The per-app addition for the app being typed in, or nil when none is
     /// configured (or it's blank).
@@ -611,41 +532,36 @@ enum Settings {
         return perAppInstructions(for: bundleID)
     }
 
-    static var mlxModelID: String {
-        get { defaults.string(forKey: "mlxModelID") ?? ModelCatalog.defaultID }
-        set { defaults.set(newValue, forKey: "mlxModelID") }
-    }
+    @Pref("mlxModelID", ModelCatalog.defaultID) static var mlxModelID: String
 
-    static var debounceMs: Int { defaults.integer(forKey: "debounceMs") }
+    /// Wait after a keystroke before querying. Replayed typing (lognormal
+    /// gaps, median 190 ms): 120 → 60 ms cut pause→ghost p50 by 55–76 ms
+    /// across E4B/E2B/Qwen3.5 for +12–18% engine work — most gaps clear
+    /// 120 ms anyway, so the old value mostly added latency.
+    static let debounceMs = 60
 
     /// "Auto" mode: Style and Length follow `ModelCatalog.recommended(for:)` for
     /// the selected model (and re-apply on model switch), instead of the user
     /// tuning them by hand. On by default.
-    static var useRecommendedSettings: Bool {
-        get { defaults.bool(forKey: "useRecommendedSettings") }
-        set { defaults.set(newValue, forKey: "useRecommendedSettings") }
-    }
+    @Pref("useRecommendedSettings", true) static var useRecommendedSettings: Bool
 
     /// Logprob confidence gate (base only): abstain when the shown suggestion's
     /// mean first-word logprob is below `logprobGateThreshold`. Trades coverage
     /// for precision at **0×** extra decode — the first-word logprob is already captured live by the
     /// decode loop (validated in Eval/BASELINE.md). Off by default.
-    static var logprobGate: Bool {
-        get { defaults.bool(forKey: "logprobGate") }
-        set { defaults.set(newValue, forKey: "logprobGate") }
-    }
-    static var logprobGateThreshold: Double {
-        get { let v = defaults.double(forKey: "logprobGateThreshold"); return v != 0 ? v : -1.5 }
-        set { defaults.set(newValue, forKey: "logprobGateThreshold") }
-    }
+    @Pref("logprobGate", false) static var logprobGate: Bool
+    /// Mean first-word logprob floor for models without a calibrated τ. Q3
+    /// boundary from the eval-real calibration (~11% Net-KSS at ~49%
+    /// coverage). More negative = laxer, toward 0 = stricter.
+    static let logprobGateThreshold = -1.5
 
     /// Free the resident MLX model after this many minutes idle (0 = never). A
     /// background menu-bar app shouldn't hold several GB while unused; the next
-    /// focus/keystroke reloads it from the on-disk cache.
-    static var idleUnloadMinutes: Int {
-        get { defaults.integer(forKey: "idleUnloadMinutes") }
-        set { defaults.set(newValue, forKey: "idleUnloadMinutes") }
-    }
+    /// focus/keystroke reloads it from the on-disk cache. A reload costs
+    /// ~0.6–1.2 s even with the tokenizer kept; on 32 GB+ Macs, where the
+    /// memory-pressure unload still frees the model the moment macOS needs the
+    /// RAM, the model waits out a longer pause instead. A picked value always wins.
+    @Pref("idleUnloadMinutes", ModelCatalog.machineRamGB >= 32 ? 15 : 5) static var idleUnloadMinutes: Int
 
     /// Which measured axis the Model tab's accuracy surfaces show: "*" =
     /// equal-weight average over all measured languages (the multilingual
@@ -655,10 +571,7 @@ enum Settings {
     /// axis the settings projections are measured on), or a language code
     /// from `ModelMetrics.evalLanguages`. Presentation-only: never feeds the
     /// completion pipeline.
-    static var accuracyAxis: String {
-        get { defaults.string(forKey: "accuracyAxis") ?? "*" }
-        set { defaults.set(newValue, forKey: "accuracyAxis") }
-    }
+    @Pref("accuracyAxis", "*") static var accuracyAxis: String
 
     /// Show the model map's settings machinery — the config dots, the reachable
     /// zone and the projected ring. Its own switch rather than an entry in the
@@ -668,109 +581,84 @@ enum Settings {
     /// numbers and can't be redrawn against one. Turning it on moves the whole
     /// tab onto that sample and says so; the language you picked is remembered
     /// and comes back when you turn it off.
-    static var settingsMapMode: Bool {
-        get { defaults.bool(forKey: "settingsMapMode") }
-        set { defaults.set(newValue, forKey: "settingsMapMode") }
-    }
+    @Pref("settingsMapMode", false) static var settingsMapMode: Bool
 
-    /// Base (raw continuation) vs instruct (persona-aware) completion.
-    static var completionStyle: CompletionStyle {
-        get { CompletionStyle(rawValue: defaults.string(forKey: "completionStyle") ?? "") ?? .instruct }
-        set { defaults.set(newValue.rawValue, forKey: "completionStyle") }
-    }
+    /// Base (raw continuation) vs instruct (persona-aware) completion. Ships
+    /// pre-matched to the default model's recommendation: nothing applies it
+    /// at boot, and the engine reads the stored style directly — so the
+    /// base-only Qwen3.5 floor (small-RAM Macs) would otherwise launch in its
+    /// broken instruct mode.
+    @Pref("completionStyle", ModelCatalog.recommended(for: ModelCatalog.defaultID).style)
+    static var completionStyle: CompletionStyle
 
     /// How long a single completion may be.
-    static var completionLength: CompletionLength {
-        get { CompletionLength(rawValue: defaults.string(forKey: "completionLength") ?? "") ?? .short }
-        set { defaults.set(newValue.rawValue, forKey: "completionLength") }
-    }
+    @Pref("completionLength", ModelCatalog.recommended(for: ModelCatalog.defaultID).length)
+    static var completionLength: CompletionLength
 
     /// Free-text persona/voice used in instruct mode (Cotypist's "Custom AI
     /// Instructions"). Ships with a generic default; the user can edit or clear it.
-    static var customInstructions: String {
-        get { defaults.string(forKey: "customInstructions") ?? defaultInstructions }
-        set { defaults.set(newValue, forKey: "customInstructions") }
-    }
+    @Pref("customInstructions", defaultInstructions) static var customInstructions: String
 
-    /// Strength of the personal n-gram boost. Off disables learning too.
-    static var personalizationLevel: PersonalizationLevel {
-        get { PersonalizationLevel(rawValue: defaults.string(forKey: "personalizationLevel") ?? "") ?? .off }
-        set { defaults.set(newValue.rawValue, forKey: "personalizationLevel") }
-    }
+    /// The personal n-gram: the first-token boost AND the personal n-gram
+    /// fast-path. On by default; everything stays on-device. Off disables
+    /// learning too.
+    @Pref("personalizationLevel", PersonalizationLevel.on) static var personalizationLevel: PersonalizationLevel
 
     /// Inline ghost text vs a floating panel beside the caret.
-    static var suggestionPresentation: SuggestionPresentation {
-        get { SuggestionPresentation(rawValue: defaults.string(forKey: "suggestionPresentation") ?? "") ?? .panel }
-        set { defaults.set(newValue.rawValue, forKey: "suggestionPresentation") }
-    }
+    @Pref("suggestionPresentation", SuggestionPresentation.panel)
+    static var suggestionPresentation: SuggestionPresentation
 
-    static var ghostOpacity: Double {
-        // Floored like the Settings slider (0.4…1): a value stored under the
-        // old 0.1 floor would otherwise keep the ghost near-invisible.
-        get { max(0.4, defaults.double(forKey: "ghostOpacity")) }
-        set { defaults.set(newValue, forKey: "ghostOpacity") }
-    }
+    /// 0.45 read as near-invisible over real app backgrounds; 0.7 is still
+    /// clearly "ghost" next to the host text but survives noise.
+    @Pref("ghostOpacity", 0.7) private static var storedGhostOpacity: Double
+    /// Floored like the Settings slider (0.4…1): a value stored under the old
+    /// 0.1 floor would otherwise keep the ghost near-invisible.
+    static var ghostOpacity: Double { max(0.4, storedGhostOpacity) }
 
-    static var hotkeyStyle: HotkeyStyle {
-        get { HotkeyStyle(rawValue: defaults.string(forKey: "hotkeyStyle") ?? "") ?? .tab }
-        set { defaults.set(newValue.rawValue, forKey: "hotkeyStyle") }
-    }
+    @Pref("hotkeyStyle", HotkeyStyle.tab) static var hotkeyStyle: HotkeyStyle
 
     /// Read on every modifier event, so a change applies to the next keypress —
     /// no relaunch, no event-tap rebuild.
-    static var replyGesture: ReplyGesture {
-        get { ReplyGesture(rawValue: defaults.string(forKey: "replyGesture") ?? "") ?? .option }
-        set { defaults.set(newValue.rawValue, forKey: "replyGesture") }
-    }
+    @Pref("replyGesture", ReplyGesture.option) static var replyGesture: ReplyGesture
 
-    /// Hold-to-talk dictation. Off by default (see `registerDefaults`); turning
-    /// it on is what asks for the microphone.
-    static var dictationEnabled: Bool {
-        get { defaults.bool(forKey: "dictation") }
-        set { defaults.set(newValue, forKey: "dictation") }
-    }
+    /// Hold-to-talk dictation; turning it on is what asks for the microphone.
+    /// OFF until asked for: it is the one feature that opens the microphone,
+    /// and a third permission prompt at first launch (after Accessibility and
+    /// Screen Recording) is not something to spring on someone who came for
+    /// autocomplete.
+    @Pref("dictation", false) static var dictationEnabled: Bool
 
-    static var dictationGesture: DictationGesture {
-        get { DictationGesture(rawValue: defaults.string(forKey: "dictationGesture") ?? "") ?? .option }
-        set { defaults.set(newValue.rawValue, forKey: "dictationGesture") }
-    }
+    @Pref("dictationGesture", DictationGesture.option) static var dictationGesture: DictationGesture
 
-    /// The chord that starts and ends a hands-free capture.
-    static var dictationLatch: DictationLatch {
-        get { DictationLatch(rawValue: defaults.string(forKey: "dictationLatch") ?? "") ?? .off }
-        set { defaults.set(newValue.rawValue, forKey: "dictationLatch") }
-    }
+    /// The chord that starts and ends a hands-free capture. On by default
+    /// *within* dictation (which is itself off): someone who has just turned
+    /// the microphone on should find both halves of the feature there, and a
+    /// chord that starts nothing until dictation is enabled costs an unused
+    /// key binding.
+    @Pref("dictationLatch", DictationLatch.controlOptionD) static var dictationLatch: DictationLatch
 
     /// How long a hands-free capture may hear nothing before it ends itself and
     /// types what it has. 0 turns it off — then only a second press of the
-    /// chord (or the ceiling) stops it.
-    static var dictationSilence: TimeInterval {
-        get { defaults.double(forKey: "dictationSilence") }
-        set { defaults.set(newValue, forKey: "dictationSilence") }
-    }
+    /// chord (or the ceiling) stops it. Long enough to think mid-sentence,
+    /// short enough that a capture forgotten about doesn't run to the ceiling.
+    @Pref("dictationSilence", 5.0) static var dictationSilence: TimeInterval
 
-    /// Run the transcript through the model's minimal-edit fix before typing it.
-    static var dictationPolish: Bool {
-        get { defaults.bool(forKey: "dictationPolish") }
-        set { defaults.set(newValue, forKey: "dictationPolish") }
-    }
+    /// Run the transcript through the model's minimal-edit fix before typing
+    /// it — free on top of a generation the user is already waiting for, and
+    /// it is what makes this Pretype's dictation rather than a second copy of
+    /// the system's.
+    @Pref("dictationPolish", true) static var dictationPolish: Bool
 
     /// Voice command mode: dictating while text is selected speaks an
     /// INSTRUCTION for that selection ("make it shorter", "translate to
     /// English"), previewed like a ⌥⇥ fix. Off by default — it changes what
     /// dictating over a selection means (otherwise: replace it).
-    static var dictationCommands: Bool {
-        get { defaults.bool(forKey: "dictationCommands") }
-        set { defaults.set(newValue, forKey: "dictationCommands") }
-    }
+    @Pref("dictationCommands", false) static var dictationCommands: Bool
 
     /// Dictate the languages Apple's newer speech model doesn't cover with
     /// Parakeet instead (see `Parakeet`). Off by default — turning it on is
     /// the consent for a ~610 MB download.
-    static var dictationParakeet: Bool {
-        get { defaults.bool(forKey: "dictationParakeet") }
-        set { defaults.set(newValue, forKey: "dictationParakeet") }
-    }
+    @Pref("dictationParakeet", false) static var dictationParakeet: Bool
 
     /// Suggestions, fix and reply on a hosted model instead of the on-device
     /// one (Settings → API). Off by default — on, typed text leaves the Mac.
@@ -793,17 +681,11 @@ enum Settings {
     /// Which microphone a capture opens: "auto" (keep a Bluetooth headset out
     /// of call mode — see `AudioDevices`), "system" (always the system default
     /// input), or a device UID.
-    static var dictationInput: String {
-        get { defaults.string(forKey: "dictationInput") ?? "auto" }
-        set { defaults.set(newValue, forKey: "dictationInput") }
-    }
+    @Pref("dictationInput", "auto") static var dictationInput: String
 
     /// Language to dictate in: "auto" follows the active keyboard layout, any
     /// other value is a language/locale identifier the user pinned.
-    static var dictationLanguage: String {
-        get { defaults.string(forKey: "dictationLanguage") ?? "auto" }
-        set { defaults.set(newValue, forKey: "dictationLanguage") }
-    }
+    @Pref("dictationLanguage", "auto") static var dictationLanguage: String
 
     /// The locale a dictation session should open with. "auto" reads the
     /// layout that is active at the moment the key goes down — a bilingual

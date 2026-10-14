@@ -6,23 +6,11 @@ import SwiftUI
 /// texts are English like the persona and directives (measured best there);
 /// they steer style, not language.
 ///
-/// The per-app ones are community files, `AppStyles/{apps,sites}/*.txt` at the
-/// repo root, shipped in the app bundle: anyone adds support for their app with
-/// one plain-text file (AppStyles/README.md has the format), and Settings'
-/// share button opens that file prefilled on GitHub. The kinds below are the
-/// fallback for apps nobody has written one for yet.
+/// They are community files, `AppStyles/{apps,sites}/*.txt` at the repo root,
+/// shipped in the app bundle: anyone adds support for their app with one
+/// plain-text file (AppStyles/README.md has the format), and Settings' share
+/// button opens that file prefilled on GitHub.
 enum PerAppPresets {
-    static let email = "This is email: complete, grammatical sentences in a polite, professional tone. "
-        + "Open replies with a brief greeting and close politely. No slang, no emoji."
-    static let workChat = "This is work chat: short, direct messages in a friendly professional tone. "
-        + "Contractions are fine. Skip greetings and sign-offs. Emoji only when it adds meaning."
-    static let casualChat = "This is casual chat with friends: very short, relaxed, conversational replies. "
-        + "Informal wording and contractions. Never formal phrases, greetings or sign-offs."
-    static let notes = "These are personal notes: concise and factual. Prefer short phrases over full "
-        + "sentences. No conversational filler, no emoji."
-    static let documents = "This is a document: clear, well-structured prose in complete sentences, "
-        + "neutral and polished. No chat mannerisms, no emoji."
-
     /// Per-app-instructions key → text, from the bundle's AppStyles folder
     /// (`Scripts/make-app.sh` copies it in; `Scripts/dev.sh` next to the binary).
     static let community = load(from: Bundle.main.resourceURL?.appendingPathComponent("AppStyles"))
@@ -52,21 +40,23 @@ enum PerAppPresets {
         return text.isEmpty ? nil : text
     }
 
+    /// Bundle-ID words → the community file an app of that kind borrows when
+    /// nobody has written one for it ("com.readdle.smartemail…" reads as email).
+    static let kinds: [(words: [String], key: String)] = [
+        (["mail", "outlook", "email"], "com.apple.mail"),
+        (["slack", "teams"], "com.tinyspeck.slackmacgap"),
+        (["telegram", "whatsapp", "discord", "signal", "viber", "mobilesms"], "ru.keepcoder.telegram"),
+        (["notes", "notion", "obsidian", "bear", "craft"], "com.apple.notes"),
+        (["pages", "word"], "com.apple.iwork.pages"),
+    ]
+
     /// Template for an arbitrary picked app or typed site — its community file
-    /// first, then a bundle-ID heuristic for apps outside the folder
-    /// ("com.readdle.smartemail…" reads as email). nil = no guess, start blank.
-    static func template(for key: String) -> String? {
+    /// first, then the file of its kind (`kinds`). nil = no guess, start blank.
+    static func template(for key: String, in styles: [String: String] = community) -> String? {
         let id = key.lowercased()
-        if let exact = community[id] { return exact }
+        if let exact = styles[id] { return exact }
         guard AppPolicy.siteHost(fromEntry: id) == nil else { return nil }
-        if ["mail", "outlook", "email"].contains(where: id.contains) { return email }
-        if ["slack", "teams"].contains(where: id.contains) { return workChat }
-        if ["telegram", "whatsapp", "discord", "signal", "viber", "mobilesms"].contains(where: id.contains) {
-            return casualChat
-        }
-        if ["notes", "notion", "obsidian", "bear", "craft"].contains(where: id.contains) { return notes }
-        if ["pages", "word"].contains(where: id.contains) { return documents }
-        return nil
+        return kinds.first { $0.words.contains(where: id.contains) }.flatMap { styles[$0.key] }
     }
 
     /// Community styles for apps actually installed on this Mac and not

@@ -303,8 +303,6 @@ enum ModelCatalog {
     struct Recommendation {
         let style: CompletionStyle
         let length: CompletionLength
-        /// Mid-line fill-in is reliable only on E4B-class models.
-        let fim: Bool
         /// Logprob-gate τ calibrated PER MODEL: the same mean first-word logprob
         /// means different confidence on different tokenizers/models — split-half
         /// Q4 edges span −0.75 (E4B-8bit) … −1.12 (Qwen0.5B) across the catalog
@@ -312,22 +310,18 @@ enum ModelCatalog {
         /// odd). One global τ is therefore too strict for small models and too lax
         /// for big Gemma. nil = no logprob available (Apple Intelligence).
         let logprobGateTau: Double?
-        /// One-line human summary for the settings UI, e.g.
-        /// "Instruct · Short · Fill-in".
+        /// One-line human summary for the settings UI, e.g. "Instruct · Short".
         var summary: String {
-            var parts = [style == .instruct ? "Instruct" : "Base",
-                         length.rawValue.capitalized]
-            if fim { parts.append("Fill-in") }
-            return parts.joined(separator: " · ")
+            [style == .instruct ? "Instruct" : "Base", length.rawValue.capitalized]
+                .joined(separator: " · ")
         }
     }
 
     static func recommended(for id: String) -> Recommendation {
         if id == appleIntelligenceID {
             // System model: short is its sweet spot (weak on long / Russian
-            // tails); style is moot; no base path for the gate, no fill-in.
-            return Recommendation(style: .instruct, length: .short, fim: false,
-                                  logprobGateTau: nil)
+            // tails); style is moot; no base path for the gate.
+            return Recommendation(style: .instruct, length: .short, logprobGateTau: nil)
         }
         // MiniCPM5: base continuation only — instruct answers instead of
         // continuing (eval-v2 first-word ~0%), so auto mode must never route
@@ -335,25 +329,22 @@ enum ModelCatalog {
         // first-word is length-independent; longer buys ~1–2 pts completeness
         // but LOSES word-F1 and doubles latency each step (short 157 / medium
         // 291 / long 550 ms p50 on eval-real) — so short wins for inline ghost
-        // text. Its gate τ is the calibration run's own; not E4B-class, so no
-        // fill-in.
+        // text. Its gate τ is the calibration run's own.
         if id.contains("MiniCPM5") {
-            return Recommendation(style: .base, length: .short, fim: false,
-                                  logprobGateTau: -1.00)
+            return Recommendation(style: .base, length: .short, logprobGateTau: -1.00)
         }
         // Small base-continuation picks from the 07-15 sweep (Qwen2.5-0.5B,
         // Qwen3.5-2B, ternary Bonsai-4B): base only — instruct echoes; short
-        // (first-word is length-independent here); not E4B-class so no
-        // fill-in. The logprob gate still works (monotone calibration).
+        // (first-word is length-independent here). The logprob gate still
+        // works (monotone calibration).
         if id.contains("Qwen2.5-0.5B") || id.contains("Qwen3.5-2B")
             || id.contains("Ternary-Bonsai") {
             // Qwen3.5 Base 6-bit lands on −1.00 too (runs-2026-10-14-small book-6bit).
             let tau = id.contains("Qwen2.5-0.5B") ? -1.12 : id.contains("Ternary-Bonsai") ? -0.95 : -1.00
-            return Recommendation(style: .base, length: .short, fim: false,
-                                  logprobGateTau: tau)
+            return Recommendation(style: .base, length: .short, logprobGateTau: tau)
         }
         // Gemma E-series, short. E4B: instruct + persona, the authored-text
-        // winner (~85% first-word) and the only class with fill-in. E2B: base
+        // winner (~85% first-word). E2B: base
         // since 2026-10-14 — on real text its instruct sibling + the default
         // persona gets the first word on 5% of all rows against base's 21%
         // (eval-real 17 langs, paired 988 vs 87 discordant; en 14 vs 28, ru 9
@@ -363,9 +354,7 @@ enum ModelCatalog {
         let tau: Double = isE4B
             ? (is4bit ? -1.00 : id.contains("6bit") ? -0.79 : -0.75)
             : (is4bit ? -0.94 : -0.88)
-        return Recommendation(style: isE4B ? .instruct : .base, length: .short,
-                              fim: isE4B,
-                              logprobGateTau: tau)
+        return Recommendation(style: isE4B ? .instruct : .base, length: .short, logprobGateTau: tau)
     }
 }
 

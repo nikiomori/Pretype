@@ -787,17 +787,6 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(request.persona(global: "I write concisely."), "I write concisely.")
     }
 
-    func testPerAppPresetTemplates() {
-        // Exact catalog IDs and case-insensitivity.
-        XCTAssertEqual(PerAppPresets.template(for: "com.apple.MAIL"), PerAppPresets.email)
-        XCTAssertEqual(PerAppPresets.template(for: "ru.keepcoder.Telegram"), PerAppPresets.casualChat)
-        // Heuristic for apps outside the catalog.
-        XCTAssertEqual(PerAppPresets.template(for: "com.airmailapp.airmail-email"), PerAppPresets.email)
-        XCTAssertEqual(PerAppPresets.template(for: "com.lukilabs.craft-notes"), PerAppPresets.notes)
-        // Unknown kind starts blank rather than guessing wrong.
-        XCTAssertNil(PerAppPresets.template(for: "com.example.mystery"))
-    }
-
     // AppStyles/ takes pull requests from people who never touch the Swift
     // code, so this is their review: CI fails a file the app would mis-key,
     // silently skip, or that would bloat every prompt it rides in.
@@ -823,8 +812,19 @@ final class PretypeTests: XCTestCase {
         }
         let styles = PerAppPresets.load(from: root)
         XCTAssertEqual(styles.count, files)
-        XCTAssertEqual(styles["com.apple.mail"], PerAppPresets.email)
         XCTAssertNotNil(styles["site:github.com"])
+        // Apps without a file borrow one of their kind — that file must exist.
+        for kind in PerAppPresets.kinds {
+            XCTAssertNotNil(styles[kind.key], "AppStyles/apps/\(kind.key).txt stands in for its kind")
+        }
+        // Exact IDs, case-insensitively; then the kind; unknown starts blank.
+        let mail = styles["com.apple.mail"]
+        XCTAssertEqual(PerAppPresets.template(for: "com.apple.MAIL", in: styles), mail)
+        XCTAssertEqual(PerAppPresets.template(for: "ru.keepcoder.Telegram", in: styles), styles["ru.keepcoder.telegram"])
+        XCTAssertEqual(PerAppPresets.template(for: "com.airmailapp.airmail-email", in: styles), mail)
+        XCTAssertEqual(PerAppPresets.template(for: "com.lukilabs.craft-notes", in: styles), styles["com.apple.notes"])
+        XCTAssertNil(PerAppPresets.template(for: "com.example.mystery", in: styles))
+        XCTAssertNil(PerAppPresets.template(for: "site:example.com", in: styles))
 
         XCTAssertEqual(PerAppPresets.styleText("# Slack\n# by @someone\n\nShort and direct.\n"), "Short and direct.")
         XCTAssertNil(PerAppPresets.styleText("# just a comment\n"))
@@ -1466,27 +1466,6 @@ final class PretypeTests: XCTestCase {
         XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
     }
 
-    /// "core" was a language-picker entry until 2026-07-25. Anyone who had it
-    /// selected must land on a real language axis with the settings map still
-    /// on — not on a value the picker can no longer display, which would render
-    /// as a blank selection.
-    func testPooledAxisMigratesToSettingsMapMode() {
-        let axis = Settings.accuracyAxis, mapMode = Settings.settingsMapMode
-        defer { Settings.accuracyAxis = axis; Settings.settingsMapMode = mapMode }
-
-        Settings.accuracyAxis = "core"
-        Settings.settingsMapMode = false
-        Settings.registerDefaults()
-        XCTAssertEqual(Settings.accuracyAxis, "*", "the retired value must not survive")
-        XCTAssertTrue(Settings.settingsMapMode, "the map it stood for must stay on")
-        XCTAssertFalse(ModelMetrics.evalLanguages.contains("core"))
-
-        // A language selection is left alone, map mode or not.
-        Settings.accuracyAxis = "ru"
-        Settings.registerDefaults()
-        XCTAssertEqual(Settings.accuracyAxis, "ru")
-    }
-
     /// The E2B tiers' move to base (2026-10-14) must not turn an update into a
     /// forced download: an install holding only the instruct weights keeps
     /// Instruct until the base build is fetched in the background.
@@ -1508,8 +1487,30 @@ final class PretypeTests: XCTestCase {
         defer { Settings.mlxModelID = saved }
         for old in ["mlx-community/Qwen3.5-2B-4bit", "nikimori/Qwen3.5-2B-Base-4bit"] {
             Settings.mlxModelID = old
-            Settings.registerDefaults()
+            Settings.migrate()
             XCTAssertEqual(Settings.mlxModelID, "nikimori/Qwen3.5-2B-Base-6bit", old)
+        }
+    }
+
+    /// `@Pref` stores an enum as its raw string — what `@AppStorage` reads
+    /// back — and answers an unset key with the declared default. Strengths
+    /// stored before personalization became on/off all read as on.
+    func testPrefStoresRawValuesAndDefaults() {
+        let defaults = UserDefaults.standard
+        let saved = (defaults.object(forKey: "hotkeyStyle"), defaults.object(forKey: "personalizationLevel"))
+        defer {
+            defaults.set(saved.0, forKey: "hotkeyStyle")
+            defaults.set(saved.1, forKey: "personalizationLevel")
+        }
+        defaults.removeObject(forKey: "hotkeyStyle")
+        defaults.removeObject(forKey: "personalizationLevel")
+        XCTAssertEqual(Settings.hotkeyStyle, .tab)
+        XCTAssertEqual(Settings.personalizationLevel, .on)
+        Settings.hotkeyStyle = .cmdSpace
+        XCTAssertEqual(defaults.string(forKey: "hotkeyStyle"), "cmdSpace")
+        for (stored, level) in [("subtle", PersonalizationLevel.on), ("strong", .on), ("off", .off)] {
+            defaults.set(stored, forKey: "personalizationLevel")
+            XCTAssertEqual(Settings.personalizationLevel, level, stored)
         }
     }
 
@@ -1967,8 +1968,8 @@ final class PretypeTests: XCTestCase {
     // non-empty ctx+suggestion).
     func testJournalImport() throws {
         // `ingest` re-checks the kill switch on the journal queue (the race-free
-        // "off means forget" guard); registerDefaults() only runs in the app, so
-        // the test must turn the switch on itself — and restore it.
+        // "off means forget" guard); the test process's defaults may hold it
+        // off, so the test must turn the switch on itself — and restore it.
         let journalWasOn = Settings.suggestionJournalEnabled
         Settings.suggestionJournalEnabled = true
         defer { Settings.suggestionJournalEnabled = journalWasOn }

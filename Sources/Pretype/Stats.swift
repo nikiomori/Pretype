@@ -265,7 +265,7 @@ enum Stats {
     /// ponytail: one dictionary of two ints per app in UserDefaults, rewritten on
     /// each suggestion. At typing rates that is nothing, and it needs no schema,
     /// no store and no migration.
-    nonisolated private static let appKey = "stats.byApp"
+    private static let appKey = "stats.byApp"
     /// Chances (see `isChance`) needed before the record says anything at all.
     static let appVerdictMinShown = 60
     /// Below this share taken, the app is one Pretype is only interrupting.
@@ -282,22 +282,6 @@ enum Stats {
     /// habit — is felt within a few hundred suggestions instead of being
     /// outvoted by last month's.
     static let appDecayAt = 400
-
-    /// Drop track records collected under the old counting rule, once.
-    ///
-    /// They were built from a denominator that counted every ghost the typing
-    /// outran (see `isChance`), which read ~1.7% taken everywhere and silenced
-    /// the first app to reach the sample bar. Keeping those numbers would leave
-    /// the user quietly muted in apps that were never judged fairly, with only a
-    /// menu item they'd have to find to undo it — so the verdicts start over.
-    /// Nonisolated: `Settings.registerDefaults` runs before the main actor.
-    nonisolated static func migrateAppRecordsIfNeeded() {
-        let defaults = UserDefaults.standard
-        let key = "stats.byAppRule"
-        guard defaults.integer(forKey: key) < 2 else { return }
-        defaults.removeObject(forKey: appKey)
-        defaults.set(2, forKey: key)
-    }
 
     static func record(for app: String?) -> (shown: Int, accepted: Int)? {
         guard let app, let pair = records()[app], pair.count == 2, pair[0] > 0 else { return nil }
