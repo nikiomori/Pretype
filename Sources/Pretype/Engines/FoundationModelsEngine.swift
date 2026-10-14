@@ -18,11 +18,6 @@ final class FoundationModelsEngine: CompletionEngine {
 
     static let greedy = LockedValue<Bool>(false)
 
-    /// Live-path sampling temperature (env `PRETYPE_FM_TEMPERATURE`); nil ⇒
-    /// Apple's default sampler. Ignored under `greedy`.
-    private static let temperatureOverride: Double? =
-        ProcessInfo.processInfo.environment["PRETYPE_FM_TEMPERATURE"].flatMap(Double.init)
-
     var state: EngineState { stateBox.get() }
 
     var statusLine: String? {
@@ -106,18 +101,14 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
-    /// Decoding options: greedy (eval determinism) wins; otherwise an optional
-    /// temperature override rides on Apple's default sampler. FM tokens run
-    /// shorter than MLX's, so the budget carries a little headroom.
+    /// Decoding options: greedy for eval determinism, else Apple's default
+    /// sampler. FM tokens run shorter than MLX's, so the budget carries a
+    /// little headroom.
     private func generationOptions() -> GenerationOptions {
         let maxTokens = lengthBox.get().maxTokens + 8
-        if Self.greedy.get() {
-            return GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maxTokens)
-        }
-        if let temperature = Self.temperatureOverride {
-            return GenerationOptions(temperature: temperature, maximumResponseTokens: maxTokens)
-        }
-        return GenerationOptions(maximumResponseTokens: maxTokens)
+        return Self.greedy.get()
+            ? GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maxTokens)
+            : GenerationOptions(maximumResponseTokens: maxTokens)
     }
 
     func updateCompletion(length: CompletionLength, instructions: String) {

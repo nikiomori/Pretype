@@ -29,14 +29,14 @@ final class SuggestionJournal: @unchecked Sendable {
         /// show-time so the offline replay can A/B *live days*, not just models.
         /// All optional: absent on older entries (decode → nil) and on undo
         /// events. `model` is the ACTUALLY LOADED model (instruct sibling in
-        /// instruct style, fine-tune dir name for local models); nil for the
-        /// ngram fast-path and Apple Intelligence (`engine` disambiguates).
-        /// Compact by design — `gate` is "off" (older rows: "K@thr", from the
-        /// retired consensus gate), `personalization` is "level[+rag]". Defaults keep the memberwise init source-compatible
-        /// with pre-stamp call sites (undo events, tests).
+        /// instruct style); nil for the ngram fast-path and Apple Intelligence
+        /// (`engine` disambiguates). `personalization` is the level (older
+        /// rows: "level+rag"; their `gate` key, always "off" or a retired
+        /// consensus gate's "K@thr", is ignored on decode). Defaults keep the
+        /// memberwise init source-compatible with pre-stamp call sites (undo
+        /// events, tests).
         var model: String? = nil
         var style: String? = nil
-        var gate: String? = nil
         var personalization: String? = nil
         /// Mean per-token log-probability of the FIRST word of `suggestion`,
         /// captured from the live decode loop (zero extra forward passes) — the

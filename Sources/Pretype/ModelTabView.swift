@@ -145,11 +145,6 @@ struct ModelTab: View {
                              downloadGB: downloadGB(for: entry.id),
                              heavyGB: heavyGB(for: entry.id))
                 }
-                HStack {
-                    Spacer()
-                    Button("Choose Fine-Tuned Model…") { store.chooseFineTunedModel() }
-                        .controlSize(.small)
-                }
             } header: {
                 Text("Ranked by measured accuracy")
             } footer: {
@@ -283,16 +278,13 @@ struct ModelTab: View {
         return (pct, ModelMetrics.axisBest(axis))
     }
 
-    /// Catalog + system model (+ the selected fine-tuned path), measured
-    /// entries ranked best-first, unmeasured last — comparison-ready order.
-    /// With a language picked, that language's "of all" figure ranks first;
+    /// Catalog + system model, measured entries ranked best-first, unmeasured
+    /// last — comparison-ready order. With a language picked, that language's
+    /// "of all" figure ranks first;
     /// the overall comparator breaks its coarse-% ties.
     private var rankedEntries: [(id: String, title: String)] {
-        var entries: [(id: String, title: String)] = ModelCatalog.options.map { ($0.id, $0.title) }
-        entries.append((ModelCatalog.appleIntelligenceID, "Apple Intelligence — system model"))
-        if store.modelID.hasPrefix("/") {
-            entries.append((store.modelID, store.selectedModelName))
-        }
+        let entries: [(id: String, title: String)] = ModelCatalog.options.map { ($0.id, $0.title) }
+            + [(ModelCatalog.appleIntelligenceID, "Apple Intelligence — system model")]
         return entries.sorted { a, b in
             if axis != "core" {
                 let la = ModelMetrics.axisAccuracy(for: a.id, axis: axis)
@@ -362,8 +354,6 @@ struct ModelTab: View {
                 if let note = m.note {
                     Caption(note)
                 }
-            } else if store.modelID.hasPrefix("/") {
-                Caption("Local fine-tuned model — no eval figures. Run it through the eval harness to compare it against the catalog.")
             } else {
                 Caption("No measured figures for this model yet.")
             }

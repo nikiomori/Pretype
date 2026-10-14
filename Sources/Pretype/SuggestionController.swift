@@ -966,8 +966,7 @@ final class SuggestionController: NSObject {
                 // the it-sibling; Apple Intelligence has no MLX model at all).
                 model: instant ? nil : engine.loadedModelID,
                 style: Settings.completionStyle.rawValue,
-                gate: "off",
-                personalization: Settings.personalizationLevel.rawValue + "+rag",
+                personalization: Settings.personalizationLevel.rawValue,
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 outcome: .abandoned, acceptedChars: 0, typed: nil, shownForMs: 0,
                 screen: screenSummary != nil

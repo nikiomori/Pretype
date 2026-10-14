@@ -458,8 +458,8 @@ final class SettingsStore {
     /// Committing shuts the running engine down on the spot, so weights that
     /// aren't on this Mac yet mean no suggestions for the whole download — up
     /// to 8.6 GB, from one click on a row. Those wait for a confirmation;
-    /// anything already here (Apple Intelligence and local fine-tunes always
-    /// are) commits at once. Returns whether `commit` ran now.
+    /// anything already here (Apple Intelligence always is) commits at once.
+    /// Returns whether `commit` ran now.
     @discardableResult
     private func gateDownload(_ target: ProjectionConfig,
                               _ commit: @escaping @MainActor () -> Void) -> Bool {
@@ -625,18 +625,6 @@ final class SettingsStore {
     func addSuggestedPerAppInstructions() {
         for suggestion in perAppSuggestions {
             perAppInstructions[suggestion.bundleID] = suggestion.text
-        }
-    }
-
-    func chooseFineTunedModel() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Use Model"
-        panel.message = "Choose a fused fine-tuned model folder (with config.json + safetensors)."
-        SettingsUI.run(panel) { [weak self] urls in
-            if let url = urls.first { self?.selectModel(url.path) }
         }
     }
 

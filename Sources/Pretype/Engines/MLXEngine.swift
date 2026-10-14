@@ -29,18 +29,16 @@ final class MLXEngine: CompletionEngine {
     // thread-safe under the Swift 6 language mode.
     /// Verbose generation logging for the --complete test harness.
     static let debugLogging = LockedValue<Bool>(false)
-    /// Greedy (argmax) decoding — now the shipped default, not just an eval pin
-    /// (see `completionParameters`). `PRETYPE_EVAL_SAMPLING=1` clears it and
-    /// restores the pre-2026-07-20 sampled decoder (T=0.1), which is the A/B arm.
+    /// The harness's decoding pin (`PRETYPE_EVAL_SAMPLING=1` clears it), which
+    /// it hands on to Apple Intelligence. MLX itself always decodes greedily
+    /// (see `completionParameters`).
     static let greedy = LockedValue<Bool>(true)
-    /// Pre-caret context-tail cap (chars). PRETYPE_MAX_CHARS sweeps context ROI
-    /// offline; default 1000, unchanged in production. Read once, process-wide.
-    static let maxContextChars = Int(ProcessInfo.processInfo.environment["PRETYPE_MAX_CHARS"] ?? "") ?? 1000
+    /// Pre-caret context-tail cap (chars).
+    static let maxContextChars = 1000
 
     let name = "Local LLM (MLX)"
 
     private let modelID: String
-    private let extraEOSTokens: Set<String>
     /// Fixed at init: switching style reloads the engine (different model).
     private let style: CompletionStyle
     /// Live-tunable from the menu without a reload.
@@ -51,7 +49,7 @@ final class MLXEngine: CompletionEngine {
     /// first-word logprob < this. nil = off. Fixed at init; enabled via
     /// Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode — the value
     /// is already captured by the live decode loop (firstWordLogProbBox).
-    private let logprobGateThreshold: Double?
+    let logprobGateThreshold: Double?
     /// Confidence trim: cut the shown suggestion just before the first decode
     /// token whose logprob < this (never inside the first word). Same live
     /// recorder as the logprob gate — 0× extra decode; unlike the gate it trims
@@ -59,7 +57,7 @@ final class MLXEngine: CompletionEngine {
     /// (even-half sweep −4…−1, odd-half verified, MiniCPM + E2B-8bit): cuts ~8
     /// of ~14 garbage-tail chars per row at zero correct-char loss.
     /// PRETYPE_TRIM_LOGPROB pins it (numeric = τ sweep, "off" = force off).
-    private let trimLogProbThreshold: Float?
+    let trimLogProbThreshold: Float?
     /// The entropy half of the confidence trim (see `confidenceTrimmed`):
     /// stop at a token sampled from a distribution flatter than 2.5 nats.
     /// On top of the −1.5 logprob trim it cuts another ~1.1–1.3 garbage chars
@@ -69,9 +67,7 @@ final class MLXEngine: CompletionEngine {
     /// primaries too: E2B-it / E4B-it 4-bit −0.14 / −0.37 garbage chars per
     /// row, correct chars unchanged, p50 a tie in interleaved pairs
     /// (Eval/runs-2026-10-11-audit, analyze-ient.py).
-    /// `PRETYPE_TRIM_ENTROPY=<nats>|off` is the A/B knob.
-    private static let trimEntropyThreshold: Float? =
-        ProcessInfo.processInfo.environment["PRETYPE_TRIM_ENTROPY"].map { Float($0) } ?? 2.5
+    private static let trimEntropyThreshold: Float = 2.5
     /// The PRIMARY model's state, written only by its own load and unload.
     private let stateBox = LockedValue<EngineState>(.preparing("starting…"))
     private var loadTask: Task<ModelContainer, Error>?
@@ -144,9 +140,9 @@ final class MLXEngine: CompletionEngine {
         return primaryTaskLive
     }
 
-    /// The RESOLVED primary model (instruct sibling in instruct style, local
-    /// fine-tune directory name) — what the journal must stamp. `modelID` is
-    /// already post-resolution here (see `init`), unlike `Settings.mlxModelID`.
+    /// The RESOLVED primary model (instruct sibling in instruct style) — what
+    /// the journal must stamp. `modelID` is already post-resolution here (see
+    /// `init`), unlike `Settings.mlxModelID`.
     var loadedModelID: String? {
         modelID.split(separator: "/").last.map(String.init) ?? modelID
     }
@@ -157,20 +153,6 @@ final class MLXEngine: CompletionEngine {
     /// to the suggestion that was actually shown, not an abstained draw.
     private let firstWordLogProbBox = LockedValue<Double?>(nil)
     var lastFirstWordLogProb: Double? { firstWordLogProbBox.get() }
-
-    /// Effective gate/trim config — the eval header prints this so every run
-    /// records what silently came from Settings rather than env.
-    var gateSummary: String {
-        let lp = logprobGateThreshold.map { String(format: "%.2f", $0) } ?? "off"
-        let tr = trimLogProbThreshold.map { String(format: "%.2f", $0) } ?? "off"
-        return "logprobGate=\(lp) · trim=\(tr) · heal=\(Self.healConstrain ? "constrain" : "match")"
-    }
-
-    /// Mid-word healing mode: constrained decoding (force the fragment path,
-    /// recover the coverage match-only healing abstains away) vs plain fragment
-    /// match. `PRETYPE_HEAL_CONSTRAIN=off` pins match-only — the eval A/Bs the
-    /// two on identical rows. Read once, like the prompt variant.
-    static let healConstrain = ProcessInfo.processInfo.environment["PRETYPE_HEAL_CONSTRAIN"] != "off"
 
     var statusLine: String? {
         let model = modelID.split(separator: "/").last.map(String.init) ?? modelID
@@ -184,7 +166,6 @@ final class MLXEngine: CompletionEngine {
     init(modelID: String, config: CompletionConfig = .resolved()) {
         let baseOption = ModelCatalog.option(for: modelID)
         self.style = config.style
-        self.extraEOSTokens = baseOption?.extraEOSTokens ?? []
         self.lengthBox = LockedValue(config.length)
         self.instructionsBox = LockedValue(config.instructions)
         self.personalizationBox = LockedValue(config.personalization)
@@ -221,7 +202,7 @@ final class MLXEngine: CompletionEngine {
         self.modelID = primaryID
         // Once per engine, not per keystroke: the reason never changes while
         // it lives, and logged inline it filled the 400-entry ring.
-        if config.style == .instruct, Self.promptVariant == nil, !Self.isFIMCapable(primaryID) {
+        if config.style == .instruct, !Self.isFIMCapable(primaryID) {
             DebugLog.shared.log("GATE", "fill-in-the-middle off — \(primaryID) is not E4B-class (unreliable here)")
         }
 
@@ -244,7 +225,6 @@ final class MLXEngine: CompletionEngine {
     private func makeLoadTask() -> Task<ModelContainer, Error> {
         let stateBox = self.stateBox
         let id = self.modelID
-        let eos = self.extraEOSTokens
         let tokenizers = self.tokenizers
         let drafterBox = self.drafter
         let drafterID = style == .instruct ? ModelCatalog.mtpDrafterID(for: id) : nil
@@ -253,21 +233,8 @@ final class MLXEngine: CompletionEngine {
             // Resolved once, so the load report names the build that loaded.
             let repo = ModelCatalog.repo(for: id)
             do {
-                // A fine-tuned model is a local directory (no download); a
-                // catalog id resolves through the Hub.
-                let configuration: ModelConfiguration
-                var isDir: ObjCBool = false
-                if FileManager.default.fileExists(atPath: id, isDirectory: &isDir), isDir.boolValue {
-                    configuration = ModelConfiguration(directory: URL(fileURLWithPath: id), extraEOSTokens: eos)
-                } else if let local = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:)) {
-                    // Already downloaded: no network round trip (see localSnapshot).
-                    configuration = ModelConfiguration(directory: local, extraEOSTokens: eos)
-                } else {
-                    configuration = ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo),
-                                                       extraEOSTokens: eos)
-                }
                 let loaded = try await Self.loadTarget(
-                    configuration, drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
+                    Self.configuration(for: repo), drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
                 ModelStorage.noteLoad(repo: repo, succeeded: true)
                 // Retired mid-load (a model switch, `shutdown`): don't warm up
@@ -288,7 +255,7 @@ final class MLXEngine: CompletionEngine {
                     _ = try await Self.generate(
                         in: loaded, makeTokens: { $0.tokenizer.encode(text: Self.warmUpPrompt) },
                         parameters: GenerateParameters(maxTokens: 3, temperature: 0.0),
-                        extraEOSTokens: eos, promptCache: nil
+                        promptCache: nil
                     )
                 } catch {
                     DebugLog.shared.log("ERROR", "warm-up generation failed: \(error.localizedDescription)")
@@ -304,6 +271,15 @@ final class MLXEngine: CompletionEngine {
                 throw error
             }
         }
+    }
+
+    /// Where to load `repo` from: its downloaded snapshot (no network round
+    /// trip, see `ModelStorage.localSnapshot`), else the Hub at the pinned
+    /// revision.
+    private static func configuration(for repo: String) -> ModelConfiguration {
+        ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
+            .map { ModelConfiguration(directory: $0) }
+            ?? ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo))
     }
 
     private static let warmUpPrompt = String(repeating: "The weekly update covers hiring, the roadmap and next steps. ", count: 7)
@@ -327,14 +303,6 @@ final class MLXEngine: CompletionEngine {
     /// line, a second 150 MB fetch overlapping the first.
     private static let drafterFetches = LockedValue<Set<String>>([])
 
-    /// `PRETYPE_TIED_TABLE_4BIT=off` is the A/B arm of `requantizeTiedTable`.
-    private static let requantizesTiedTable =
-        ProcessInfo.processInfo.environment["PRETYPE_TIED_TABLE_4BIT"] != "off"
-    /// `PRETYPE_PLE_4BIT=off` leaves the per-layer-embedding table alone — the
-    /// A/B arm for that half of `requantizeTiedTable`.
-    private static let requantizesPLETable =
-        ProcessInfo.processInfo.environment["PRETYPE_PLE_4BIT"] != "off"
-
     /// Loads a model, with its MTP drafter into `drafterBox` when `drafterID`
     /// names one that is already on disk. A missing drafter downloads in the
     /// background for the next load — 150 MB must not hold up this one — once
@@ -356,10 +324,6 @@ final class MLXEngine: CompletionEngine {
                         from: #hubDownloader(), using: tokenizers,
                         configuration: configuration, progressHandler: progressHandler)
                     await dropUnusedTowers(vlm)
-                    // Same table, same reasons as the plain path below — this
-                    // return used to skip it, so an instruct model kept its
-                    // 8-bit table (+192…320 MB) from the load its drafter landed.
-                    if requantizesTiedTable { await requantizeTiedTable(vlm) }
                     drafterBox.set(try await loadDrafter(at: local))
                     return vlm
                 } catch {
@@ -385,71 +349,9 @@ final class MLXEngine: CompletionEngine {
         // LLMModelFactory, not loadModelContainer: with MLXVLM linked the generic
         // loader picks the VLM classes first (Qwen3.5's lacks the raw-token call
         // the decode loop uses).
-        let container = try await LLMModelFactory.shared.loadContainer(
+        return try await LLMModelFactory.shared.loadContainer(
             from: #hubDownloader(), using: tokenizers,
             configuration: configuration, progressHandler: progressHandler)
-        if requantizesTiedTable { await requantizeTiedTable(container) }
-        return container
-    }
-
-    /// Gemma's tied embedding table is also its 262k-row output projection, read
-    /// in full on every decoded token. A 6- or 8-bit table is re-quantized to
-    /// 4-bit at load, for both uses. Resident memory: E4B-8bit −320 MB, E4B-6bit
-    /// −160 MB, E2B-8bit −192 MB. Paid on every load of an original build
-    /// (E4B 6-bit reload 0.8–1.9 s against 0.4–0.5 s for its slim re-pack,
-    /// which ships the table at 4-bit — there this finds nothing to do, and the
-    /// `PRETYPE_*_4BIT=off` knobs change nothing). eval-real core 870 first-word,
-    /// ungated: 28% = 28% (p = 0.77), 28% = 28% (p = 1.0), 27% = 27% (p = 1.0).
-    ///
-    /// The per-layer-embedding table (`embed_tokens_per_layer`) is the bigger
-    /// one — 2.35B rows×cols on E2B, 2.50 GB of E2B-8bit — and only ever
-    /// gathered a row per token, so 4-bit costs it no decode time at all.
-    private static func requantizeTiedTable(_ container: ModelContainer) async {
-        await container.perform { (context: ModelContext) in
-            guard context.model is Gemma4Model || context.model is Gemma4TextModel
-                    || context.model is MLXVLM.Gemma4 else { return }
-            let suffixes = requantizesPLETable
-                ? [".embed_tokens", ".embed_tokens_per_layer"] : [".embed_tokens"]
-            let tables = context.model.leafModules().flattened().filter { key, _ in
-                suffixes.contains(where: { key.hasSuffix($0) })
-            }
-            // One table at a time, swapped in as soon as it is done, so the
-            // 8-bit original is freed before the next one is built.
-            for (key, module) in tables {
-                guard let table = module as? QuantizedEmbedding, table.bits > 4 else { continue }
-                try? context.model.update(modules: ModuleChildren.unflattened([key: requantized(table)]),
-                                          verify: [.none])
-                Memory.clearCache()
-            }
-        }
-    }
-
-    /// `table` at 4-bit, a block of rows at a time, written into preallocated
-    /// outputs (each slice update donates its buffer): dequantizing the PLE
-    /// table whole would spike ~4.7 GB of bf16 at load on E2B, and building it
-    /// from concatenated blocks held every block AND the result at once.
-    private static func requantized(_ table: QuantizedEmbedding) -> QuantizedEmbedding {
-        let rows = table.weight.dim(0), step = 16_384
-        func block(_ r: Range<Int>) -> (wq: MLXArray, scales: MLXArray, biases: MLXArray?) {
-            let full = dequantized(table.weight[r], scales: table.scales[r], biases: table.biases?[r],
-                                   groupSize: table.groupSize, bits: table.bits, mode: table.mode)
-            return quantized(full, groupSize: 64, bits: 4, mode: .affine)
-        }
-        // The first block sizes the outputs; every later one is written in place.
-        let first = block(0 ..< min(step, rows))
-        var weight = MLXArray.zeros([rows, first.wq.dim(1)], dtype: first.wq.dtype)
-        var scales = MLXArray.zeros([rows, first.scales.dim(1)], dtype: first.scales.dtype)
-        var biases = first.biases.map { MLXArray.zeros([rows, $0.dim(1)], dtype: $0.dtype) }
-        for start in stride(from: 0, to: rows, by: step) {
-            let r = start ..< min(start + step, rows)
-            let q = start == 0 ? first : block(r)
-            weight[r] = q.wq
-            scales[r] = q.scales
-            if let b = q.biases { biases?[r] = b }
-            eval([weight, scales] + (biases.map { [$0] } ?? []))
-        }
-        return QuantizedEmbedding(weight: weight, scales: scales, biases: biases,
-                                  groupSize: 64, bits: 4)
     }
 
     private static func loadDrafter(at directory: URL) async throws -> any MTPDrafterModel {
@@ -478,7 +380,7 @@ final class MLXEngine: CompletionEngine {
     /// it was idle-unloaded. Returns nil when the engine never initialized (e.g.
     /// Metal missing) or is in its post-failure cooldown — callers then abstain.
     /// Pair with `endRequest()`.
-    private func beginRequest() -> Task<ModelContainer, Error>? {
+    func beginRequest() -> Task<ModelContainer, Error>? {
         modelLock.lock(); defer { modelLock.unlock() }
         guard didInitLoad else { return nil }
         if loadTask == nil {
@@ -509,7 +411,7 @@ final class MLXEngine: CompletionEngine {
         return true
     }
 
-    private func endRequest() {
+    func endRequest() {
         modelLock.lock()
         inFlightCount = max(0, inFlightCount - 1)
         lastActivity = Date()
@@ -637,39 +539,6 @@ final class MLXEngine: CompletionEngine {
         case .base: return try await completeBase(request)
         case .instruct: return try await completeInstruct(request)
         }
-    }
-
-    /// Mean per-token log P(continuation | context) via one forward pass (see
-    /// `logProbScore`). Loads/reuses the resident model; nil if it can't load or
-    /// the strings are empty. Dev/eval only — NOT on the live keystroke path.
-    /// Per-token is the gate-calibration scale (τ thresholds live on it); for
-    /// cross-model or cross-language ranking use `refLogProb`'s per-char value.
-    func logProbability(of continuation: String, given context: String) async -> Double? {
-        guard let task = beginRequest() else { return nil }
-        defer { endRequest() }
-        guard let container = try? await task.value else { return nil }
-        guard let s = await Self.logProbScore(in: container, continuation: continuation, context: context) else { return nil }
-        return s.total / Double(s.tokens)
-    }
-
-    /// Reference-ranking variant: per-token AND per-char log P. Per-char is the
-    /// normalization comparable across tokenizers (model families) and languages —
-    /// per-token is confounded by fertility (RU ~2× denser tokens than EN).
-    func refLogProb(of continuation: String, given context: String) async -> (perToken: Double, perChar: Double)? {
-        guard let task = beginRequest() else { return nil }
-        defer { endRequest() }
-        guard let container = try? await task.value else { return nil }
-        guard let s = await Self.logProbScore(in: container, continuation: continuation, context: context) else { return nil }
-        return (s.total / Double(s.tokens), s.total / Double(continuation.count))
-    }
-
-    /// Rank of the true continuation's first token (0 = top-1) via one forward
-    /// pass (see `firstTokenRank`). Dev/eval only — for top-k recall.
-    func firstTokenRank(of continuation: String, given context: String) async -> Int? {
-        guard let task = beginRequest() else { return nil }
-        defer { endRequest() }
-        guard let container = try? await task.value else { return nil }
-        return await Self.firstTokenRank(in: container, continuation: continuation, context: context)
     }
 
     func completions(for request: CompletionRequest) -> AsyncThrowingStream<String, Error> {
@@ -809,7 +678,7 @@ final class MLXEngine: CompletionEngine {
             in: container,
             makeTokens: { promptCache.encoder.encode(generationText, with: $0.tokenizer) },
             parameters: parameters,
-            extraEOSTokens: extraEOSTokens, promptCache: promptCache,
+            promptCache: promptCache,
             // Under healing the first decoded word is the CURRENT word being
             // re-generated, not the next one — the next-word bias would
             // fight the fragment match.
@@ -819,7 +688,7 @@ final class MLXEngine: CompletionEngine {
             trimEntropy: recording ? Self.trimEntropyThreshold : nil,
             // Healed suggestions bypass the gate (see below).
             gateLogProb: recording && heal == nil ? logprobGateThreshold : nil,
-            healExpected: Self.healConstrain ? heal?.expected : nil,
+            healExpected: heal?.expected,
             prefillOnly: prefillOnly,
             onPartial: Self.makeStreamHandler(
                 onPartial, gate: healed(prepared.gate(cleanInstruct: false, logRejects: false)))
@@ -870,14 +739,12 @@ final class MLXEngine: CompletionEngine {
         let length = lengthBox.get()
         let persona = request.persona(global: instructionsBox.get())
         // Fill-in-the-Middle: emulate suffix-conditioning via the prompt (Gemma 4
-        // has no FIM tokens). A set PRETYPE_PROMPT_VARIANT pins it ("infill" on,
-        // anything else off) for the A/B; otherwise it applies only on E4B-class
-        // models — it's unreliable on the smaller E2B (measured; the skip is
-        // logged once, in init). Needs a non-trivial suffix, so it's a no-op at
-        // end-of-line.
+        // has no FIM tokens). Only on E4B-class models — it's unreliable on the
+        // smaller E2B (measured; the skip is logged once, in init). Needs a
+        // non-trivial suffix, so it's a no-op at end-of-line.
         let suffixForPrompt = String(request.textAfterCaret.prefix(200))
         let hasSuffix = !suffixForPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let infill = hasSuffix && (Self.promptVariant.map { $0.contains("infill") } ?? Self.isFIMCapable(modelID))
+        let infill = hasSuffix && Self.isFIMCapable(modelID)
 
         var directive = infill
             ? """
@@ -947,11 +814,9 @@ final class MLXEngine: CompletionEngine {
                         key: directiveText, text: promptText, tokenizer: context.tokenizer, render: render)
             },
             parameters: parameters,
-            // Instruct replies end on the turn marker; add it defensively.
             // No first-token boost: instruct answers flush, so the space-led
             // boost tokens can't match — personalization rides the directive
             // (persona + RAG examples) here instead.
-            extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
             promptCache: promptCache,
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
@@ -984,34 +849,18 @@ final class MLXEngine: CompletionEngine {
         return request.isChatApp ? min(budget, chatCap) : budget
     }
 
-    /// Sampling parameters shared by both completion paths (base and instruct).
-    /// Greedy by default — argmax IS the model's best guess (beam rerank on its
-    /// own posterior scored p=1.0), so every draw below argmax is expected loss,
+    /// Decoding parameters shared by both completion paths (base and instruct).
+    /// Greedy — argmax IS the model's best guess (beam rerank on its own
+    /// posterior scored p=1.0), so every draw below argmax is expected loss,
     /// and the T=0.1 "touch of temperature" inherited from Cotabby was never
     /// measured here: the harness always pinned greedy, so no booked number ever
-    /// described the shipped decoder. Repetition penalty off for the same reason
-    /// plus one of its own — in real typing the words most likely to repeat (a
+    /// described that decoder. No repetition penalty for the same reason plus
+    /// one of its own — in real typing the words most likely to repeat (a
     /// name, a term, the project you're writing about) are exactly the ones it
     /// suppresses, and its processor also skews the logprobs the gate reads.
-    /// The old production decoder is the A/B arm, one line of env away:
-    /// `PRETYPE_EVAL_SAMPLING=1 PRETYPE_REP_PENALTY=1.05`.
     private func completionParameters(for request: CompletionRequest) -> GenerateParameters {
-        GenerateParameters(
-            maxTokens: tokenBudget(for: request),
-            temperature: Self.temperatureOverride ?? (Self.greedy.get() ? 0.0 : 0.1),
-            topP: 0.7,
-            topK: 20,
-            minP: 0.08,
-            repetitionPenalty: Self.repetitionPenalty
-        )
+        GenerateParameters(maxTokens: tokenBudget(for: request), temperature: 0)
     }
-
-    // The eval A/B pins, read once: `ProcessInfo.environment` builds a fresh
-    // dictionary on every access, and these used to be read per keystroke.
-    private static let temperatureOverride = Float(ProcessInfo.processInfo.environment["PRETYPE_TEMPERATURE"] ?? "")
-    private static let repetitionPenalty = Float(ProcessInfo.processInfo.environment["PRETYPE_REP_PENALTY"] ?? "")
-    /// Set → pins fill-in-the-middle ("infill" on, anything else off).
-    private static let promptVariant = ProcessInfo.processInfo.environment["PRETYPE_PROMPT_VARIANT"]
 
     func updateCompletion(length: CompletionLength, instructions: String) {
         lengthBox.set(length)
@@ -1165,10 +1014,6 @@ final class MLXEngine: CompletionEngine {
                     additionalContext: ["enable_thinking": false])
             },
             parameters: GenerateParameters(maxTokens: maxTokens, temperature: 0.0),
-            // Stop on the turn marker, like every other instruct-templated
-            // path. Without it E4B-it-4bit ran past its answer into same-line
-            // junk on 39% of eval-correct rows ("fix.less than 100 words").
-            extraEOSTokens: extraEOSTokens.union(["<end_of_turn>"]),
             promptCache: nil,
             drafter: style == .instruct ? drafter.get() : correctionDrafter.get(),
             lookup: copiesInput,
@@ -1267,9 +1112,7 @@ final class MLXEngine: CompletionEngine {
             let repo = ModelCatalog.repo(for: id)
             do {
                 let container = try await Self.loadTarget(
-                    ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
-                        .map { ModelConfiguration(directory: $0) }
-                        ?? ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo)),
+                    Self.configuration(for: repo),
                     drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
                     progressHandler: { progress in
                         status.set(Self.downloadStatus(progress, label: "fix model"))

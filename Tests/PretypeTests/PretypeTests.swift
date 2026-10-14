@@ -22,8 +22,6 @@ final class PretypeTests: XCTestCase {
         // Control characters / the replacement char must never be typed back.
         XCTAssertNil(pp("a\u{07}b"))
         XCTAssertNil(pp("te\u{FFFD}xt"))
-        // The model must not echo our own prompt scaffolding.
-        XCTAssertNil(pp("Nearby on screen: foo", prompt: "ok"))
         // A CJK derail for a non-CJK prompt is rejected.
         XCTAssertNil(pp("你好 there", prompt: "hello world"))
         // Degenerate character repetition is rejected.
@@ -553,7 +551,6 @@ final class PretypeTests: XCTestCase {
         let old = try JSONDecoder().decode(SuggestionJournal.Entry.self, from: Data(legacy.utf8))
         XCTAssertNil(old.model)
         XCTAssertNil(old.style)
-        XCTAssertNil(old.gate)
         XCTAssertNil(old.personalization)
         XCTAssertNil(old.firstWordLogProb)
         XCTAssertEqual(old.suggestion, " x")
@@ -566,15 +563,13 @@ final class PretypeTests: XCTestCase {
             acceptedChars: 5, typed: nil, shownForMs: 250, screen: false)
         stamped.model = "gemma-4-e2b-8bit"
         stamped.style = "base"
-        stamped.gate = "off"
-        stamped.personalization = "subtle+rag"
+        stamped.personalization = "subtle"
         stamped.firstWordLogProb = -0.42
         let back = try JSONDecoder().decode(
             SuggestionJournal.Entry.self, from: JSONEncoder().encode(stamped))
         XCTAssertEqual(back.model, "gemma-4-e2b-8bit")
         XCTAssertEqual(back.style, "base")
-        XCTAssertEqual(back.gate, "off")
-        XCTAssertEqual(back.personalization, "subtle+rag")
+        XCTAssertEqual(back.personalization, "subtle")
         XCTAssertEqual(back.firstWordLogProb ?? .nan, -0.42, accuracy: 1e-9)
 
         // 3. nil optionals are omitted (synthesized encodeIfPresent) — a bare
@@ -586,7 +581,11 @@ final class PretypeTests: XCTestCase {
         let json = try XCTUnwrap(String(data: JSONEncoder().encode(bare), encoding: .utf8))
         XCTAssertFalse(json.contains("firstWordLogProb"))
         XCTAssertFalse(json.contains("\"model\""))
-        XCTAssertFalse(json.contains("\"gate\""))
+
+        // 4. A row stamped before the `gate` field retired still decodes.
+        let gated = #"{"ts":"t","engine":"MLX","gate":"off","personalization":"subtle+rag","ctx":"c","after":"","suggestion":"x","outcome":"accepted","acceptedChars":1,"shownForMs":0,"screen":false}"#
+        let retired = try JSONDecoder().decode(SuggestionJournal.Entry.self, from: Data(gated.utf8))
+        XCTAssertEqual(retired.personalization, "subtle+rag")
     }
 
     // Retrieval feeds the model the user's own phrases — pin that it finds the
@@ -1832,7 +1831,7 @@ final class PretypeTests: XCTestCase {
     // other Hugging Face tool on the Mac — pin what may and may not be a target,
     // and the symlink trap that would otherwise double every reported size.
     func testModelStorage() throws {
-        // A local fine-tune folder is the user's OWN directory: never a cache repo.
+        // A filesystem path is the user's OWN directory: never a cache repo.
         XCTAssertNil(ModelStorage.directory(for: "/Users/someone/models/my-finetune"))
         // The system model downloads nothing.
         XCTAssertNil(ModelStorage.directory(for: ModelCatalog.appleIntelligenceID))

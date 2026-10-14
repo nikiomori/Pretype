@@ -322,11 +322,10 @@ protocol CompletionEngine: AnyObject {
 
     /// Short id (last path component) of the model that ACTUALLY generates the
     /// suggestions — the journal's config stamp. MLXEngine reports its resolved
-    /// primary (the instruct sibling in instruct style, a fine-tune's directory
-    /// name for local models) — NOT the Settings selection, which diverges from
-    /// the loaded model in both those cases. nil when the engine has no discrete
-    /// model identity (Apple Intelligence system model; `engine` disambiguates
-    /// in the journal).
+    /// primary (the instruct sibling in instruct style) — NOT the Settings
+    /// selection, which diverges from the loaded model there. nil when the
+    /// engine has no discrete model identity (Apple Intelligence system model;
+    /// `engine` disambiguates in the journal).
     var loadedModelID: String? { get }
 
     /// Confidence of the most recent COMPLETED, ungated generation: mean

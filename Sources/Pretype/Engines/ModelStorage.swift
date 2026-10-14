@@ -20,7 +20,7 @@ import Network
 enum ModelStorage {
     /// The cache directory a catalog id occupies, or nil when there is nothing
     /// on disk to account for: the Apple Intelligence pseudo-id (system model,
-    /// zero download) and local fine-tune folders, which are the user's OWN
+    /// zero download) and filesystem paths, which are the user's OWN
     /// directories and must never reach `removeItem`.
     static func directory(for id: String) -> URL? {
         cacheDirectory(repo: ModelCatalog.repo(for: id))
@@ -40,8 +40,8 @@ enum ModelStorage {
     /// because the dictation tidy-up asks this on the main thread while a
     /// transcript waits: the question is only ever "would this go to the
     /// network", and a repo with a materialized snapshot answers no. Ids with
-    /// no cache directory at all — the Apple Intelligence pseudo-id, a local
-    /// fine-tune folder — are already on the machine, so they answer no too.
+    /// no cache directory at all — the Apple Intelligence pseudo-id, a
+    /// filesystem path — are already on the machine, so they answer no too.
     static func isFetched(_ id: String) -> Bool {
         guard let directory = directory(for: id) else { return true }
         return isFetched(at: directory)

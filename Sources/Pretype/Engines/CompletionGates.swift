@@ -29,10 +29,6 @@ enum CompletionGates {
               !content.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F })
         else { return reject("control characters / U+FFFD") }
 
-        // The model must never emit our own prompt scaffolding.
-        let lowered = content.trimmingCharacters(in: .whitespaces).lowercased()
-        if lowered.hasPrefix("nearby on screen") { return reject("prompt scaffolding echo") }
-
         // A CJK suggestion for a non-CJK prompt is a derailed generation.
         if containsCJK(content), !containsCJK(String(prompt.suffix(200))) {
             return reject("CJK output for non-CJK prompt")

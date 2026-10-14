@@ -384,7 +384,7 @@ struct ModelMetrics {
     /// `MLXEngine.correct`) — and looks it up. `measuredID` is the sibling the
     /// figures were measured on, so map/list surfaces can point at the same
     /// bubble. nil for Apple Intelligence (not in the task sweep) and for a
-    /// sibling nobody measured (a fine-tune's).
+    /// sibling nobody measured.
     static func taskMetrics(for id: String, style: CompletionStyle)
         -> (m: TaskMetrics, runsOn: String, measuredID: String)? {
         guard id != ModelCatalog.appleIntelligenceID,

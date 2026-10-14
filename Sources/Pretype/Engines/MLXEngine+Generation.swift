@@ -96,7 +96,7 @@ extension MLXEngine {
     /// boundary makes tokens(head) + tokens(tail) == tokens(head + tail)
     /// (0 mismatches over 5,530 junctions × 3 tokenizers × 17 languages). The
     /// first few splices are still checked against a full encode; one mismatch
-    /// (an unvetted tokenizer, e.g. a fine-tune) switches this encoder to full
+    /// (an unvetted tokenizer) switches this encoder to full
     /// encodes for good.
     final class PromptEncoder {
         private var anchor = ""
@@ -163,8 +163,7 @@ extension MLXEngine {
     /// verify forward eats the gain on 4-bit weights: E4B-it fix, release,
     /// five interleaved rounds — draft 8 beat the MTP drafter in all five
     /// (median −11%), 16 tied it; E2B-it 109 → 78 ms at 8, 86 at 16.
-    static let lookupDraft = Int(ProcessInfo.processInfo.environment["PRETYPE_LOOKUP_DRAFT"] ?? "") ?? 8
-    static let lookupEnabled = ProcessInfo.processInfo.environment["PRETYPE_LOOKUP"] != "off"
+    static let lookupDraft = 8
 
     /// Prompt-lookup decoding (LLMA, arXiv 2304.04487): a fix or a dictation
     /// tidy-up re-emits most of its input verbatim, so the
@@ -576,7 +575,6 @@ extension MLXEngine {
         in container: ModelContainer,
         makeTokens: @Sendable @escaping (ModelContext) throws -> [Int],
         parameters: GenerateParameters,
-        extraEOSTokens: Set<String>,
         promptCache: PromptCache?,
         bias: PersonalizationBias? = nil,
         logProbSink: LockedValue<Double?>? = nil,
@@ -631,11 +629,6 @@ extension MLXEngine {
             if let eos = context.tokenizer.eosToken,
                let id = context.tokenizer.convertTokenToId(eos) {
                 eosIDs.insert(id)
-            }
-            for token in extraEOSTokens {
-                if let id = context.tokenizer.convertTokenToId(token) {
-                    eosIDs.insert(id)
-                }
             }
 
             // Reuse a cached KV state for incremental typing (see PromptCache):
@@ -760,7 +753,7 @@ extension MLXEngine {
             var copier: PromptLookupIterator?
             // A recurrent layer (Qwen3.5) can't rewind a rejected draft; there
             // the unpipelined rounds would only be slower than plain decoding.
-            if lookup, Self.lookupEnabled, processor == nil, parameters.temperature == 0,
+            if lookup, processor == nil, parameters.temperature == 0,
                cache.allSatisfy(\.isTrimmable) {
                 copier = PromptLookupIterator(
                     input: Array(fullTokens[splitAt...]), prompt: fullTokens, model: context.model,
@@ -909,70 +902,6 @@ extension MLXEngine {
                 print("[gen] \(summary) raw=\(logRaw ? text.debugDescription : "<redacted>")")
             }
             return text
-        }
-    }
-
-    // MARK: Log-probability scoring (offline: model ranking + gate calibration)
-
-    /// Total log P(`continuation` | `context`) + scored-token count from a SINGLE
-    /// causal forward pass — no decoding, so it's blind to paraphrase ("обязательно
-    /// отвечу" vs "отвечу вам") the way exact-match isn't. Callers normalize:
-    /// per-TOKEN is the gate-calibration scale (τ thresholds are defined on it),
-    /// but it is confounded by tokenizer fertility across languages and model
-    /// families (RU tokenizes ~2× denser than EN, MiniCPM's tokenizer ≠ Gemma's) —
-    /// rank models/languages per-CHAR instead (`refLogProb`).
-    ///
-    /// One forward over [ctx+cont] with `cache: nil`: `createAttentionMask` is
-    /// `.causal` for n>1, so position i attends only to ≤i — no answer leakage.
-    /// Context is capped to a tail so the [1, L, vocab] logits stay bounded
-    /// (L·262k floats materialized once, then reduced to scalars).
-    static func logProbScore(in container: ModelContainer,
-                             continuation: String, context: String) async -> (total: Double, tokens: Int)? {
-        guard !continuation.isEmpty else { return nil }
-        let ctxTail = String(context.suffix(600))  // ponytail: bound logits RAM; plenty of conditioning for a ranker
-        return await container.perform { (ctx: ModelContext) in  // typed param — see `generate`'s note (swift test overload resolution)
-            let ctxTokens = ctx.tokenizer.encode(text: ctxTail)
-            let allTokens = ctx.tokenizer.encode(text: ctxTail + continuation)
-            // Longest shared prefix — a boundary merge just shifts one token into
-            // the scored span, still a valid P(text after the ctx prefix).
-            var start = 0
-            let lim = min(ctxTokens.count, allTokens.count)
-            while start < lim, ctxTokens[start] == allTokens[start] { start += 1 }
-            guard start >= 1, allTokens.count > start else { return nil }  // need ≥1 conditioning + ≥1 scored token
-            let logits = ctx.model(MLXArray(allTokens, [1, allTokens.count]), cache: nil)
-            eval(logits)  // materialize before pulling scalars (MLXArray must not escape `perform`)
-            var total: Float = 0
-            let n = allTokens.count - start
-            for k in 0 ..< n {
-                let row = logits[0, start - 1 + k]  // [vocab]: the position predicting allTokens[start+k]
-                total += row[allTokens[start + k]].item(Float.self) - row.logSumExp().item(Float.self)
-            }
-            return (total: Double(total), tokens: n)
-        }
-    }
-
-    /// Rank (0 = the model's top-1) of the FIRST token of `continuation` in the
-    /// distribution at the end of `context` — one forward pass. Feeds top-k
-    /// recall: how often the true continuation's first token sits in the model's
-    /// top-k even when it isn't top-1. top-5 ≫ top-1 ⇒ the model "knows" the
-    /// answer but mis-ranks it (selection/reranking headroom); top-5 ≈ top-1 ⇒ a
-    /// genuine information gap (go to context/personalization).
-    static func firstTokenRank(in container: ModelContainer,
-                               continuation: String, context: String) async -> Int? {
-        guard !continuation.isEmpty else { return nil }
-        let ctxTail = String(context.suffix(600))
-        return await container.perform { (ctx: ModelContext) in
-            let ctxTokens = ctx.tokenizer.encode(text: ctxTail)
-            let allTokens = ctx.tokenizer.encode(text: ctxTail + continuation)
-            var start = 0
-            let lim = min(ctxTokens.count, allTokens.count)
-            while start < lim, ctxTokens[start] == allTokens[start] { start += 1 }
-            guard start >= 1, allTokens.count > start else { return nil }
-            let logits = ctx.model(MLXArray(allTokens, [1, allTokens.count]), cache: nil)
-            let row = logits[0, start - 1]        // [vocab]: predicts allTokens[start]
-            let target = row[allTokens[start]]    // its logit
-            // rank = number of tokens strictly more likely than the true one.
-            return (row .> target).sum().item(Int.self)
         }
     }
 }

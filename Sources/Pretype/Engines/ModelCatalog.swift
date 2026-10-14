@@ -4,7 +4,6 @@ struct ModelOption {
     let id: String
     let title: String
     let approxSizeMB: Int
-    let extraEOSTokens: Set<String>
     /// Instruct sibling used for fix-selection: corrections need instruction
     /// following (the base model paraphrases), while completion needs a base
     /// model (the instruct one echoes the prompt). Loaded lazily on first use.
@@ -31,7 +30,6 @@ enum ModelCatalog {
             id: "mlx-community/gemma-4-e4b-8bit",
             title: "Gemma 4 E4B 8-bit — best quality",
             approxSizeMB: 5980,  // slim download (see slimRepos); the original was 8.6 GB
-            extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
@@ -39,7 +37,6 @@ enum ModelCatalog {
             id: "mlx-community/gemma-4-e4b-6bit",
             title: "Gemma 4 E4B 6-bit — lighter, near-best",
             approxSizeMB: 5030,
-            extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
@@ -47,7 +44,6 @@ enum ModelCatalog {
             id: "mlx-community/gemma-4-e2b-8bit",
             title: "Gemma 4 E2B 8-bit — small but precise",
             approxSizeMB: 3410,
-            extraEOSTokens: ["<end_of_turn>"],
             // E4B-it, not E2B-it: its chords fix 65% of noisy lines against 50%,
             // and the installs that ran it as their Instruct primary before
             // 2026-10-14 already hold it.
@@ -61,7 +57,6 @@ enum ModelCatalog {
             id: "mlx-community/gemma-4-e2b-4bit",
             title: "Gemma 4 E2B — for 8–16 GB Macs",
             approxSizeMB: 2510,
-            extraEOSTokens: ["<end_of_turn>"],
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
@@ -84,7 +79,6 @@ enum ModelCatalog {
             id: "openbmb/MiniCPM5-1B-Base",
             title: "MiniCPM5 1B — fastest, English & Russian",
             approxSizeMB: 2200,
-            extraEOSTokens: [],
             correctionModelID: "openbmb/MiniCPM5-1B",  // fixes are instruction-following — the RL model handles them
             instructModelID: "openbmb/MiniCPM5-1B"     // manual instruct flip only; completion there is broken (see above)
         ),
@@ -100,7 +94,6 @@ enum ModelCatalog {
             id: "mlx-community/Qwen2.5-0.5B-bf16",
             title: "Qwen2.5 0.5B — smallest footprint",
             approxSizeMB: 990,
-            extraEOSTokens: [],
             correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
             instructModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
         ),
@@ -123,7 +116,6 @@ enum ModelCatalog {
             id: "nikimori/Qwen3.5-2B-Base-6bit",
             title: "Qwen3.5 2B — best small multilingual",
             approxSizeMB: 1530,
-            extraEOSTokens: [],
             correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
             instructModelID: "mlx-community/Qwen3.5-2B-4bit"
         ),
@@ -131,7 +123,6 @@ enum ModelCatalog {
             id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             title: "Ternary Bonsai 4B — 1 GB base",  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
             approxSizeMB: 1100,
-            extraEOSTokens: [],
             correctionModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             instructModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit"
         ),
@@ -225,8 +216,8 @@ enum ModelCatalog {
     /// Slimmer re-packs of the Gemma downloads: the towers the engine never
     /// runs are gone (audio everywhere, vision too on the base builds, which
     /// load text-only — the -it builds keep it for the MTP path's VLM load),
-    /// and both embedding tables ship at the 4-bit that `requantizeTiedTable`
-    /// produced at every load. The same weights the app already ran, 13–39%
+    /// and both embedding tables ship at the 4-bit the app used to re-quantize
+    /// them to at every load. The same weights the app already ran, 13–39%
     /// less to download (E2B 8-bit 5.9 → 3.6 GB); Eval/runs-2026-10-11 slim-*.
     static let slimRepos: [String: String] = Dictionary(uniqueKeysWithValues: [
         "gemma-4-e4b-8bit", "gemma-4-e4b-6bit", "gemma-4-e2b-8bit", "gemma-4-e2b-4bit",
@@ -308,28 +299,11 @@ enum ModelCatalog {
                 id: appleIntelligenceID,
                 title: "Apple Intelligence — system model",
                 approxSizeMB: 0,
-                extraEOSTokens: [],
                 correctionModelID: appleIntelligenceID,
                 instructModelID: appleIntelligenceID
             )
         }
-        if let option = options.first(where: { $0.id == id }) { return option }
-        // A fine-tuned model: a local directory the user pointed us at. Treat it
-        // as a Gemma base; fix-selection/instruct fall back to the standard
-        // instruct siblings. Recognizing it here keeps it from being cleared as
-        // a stale pick on launch.
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: id, isDirectory: &isDir), isDir.boolValue {
-            return ModelOption(
-                id: id,
-                title: "Fine-tuned: \((id as NSString).lastPathComponent) (local)",
-                approxSizeMB: 0,
-                extraEOSTokens: ["<end_of_turn>"],
-                correctionModelID: options[0].correctionModelID,
-                instructModelID: options[0].instructModelID
-            )
-        }
-        return nil
+        return options.first { $0.id == id }
     }
 
     /// Eval-backed completion settings recommended for a given model, so each

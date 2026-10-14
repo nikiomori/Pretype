@@ -609,7 +609,7 @@ final class DictationControllerTests: XCTestCase {
     /// The gate the dictation tidy-up asks before spending its budget: it must
     /// answer "would this go to the network", not "is the model resident".
     /// Anything with no Hugging Face cache directory of its own — the Apple
-    /// Intelligence pseudo-id, a local fine-tune folder — is already on the
+    /// Intelligence pseudo-id, a filesystem path — is already on the
     /// machine and must never be treated as an unfetched download.
     func testCorrectionFetchGateAnswersForLocalIDs() {
         XCTAssertTrue(ModelStorage.isFetched(ModelCatalog.appleIntelligenceID))
