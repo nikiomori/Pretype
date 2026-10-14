@@ -186,7 +186,8 @@ enum ModelStorage {
         guard let option = ModelCatalog.option(for: id) else { return [] }
         let models = [option.id, option.correctionModelID, option.instructModelID]
         let slim = models.compactMap { ModelCatalog.slimRepos[$0] }
-        return Set((models + slim + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
+        let previous = ModelCatalog.previousBuilds[option.id] ?? []
+        return Set((models + slim + previous + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
             .filter { cacheDirectory(repo: $0) != nil })
     }
 
@@ -266,7 +267,7 @@ enum ModelStorage {
     /// (idle reload or relaunch) picks it up — the same weights the engine
     /// already held in memory, so all that changes is disk (−0.6…2.7 GB per
     /// model) and a faster reload. A `previousBuilds` pair is fetched the same
-    /// way, but its old build stays: it is the entry's ⌥⇥ sibling.
+    /// way; its old build stays only while it is the entry's ⌥⇥ sibling.
     ///
     /// Only the selected model's repos: a model nobody uses isn't worth
     /// gigabytes of the user's bandwidth. Skipped on an expensive (cellular,
@@ -275,7 +276,10 @@ enum ModelStorage {
     static func upgradeToSlim(selected: String) async {
         let inUse = repos(for: selected)
         let pairs = ModelCatalog.slimRepos.map { (original: $0.key, slim: $0.value, keepOriginal: false) }
-            + ModelCatalog.previousBuilds.map { (original: $0.value, slim: $0.key, keepOriginal: true) }
+            + ModelCatalog.previousBuilds.flatMap { new, olds in
+                let siblings = ModelCatalog.option(for: new).map { [$0.correctionModelID, $0.instructModelID] } ?? []
+                return olds.map { (original: $0, slim: new, keepOriginal: siblings.contains($0)) }
+            }
         for (original, slim, keepOriginal) in pairs where inUse.contains(original) && inUse.contains(slim) {
             guard let originalDir = cacheDirectory(repo: original), let slimDir = cacheDirectory(repo: slim),
                   FileManager.default.fileExists(atPath: originalDir.path) else { continue }

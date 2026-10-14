@@ -51,10 +51,11 @@ Inline typo fixes do not work in these two languages. macOS lists them as spell-
 
 ### Qwen3.5 2B uses its Base build
 
-Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is our own MLX conversion: [nikimori/Qwen3.5-2B-Base-4bit](https://huggingface.co/nikimori/Qwen3.5-2B-Base-4bit).
+Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is our own MLX conversion: [nikimori/Qwen3.5-2B-Base-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-Base-6bit).
 
 * Accuracy: 17.1% of all rows, against 16.1% for the post-trained build (p=0.005).
-* Size: 1.1 GB, against 1.6 GB.
+* Since 2026-10-14, the build is 6-bit. It gets 19% of all rows, against 17% for the 4-bit build (p<0.001). An 8-bit build is not better (19%, 1.9 GB).
+* Size: 1.5 GB.
 
 ### The E2B tiers use Base style
 
@@ -74,7 +75,7 @@ Since 2026-07-25, Pretype selects the default from the memory of your Mac. Befor
 
 | Mac memory | Default | Resident (recommended config) |
 |---|---|--:|
-| 8 GB | Qwen3.5 2B (Base) | ≈1.1 GB |
+| 8 GB | Qwen3.5 2B (Base) | ≈1.5 GB |
 | 16–18 GB | Gemma E2B 4-bit | ≈2.5 GB |
 | 24 GB | Gemma E2B 8-bit | ≈3.4 GB |
 | 32 GB and up | Gemma E4B 6-bit | ≈5.6 GB |

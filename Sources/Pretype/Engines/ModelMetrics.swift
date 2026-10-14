@@ -69,14 +69,14 @@ struct ModelMetrics {
                      firstWordPct: 26, ci: 23...28, coveragePct: 84,
                      logProbPerChar: -1.051, p50Ms: 79, ramGB: 1.0,
                      note: "Smallest footprint; ties MiniCPM5 on 17 languages (p=0.084), though its bigger sibling Qwen3.5 2B measures clearly better (p<0.001)."),
-        // The Base build, booked 2026-10-11 (runs-2026-10-11/book-qwen35base.py,
-        // same rules as the 07-16 rows — they reproduce the old Qwen3.5 row
-        // exactly); p50 scaled from the post-trained build's 93 ms by the
-        // same-binary ratio 35/38 ms.
-        ModelMetrics(id: "nikimori/Qwen3.5-2B-Base-4bit", shortName: "Qwen3.5 2B",
-                     firstWordPct: 28, ci: 26...31, coveragePct: 82,
-                     logProbPerChar: -0.966, p50Ms: 86, ramGB: 1.1,
-                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; matches MiniCPM5 on English (28 vs 27) and on Russian (18 vs 17) alike. The Base build: ahead of the post-trained Qwen3.5 it replaced (p=0.005) in 1.1 GB instead of 1.6. On Arabic and Hebrew its lead over the other small models disappears — a Gemma tier roughly doubles it there."),
+        // The Base build at 6-bit, booked 2026-10-14 with book-qwen35base.py's
+        // rules (they reproduce the 10-11 4-bit row exactly); p50 scaled from
+        // the 4-bit build's 86 ms by the interleaved same-binary ratio 30/22 ms
+        // (Eval/runs-2026-10-14-small).
+        ModelMetrics(id: "nikimori/Qwen3.5-2B-Base-6bit", shortName: "Qwen3.5 2B",
+                     firstWordPct: 30, ci: 27...33, coveragePct: 81,
+                     logProbPerChar: -0.942, p50Ms: 116, ramGB: 1.5,
+                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; matches MiniCPM5 on English (28 vs 27) and passes it on Russian (21 vs 17). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there."),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 25...30, coveragePct: 81,
                      logProbPerChar: -1.073, p50Ms: 102, ramGB: 1.1,
@@ -121,8 +121,8 @@ struct ModelMetrics {
             ["ar": 5, "cs": 6, "de": 16, "en": 27, "es": 25, "fr": 20, "he": 1, "it": 17, "ja": 6, "ko": 7, "nl": 13, "pl": 10, "pt": 16, "ro": 6, "ru": 17, "sv": 9, "tr": 5, "uk": 5, "zh": 9],
         "mlx-community/Qwen2.5-0.5B-bf16":
             ["ar": 6, "cs": 6, "de": 15, "en": 26, "es": 21, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 5, "nl": 14, "pl": 13, "pt": 16, "ro": 9, "ru": 16, "sv": 6, "tr": 6, "uk": 6, "zh": 10],
-        "nikimori/Qwen3.5-2B-Base-4bit":
-            ["ar": 5, "cs": 9, "de": 19, "en": 28, "es": 26, "fr": 23, "he": 11, "it": 20, "ja": 2, "ko": 7, "nl": 19, "pl": 15, "pt": 23, "ro": 19, "ru": 18, "sv": 16, "tr": 8, "uk": 14, "zh": 7],
+        "nikimori/Qwen3.5-2B-Base-6bit":
+            ["ar": 8, "cs": 11, "de": 20, "en": 28, "es": 28, "fr": 26, "he": 13, "it": 21, "ja": 3, "ko": 7, "nl": 21, "pl": 19, "pt": 24, "ro": 23, "ru": 21, "sv": 19, "tr": 9, "uk": 17, "zh": 9],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
             ["ar": 4, "cs": 5, "de": 16, "en": 28, "es": 21, "fr": 21, "he": 7, "it": 12, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 13, "ru": 15, "sv": 9, "tr": 6, "uk": 9, "zh": 5],
         "system.apple-intelligence":
@@ -148,8 +148,8 @@ struct ModelMetrics {
             ["ar": 59, "cs": 60, "de": 89, "en": 86, "es": 88, "fr": 83, "he": 58, "it": 83, "ja": 70, "ko": 55, "nl": 74, "pl": 69, "pt": 88, "ro": 57, "ru": 76, "sv": 78, "tr": 57, "uk": 53, "zh": 51],
         "mlx-community/Qwen2.5-0.5B-bf16":
             ["ar": 68, "cs": 65, "de": 88, "en": 88, "es": 90, "fr": 83, "he": 71, "it": 80, "ja": 72, "ko": 50, "nl": 79, "pl": 73, "pt": 90, "ro": 67, "ru": 80, "sv": 66, "tr": 64, "uk": 67, "zh": 55],
-        "nikimori/Qwen3.5-2B-Base-4bit":
-            ["ar": 69, "cs": 74, "de": 88, "en": 88, "es": 87, "fr": 81, "he": 71, "it": 83, "ja": 68, "ko": 57, "nl": 83, "pl": 71, "pt": 88, "ro": 77, "ru": 78, "sv": 82, "tr": 71, "uk": 71, "zh": 54],
+        "nikimori/Qwen3.5-2B-Base-6bit":
+            ["ar": 71, "cs": 79, "de": 89, "en": 87, "es": 87, "fr": 85, "he": 75, "it": 85, "ja": 72, "ko": 58, "nl": 85, "pl": 80, "pt": 90, "ro": 79, "ru": 78, "sv": 89, "tr": 76, "uk": 75, "zh": 53],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
             ["ar": 60, "cs": 62, "de": 86, "en": 87, "es": 83, "fr": 80, "he": 66, "it": 80, "ja": 73, "ko": 49, "nl": 76, "pl": 69, "pt": 81, "ro": 71, "ru": 76, "sv": 75, "tr": 66, "uk": 61, "zh": 55],
         "system.apple-intelligence":
