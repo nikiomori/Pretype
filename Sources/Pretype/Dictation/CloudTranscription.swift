@@ -2,10 +2,15 @@ import AVFoundation
 import Foundation
 
 /// Dictation on a hosted speech model (Settings → API): audio accumulates in
-/// memory, and `finish()` uploads the whole take as one WAV. No live preview —
-/// re-sending the take every second would bill it over and over.
+/// memory, and `finish()` uploads the whole take as one WAV. A hosted model
+/// gets no live preview — re-sending the take every second would bill it over
+/// and over. A server on this Mac (Refrain, a whisper server) costs nothing per
+/// request, so it gets the preview the on-device Parakeet has: the take so
+/// far, re-sent about once a second.
 /// ponytail: one upload per take; 16 kHz 16-bit mono is ~1.9 MB a minute, so
 /// a take past ~13 minutes hits OpenAI's 25 MB limit (the latch ceiling is 10).
+/// The local preview re-sends the whole take, as Parakeet's does: ~2 MB a
+/// refresh at the 10-minute latch, still well under a second on loopback.
 final class CloudTranscription: TranscriptionSession, @unchecked Sendable {
     let audioFormat: AVAudioFormat? = AVAudioFormat(
         commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)
@@ -16,10 +21,27 @@ final class CloudTranscription: TranscriptionSession, @unchecked Sendable {
     /// on-device analyzer gets.
     private let hints = Transcription.contextualWords.get()
     private let samples = LockedValue<[Float]>([])
+    private let preview = LockedValue<Task<Void, Never>?>(nil)
 
-    init(_ config: APIConfig, locale: Locale) throws {
+    init(_ config: APIConfig, locale: Locale, onPartial: @escaping @Sendable (String) -> Void) throws {
         endpoint = try config.endpoint()
         language = locale.language.languageCode?.identifier
+        guard config.isLocal else { return }
+        preview.set(Task { [samples, endpoint, language, hints] in
+            var previewed = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                let audio = samples.get()
+                // Half a second of new audio, or the pill would repaint the same guess.
+                guard audio.count >= previewed + 8_000 else { continue }
+                previewed = audio.count
+                if let text = try? await APIClient.transcribe(endpoint, wav: Self.wav(audio), language: language,
+                                                              hints: hints, timeout: 10),
+                   !Task.isCancelled {
+                    onPartial(text)
+                }
+            }
+        })
     }
 
     func feed(_ buffer: AVAudioPCMBuffer) {
@@ -29,6 +51,10 @@ final class CloudTranscription: TranscriptionSession, @unchecked Sendable {
     }
 
     func finish() async throws -> String {
+        if let task = preview.exchange(nil) {
+            task.cancel()
+            await task.value  // a preview in flight is cancelled with it, not waited out
+        }
         let audio = samples.exchange([])
         // Under a tenth of a second is a key tap, not speech — and most
         // servers refuse a clip that short.
@@ -38,6 +64,7 @@ final class CloudTranscription: TranscriptionSession, @unchecked Sendable {
     }
 
     func cancel() {
+        preview.exchange(nil)?.cancel()
         samples.set([])
     }
 

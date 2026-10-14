@@ -130,7 +130,9 @@ enum Transcription {
     /// doesn't have it yet (slow exactly once per language).
     static func start(locale: Locale,
                       onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
-        if Settings.apiAudio.enabled { return try CloudTranscription(Settings.apiAudio, locale: locale) }
+        if Settings.apiAudio.enabled {
+            return try CloudTranscription(Settings.apiAudio, locale: locale, onPartial: onPartial)
+        }
         guard #available(macOS 26.0, *) else { throw TranscriptionError.unsupportedSystem }
         let resolved = await resolve(locale)
         if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {

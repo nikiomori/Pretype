@@ -224,6 +224,7 @@ We checked these presets against the documentation of each provider on 2026-10-1
 | DeepSeek | `deepseek-flash` | — | `thinking: disabled` |
 | Ollama *(local)* | `gemma4:e4b` | — | `reasoning_effort: none` |
 | LM Studio *(local)* | `google/gemma-4-e4b` | — | None |
+| Refrain *(local)* | — | `auto` | None. Refrain picks the speech model by language. |
 | Custom | You type it. | You type it. | None |
 
 * **Reasoning.** Most current models reason before they answer, by default. For autocomplete, this adds seconds to each suggestion. Thus Pretype turns it off where the provider permits it.
@@ -231,5 +232,6 @@ We checked these presets against the documentation of each provider on 2026-10-1
 * **Latency.** The network adds to each suggestion. **Test connection** shows the round trip from your Mac.
 * **Cost.** Each suggestion is one request. The provider charges for each request.
 * **Local servers.** Ollama and LM Studio run on your Mac and need no key. The data does not leave the Mac. Pretype can connect to `http://localhost`.
+* **Refrain.** [Refrain](https://github.com/nikiomori/Refrain) is the speech engine that other apps on the Mac, such as Reprise, share. With it as the dictation provider, Pretype dictates through Refrain's models instead of loading its own, and sends the names in the field as spelling hints. The audio does not leave the Mac. As with any server on your Mac, Pretype re-sends the take about once a second for the live preview, as Parakeet does on device; a hosted provider gets the take once, when you stop speaking.
 
 For quantization tiers, the engine split and the confidence gate, see [Architecture](ARCHITECTURE.md).

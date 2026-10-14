@@ -24,10 +24,6 @@ private struct APIEndpointSection: View {
     @State private var key = ""
 
     private var provider: APIProvider { config.preset }
-    private var isLocal: Bool {
-        let host = URL(string: config.baseURL)?.host ?? ""
-        return host == "localhost" || host == "127.0.0.1" || host == "::1"
-    }
     private var host: String { URL(string: config.baseURL)?.host ?? "the server" }
 
     var body: some View {
@@ -74,7 +70,7 @@ private struct APIEndpointSection: View {
     private func loadKey() { key = APIKeychain.key(for: config.provider) ?? "" }
 
     private var privacyNote: String {
-        if isLocal {
+        if config.isLocal {
             return "This server runs on your Mac, so nothing leaves it."
         }
         if kind == .text {
@@ -84,7 +80,7 @@ private struct APIEndpointSection: View {
                 + "anything. The provider charges for each request."
         }
         return "When this is on, each recording goes to \(host) when you stop speaking"
-            + (APIClient.sendsHints(model: config.model)
+            + (APIClient.sendsHints(model: config.model, provider: config.provider)
                 ? ", with the names already in the field as spelling hints. " : ". ")
             + "Pretype keeps the audio in memory only and never writes it to disk."
     }

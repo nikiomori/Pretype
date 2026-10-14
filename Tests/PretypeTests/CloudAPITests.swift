@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import Pretype
 
@@ -167,6 +168,53 @@ final class CloudAPITests: XCTestCase {
         XCTAssertFalse(body.contains("keywords[]"))
     }
 
+    func testRefrainGetsLanguageAndPrompt() async throws {
+        StubProtocol.response = (200, Data(#"{"text":"привет"}"#.utf8))
+        _ = try await APIClient.transcribe(endpoint("refrain", model: "auto", key: nil),
+                                           wav: CloudTranscription.wav([0]), language: "ru",
+                                           hints: ["Dubina", "MLX"], timeout: 5)
+        XCTAssertEqual(StubProtocol.lastRequest?.url?.absoluteString, "http://127.0.0.1:8178/v1/audio/transcriptions")
+        XCTAssertNil(StubProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization"))
+        let body = multipartText
+        XCTAssertTrue(body.contains("name=\"language\"\r\n\r\nru\r\n"))
+        XCTAssertTrue(body.contains("name=\"prompt\"\r\n\r\nDubina, MLX\r\n"))
+    }
+
+    /// A server on this Mac costs nothing per request, so it gets the live preview.
+    func testLocalServerGetsLivePreview() async throws {
+        StubProtocol.response = (200, Data(#"{"text":"привет"}"#.utf8))
+        let partials = LockedValue<[String]>([])
+        let session = try CloudTranscription(APIConfig(provider: .named("refrain"), kind: .audio),
+                                             locale: Locale(identifier: "ru")) { text in partials.mutate { $0.append(text) } }
+        session.feed(silence(seconds: 1))
+        try await Task.sleep(for: .seconds(1.5))
+        XCTAssertEqual(partials.get(), ["привет"])
+        let final = try await session.finish()
+        XCTAssertEqual(final, "привет")
+    }
+
+    /// A hosted one bills each request: the take goes once, at the end.
+    func testHostedServerGetsNoPreview() async throws {
+        StubProtocol.response = (200, Data(#"{"text":"hi"}"#.utf8))
+        var config = APIConfig(provider: .custom, kind: .audio)
+        config.baseURL = "https://speech.example.com/v1"
+        config.model = "whisper-1"
+        let partials = LockedValue<[String]>([])
+        let session = try CloudTranscription(config, locale: Locale(identifier: "en")) { text in partials.mutate { $0.append(text) } }
+        session.feed(silence(seconds: 1))
+        try await Task.sleep(for: .seconds(1.5))
+        XCTAssertTrue(partials.get().isEmpty)
+        XCTAssertTrue(StubProtocol.bodies.isEmpty)
+        session.cancel()
+    }
+
+    private func silence(seconds: Int) -> AVAudioPCMBuffer {
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(16_000 * seconds))!
+        buffer.frameLength = buffer.frameCapacity
+        return buffer
+    }
+
     /// The suggested models are what a fresh install sends — pin them, so a
     /// stale id can't slip back in unnoticed.
     func testPresetModels() {
@@ -176,7 +224,8 @@ final class CloudAPITests: XCTestCase {
         XCTAssertEqual(text["gemini"], "gemini-3.5-flash-lite")
         XCTAssertEqual(text["deepseek"], "deepseek-flash")
         XCTAssertEqual(APIProvider.named("openai").audioModel, "gpt-transcribe")
-        XCTAssertEqual(APIProvider.offering(.audio).map(\.id), ["openai", "groq", "mistral", "custom"])
+        XCTAssertEqual(APIProvider.offering(.audio).map(\.id), ["openai", "groq", "mistral", "refrain", "custom"])
+        XCTAssertNil(APIProvider.named("refrain").textModel)  // dictation only
     }
 
     func testWAVHeaderAndClamp() {

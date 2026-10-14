@@ -73,6 +73,10 @@ struct APIProvider: Identifiable {
                     textExtras: ["reasoning_effort": "none"]),
         APIProvider(id: "lmstudio", name: "LM Studio (local)", baseURL: "http://localhost:1234/v1",
                     textModel: "google/gemma-4-e4b", needsKey: false),
+        // Refrain, the speech engine shared by every app on this Mac (github.com/nikiomori/Refrain):
+        // dictation only, and it picks Apple's model or Parakeet by language, so any model name does.
+        APIProvider(id: "refrain", name: "Refrain (this Mac)", baseURL: "http://127.0.0.1:8178/v1",
+                    audioModel: "auto", needsKey: false),
         custom,
     ]
 
@@ -106,6 +110,12 @@ struct APIConfig: Codable, Equatable {
     }
 
     var preset: APIProvider { APIProvider.named(provider) }
+
+    /// A server on this Mac: nothing leaves it, and a request costs nothing.
+    var isLocal: Bool {
+        let host = URL(string: baseURL.trimmingCharacters(in: .whitespaces))?.host ?? ""
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
 
     /// Everything a request needs, or the reason it can't be made — the
     /// reason is shown verbatim in Settings and at the caret.
@@ -274,7 +284,7 @@ enum APIClient {
             if let language { field("language", language) }
             // Whisper reads the prompt as preceding text — names in it come
             // out spelled that way. 224 tokens at most.
-            if sendsHints(model: endpoint.model), !hints.isEmpty {
+            if sendsHints(model: endpoint.model, provider: endpoint.provider.id), !hints.isEmpty {
                 field("prompt", hints.prefix(30).joined(separator: ", "))
             }
         }
@@ -289,9 +299,10 @@ enum APIClient {
     }
 
     /// Whether `transcribe` sends the field's names along — the settings
-    /// pane says so when it does.
-    static func sendsHints(model: String) -> Bool {
-        model.hasPrefix("gpt-transcribe") || model.contains("whisper")
+    /// pane says so when it does. Refrain hands them to Apple's analyzer as
+    /// contextual strings.
+    static func sendsHints(model: String, provider: String) -> Bool {
+        model.hasPrefix("gpt-transcribe") || model.contains("whisper") || provider == "refrain"
     }
 
     private static func makeRequest(_ endpoint: APIEndpoint, path: String, timeout: TimeInterval) -> URLRequest {
