@@ -621,6 +621,11 @@ enum Settings {
     /// no relaunch, no event-tap rebuild.
     @Pref("replyGesture", ReplyGesture.option) static var replyGesture: ReplyGesture
 
+    /// Offer the reply unasked when the caret lands in an empty message box of
+    /// a chat (`AppPolicy.isChat`). Off by default: it reads the window on
+    /// every such focus.
+    @Pref("autoReply", false) static var autoReply: Bool
+
     /// Hold-to-talk dictation; turning it on is what asks for the microphone.
     /// OFF until asked for: it is the one feature that opens the microphone,
     /// and a third permission prompt at first launch (after Accessibility and

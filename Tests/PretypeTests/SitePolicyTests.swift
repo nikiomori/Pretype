@@ -38,6 +38,16 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertFalse(AppPolicy.sendsAfterDictation(TypingContext()), "no app, nothing to match")
     }
 
+    func testChatsAreMessengersNotAIChatsOrMail() {
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "ru.keepcoder.Telegram")))
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.apple.MobileSMS")))
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.google.Chrome", site: "web.whatsapp.com")))
+        XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.google.Chrome", site: "chatgpt.com")))
+        XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.apple.mail")))
+        XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.tinyspeck.slackmacgap", site: "github.com")),
+                       "a web page inside an app is judged by its site")
+    }
+
     func testSiteInstructionsWinOverTheBrowsersAndTheMostSpecificSiteWins() {
         let saved = Settings.perAppInstructions
         defer { Settings.perAppInstructions = saved }

@@ -426,6 +426,7 @@ struct GeneralTab: View {
     // An initial value only answers an unset key: reading it from `Settings`
     // keeps each default in one place.
     @AppStorage("replyGesture") private var replyGesture = Settings.replyGesture
+    @AppStorage("autoReply") private var autoReply = Settings.autoReply
     @AppStorage("ghostOpacity") private var ghostOpacity = Settings.ghostOpacity
     @AppStorage("dictationGesture") private var dictationGesture = Settings.dictationGesture
     @AppStorage("dictationLatch") private var dictationLatch = Settings.dictationLatch
@@ -519,6 +520,10 @@ struct GeneralTab: View {
                 } label: {
                     Text("Write a reply")
                     Text("Reads the conversation on screen and drafts your next message as ghost text — \(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
+                }
+                Toggle(isOn: $autoReply) {
+                    Text("Offer replies in chats")
+                    Text("When you click into an empty message box in Messages, Telegram, WhatsApp, Slack, Discord and other messengers, the reply appears by itself — no chord. Each time, Pretype reads the window. Typing anything drops the reply. It runs only once the reply model is downloaded: the chord's first use downloads it.")
                 }
                 // Reply is on by default but reads the screen, which is off by
                 // default and needs a permission — the checklist says what's

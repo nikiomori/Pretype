@@ -1033,20 +1033,25 @@ final class SuggestionController: NSObject {
     /// Write the user's next message for them: OCR the conversation in front of
     /// them, ask the engine to answer it, and offer the whole thing as one ghost
     /// the normal accept keys take (⇥ word by word, ⇧⇥ all of it, ⎋ to drop it).
-    /// Explicit chord only — nothing is generated, and nothing typed, unasked.
+    /// Asked for by the chord, or — `auto`, with "Offer replies in chats" on —
+    /// by the caret landing in an empty message box. Nothing is typed unasked.
+    /// An automatic reply stays silent when it can't run: no hints, no
+    /// download of a fix model nobody asked for. Returns whether it started.
     ///
     /// It borrows `refreshTask` for the duration, so the thinking dots run, a
     /// keystroke or a focus change cancels it, and it can't race a completion.
     /// Never call inside the event-tap callback: it does synchronous AX reads.
-    private func composeReply() {
+    @discardableResult
+    private func composeReply(auto: Bool = false) -> Bool {
         // Every stop below says why, in the console and in the menu's "Last:"
         // line: an explicitly-pressed chord that does nothing, silently, is
         // indistinguishable from a broken build.
-        DebugLog.shared.log(
-            "REPLY", "requested (\(Settings.replyGesture.label) / \(Settings.hotkeyStyle.replyLabel))")
-        func stop(_ why: String) {
-            lastEvent = "reply: \(why)"
+        DebugLog.shared.log("REPLY", auto ? "offered — empty message box"
+            : "requested (\(Settings.replyGesture.label) / \(Settings.hotkeyStyle.replyLabel))")
+        func stop(_ why: String) -> Bool {
+            if !auto { lastEvent = "reply: \(why)" }
             DebugLog.shared.log("REPLY", "not composing — \(why)")
+            return false
         }
         guard Settings.enabled else { return stop("Pretype is paused") }
         guard !isOwnUIFrontmost else { return stop("our own window is frontmost") }
@@ -1063,6 +1068,12 @@ final class SuggestionController: NSObject {
               let rect = ctx.caretRect else {
             return stop("cannot read the field or place the ghost")
         }
+        if auto {
+            guard (ctx.textBeforeCaret + ctx.textAfterCaret).allSatisfy(\.isWhitespace) else {
+                return stop("the message box isn't empty")
+            }
+            guard engine.isCorrectionReady else { return stop("the reply model isn't loaded") }
+        }
         lastCaretRect = rect
         lastHostStyle = ctx.host
         // We just read the field — make that the cache marker, so the result
@@ -1073,7 +1084,8 @@ final class SuggestionController: NSObject {
         // instead of answering from the empty field.
         guard Settings.screenContextEnabled, ScreenContext.hasPermission,
               AppPolicy.allowsScreenContext(typingContext) else {
-            stop("needs screen context — \(screenContextStatus)")
+            _ = stop("needs screen context — \(screenContextStatus)")
+            if auto { return false }
             // Say which of the three is missing, in the words the fix is found
             // under — "needs screen context" left the user to work out which.
             let why = !Settings.screenContextEnabled
@@ -1082,7 +1094,7 @@ final class SuggestionController: NSObject {
                     ? "reply needs Screen Recording — allow Pretype in System Settings, then relaunch"
                     : "reply doesn't read the screen in \(typingContext.appName ?? "this app")"
             indicator.flashTransient(.hint(why), hideAfter: 3.5)
-            return
+            return false
         }
         clearActiveCompletion()
         window.hide()
@@ -1142,14 +1154,18 @@ final class SuggestionController: NSObject {
                 // Two different silences: nothing readable on screen, or the
                 // model had nothing to say about it.
                 let why = conversation == nil ? "nothing to reply to" : "no answer from the model"
+                DebugLog.shared.log("REPLY", why)
+                guard !auto else { return }
                 self.lastEvent = "reply: \(why)"
                 self.indicator.flashTransient(.hint(why))
             case .failure(let error):
-                self.lastEvent = "reply failed: \(error.localizedDescription)"
                 DebugLog.shared.log("ERROR", "reply failed: \(error.localizedDescription)")
+                guard !auto else { return }
+                self.lastEvent = "reply failed: \(error.localizedDescription)"
                 self.indicator.flashTransient(Self.failureNotice(error, fallback: "reply failed"))
             }
         }
+        return true
     }
 
     /// The notice for a failed explicit request (⌥⇥, ⌥⇧⇥). An engine that
@@ -1852,6 +1868,11 @@ extension SuggestionController: FocusTrackerDelegate {
             let generation = focusGeneration
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 guard let self, self.focusGeneration == generation else { return }
+                // An empty message box in a chat: the reply's own, wider
+                // capture replaces the completion's.
+                if Settings.autoReply, AppPolicy.isChat(self.typingContext), self.composeReply(auto: true) {
+                    return
+                }
                 self.refreshScreenContextIfNeeded(typed: "")
                 // No capture coming (context off, no permission, blocked app):
                 // warm the new field's prompt now — its first keystroke would
