@@ -31,9 +31,6 @@ opt_in_rules:
   - overridden_super_call
   - redundant_nil_coalescing
   - toggle_bool
-# Needs compiler logs, so it only runs under `swiftlint analyze` (CI doesn't).
-analyzer_rules:
-  - unused_import
 included:
   - Sources
   - Tests/PretypeTests

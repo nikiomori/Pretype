@@ -99,7 +99,7 @@ The eval is a tool for **comparison**. The absolute first-word accuracy is lower
 ## Code style
 
 * Use the style of the code near your change: 4-space indentation, no trailing whitespace.
-* CI runs SwiftLint (`swiftlint --strict`, configuration in `.swiftlint.yml`). A `.swiftformat` configuration controls the format. If you have SwiftLint, run `swiftlint --strict` before you push.
+* CI runs SwiftLint (`swiftlint --strict`, configuration in `.swiftlint.yml`). If you have SwiftLint, run `swiftlint --strict` before you push.
 * Comments tell *why*, not *what*. The codebase uses short comments with much information. For examples, see the output-gate comments in `Engines/CompletionGates.swift` and `Engines/CorrectionGates.swift`.
 * Do not add dependencies before you discuss them in an issue.
 

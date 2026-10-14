@@ -6,8 +6,7 @@
 #     notarize, staple. Recipients just open the app. Notary credentials come
 #     from the keychain profile "pretype" (one-time local setup:
 #       xcrun notarytool store-credentials pretype
-#     ) or, in CI, from an App Store Connect API key via
-#     APPLE_API_KEY_PATH / APPLE_API_KEY_ID / APPLE_API_ISSUER.
+#     ).
 #   - no such certificate -> ad-hoc signature; recipients clear Gatekeeper
 #     once (see the printed steps).
 #
@@ -35,12 +34,7 @@ if [ -n "$IDENTITY" ]; then
     ditto -c -k --keepParent "$DIST/Pretype.app" build/Pretype.app.zip
     # On a rejected submission --wait exits non-zero; the printed id feeds
     # `xcrun notarytool log <id>` for the reason.
-    if [ -n "${APPLE_API_KEY_PATH:-}" ]; then
-        xcrun notarytool submit build/Pretype.app.zip --wait \
-            --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER"
-    else
-        xcrun notarytool submit build/Pretype.app.zip --wait --keychain-profile pretype
-    fi
+    xcrun notarytool submit build/Pretype.app.zip --wait --keychain-profile pretype
 
     # Staple the ticket so Gatekeeper passes offline, then re-zip the stapled app.
     xcrun stapler staple "$DIST/Pretype.app"

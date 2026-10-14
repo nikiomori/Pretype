@@ -21,14 +21,14 @@ concurrency:
 env:
   XCODE_VERSION: '26.6'
 
-# `swift build` catches compile regressions on every PR. It does NOT exercise
+# `swift test` catches compile regressions on every PR. It does NOT exercise
 # Scripts/make-app.sh — the xcodebuild/Metal path that produces the shipped
 # bundle — so that runs on pushes to main only: cheap enough per merge, and it
 # means the packaging path can't first break on a tag push, where the only
 # symptom is a broken draft release.
 jobs:
   build:
-    name: swift build (macOS)
+    name: swift test (macOS)
     # mlx-swift 0.32.3 needs swift-tools 6.3: the macOS 26 image's default Xcode 26.6 has it.
     runs-on: macos-26
     steps:
@@ -64,9 +64,7 @@ jobs:
       - name: Install Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain || true
 
-      - name: Build
-        run: swift build
-
+      # `swift test` builds the app target too, so it is also the compile check.
       # The unit tests cover only pure logic (output gates, hotkey matching,
       # spell-check helpers, app policy) — no Metal/MLX inference — so they run
       # headless on the runner even though the full engine can't.
@@ -76,7 +74,7 @@ jobs:
       # The release build is the first thing that ever runs make-app.sh, and a
       # broken bundle there only shows up as a bad download. Same script, same
       # runner, one merge earlier. PRs skip it: an xcodebuild Release of MLX is
-      # minutes, and a compile break already reddens `swift build` above.
+      # minutes, and a compile break already reddens `swift test` above.
       - name: Package app bundle
         if: github.event_name == 'push'
         run: ./Scripts/make-app.sh

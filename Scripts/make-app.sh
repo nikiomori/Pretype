@@ -109,11 +109,7 @@ EOF
 cp "$PRODUCTS/Pretype" "$APP/Contents/MacOS/Pretype"
 
 # App icon (Finder + About panel; the app is LSUIElement so there's no Dock icon).
-if [ -f Assets/Pretype.icns ]; then
-    cp Assets/Pretype.icns "$APP/Contents/Resources/Pretype.icns"
-else
-    echo "warning: Assets/Pretype.icns not found — app will have no icon"
-fi
+cp Assets/Pretype.icns "$APP/Contents/Resources/Pretype.icns"
 
 # Community per-app styles (PerAppPresets.community reads them from here).
 cp -R AppStyles "$APP/Contents/Resources/AppStyles"

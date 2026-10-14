@@ -53,4 +53,4 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
    2. Set `sha256` to the output of `shasum -a 256 build/Pretype.app.zip`.
    3. Commit with the message `pretype X.Y.Z`.
 
-   > **NOTE:** release.yml skips its tap step, because the `TAP_GITHUB_TOKEN` secret is not set. If someone adds that secret, the step will write the hash of the CI zip. Thus, always bump the cask from the notarized zip.
+   > **NOTE:** Always bump the cask from the notarized zip, not from the CI zip.
