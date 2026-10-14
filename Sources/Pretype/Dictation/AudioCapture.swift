@@ -99,6 +99,20 @@ final class AudioCapture {
     /// property has a nonisolated default.
     nonisolated init() {}
 
+    /// Whether `delivered` is the `target` format the output was asked for.
+    /// Compared field by field rather than with `==`, which also compares
+    /// channel layouts — a layout tag on the same mono samples is no reason to
+    /// drop them. Interleaving counts only with more than one channel: asked
+    /// for non-interleaved mono Float32 (Parakeet, the API), AVCapture delivers
+    /// the very same samples flagged interleaved, and refusing that dropped
+    /// every buffer — "nothing heard" on every hold.
+    nonisolated static func accepts(_ delivered: AVAudioFormat, for target: AVAudioFormat) -> Bool {
+        delivered.sampleRate == target.sampleRate
+            && delivered.channelCount == target.channelCount
+            && delivered.commonFormat == target.commonFormat
+            && (target.channelCount == 1 || delivered.isInterleaved == target.isInterleaved)
+    }
+
     /// Start capturing from the microphone with CoreAudio UID `deviceUID`
     /// (nil = system default input), delivering buffers in `outputFormat`
     /// (nil = whatever the device gives). `onBuffer` runs on the capture's
@@ -289,14 +303,8 @@ private final class Sink: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate
             return
         }
         let delivered = AVAudioFormat(cmAudioFormatDescription: description)
-        // `start` asked the output to convert into `target`; this checks that
-        // it did. Compared field by field rather than with `==`, which also
-        // compares channel layouts — a layout tag on the same mono samples is
-        // no reason to drop them.
-        if let target, delivered.sampleRate != target.sampleRate
-            || delivered.channelCount != target.channelCount
-            || delivered.commonFormat != target.commonFormat
-            || delivered.isInterleaved != target.isInterleaved {
+        // `start` asked the output to convert into `target`; this checks that it did.
+        if let target, !AudioCapture.accepts(delivered, for: target) {
             if !reportedBadFormat {
                 reportedBadFormat = true
                 DictationController.note("microphone delivered \(Int(delivered.sampleRate)) Hz "

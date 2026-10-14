@@ -1465,4 +1465,18 @@ final class DictationControllerTests: XCTestCase {
         meter.noteVoice(now: opened.addingTimeInterval(4))
         XCTAssertEqual(meter.quietFor(now: opened.addingTimeInterval(5)), 1, accuracy: 0.01)
     }
+
+    /// AVCapture flags the mono Float32 it delivers as interleaved even when asked
+    /// for non-interleaved; for one channel that's the same samples, not a mismatch.
+    func testMonoInterleavingIsNotAFormatMismatch() {
+        func format(_ rate: Double, _ channels: AVAudioChannelCount, interleaved: Bool) -> AVAudioFormat {
+            AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: channels, interleaved: interleaved)!
+        }
+        let asked = format(16_000, 1, interleaved: false)  // Parakeet's and the API's format
+        XCTAssertTrue(AudioCapture.accepts(format(16_000, 1, interleaved: true), for: asked))
+        XCTAssertFalse(AudioCapture.accepts(format(48_000, 1, interleaved: true), for: asked))
+        XCTAssertFalse(AudioCapture.accepts(format(16_000, 2, interleaved: true), for: asked))
+        let stereo = format(16_000, 2, interleaved: false)
+        XCTAssertFalse(AudioCapture.accepts(format(16_000, 2, interleaved: true), for: stereo))
+    }
 }
