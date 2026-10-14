@@ -119,101 +119,43 @@ final class FoundationModelsEngine: CompletionEngine {
     func correct(selection: String, request: CompletionRequest,
                  redactLog: Bool) async throws -> String? {
         try requireReady()
-        let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n") else { return nil }
-
-        let session = LanguageModelSession()
-        let prompt = """
-        \(CorrectionGates.correctionDirective)
-
-        \(trimmed)
-        """
-        let fixed: String
-        do {
-            // Greedy + a budget scaled to the selection: faithful (no
-            // paraphrasing) and never clipped on long lines.
-            let response = try await session.respond(
-                to: prompt,
-                options: GenerationOptions(
-                    samplingMode: .greedy,
-                    maximumResponseTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count)
-                )
-            )
-            // Same as complete(): a cancelled request (focus moved on, overlay
-            // reset) must not surface its late result.
-            try Task.checkCancellation()
-            fixed = CorrectionGates.trimRunOn(
-                CorrectionGates.cleanCorrectionOutput(response.content), original: trimmed)
-        } catch let error as LanguageModelSession.GenerationError {
-            switch error {
-            case .rateLimited, .concurrentRequests:
-                // A transient resource error must not read as "nothing to
-                // fix" — rethrow so the UI shows "fix failed", not "✓ looks
-                // fine", for a selection that may well be broken.
-                throw error
-            default:
-                // A declined fix is a no-op, not an error — same as completion.
-                DebugLog.shared.log("FM", "fix abstain — \(Self.reason(error))")
-                return nil
-            }
+        return try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "FM") {
+            try await Self.respond(to: $0, maxTokens: $1, label: "fix")
         }
-        guard !fixed.isEmpty, fixed != trimmed else { return nil }
-        guard CorrectionGates.isMinimalCorrection(original: trimmed, fixed: fixed) else {
-            DebugLog.shared.log(
-                "FM", "fix rejected (over-rewrite)",
-                detail: redactLog
-                    ? "\(trimmed.count) → \(fixed.count) chars — redacted from log"
-                    : "\"\(trimmed)\" → \"\(fixed)\"")
-            return nil
-        }
-        return fixed
     }
 
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
         try requireReady()
-        let session = LanguageModelSession()
-        let prompt = request.replyPrompt(
-            conversation: conversation, instructions: instructionsBox.get())
-        do {
-            let response = try await session.respond(
-                to: prompt,
-                options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 200)
-            )
-            try Task.checkCancellation()
-            return request.cleanReply(response.content, conversation: conversation)
-        } catch let error as LanguageModelSession.GenerationError {
-            switch error {
-            // Same split as correct(): a resource error is a failure the user
-            // should see, anything else is a decline.
-            case .rateLimited, .concurrentRequests:
-                throw error
-            default:
-                DebugLog.shared.log("FM", "reply abstain — \(Self.reason(error))")
-                return nil
-            }
+        return try await CorrectionGates.reply(to: conversation, request: request,
+                                               instructions: instructionsBox.get()) {
+            try await Self.respond(to: $0, maxTokens: $1, label: "reply")
         }
     }
 
     func rewrite(selection: String, instruction: String,
                  request: CompletionRequest) async throws -> String? {
         try requireReady()
-        let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-        let spoken = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty else { return nil }
+        return try await CorrectionGates.rewrite(selection, instruction: instruction) {
+            try await Self.respond(to: $0, maxTokens: $1, label: "voice command")
+        }
+    }
+
+    /// One greedy turn in a fresh session, for fix, reply and voice commands —
+    /// greedy so a fix stays faithful (no paraphrasing). A resource error
+    /// (rate limit, concurrent request) throws, so the UI shows "fix failed"
+    /// rather than "✓ looks fine" for a selection that may well be broken;
+    /// any other decline is a no-op (nil), same as completion.
+    private static func respond(to prompt: String, maxTokens: Int, label: String) async throws -> String? {
         do {
-            let response = try await LanguageModelSession().respond(
-                to: CorrectionGates.commandPrompt(instruction: spoken, text: text),
-                options: GenerationOptions(samplingMode: .greedy,
-                                           maximumResponseTokens: min(1024, max(64, text.count))))
-            try Task.checkCancellation()
-            let result = CorrectionGates.cleanCommandOutput(response.content)
-            return result.isEmpty || result == text ? nil : result
+            return try await LanguageModelSession().respond(
+                to: prompt, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maxTokens)
+            ).content
         } catch let error as LanguageModelSession.GenerationError {
             switch error {
             case .rateLimited, .concurrentRequests:
                 throw error
             default:
-                DebugLog.shared.log("FM", "voice command abstain — \(Self.reason(error))")
+                DebugLog.shared.log("FM", "\(label) abstain — \(reason(error))")
                 return nil
             }
         }

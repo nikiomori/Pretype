@@ -914,50 +914,26 @@ final class MLXEngine: CompletionEngine {
 
     /// Fixes typos/grammar in a selected line via the instruct sibling model
     /// (loaded lazily, fresh KV cache). Minimal-edit prompt + a divergence guard
-    /// keep it from rewriting the selection. The shared prompt/cleanup/guard live
-    /// in `CorrectionGates`.
+    /// keep it from rewriting the selection (see `CorrectionGates.fix`). NO
+    /// repetition penalty: fixing typos means re-emitting most of the original
+    /// tokens verbatim, which a penalty actively punishes.
     func correct(selection: String, request: CompletionRequest,
                  redactLog: Bool) async throws -> String? {
-        let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n") else { return nil }
-        // NO repetition penalty here: fixing typos means re-emitting most of
-        // the original tokens verbatim, which a penalty actively punishes.
-        // Budget scales with the selection so long lines aren't clipped.
-        let output = try await chatGenerate(
-            "\(CorrectionGates.correctionDirective)\n\n\(trimmed)",
-            maxTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count),
-            copiesInput: true,
+        try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "FIX") {
             // The generation log prints its own raw output — redacting only the
-            // divergence-guard line below would leave the same sentence in the
+            // divergence-guard line would leave the same sentence in the
             // buffer twenty lines earlier, on the SUCCESS path at that.
-            logRaw: !redactLog)
-
-        let fixed = CorrectionGates.trimRunOn(
-            CorrectionGates.cleanCorrectionOutput(output), original: trimmed)
-        guard !fixed.isEmpty, fixed != trimmed else { return nil }
-        guard CorrectionGates.isMinimalCorrection(original: trimmed, fixed: fixed) else {
-            DebugLog.shared.log(
-                "FIX", "rejected over-rewrite",
-                detail: redactLog
-                    ? "\(trimmed.count) → \(fixed.count) chars — redacted from log"
-                    : "\"\(trimmed)\" → \"\(fixed)\"")
-            return nil
+            try await self.chatGenerate($0, maxTokens: $1, copiesInput: true, logRaw: !redactLog)
         }
-        return fixed
     }
 
     // MARK: - Voice command
 
     func rewrite(selection: String, instruction: String,
                  request: CompletionRequest) async throws -> String? {
-        let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-        let spoken = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty else { return nil }
-        let output = try await chatGenerate(
-            CorrectionGates.commandPrompt(instruction: spoken, text: text),
-            maxTokens: min(1024, max(64, text.count)), logRaw: false)
-        let result = CorrectionGates.cleanCommandOutput(output)
-        return result.isEmpty || result == text ? nil : result
+        try await CorrectionGates.rewrite(selection, instruction: instruction) {
+            try await self.chatGenerate($0, maxTokens: $1, logRaw: false)
+        }
     }
 
     // MARK: - Reply
@@ -967,13 +943,9 @@ final class MLXEngine: CompletionEngine {
     /// model can't follow "answer this". One shot, no prompt cache: the prompt is
     /// a fresh screenful every time, so a cache would only ever miss.
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
-        // ponytail: flat 200-token budget — a few sentences, doubled for the
-        // Cyrillic case rather than measured per script. Tighten if replies ever
-        // read as clipped.
-        let output = try await chatGenerate(
-            request.replyPrompt(conversation: conversation, instructions: instructionsBox.get()),
-            maxTokens: 200)
-        return request.cleanReply(output, conversation: conversation)
+        try await CorrectionGates.reply(to: conversation, request: request, instructions: instructionsBox.get()) {
+            try await self.chatGenerate($0, maxTokens: $1)
+        }
     }
 
     /// One greedy turn through the instruct model's OWN chat template — much
@@ -1003,7 +975,7 @@ final class MLXEngine: CompletionEngine {
         }
         try Task.checkCancellation()
         let messages: [[String: any Sendable]] = [["role": "user", "content": content]]
-        let output = try await Self.generate(
+        return try await Self.generate(
             in: container,
             makeTokens: { context in
                 // Without enable_thinking=false the MiniCPM RL template opens a
@@ -1019,8 +991,6 @@ final class MLXEngine: CompletionEngine {
             lookup: copiesInput,
             logRaw: logRaw
         )
-        try Task.checkCancellation()
-        return output
     }
 
     /// FIM emulation is only reliable on E4B-class instruct models; on the smaller

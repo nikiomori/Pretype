@@ -403,56 +403,26 @@ final class CloudEngine: CompletionEngine {
 
     func correct(selection: String, request: CompletionRequest,
                  redactLog: Bool) async throws -> String? {
-        let endpoint = try requireReady()
-        let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n") else { return nil }
-        let raw = try await APIClient.chat(
-            endpoint, system: "", user: "\(CorrectionGates.correctionDirective)\n\n\(trimmed)",
-            maxTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count), timeout: 30)
-        try Task.checkCancellation()
-        let fixed = CorrectionGates.trimRunOn(CorrectionGates.cleanCorrectionOutput(raw), original: trimmed)
-        guard !fixed.isEmpty, fixed != trimmed else { return nil }
-        guard CorrectionGates.isMinimalCorrection(original: trimmed, fixed: fixed) else {
-            DebugLog.shared.log(
-                "API", "fix rejected (over-rewrite)",
-                detail: redactLog
-                    ? "\(trimmed.count) → \(fixed.count) chars — redacted from log"
-                    : "\"\(trimmed)\" → \"\(fixed)\"")
-            return nil
-        }
-        return fixed
+        try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "API", generate: try chat())
     }
 
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
-        let endpoint = try requireReady()
-        let raw = try await APIClient.chat(
-            endpoint, system: "",
-            user: request.replyPrompt(conversation: conversation, instructions: instructionsBox.get()),
-            maxTokens: 200, timeout: 30)
-        try Task.checkCancellation()
-        return request.cleanReply(raw, conversation: conversation)
+        try await CorrectionGates.reply(to: conversation, request: request,
+                                        instructions: instructionsBox.get(), generate: try chat())
     }
 
     func rewrite(selection: String, instruction: String,
                  request: CompletionRequest) async throws -> String? {
-        let endpoint = try requireReady()
-        let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-        let spoken = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty else { return nil }
-        let raw = try await APIClient.chat(
-            endpoint, system: "", user: CorrectionGates.commandPrompt(instruction: spoken, text: text),
-            maxTokens: min(1024, max(64, text.count)), timeout: 30)
-        try Task.checkCancellation()
-        let result = CorrectionGates.cleanCommandOutput(raw)
-        return result.isEmpty || result == text ? nil : result
+        try await CorrectionGates.rewrite(selection, instruction: instruction, generate: try chat())
     }
 
-    /// Fix, reply and rewrite are explicit requests: say why nothing ran.
-    private func requireReady() throws -> APIEndpoint {
+    /// One system-less turn for fix, reply and rewrite. These are explicit
+    /// requests: when the API isn't set up this throws, saying why nothing ran.
+    private func chat() throws -> CorrectionGates.Generate {
         guard case .ready = stateBox.get(), let endpoint else {
             throw EngineNotReady(message: "API isn't set up — see Settings → API")
         }
-        return endpoint
+        return { try await APIClient.chat(endpoint, system: "", user: $0, maxTokens: $1, timeout: 30) }
     }
 
     /// The token budget can't cap a hosted model's length — a thinking model

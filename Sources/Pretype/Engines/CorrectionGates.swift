@@ -1,9 +1,9 @@
 import Foundation
 
 /// Shared fix-selection helpers: the prompt, token budget, output cleanup and
-/// minimal-edit guard used by every engine's `correct(...)` path (MLX and
-/// FoundationModels) plus the inline spell checker, so the post-processing
-/// can't drift between them.
+/// minimal-edit guard behind every engine's fix, voice-command and reply
+/// paths (MLX, FoundationModels, API) plus the inline spell checker, so the
+/// post-processing can't drift between them.
 enum CorrectionGates {
     /// Shared prompt for the fix-selection feature. Emphasises MINIMAL edits so
     /// the model corrects mistakes instead of paraphrasing — a repeated failure
@@ -35,12 +35,77 @@ enum CorrectionGates {
     /// still a paragraph); only surrounding whitespace and a wrapping quote
     /// pair go.
     static func cleanCommandOutput(_ raw: String) -> String {
-        var out = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        unquoted(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// `text` without the wrapping quote pairs a model may add, checked in
+    /// this order: "…", «…», “…”.
+    private static func unquoted(_ text: String) -> String {
+        var out = text
         for (open, close) in [("\"", "\""), ("«", "»"), ("“", "”")]
         where out.hasPrefix(open) && out.hasSuffix(close) && out.count > 2 {
             out = String(out.dropFirst().dropLast())
         }
-        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+        return out
+    }
+
+    /// An engine's one chat turn: a prompt and an output-token budget in, the
+    /// raw answer out (nil = the engine declined).
+    typealias Generate = (_ prompt: String, _ maxTokens: Int) async throws -> String?
+
+    /// The ⌥⇥ fix on any engine: guard the selection, ask, clean the answer
+    /// up, reject an over-rewrite. `redactLog` keeps the text out of the
+    /// rejection line (see `CompletionEngine.correct`).
+    static func fix(_ selection: String, redactLog: Bool, logTag: String,
+                    generate: Generate) async throws -> String? {
+        let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n"),
+              let raw = try await generate("\(correctionDirective)\n\n\(trimmed)",
+                                           correctionTokenBudget(forChars: trimmed.count))
+        else { return nil }
+        // A cancelled request (focus moved on, overlay reset) must not
+        // surface its late result.
+        try Task.checkCancellation()
+        let fixed = trimRunOn(cleanCorrectionOutput(raw), original: trimmed)
+        guard !fixed.isEmpty, fixed != trimmed else { return nil }
+        guard isMinimalCorrection(original: trimmed, fixed: fixed) else {
+            DebugLog.shared.log(
+                logTag, "fix rejected (over-rewrite)",
+                detail: redactLog
+                    ? "\(trimmed.count) → \(fixed.count) chars — redacted from log"
+                    : "\"\(trimmed)\" → \"\(fixed)\"")
+            return nil
+        }
+        return fixed
+    }
+
+    /// Voice command mode on any engine: `selection` rewritten the way the
+    /// spoken `instruction` asks; nil when nothing new came back.
+    static func rewrite(_ selection: String, instruction: String,
+                        generate: Generate) async throws -> String? {
+        let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        let spoken = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty,
+              let raw = try await generate(commandPrompt(instruction: spoken, text: text),
+                                           min(1024, max(64, text.count)))
+        else { return nil }
+        try Task.checkCancellation()
+        let result = cleanCommandOutput(raw)
+        return result.isEmpty || result == text ? nil : result
+    }
+
+    /// The reply hotkey on any engine: the user's next message, written from
+    /// the conversation on screen.
+    static func reply(to conversation: String, request: CompletionRequest, instructions: String,
+                      generate: Generate) async throws -> String? {
+        // ponytail: flat 200-token budget — a few sentences, doubled for the
+        // Cyrillic case rather than measured per script. Tighten if replies ever
+        // read as clipped.
+        guard let raw = try await generate(
+            request.replyPrompt(conversation: conversation, instructions: instructions), 200) else { return nil }
+        try Task.checkCancellation()
+        return request.cleanReply(raw, conversation: conversation)
     }
 
     /// A generous output-token budget for a correction: the fix is about the
@@ -55,14 +120,8 @@ enum CorrectionGates {
     /// first non-empty line, and strip a wrapping quote pair the model may have
     /// added. Shared by both engines so the post-processing can't drift.
     static func cleanCorrectionOutput(_ raw: String) -> String {
-        var fixed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        fixed = fixed.split(separator: "\n").first.map(String.init) ?? ""
-        for (open, close) in [("\"", "\""), ("«", "»"), ("“", "”")] {
-            if fixed.hasPrefix(open), fixed.hasSuffix(close), fixed.count > 2 {
-                fixed = String(fixed.dropFirst().dropLast())
-            }
-        }
-        return fixed.trimmingCharacters(in: .whitespaces)
+        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n").first ?? ""
+        return unquoted(String(line)).trimmingCharacters(in: .whitespaces)
     }
 
     /// Cut same-line run-on after the fix. 4-bit instruct models — E4B-it
@@ -79,32 +138,32 @@ enum CorrectionGates {
     /// late abbreviation dot can cut early ("…al Sr. González" — 1 row of
     /// 2040 across the 4-model eval).
     static func trimRunOn(_ fixed: String, original: String) -> String {
-        let terminals: Set<Character> = [".", "!", "?", "…", "。", "！", "？"]
-        let closers: Set<Character> = ["\"", "»", "”", "’", "'", ")", "」", "』", "）"]
         let trimmedOriginal = original.trimmingCharacters(in: .whitespaces)
         guard let last = trimmedOriginal.last else { return fixed }
         guard terminals.contains(last) || closers.contains(last) else {
-            return trimUnpunctuatedRunOn(fixed, original: trimmedOriginal,
-                                         terminals: terminals, closers: closers)
+            return trimUnpunctuatedRunOn(fixed, original: trimmedOriginal)
         }
         let chars = Array(fixed)
         let slack = max(8, trimmedOriginal.count / 5)
-        var i = max(4, trimmedOriginal.count - slack)
-        while i < chars.count {
-            if terminals.contains(chars[i]) {
-                if chars[i] == ".", i > 0, i + 1 < chars.count,
-                   chars[i - 1].isNumber, chars[i + 1].isNumber {
-                    i += 1
-                    continue
-                }
-                var j = i + 1
-                while j < chars.count,
-                      terminals.contains(chars[j]) || closers.contains(chars[j]) { j += 1 }
-                return String(chars[0..<j])
-            }
-            i += 1
+        for i in stride(from: max(4, trimmedOriginal.count - slack), to: chars.count, by: 1) {
+            if let end = endingRun(in: chars, at: i) { return String(chars[0..<end]) }
         }
         return fixed
+    }
+
+    private static let terminals: Set<Character> = [".", "!", "?", "…", "。", "！", "？"]
+    private static let closers: Set<Character> = ["\"", "»", "”", "’", "'", ")", "」", "』", "）"]
+
+    /// Where a sentence ending at `chars[i]` stops: past its whole run of
+    /// terminals and closers. nil when `chars[i]` ends nothing — not a
+    /// terminal, or a dot between digits (a decimal, 3.14).
+    private static func endingRun(in chars: [Character], at i: Int) -> Int? {
+        guard terminals.contains(chars[i]),
+              !(chars[i] == "." && i > 0 && i + 1 < chars.count && chars[i - 1].isNumber && chars[i + 1].isNumber)
+        else { return nil }
+        var end = i + 1
+        while end < chars.count, terminals.contains(chars[end]) || closers.contains(chars[end]) { end += 1 }
+        return end
     }
 
     /// The run-on cut for an original that does NOT end like a sentence.
@@ -127,32 +186,19 @@ enum CorrectionGates {
     /// there is none, hand back the original so the caller keeps exactly what
     /// was heard. (A cut that lands too short is then rejected by
     /// `isMinimalCorrection`, so a fix mangled into a fragment never ships.)
-    private static func trimUnpunctuatedRunOn(
-        _ fixed: String, original: String,
-        terminals: Set<Character>, closers: Set<Character>
-    ) -> String {
+    private static func trimUnpunctuatedRunOn(_ fixed: String, original: String) -> String {
         let budget = original.count + max(6, original.count / 8)
         let chars = Array(fixed)
         guard chars.count > budget else { return fixed }
         var cut: Int?
         var i = 0
         while i < min(budget, chars.count) {
-            guard terminals.contains(chars[i]) else {
+            if let end = endingRun(in: chars, at: i) {
+                cut = end
+                i = end
+            } else {
                 i += 1
-                continue
             }
-            // A dot between digits is a decimal (3.14), not an ending — same
-            // rule the punctuated branch applies.
-            if chars[i] == ".", i > 0, i + 1 < chars.count,
-               chars[i - 1].isNumber, chars[i + 1].isNumber {
-                i += 1
-                continue
-            }
-            var j = i + 1
-            while j < chars.count,
-                  terminals.contains(chars[j]) || closers.contains(chars[j]) { j += 1 }
-            cut = j
-            i = j
         }
         guard let cut else { return original }
         return String(chars[0..<cut])
