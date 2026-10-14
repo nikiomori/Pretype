@@ -16,7 +16,9 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", revision: "7eb77efa4e8fb56183b905904d122e66ebdb422e"),
         .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.32.3")),
         .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
-        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
+        // Minor-pinned: main carries untagged decode-spacing changes (#391/#405)
+        // that would shift ghost-text spacing on a plain `swift package update`.
+        .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.3.5")),
         // Parakeet TDT v3 (CoreML) for opt-in dictation of the languages Apple's
         // SpeechTranscriber skips — see Dictation/Parakeet.swift.
         .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.17.7")),
