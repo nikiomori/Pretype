@@ -18,6 +18,26 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertNil(SettingsStore.host(fromTyped: ""))
     }
 
+    func testDictationSendTogglesTheSiteInABrowserAndTheAppElsewhere() {
+        let saved = Settings.dictationSendApps
+        defer { Settings.dictationSendApps = saved }
+        Settings.dictationSendApps = []
+        let slack = TypingContext(appName: "Slack", bundleID: "com.tinyspeck.slackmacgap")
+        let chat = TypingContext(appName: "Chrome", bundleID: "com.google.Chrome", site: "chatgpt.com")
+        let docs = TypingContext(appName: "Chrome", bundleID: "com.google.Chrome", site: "docs.google.com")
+
+        AppPolicy.toggleDictationSend(slack)
+        AppPolicy.toggleDictationSend(chat)
+        XCTAssertEqual(Settings.dictationSendApps, ["com.tinyspeck.slackmacgap", "site:chatgpt.com"])
+        XCTAssertTrue(AppPolicy.sendsAfterDictation(slack))
+        XCTAssertTrue(AppPolicy.sendsAfterDictation(chat))
+        XCTAssertFalse(AppPolicy.sendsAfterDictation(docs), "one website on, not the whole browser")
+
+        AppPolicy.toggleDictationSend(slack)
+        XCTAssertFalse(AppPolicy.sendsAfterDictation(slack))
+        XCTAssertFalse(AppPolicy.sendsAfterDictation(TypingContext()), "no app, nothing to match")
+    }
+
     func testSiteInstructionsWinOverTheBrowsersAndTheMostSpecificSiteWins() {
         let saved = Settings.perAppInstructions
         defer { Settings.perAppInstructions = saved }

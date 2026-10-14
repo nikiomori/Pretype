@@ -14,6 +14,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var enabledItem: NSMenuItem!
     private var batteryItem: NSMenuItem!
     private var appBlacklistItem: NSMenuItem!
+    private var dictationSendItem: NSMenuItem!
     private var languageHintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
     private var settingsItem: NSMenuItem!
@@ -140,6 +141,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // Title filled in menuNeedsUpdate — it names the app the user was last
         // typing in, which isn't known until the menu opens.
         appBlacklistItem = item("", #selector(toggleFrontmostAppBlacklist))
+        // Same naming; shown only while dictation is on.
+        dictationSendItem = item("", #selector(toggleDictationSend), symbol: "return")
 
         // Hidden unless the language being typed is one this model is bad at —
         // see refreshLanguageHintItem.
@@ -260,6 +263,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         settingsItem.action = suggestionController == nil ? nil : #selector(openSettings)
         settingsItem.toolTip = suggestionController == nil ? "Available once Accessibility is granted." : nil
         refreshAppBlacklistItem()
+        refreshDictationSendItem()
         refreshLanguageHintItem()
         let newer = UpdateChecker.availableVersion
         updateItem.title = newer.map { "Update to \($0)…" } ?? "Check for Updates…"
@@ -332,6 +336,21 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             appBlacklistItem.action = #selector(toggleFrontmostAppBlacklist)
             appBlacklistItem.image = symbol(off ? "checkmark.circle" : "nosign")
         }
+    }
+
+    /// "Press Return after Dictation in Slack" ✓ — for the app (or website)
+    /// behind the menu, like `refreshAppBlacklistItem`.
+    private func refreshDictationSendItem() {
+        let context = suggestionController?.typingContext ?? TypingContext()
+        guard Settings.dictationEnabled, AppPolicy.dictationSendEntry(context) != nil else {
+            dictationSendItem.isHidden = true
+            return
+        }
+        dictationSendItem.isHidden = false
+        let place = context.site.map { "on \($0)" }
+            ?? "in \(String((context.appName ?? context.bundleID ?? "").prefix(40)))"
+        dictationSendItem.title = fitting("Press Return after Dictation \(place)")
+        dictationSendItem.state = AppPolicy.sendsAfterDictation(context) ? .on : .off
     }
 
     /// "Better models for Hebrew", hovering "Gemma E2B 8-bit measures 18% on
@@ -515,6 +534,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         AppPolicy.toggleUserBlacklist(bundleID)
         // A ghost already on screen for the app we just silenced has to go.
         suggestionController?.dismiss()
+        settingsWindow?.store.sync()
+    }
+
+    @objc private func toggleDictationSend() {
+        guard let context = suggestionController?.typingContext else { return }
+        AppPolicy.toggleDictationSend(context)
         settingsWindow?.store.sync()
     }
 

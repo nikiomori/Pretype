@@ -106,6 +106,27 @@ enum AppPolicy {
         }
     }
 
+    /// The `Settings.dictationSendApps` entry for this field: the website in a
+    /// browser (one browser holds many chats), else the app's bundle ID.
+    static func dictationSendEntry(_ context: TypingContext) -> String? {
+        if let host = context.site { return siteEntry(host) }
+        return context.bundleID?.lowercased()
+    }
+
+    /// Dictation presses ⏎ after typing here.
+    static func sendsAfterDictation(_ context: TypingContext) -> Bool {
+        dictationSendEntry(context).map(Settings.dictationSendApps.contains) ?? false
+    }
+
+    static func toggleDictationSend(_ context: TypingContext) {
+        guard let entry = dictationSendEntry(context) else { return }
+        if Settings.dictationSendApps.contains(entry) {
+            Settings.dictationSendApps.removeAll { $0 == entry }
+        } else {
+            Settings.dictationSendApps.append(entry)
+        }
+    }
+
     /// Screen OCR and clipboard context for this app and website: not where
     /// Pretype is off, not in a code editor.
     static func allowsScreenContext(_ context: TypingContext) -> Bool {

@@ -176,6 +176,7 @@ Pretype types what you say into the current text field.
 * **Language.** Dictation uses the language of your keyboard layout. When you change the layout, the dictation language changes too.
 * **Hints.** Pretype gives the names and the terms in the field to the recognizer. Thus the recognizer spells them as the page does.
 * **Voice commands.** Enable them in **Settings → General → Dictation**. Then, if you dictate while text is selected, Pretype uses your words as an instruction. Examples: *"make it shorter"*, *"more formal"*, *"translate to English"*. You see a preview, as for a <kbd>⌥Tab</kbd> fix.
+* **Send.** Pretype can push <kbd>Return</kbd> after it types a dictation, for example in a chat or in the prompt of an AI agent. To enable this for an app or a website, open the menu bar menu while you are in it, and select **Press Return after Dictation**. **Settings → General → Dictation** shows the list.
 * **Focus change.** If the focus changes during a capture, Pretype puts the transcript on the clipboard. You do not lose it.
 
 [Architecture → Dictation](docs/ARCHITECTURE.md#dictation) gives the details.

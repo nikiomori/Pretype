@@ -735,6 +735,7 @@ struct GeneralTab: View {
                                 + "\(store.hotkeyStyle.correctionLabel) fix: ⏎ applies it over the selection, "
                                 + "⎋ keeps the original. Off, dictating over a selection replaces it.")
                         }
+                        DictationSendList(store: store)
                     }
                 }
             }
@@ -835,11 +836,40 @@ struct GeneralTab: View {
     }
 }
 
+/// Where a dictation ends with ⏎. Its own view: inline, it pushed the
+/// Dictation section past the type-checker's time limit.
+private struct DictationSendList: View {
+    @Bindable var store: SettingsStore
+
+    var body: some View {
+        LabeledContent {
+            Button {
+                store.addDictationSendApp()
+            } label: {
+                Label("Add App…", systemImage: "plus")
+            }
+            .controlSize(.small)
+        } label: {
+            Text("Press Return after dictation")
+            Text("Sends the message in the apps listed here. A website is added from the "
+                + "menu bar while you're on it: “Press Return after Dictation on …”.")
+        }
+        ForEach(store.dictationSendApps, id: \.self) { entry in
+            BlacklistRow(entry: entry, removeLabel: "Stop pressing Return in",
+                         removeHelp: "Type dictations here without sending them") {
+                store.removeDictationSendApp(entry)
+            }
+        }
+    }
+}
+
 /// One blacklisted app: icon + display name resolved from the stored bundle-ID
 /// fragment where possible, with a remove button — the System Settings
 /// app-exceptions look instead of a raw comma-separated field.
 private struct BlacklistRow: View {
     let entry: String
+    var removeLabel = "Stop excluding"
+    var removeHelp = "Allow Pretype in this app again"
     let remove: () -> Void
 
     var body: some View {
@@ -851,7 +881,7 @@ private struct BlacklistRow: View {
                 Text(entry).font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
-            removeButton("Stop excluding \(resolved.name)", help: "Allow Pretype in this app again", action: remove)
+            removeButton("\(removeLabel) \(resolved.name)", help: removeHelp, action: remove)
         }
     }
 }

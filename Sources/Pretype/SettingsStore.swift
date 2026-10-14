@@ -153,6 +153,10 @@ final class SettingsStore {
             Settings.userBlacklist = blacklist
             controller?.dismiss() }
     }
+    var dictationSendApps: [String] = [] {
+        didSet { guard !syncing, oldValue != dictationSendApps else { return }
+            Settings.dictationSendApps = dictationSendApps }
+    }
     var useRecommended = true {
         didSet { guard !syncing, oldValue != useRecommended else { return }
             let on = useRecommended
@@ -541,6 +545,23 @@ final class SettingsStore {
         blacklist = Settings.userBlacklist.filter { $0 != entry }
     }
 
+    /// Exact bundle IDs, unlike the blacklist's fragments — the menu toggle
+    /// matches exactly. Re-seeded from the live list for the same reason.
+    func addDictationSendApp() {
+        pickApps(prompt: "Press Return Here",
+                 message: "Choose applications where a dictation ends with Return.") { [weak self] urls in
+            var live = Settings.dictationSendApps
+            for id in urls.compactMap({ Bundle(url: $0)?.bundleIdentifier?.lowercased() }) where !live.contains(id) {
+                live.append(id)
+            }
+            self?.dictationSendApps = live
+        }
+    }
+
+    func removeDictationSendApp(_ entry: String) {
+        dictationSendApps = Settings.dictationSendApps.filter { $0 != entry }
+    }
+
     /// Add an app for a per-app persona line via the standard app-picker
     /// panel; keys by exact lowercased bundle ID (the engines match exactly —
     /// unlike the blacklist's substring markers, instructions shouldn't leak
@@ -829,6 +850,7 @@ final class SettingsStore {
         apiText = Settings.apiText
         apiAudio = Settings.apiAudio
         blacklist = Settings.userBlacklist
+        dictationSendApps = Settings.dictationSendApps
         useRecommended = Settings.useRecommendedSettings
         style = Settings.completionStyle
         length = Settings.completionLength

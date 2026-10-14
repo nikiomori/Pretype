@@ -1659,7 +1659,14 @@ final class SuggestionController: NSObject {
         // launcher's text is no cache of the tracked field's, nor a ⌘Z of ours.
         let inLauncher = keyboardFocusIsElsewhere
         let snapshot = inject(chunk, over: inLauncher ? nil : before)
-        if before != nil, !inLauncher {
+        // Sent: the app empties the field (or opens a line), so the text known
+        // to be before the caret is gone and there is nothing for ⌘Z to take back.
+        let sends = !inLauncher && AppPolicy.sendsAfterDictation(typingContext)
+        if sends {
+            TextInjector.pressReturn()
+            latestTextBeforeCaret = nil
+        }
+        if before != nil, !inLauncher, !sends {
             lastAcceptedChunk = chunk
             // ⌘Z removes it exactly like an accepted suggestion — but the undo
             // path books what it removed, and this chunk was spoken.
@@ -1674,7 +1681,7 @@ final class SuggestionController: NSObject {
         // exportable for bug reports, and what was said aloud is as sensitive
         // as the OCR'd screen and the clipboard, both of which the prompt log
         // redacts the same way. The count is the whole diagnostic value here.
-        DictationController.note("typed \(chunk.count) characters")
+        DictationController.note("typed \(chunk.count) characters" + (sends ? " and pressed Return" : ""))
         scheduleKeystrokeRefresh(after: 0.09)
     }
 

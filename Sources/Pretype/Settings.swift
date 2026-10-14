@@ -655,6 +655,11 @@ enum Settings {
     /// dictating over a selection means (otherwise: replace it).
     @Pref("dictationCommands", false) static var dictationCommands: Bool
 
+    /// Apps and websites where a dictation ends with ⏎ — "send" in a chat or
+    /// an agent's prompt. Exact entries (see `AppPolicy.dictationSendEntry`),
+    /// added from the menu bar or Settings; empty by default.
+    @Pref("dictationSendApps", []) static var dictationSendApps: [String]
+
     /// Dictate the languages Apple's newer speech model doesn't cover with
     /// Parakeet instead (see `Parakeet`). Off by default — turning it on is
     /// the consent for a ~610 MB download.

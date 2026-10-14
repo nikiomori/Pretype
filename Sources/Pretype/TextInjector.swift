@@ -39,12 +39,20 @@ enum TextInjector {
     /// just-typed last word before re-typing its correction. Tagged so the key
     /// tap ignores them (they pass straight through to the focused app).
     static func deleteBackward(_ count: Int) {
+        press(0x33, times: count) // kVK_Delete (backspace)
+    }
+
+    /// One ⏎ — "send" after a dictation, where the user asked for it.
+    static func pressReturn() {
+        press(0x24, times: 1) // kVK_Return
+    }
+
+    private static func press(_ key: CGKeyCode, times count: Int) {
         guard count > 0 else { return }
         let source = CGEventSource(stateID: .hidSystemState)
-        let deleteKey: CGKeyCode = 0x33 // kVK_Delete (backspace)
         for _ in 0..<count {
             for keyDown in [true, false] {
-                guard let event = CGEvent(keyboardEventSource: source, virtualKey: deleteKey, keyDown: keyDown) else { continue }
+                guard let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: keyDown) else { continue }
                 event.flags = []
                 event.setIntegerValueField(.eventSourceUserData, value: magicTag)
                 event.post(tap: .cghidEventTap)
