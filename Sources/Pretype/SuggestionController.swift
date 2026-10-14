@@ -510,7 +510,7 @@ final class SuggestionController: NSObject {
             // A ⌘-chord drops the synchronous text cache; read the field for
             // this warm-up only (the cache keeps its own refresh rules).
             let text = self.latestTextBeforeCaret ?? self.currentTextElement().flatMap {
-                AXText.context(for: $0, maxChars: Settings.maxContextChars)?.textBeforeCaret
+                AXText.context(for: $0)?.textBeforeCaret
             }
             self.warmPromptForCurrentText(text)
         }
@@ -611,7 +611,7 @@ final class SuggestionController: NSObject {
         // a selection is screen output and the chord is off.
         if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleSelection(element) { return }
 
-        guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) else {
+        guard let ctx = AXText.context(for: element) else {
             if active != nil { lastEvent = "lost text element" }
             dismiss()
             return
@@ -887,8 +887,7 @@ final class SuggestionController: NSObject {
         if let cachedContext, cachedContext.textBeforeCaret == latestTextBeforeCaret {
             ctx = cachedContext
         } else if let element = currentTextElement(),
-                  let fresh = AXText.context(for: element, maxChars: Settings.maxContextChars,
-                                             allowEmpty: allowEmpty) {
+                  let fresh = AXText.context(for: element, allowEmpty: allowEmpty) {
             ctx = fresh
         } else {
             // The reply path lands here whenever the field is empty and this read
@@ -1074,8 +1073,7 @@ final class SuggestionController: NSObject {
         }
         // allowEmpty: an empty chat box is the case this feature exists for —
         // the completion pipeline's "nothing to continue" is not a refusal here.
-        guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars,
-                                       allowEmpty: true),
+        guard let ctx = AXText.context(for: element, allowEmpty: true),
               let rect = ctx.caretRect else {
             return stop("cannot read the field or place the ghost")
         }
@@ -1493,7 +1491,7 @@ final class SuggestionController: NSObject {
         // first backspace would eat a whole selection. The chunk stays cleared,
         // so the next ⌘Z reaches the app.
         guard let element = currentTextElement(),
-              let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) else {
+              let ctx = AXText.context(for: element) else {
             DebugLog.shared.log("UNDO", "skipped — context unreadable")
             return
         }
@@ -1873,7 +1871,7 @@ extension SuggestionController: FocusTrackerDelegate {
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
             engine.prewarmIfNeeded()
             if case .preparing = engine.state {
-                if let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars) {
+                if let ctx = AXText.context(for: element) {
                     lastCaretRect = ctx.caretRect
                     lastHostStyle = ctx.host
                     indicator.start()
@@ -1888,7 +1886,7 @@ extension SuggestionController: FocusTrackerDelegate {
                 // otherwise prefill the whole text. A capture warms on landing.
                 if !self.screenCaptureInFlight {
                     self.warmPromptForCurrentText(self.currentTextElement().flatMap {
-                        AXText.context(for: $0, maxChars: Settings.maxContextChars)?.textBeforeCaret
+                        AXText.context(for: $0)?.textBeforeCaret
                     })
                 }
             }
@@ -1976,7 +1974,7 @@ extension SuggestionController: DictationHost {
     /// change, and a focus change discards the capture being read for.
     private func dictationFieldContext() -> TextContext? {
         func read(_ element: AXUIElement) -> TextContext? {
-            AXText.context(for: element, maxChars: Settings.maxContextChars, allowEmpty: true)
+            AXText.context(for: element, allowEmpty: true)
         }
         // In a launcher the tracked field is the app underneath; the system's
         // focused element is the launcher's own field.

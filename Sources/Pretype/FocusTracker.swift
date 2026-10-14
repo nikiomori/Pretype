@@ -19,6 +19,8 @@ protocol FocusTrackerDelegate: AnyObject {
 struct TypingContext: Equatable {
     var appName: String?
     var bundleID: String?
+    /// Never prompt input: diagnostics, and part of the focus dedupe — focus
+    /// re-fired on the same element under a new title or label is a new field.
     var windowTitle: String?
     var fieldLabel: String?
     /// The web page's host when the field is in one (`AXText.pageHost`) — so

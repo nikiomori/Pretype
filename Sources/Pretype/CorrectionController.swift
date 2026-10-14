@@ -286,7 +286,7 @@ final class CorrectionController {
               // Re-checked here: resolving the element can read a site the
               // tap-side check didn't know yet.
               !AppPolicy.isBlacklisted(owner.typingContext),
-              let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars),
+              let ctx = AXText.context(for: element),
               let rect = ctx.caretRect else { return }
         // Not mid-word: the next character must not be a letter.
         guard ctx.textAfterCaret.first?.isLetter != true else { return }
@@ -431,7 +431,7 @@ final class CorrectionController {
     private func liveRead(confirming fix: PendingFix) -> LiveRead? {
         guard let owner, let element = owner.currentTextElement() else { return nil }
         if fix.deleteCount > 0 {
-            guard let ctx = AXText.context(for: element, maxChars: Settings.maxContextChars),
+            guard let ctx = AXText.context(for: element),
                   ctx.textAfterCaret.first?.isLetter != true,
                   Self.lastToken(of: ctx.textBeforeCaret) == fix.original else { return nil }
             return LiveRead(textBeforeCaret: ctx.textBeforeCaret)

@@ -53,10 +53,10 @@ enum AgentPrompt {
         guard let typed = input(before: ctx.textBeforeCaret, after: ctx.textAfterCaret) else { return nil }
         // The cell height is the measure; no terminal reports its font.
         let size = ctx.caretRect.map { max(9, $0.height / 1.2) } ?? 12
-        return TextContext(textBeforeCaret: typed, textAfterCaret: "", caretRect: ctx.caretRect,
-                           host: HostTextStyle(font: .monospacedSystemFont(ofSize: size, weight: .regular),
-                                               color: ctx.host.color, background: ctx.host.background,
-                                               fieldRect: ctx.host.fieldRect, textFollowsCaret: false))
+        var host = ctx.host
+        host.font = .monospacedSystemFont(ofSize: size, weight: .regular)
+        host.textFollowsCaret = false
+        return TextContext(textBeforeCaret: typed, textAfterCaret: "", caretRect: ctx.caretRect, host: host)
     }
 
     /// A horizontal rule's width in columns — nil for any other line.

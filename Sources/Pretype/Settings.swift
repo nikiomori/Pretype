@@ -458,7 +458,6 @@ enum Settings {
             // across E4B/E2B/Qwen3.5 for +12–18% engine work — most gaps clear
             // 120 ms anyway, so the old value mostly added latency.
             "debounceMs": 60,
-            "maxContextChars": 1200,
             // A reload after the idle unload costs ~0.6–1.2 s even with the
             // tokenizer kept; on 32 GB+ Macs, where the memory-pressure unload
             // still frees the model the moment macOS needs the RAM, the model
@@ -618,7 +617,6 @@ enum Settings {
     }
 
     static var debounceMs: Int { defaults.integer(forKey: "debounceMs") }
-    static var maxContextChars: Int { defaults.integer(forKey: "maxContextChars") }
 
     /// "Auto" mode: Style and Length follow `ModelCatalog.recommended(for:)` for
     /// the selected model (and re-apply on model switch), instead of the user

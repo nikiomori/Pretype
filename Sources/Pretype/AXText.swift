@@ -2,13 +2,6 @@ import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 
-/// What one AX attributed-string read tells us about how a character is drawn.
-struct AXTextStyle {
-    var font: NSFont?
-    var color: NSColor?
-    var background: NSColor?
-}
-
 /// How the field under the caret renders its own text — what the inline ghost
 /// has to match instead of guessing. All three are optional; each one that is
 /// missing falls back to the caret-box estimate it replaced.
@@ -114,19 +107,18 @@ enum AXText {
     /// with a CJK source selected in Electron/Chromium (where it demonstrably
     /// works today), to guard against a composition those apps never report.
     static func hasMarkedText(_ element: AXUIElement) -> Bool {
-        markedRangeAnswer(element) == .marked
+        if case .marked = markedRangeAnswer(element) { return true }
+        return false
     }
 
-    private enum MarkedRangeAnswer { case marked, clear, unsupported }
+    private enum MarkedRangeAnswer { case marked(CFRange), clear, unsupported }
 
     private static func markedRangeAnswer(_ element: AXUIElement) -> MarkedRangeAnswer {
         var ref: CFTypeRef?
         switch AXUIElementCopyAttributeValue(element, "AXTextInputMarkedRange" as CFString, &ref) {
         case .success:
-            guard let ref, CFGetTypeID(ref) == AXValueGetTypeID() else { return .clear }
-            var range = CFRange()
-            guard AXValueGetValue(ref as! AXValue, .cfRange, &range) else { return .clear }
-            return range.length > 0 ? .marked : .clear
+            guard let range = axValue(ref, .cfRange, CFRange()), range.length > 0 else { return .clear }
+            return .marked(range)
         case .noValue:
             return .clear  // attribute implemented, nothing marked
         default:
@@ -232,7 +224,8 @@ enum AXText {
     }
 
     /// Human-readable label of the field (title, description or placeholder) —
-    /// e.g. "Subject" in Mail. Used as model context.
+    /// e.g. "Subject" in Mail. Feeds the password check above and the focus
+    /// snapshot (`TypingContext.fieldLabel`); never the prompt.
     static func fieldLabel(for element: AXUIElement) -> String? {
         for key in [kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute] {
             if let value: String = attribute(element, key),
@@ -266,7 +259,7 @@ enum AXText {
     /// reply flow's whole case is an empty chat box with a conversation above it.
     /// Only the web/Electron fallback is affected — it is the path that refuses
     /// an empty (or placeholder-showing) value.
-    static func context(for element: AXUIElement, maxChars: Int,
+    static func context(for element: AXUIElement, maxChars: Int = 1200,
                         allowEmpty: Bool = false) -> TextContext? {
         // A terminal is text only inside an AI agent's input box — the whole
         // screen otherwise, and the shell's command line is never ours. Read
@@ -341,13 +334,11 @@ enum AXText {
             // AXAttributedStringForRange) so the ghost matches the font exactly
             // and the overlay anchors to a true line height — not an estimate from
             // the caret box, which varies per app. nil → the window falls back.
-            let style = attributedStyle(of: element, atIndex: max(0, caret - 1))
+            var host = attributedStyle(of: element, atIndex: max(0, caret - 1))
+            host.fieldRect = cocoaFieldRect(frame)
+            host.textFollowsCaret = linePopulatedAfterCaret(textAfterCaret)
             return TextContext(textBeforeCaret: textBeforeCaret, textAfterCaret: textAfterCaret,
-                               caretRect: caretRect,
-                               host: HostTextStyle(font: style.font, color: style.color,
-                                                   background: style.background,
-                                                   fieldRect: cocoaFieldRect(frame),
-                                                   textFollowsCaret: linePopulatedAfterCaret(textAfterCaret)))
+                               caretRect: caretRect, host: host)
         }
 
         // Electron/web fallback: AX exposes the field box but a broken caret
@@ -388,8 +379,8 @@ enum AXText {
         // what you want to create…"), so the check above cannot see it and
         // `value` still holds decoration. Zero it, or the model would be handed
         // the placeholder as the user's own draft.
-        var idleRun: CGRect?
-        if let run = marker, !isCollapsedCaret(run, in: frame) {
+        let idle = marker.map { !isCollapsedCaret($0, in: frame) } ?? false
+        if idle {
             let selected: String? = attribute(element, kAXSelectedTextAttribute)
             guard markerMeansIdleBox(allowEmpty: allowEmpty, selectedText: selected, caret: caret) else {
                 DebugLog.shared.log("AX", "web/Electron: marker spans the run (selection/placeholder) — no suggestion")
@@ -397,7 +388,6 @@ enum AXText {
             }
             DebugLog.shared.log(
                 "AX", "web/Electron: idle box, \(value.count)-char placeholder as value — reading it as an empty field")
-            idleRun = run
             value = ""
         }
         // Chromium often reports a real selectedRange even where caret GEOMETRY
@@ -415,40 +405,29 @@ enum AXText {
         let beforeCaret = ns.substring(to: caretLoc)
         let window = substring(beforeCaret as NSString, from: windowStart(caret: caretLoc, maxChars: maxChars))
         let afterCaret = String(ns.substring(from: caretLoc).prefix(192))
-        let style = attributedStyle(of: element, atIndex: max(0, caretLoc - 1))
-        let hostFont = style.font
-        let box = cocoaFieldRect(frame)
+        var host = attributedStyle(of: element, atIndex: max(0, caretLoc - 1))
+        let hostFont = host.font
+        host.fieldRect = cocoaFieldRect(frame)
+        host.textFollowsCaret = linePopulatedAfterCaret(afterCaret)
 
         // Best case: Chromium's text-marker API returns the REAL caret rect even
         // though the range/caret APIs return garbage (x=0). A collapsed caret
         // inside the field is the genuine cursor — pixel-accurate, like a native
-        // caret, no width estimate needed.
-        if let caret = marker, isCollapsedCaret(caret, in: frame),
-           let anchor = onScreen(flipped(CGRect(x: caret.minX, y: caret.minY, width: 1, height: caret.height))) {
-            let size = hostFont?.pointSize ?? caret.height / 1.18
-            DebugLog.shared.log("AX", "web/Electron: real caret via text-marker at x=\(Int(caret.minX)), \(Int(size))pt")
-            return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret,
-                               caretRect: anchor,
-                               host: HostTextStyle(font: hostFont ?? .systemFont(ofSize: size),
-                                                   color: style.color, background: style.background,
-                                                   fieldRect: box,
-                                                   textFollowsCaret: linePopulatedAfterCaret(afterCaret)))
-        }
-        // The idle box (decided above): its run rect is exactly where the
-        // placeholder is drawn, which is where the user's own first character
-        // would land — a better anchor than the estimate below, which would put
-        // the ghost on the box's LAST line from a value that was decoration.
-        // An unusable rect falls through to that estimate rather than refusing.
-        if let run = idleRun,
+        // caret, no width estimate needed. The idle box (decided above; its
+        // value, and so both texts, are already "") anchors the same way: its
+        // run rect is exactly where the placeholder is drawn, which is where the
+        // user's own first character would land — a better anchor than the
+        // estimate below, which would put the ghost on the box's LAST line from
+        // a value that was decoration. Any other marker was refused above. An
+        // unusable rect falls through to that estimate rather than refusing.
+        if let run = marker,
            let anchor = onScreen(flipped(CGRect(x: run.minX, y: run.minY, width: 1, height: run.height))) {
             let size = hostFont?.pointSize ?? run.height / 1.18
-            DebugLog.shared.log(
-                "AX", "web/Electron: ghost anchored to the placeholder run at x=\(Int(run.minX)), \(Int(size))pt")
-            return TextContext(textBeforeCaret: "", textAfterCaret: "",
-                               caretRect: anchor,
-                               host: HostTextStyle(font: hostFont ?? .systemFont(ofSize: size),
-                                                   color: style.color, background: style.background,
-                                                   fieldRect: box, textFollowsCaret: false))
+            DebugLog.shared.log("AX", (idle ? "web/Electron: ghost anchored to the placeholder run"
+                                            : "web/Electron: real caret via text-marker")
+                + " at x=\(Int(run.minX)), \(Int(size))pt")
+            host.font = hostFont ?? .systemFont(ofSize: size)
+            return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret, caretRect: anchor, host: host)
         }
 
         // No marker at all (older Electron / non-Chromium web view): estimate
@@ -474,11 +453,8 @@ enum AXText {
         guard let anchor = onScreen(flipped(caretBox)) else { return nil }
         DebugLog.shared.log("AX", "web/Electron fallback: \(value.count) chars, "
             + "font \(hostFont != nil ? "real " : "guessed ")\(Int(fontSize))pt, caret≈\(caretLoc == ns.length ? "end-of-text" : "mid-text \(caretLoc)")")
-        return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret,
-                           caretRect: anchor,
-                           host: HostTextStyle(font: font, color: style.color,
-                                               background: style.background, fieldRect: box,
-                                               textFollowsCaret: linePopulatedAfterCaret(afterCaret)))
+        host.font = font
+        return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret, caretRect: anchor, host: host)
     }
 
     /// An xterm.js terminal (VS Code's, Cursor's, Hyper): the focused element
@@ -513,9 +489,7 @@ enum AXText {
         else { return nil }
         return TextContext(textBeforeCaret: (text[..<row] + [typed]).joined(separator: "\n"),
                            textAfterCaret: ([String(line.dropFirst(column))] + text[(row + 1)...]).joined(separator: "\n"),
-                           caretRect: caret,
-                           host: HostTextStyle(font: nil, color: nil, background: nil,
-                                               fieldRect: cocoaFieldRect(screenFrame), textFollowsCaret: false))
+                           caretRect: caret, host: HostTextStyle(fieldRect: cocoaFieldRect(screenFrame)))
     }
 
     private static func domClasses(_ element: AXUIElement) -> [String] {
@@ -644,20 +618,13 @@ enum AXText {
     }
 
     private static func elementFrame(_ element: AXUIElement) -> CGRect? {
-        var posRef: CFTypeRef?
-        var sizeRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
-              let posRef, CFGetTypeID(posRef) == AXValueGetTypeID(),
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
-              let sizeRef, CFGetTypeID(sizeRef) == AXValueGetTypeID() else { return nil }
-        var position = CGPoint.zero
-        var size = CGSize.zero
-        guard AXValueGetValue(posRef as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size) else { return nil }
+        guard let position = axValue(attribute(element, kAXPositionAttribute), .cgPoint, CGPoint.zero),
+              let size = axValue(attribute(element, kAXSizeAttribute), .cgSize, CGSize.zero) else { return nil }
         return CGRect(origin: position, size: size)
     }
 
-    /// Diagnostic: what AX exposes for the currently-focused element. Used by
+    /// Diagnostic: what AX exposes for the currently-focused element, then on
+    /// a second line what `context(for:)` computes from it. Used by
     /// `--ax-probe` to see why caret geometry fails in some apps (e.g. Electron).
     static func probeDescription() -> String {
         guard AXIsProcessTrusted() else { return "NOT trusted — grant Accessibility to this binary first" }
@@ -688,19 +655,10 @@ enum AXText {
         // logging (`isComposing` runs up to ~16×/s). "unsupported" means the
         // coarse input-source fallback is what's deciding in this app; a stuck
         // "loc+len" that never clears is the field bug worth reporting.
-        var markedRef: CFTypeRef?
-        let markedDesc: String
-        switch AXUIElementCopyAttributeValue(element, "AXTextInputMarkedRange" as CFString, &markedRef) {
-        case .success:
-            var marked = CFRange()
-            if let markedRef, CFGetTypeID(markedRef) == AXValueGetTypeID(),
-               AXValueGetValue(markedRef as! AXValue, .cfRange, &marked) {
-                markedDesc = "\(marked.location)+\(marked.length)"
-            } else {
-                markedDesc = "unreadable"
-            }
-        case .noValue: markedDesc = "none"
-        default: markedDesc = "unsupported"
+        let markedDesc = switch markedRangeAnswer(element) {
+        case .marked(let marked): "\(marked.location)+\(marked.length)"
+        case .clear: "none"
+        case .unsupported: "unsupported"
         }
         var extra = ""
         if role == "AXWebArea" {
@@ -717,7 +675,7 @@ enum AXText {
         // The two things that could fix the Electron estimate: the real font, and
         // real bounds for an actual character range (not the broken caret range).
         let lastIdx = (nChars ?? value?.count ?? 0) - 1
-        let attrStyle = lastIdx >= 0 ? attributedStyle(of: element, atIndex: lastIdx) : AXTextStyle()
+        let attrStyle = attributedStyle(of: element, atIndex: lastIdx)
         let lastCharBounds = lastIdx >= 0 ? bounds(forRange: CFRange(location: lastIdx, length: 1), in: element) : nil
         let fontDesc = attrStyle.font.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
         // The ghost picks dark-vs-light from this color — but only a concrete one.
@@ -740,18 +698,12 @@ enum AXText {
             + "caret=\(fmt(caretBounds)) prevChar=\(fmt(prevBounds)) "
             + "attrFont=\(fontDesc) attrColor=\(colorDesc) attrBg=\(bgDesc) lastChar=\(fmt(lastCharBounds)) whole=\(fmt(wholeBounds)) "
             + "marker=\(fmt(webCaretBounds(element))) markedRange=\(markedDesc)\(extra)\(kids)"
+            + "\n[probe] " + probeContextLine(element)
     }
 
     /// What `context(for:)` actually computes for the focused element — verifies
-    /// the live pipeline (incl. the Electron marker path) end to end via `--ax-probe`.
-    static func probeContextLine() -> String {
-        guard let element = Self.element(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute) else {
-            return "ctx: no focus"
-        }
-        var pid: pid_t = 0
-        if AXUIElementGetPid(element, &pid) == .success, pid > 0 {
-            AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), "AXManualAccessibility" as CFString, kCFBooleanTrue)
-        }
+    /// the live pipeline (incl. the Electron marker path) end to end.
+    private static func probeContextLine(_ element: AXUIElement) -> String {
         guard isEditableTextElement(element) else { return "ctx: focus not editable" }
         guard let ctx = context(for: element, maxChars: 200) else { return "ctx: nil" }
         let font = ctx.host.font.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
@@ -786,15 +738,9 @@ enum AXText {
     /// Caret/selection bounds inside a Chromium web area via the private
     /// text-marker API (the standard range API returns garbage for web content).
     static func webCaretBounds(_ element: AXUIElement) -> CGRect? {
-        var markerRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, "AXSelectedTextMarkerRange" as CFString, &markerRef) == .success,
-              let markerRef else { return nil }
-        var boundsRef: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(
-            element, "AXBoundsForTextMarkerRange" as CFString, markerRef, &boundsRef
-        ) == .success, let boundsRef, CFGetTypeID(boundsRef) == AXValueGetTypeID() else { return nil }
-        var rect = CGRect.zero
-        guard AXValueGetValue(boundsRef as! AXValue, .cgRect, &rect) else { return nil }
+        guard let marker: CFTypeRef = attribute(element, "AXSelectedTextMarkerRange"),
+              let rect = axValue(parameterized(element, "AXBoundsForTextMarkerRange", marker), .cgRect, CGRect.zero)
+        else { return nil }
         return rect == .zero ? nil : rect
     }
 
@@ -804,14 +750,11 @@ enum AXText {
     /// them here even though caret bounds are broken; some providers store real
     /// `NSFont`/`NSColor` objects, others an "AXFont" descriptor dict and a
     /// `CGColor`.
-    static func attributedStyle(of element: AXUIElement, atIndex index: Int) -> AXTextStyle {
-        guard index >= 0 else { return AXTextStyle() }
-        var range = CFRange(location: index, length: 1)
-        guard let rangeValue = AXValueCreate(.cfRange, &range) else { return AXTextStyle() }
-        var ref: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(
-            element, kAXAttributedStringForRangeParameterizedAttribute as CFString, rangeValue, &ref
-        ) == .success, let attributed = ref as? NSAttributedString, attributed.length > 0 else { return AXTextStyle() }
+    static func attributedStyle(of element: AXUIElement, atIndex index: Int) -> HostTextStyle {
+        guard index >= 0,
+              let attributed = parameterized(element, kAXAttributedStringForRangeParameterizedAttribute,
+                                             range: CFRange(location: index, length: 1)) as? NSAttributedString,
+              attributed.length > 0 else { return HostTextStyle() }
         var font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
         if font == nil,
            let dict = attributed.attribute(NSAttributedString.Key("AXFont"), at: 0, effectiveRange: nil) as? [String: Any],
@@ -831,7 +774,7 @@ enum AXText {
             }
             return nil
         }
-        return AXTextStyle(
+        return HostTextStyle(
             font: font,
             color: color([.foregroundColor, NSAttributedString.Key("AXForegroundColor")]),
             background: color([.backgroundColor, NSAttributedString.Key("AXBackgroundColor")])
@@ -880,33 +823,35 @@ enum AXText {
     }
 
     private static func selectedRange(of element: AXUIElement) -> CFRange? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &ref) == .success,
-              let ref, CFGetTypeID(ref) == AXValueGetTypeID() else { return nil }
-        var range = CFRange()
-        guard AXValueGetValue(ref as! AXValue, .cfRange, &range) else { return nil }
-        return range
+        axValue(attribute(element, kAXSelectedTextRangeAttribute), .cfRange, CFRange())
     }
 
     private static func string(forRange range: CFRange, in element: AXUIElement) -> String? {
-        var r = range
-        guard let rangeValue = AXValueCreate(.cfRange, &r) else { return nil }
-        var ref: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(
-            element, kAXStringForRangeParameterizedAttribute as CFString, rangeValue, &ref
-        ) == .success else { return nil }
-        return ref as? String
+        parameterized(element, kAXStringForRangeParameterizedAttribute, range: range) as? String
     }
 
     private static func bounds(forRange range: CFRange, in element: AXUIElement) -> CGRect? {
+        axValue(parameterized(element, kAXBoundsForRangeParameterizedAttribute, range: range), .cgRect, CGRect.zero)
+    }
+
+    /// The point/size/rect/range an `AXValue` ref holds. Type-checked, because
+    /// `as?` to a CF type succeeds on anything.
+    private static func axValue<T: BitwiseCopyable>(_ ref: CFTypeRef?, _ type: AXValueType, _ zero: T) -> T? {
+        guard let ref, CFGetTypeID(ref) == AXValueGetTypeID() else { return nil }
+        var value = zero
+        return AXValueGetValue(ref as! AXValue, type, &value) ? value : nil
+    }
+
+    /// A parameterized attribute for the range `range`.
+    private static func parameterized(_ element: AXUIElement, _ name: String, range: CFRange) -> CFTypeRef? {
         var r = range
-        guard let rangeValue = AXValueCreate(.cfRange, &r) else { return nil }
+        return AXValueCreate(.cfRange, &r).flatMap { parameterized(element, name, $0) }
+    }
+
+    private static func parameterized(_ element: AXUIElement, _ name: String, _ parameter: CFTypeRef) -> CFTypeRef? {
         var ref: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(
-            element, kAXBoundsForRangeParameterizedAttribute as CFString, rangeValue, &ref
-        ) == .success, let ref, CFGetTypeID(ref) == AXValueGetTypeID() else { return nil }
-        var rect = CGRect.zero
-        guard AXValueGetValue(ref as! AXValue, .cgRect, &rect) else { return nil }
-        return rect
+        guard AXUIElementCopyParameterizedAttributeValue(element, name as CFString, parameter, &ref) == .success
+        else { return nil }
+        return ref
     }
 }

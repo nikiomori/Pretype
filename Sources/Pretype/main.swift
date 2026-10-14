@@ -21,7 +21,6 @@ MainActor.assumeIsolated {
         Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { _ in
             Task { @MainActor in
                 print("[probe] \(AXText.probeDescription())")
-                print("[probe] \(AXText.probeContextLine())")
                 if Date().timeIntervalSince(started) > 25 { exit(0) }
             }
         }
