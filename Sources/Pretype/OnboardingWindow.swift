@@ -5,43 +5,24 @@ import SwiftUI
 @MainActor
 final class OnboardingWindow: NSPanel {
     private weak var controller: SuggestionController?
-    
-    private let container = NSView()
-    private let visualBackdrop = NSVisualEffectView()
-    
-    private let titleLabel = NSTextField(labelWithString: "Pretype is Ready")
-    private let subtitleLabel = NSTextField(labelWithString: Copy.readySubtitle)
+    private let card = OnboardingCard()
 
-    private let statusLabel = NSTextField(wrappingLabelWithString: Copy.waiting)
-    private let gotItButton = NSButton(title: "Got It", target: nil, action: nil)
-    /// Somewhere to try it without hunting for a text field: a blank TextEdit
-    /// document, opened directly (TextEdit launched bare opens its iCloud
-    /// Open panel instead of a page to type on).
-    private let tryButton = NSButton(title: "Open TextEdit", target: nil, action: nil)
-    /// Shown only when the engine failed — the way back without a relaunch.
-    private let retryButton = NSButton(title: "Retry", target: nil, action: nil)
-
-    private enum Copy {
-        static let readySubtitle = "Type in any app — Pretype lives in the menu bar"
-        static let waiting = "Type a few words and pause — grey text appears after your cursor."
-    }
     /// Mirrors the engine state (model download progress, failures) into the
     /// window — without this, a first launch spends minutes "Waiting for
     /// suggestion…" while the model downloads, with no hint anything is
     /// happening (the menu-bar icon alone is easy to miss).
     private var statusTimer: Timer?
-    private var suggestionActive = false
 
     init(controller: SuggestionController?) {
         self.controller = controller
-        
+
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 280),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
         )
-        
+
         isFloatingPanel = true
         level = .statusBar
         backgroundColor = .clear
@@ -53,135 +34,33 @@ final class OnboardingWindow: NSPanel {
         animationBehavior = .none
         isMovableByWindowBackground = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        
-        setupUI()
+
+        card.tryIt = { Self.openTextEdit() }
+        card.retry = { [weak self] in
+            self?.controller?.engineCoordinator.rebuild()
+            self?.refreshEngineStatus()
+        }
+        card.gotIt = { [weak self] in
+            Settings.onboardingCompleted = true
+            self?.dismiss()
+        }
+        contentView = FirstMouseHostingView(rootView: OnboardingCardView(card: card))
     }
-    
+
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
-    
-    private func setupUI() {
-        container.wantsLayer = true
-        container.translatesAutoresizingMaskIntoConstraints = false
-        contentView = container
-        
-        // 1. Backdrop
-        visualBackdrop.material = .hudWindow
-        visualBackdrop.state = .active
-        visualBackdrop.blendingMode = .behindWindow
-        visualBackdrop.wantsLayer = true
-        visualBackdrop.layer?.cornerRadius = 16
-        visualBackdrop.layer?.masksToBounds = true
-        visualBackdrop.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(visualBackdrop)
-        
-        // 2. Main Stack
-        let mainStack = NSStackView()
-        mainStack.orientation = .vertical
-        mainStack.spacing = 16
-        mainStack.alignment = .centerX
-        mainStack.translatesAutoresizingMaskIntoConstraints = false
-        visualBackdrop.addSubview(mainStack)
-        
-        // Title & Subtitle Stack
-        let titleStack = NSStackView()
-        titleStack.orientation = .vertical
-        titleStack.spacing = 4
-        titleStack.alignment = .centerX
-        
-        titleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
-        titleLabel.textColor = .labelColor
-        titleStack.addArrangedSubview(titleLabel)
-        
-        subtitleLabel.font = .systemFont(ofSize: 13, weight: .regular)
-        subtitleLabel.textColor = .secondaryLabelColor
-        titleStack.addArrangedSubview(subtitleLabel)
-        
-        mainStack.addArrangedSubview(titleStack)
-        
-        // Divider
-        let divider = NSView()
-        divider.wantsLayer = true
-        divider.layer?.backgroundColor = NSColor.separatorColor.cgColor
-        divider.translatesAutoresizingMaskIntoConstraints = false
-        divider.heightAnchor.constraint(equalToConstant: 1).isActive = true
-        divider.widthAnchor.constraint(equalToConstant: 340).isActive = true
-        mainStack.addArrangedSubview(divider)
-        
-        // Keycaps follow the configured hotkey — hardcoding Tab taught the wrong
-        // keys to anyone on ⌘/⌥/⌃Space. Same labels the menu and overlay use.
-        let hotkey = Settings.hotkeyStyle
-        mainStack.addArrangedSubview(NSHostingView(rootView: MenuHintsView(hints: [
-            MenuHintsView.Hint(keys: [hotkey.label], action: "Accept next word"),
-            MenuHintsView.Hint(keys: [hotkey.shiftLabel], action: "Accept entire suggestion"),
-            MenuHintsView.Hint(keys: [hotkey.correctionLabel], action: "Fix last word / selection"),
-            // Without this a new user's only way to make a ghost go away is to
-            // type over it — not knowing that is what makes it feel pushy.
-            MenuHintsView.Hint(keys: ["esc"], action: "Dismiss a suggestion"),
-        ], font: .body, width: 340)))
 
-        // Footer Stack
-        let footerStack = NSStackView()
-        footerStack.orientation = .horizontal
-        footerStack.spacing = 16
-        footerStack.alignment = .centerY
-        footerStack.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Two lines, not one truncated one: a failure reason or the waiting
-        // instruction is exactly the sentence that must be read in full.
-        statusLabel.font = .systemFont(ofSize: 12, weight: .medium)
-        statusLabel.textColor = .secondaryLabelColor
-        statusLabel.maximumNumberOfLines = 2
-        statusLabel.preferredMaxLayoutWidth = 340
-        statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        mainStack.addArrangedSubview(statusLabel)
-
-        for (button, action) in [(tryButton, #selector(tryPressed)), (retryButton, #selector(retryPressed)),
-                                 (gotItButton, #selector(gotItPressed))] {
-            button.target = self
-            button.action = action
-            button.bezelStyle = .rounded
-            button.controlSize = .regular
-        }
-        retryButton.isHidden = true
-        footerStack.distribution = .gravityAreas
-        footerStack.spacing = 8
-        footerStack.setViews([tryButton, retryButton, gotItButton], in: .trailing)
-
-        mainStack.addArrangedSubview(footerStack)
-        
-        // AutoLayout constraints (container IS the contentView — the window
-        // sizes it directly, so it needs no constraints of its own)
-        NSLayoutConstraint.activate([
-            visualBackdrop.topAnchor.constraint(equalTo: container.topAnchor),
-            visualBackdrop.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            visualBackdrop.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            visualBackdrop.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            
-            mainStack.topAnchor.constraint(equalTo: visualBackdrop.topAnchor, constant: 20),
-            mainStack.bottomAnchor.constraint(equalTo: visualBackdrop.bottomAnchor, constant: -20),
-            mainStack.leadingAnchor.constraint(equalTo: visualBackdrop.leadingAnchor, constant: 24),
-            mainStack.trailingAnchor.constraint(equalTo: visualBackdrop.trailingAnchor, constant: -24),
-            
-            statusLabel.widthAnchor.constraint(equalToConstant: 340),
-            // Room for two lines in every state, so the card never resizes
-            // under the user as the status text changes length.
-            statusLabel.heightAnchor.constraint(equalToConstant: 32),
-            footerStack.widthAnchor.constraint(equalToConstant: 340)
-        ])
-    }
-    
     func show() {
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
         // Top-right, under the menu bar: centred, it sat on top of the very
         // window it asked the user to type in — and up here it points at
         // where Pretype lives once this card is gone.
-        layoutIfNeeded()
+        refreshEngineStatus()
         let size = contentView?.fittingSize ?? frame.size
         setContentSize(size)
         setFrameOrigin(CGPoint(x: screenFrame.maxX - size.width - 16, y: screenFrame.maxY - size.height - 12))
-        
+
         alphaValue = 0
         orderFrontRegardless()
 
@@ -191,7 +70,6 @@ final class OnboardingWindow: NSPanel {
             animator().alphaValue = 1
         }
 
-        refreshEngineStatus()
         statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshEngineStatus()
@@ -201,58 +79,25 @@ final class OnboardingWindow: NSPanel {
 
     /// Same 1 s poll the menu-bar icon uses — no engine callback plumbing.
     private func refreshEngineStatus() {
-        guard !suggestionActive, !celebrating else { return }
+        guard !card.suggestionActive, !card.celebrating else { return }
         let engine = controller?.engine
         var state = engine?.state ?? .ready
         // Idle-unloaded is `.preparing` with nothing running; it reloads on
         // the first keystroke, so for this card it is ready.
         if case .preparing = state, engine?.isLoading == false { state = .ready }
-        retryButton.isHidden = true
-        tryButton.isHidden = false
-        statusLabel.toolTip = nil
-        switch state {
-        case .preparing(let detail):
-            titleLabel.stringValue = "Setting up Pretype"
-            // Only a fetch is "one-time"; a model already on disk is loading.
-            subtitleLabel.stringValue = detail.hasPrefix("downloading")
-                ? "One-time model download" : "Loading the model"
-            statusLabel.textColor = .secondaryLabelColor
-            statusLabel.stringValue = detail
-        case .failed(let detail):
-            titleLabel.stringValue = "Pretype hit a problem"
-            subtitleLabel.stringValue = "The completion engine couldn't start"
-            statusLabel.textColor = .systemRed
-            statusLabel.stringValue = detail
-            statusLabel.toolTip = detail
-            retryButton.isHidden = false
-            tryButton.isHidden = true
-        case .ready:
-            titleLabel.stringValue = "Pretype is Ready"
-            subtitleLabel.stringValue = Copy.readySubtitle
-            statusLabel.textColor = .secondaryLabelColor
-            statusLabel.stringValue = Copy.waiting
-        }
+        if card.engine != state { card.engine = state }
     }
-
-    private var celebrating = false
 
     /// The first accept: say it worked before going, instead of vanishing on
     /// the keystroke — an instant dismissal read as "did I break it?".
     func celebrate() {
-        celebrating = true
-        titleLabel.layer?.removeAnimation(forKey: "pulse")
-        titleLabel.stringValue = "That's it"
-        subtitleLabel.stringValue = "Pretype keeps suggesting as you type, in any app"
-        statusLabel.textColor = .systemGreen
-        statusLabel.stringValue = "✓ Accepted — \(Settings.hotkeyStyle.shiftLabel) takes a whole suggestion next time."
-        tryButton.isHidden = true
-        retryButton.isHidden = true
+        card.celebrating = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.dismiss() }
     }
 
-    @objc private func tryPressed() {
-        // A blank document to type on: an empty file opened directly, which
-        // skips TextEdit's iCloud Open panel.
+    /// A blank document to type on: an empty file opened directly, which
+    /// skips TextEdit's iCloud Open panel.
+    private static func openTextEdit() {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("Try Pretype.txt")
         if !FileManager.default.fileExists(atPath: url.path) {
             try? "".write(to: url, atomically: true, encoding: .utf8)
@@ -261,11 +106,6 @@ final class OnboardingWindow: NSPanel {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
         NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: config)
-    }
-
-    @objc private func retryPressed() {
-        controller?.engineCoordinator.rebuild()
-        refreshEngineStatus()
     }
 
     func dismiss() {
@@ -282,39 +122,156 @@ final class OnboardingWindow: NSPanel {
             }
         })
     }
-    
-    @objc private func gotItPressed() {
-        Settings.onboardingCompleted = true
-        dismiss()
-    }
-    
+
     func updateStatusSuggestionActive(_ active: Bool) {
         // apply() calls this on every suggestion; without the edge check the title
         // restarts its blink on each keystroke and refreshEngineStatus() thrashes.
-        guard suggestionActive != active else { return }
-        suggestionActive = active
-        guard !celebrating else { return }
-        if active {
-            // Not the accent colour: with Graphite it is grey, and this is
-            // the one line on the card that has to jump out.
-            statusLabel.textColor = .labelColor
-            statusLabel.stringValue = "See the grey text? Press \(Settings.hotkeyStyle.label) to take a word."
+        guard card.suggestionActive != active else { return }
+        card.suggestionActive = active
+        if !active { refreshEngineStatus() }
+    }
+}
 
-            // Subtle pulse animation on title to draw attention
-            if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-                let pulse = CABasicAnimation(keyPath: "opacity")
-                pulse.duration = 0.8
-                pulse.fromValue = 1.0
-                pulse.toValue = 0.5
-                pulse.autoreverses = true
-                pulse.repeatCount = 3
-                titleLabel.layer?.add(pulse, forKey: "pulse")
-            }
-        } else {
-            // The pulse runs ~4.8s; without this it keeps blinking after the
-            // suggestion it was pointing at is already gone.
-            titleLabel.layer?.removeAnimation(forKey: "pulse")
-            refreshEngineStatus()
+/// This panel never becomes key, so without first-mouse a button's click
+/// would be spent on focusing the window instead of pressing the button.
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// What the card shows: the engine state, overridden by a live suggestion and
+/// then by the first accept.
+@MainActor
+@Observable
+final class OnboardingCard {
+    var engine = EngineState.ready
+    var suggestionActive = false
+    var celebrating = false
+    @ObservationIgnored var tryIt: () -> Void = {}
+    @ObservationIgnored var retry: () -> Void = {}
+    @ObservationIgnored var gotIt: () -> Void = {}
+}
+
+struct OnboardingCardView: View {
+    let card: OnboardingCard
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let readySubtitle = "Type in any app — Pretype lives in the menu bar"
+    private static let width: CGFloat = 340
+
+    private var failure: String? {
+        if case .failed(let detail) = card.engine { return detail }
+        return nil
+    }
+
+    private var title: String {
+        if card.celebrating { return "That's it" }
+        switch card.engine {
+        case .preparing: return "Setting up Pretype"
+        case .failed: return "Pretype hit a problem"
+        case .ready: return "Pretype is Ready"
         }
     }
+
+    private var subtitle: String {
+        if card.celebrating { return "Pretype keeps suggesting as you type, in any app" }
+        switch card.engine {
+        // Only a fetch is "one-time"; a model already on disk is loading.
+        case .preparing(let detail): return detail.hasPrefix("downloading") ? "One-time model download" : "Loading the model"
+        case .failed: return "The completion engine couldn't start"
+        case .ready: return Self.readySubtitle
+        }
+    }
+
+    private var status: (text: String, color: Color) {
+        let hotkey = Settings.hotkeyStyle
+        if card.celebrating {
+            return ("✓ Accepted — \(hotkey.shiftLabel) takes a whole suggestion next time.", .green)
+        }
+        if card.suggestionActive {
+            // Not the accent colour: with Graphite it is grey, and this is
+            // the one line on the card that has to jump out.
+            return ("See the grey text? Press \(hotkey.label) to take a word.", .primary)
+        }
+        switch card.engine {
+        case .preparing(let detail): return (detail, .secondary)
+        case .failed(let detail): return (detail, .red)
+        case .ready: return ("Type a few words and pause — grey text appears after your cursor.", .secondary)
+        }
+    }
+
+    var body: some View {
+        // Keycaps follow the configured hotkey — hardcoding Tab taught the wrong
+        // keys to anyone on ⌘/⌥/⌃Space. Same labels the menu and overlay use.
+        let hotkey = Settings.hotkeyStyle
+        let status = status
+        // Pulses the title three times while the first suggestion is up, to
+        // draw the eye to it; held at full opacity otherwise.
+        let pulsing = card.suggestionActive && !card.celebrating
+        VStack(spacing: 16) {
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 18, weight: .semibold))
+                    .phaseAnimator(reduceMotion ? [1.0] : [1.0, 0.5, 1.0, 0.5, 1.0, 0.5], trigger: pulsing) {
+                        $0.opacity(pulsing ? $1 : 1)
+                    } animation: { _ in .easeInOut(duration: 0.8) }
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+            Divider()
+                .frame(width: Self.width)
+            MenuHintsView(hints: [
+                MenuHintsView.Hint(keys: [hotkey.label], action: "Accept next word"),
+                MenuHintsView.Hint(keys: [hotkey.shiftLabel], action: "Accept entire suggestion"),
+                MenuHintsView.Hint(keys: [hotkey.correctionLabel], action: "Fix last word / selection"),
+                // Without this a new user's only way to make a ghost go away is to
+                // type over it — not knowing that is what makes it feel pushy.
+                MenuHintsView.Hint(keys: ["esc"], action: "Dismiss a suggestion"),
+            ], font: .body, width: Self.width)
+            // Two lines, not one truncated one: a failure reason or the waiting
+            // instruction is exactly the sentence that must be read in full.
+            // Room for two lines in every state, so the card never resizes
+            // under the user as the status text changes length.
+            Text(status.text)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(status.color)
+                .lineLimit(2)
+                .frame(width: Self.width, height: 32, alignment: .leading)
+                .help(failure ?? "")
+            HStack(spacing: 8) {
+                Spacer()
+                // Somewhere to try it without hunting for a text field: a blank
+                // TextEdit document (TextEdit launched bare opens its iCloud
+                // Open panel instead of a page to type on).
+                if !card.celebrating, failure == nil {
+                    Button("Open TextEdit", action: card.tryIt)
+                }
+                // Only when the engine failed — the way back without a relaunch.
+                if !card.celebrating, failure != nil {
+                    Button("Retry", action: card.retry)
+                }
+                Button("Got It", action: card.gotIt)
+            }
+            .frame(width: Self.width)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
+        .background(HUDBackdrop())
+    }
+}
+
+/// The card's frosted HUD backdrop, blurred against what is behind the window.
+private struct HUDBackdrop: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.state = .active
+        view.blendingMode = .behindWindow
+        view.wantsLayer = true
+        view.layer?.cornerRadius = 16
+        view.layer?.masksToBounds = true
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
