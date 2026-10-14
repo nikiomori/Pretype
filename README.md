@@ -129,7 +129,7 @@ Pretype is free and has the MIT license. It is an alternative to [Cotypist](http
 | **All text fields** | Operates in native AppKit and SwiftUI apps, in Electron apps (VS Code, Slack, Claude Desktop), and in web views. |
 | **Panel at the caret** | Shows the suggestion in a floating panel at the caret. The panel does not cover your text. You can read it on all backgrounds. Inline ghost text is an unstable option: it uses the baseline and the font of the field. |
 | **Typo fixes** | Shows a correction pill above a misspelled word. The macOS spell checker finds the error, in the language that it detects in the text near the word. |
-| **Emoji shortcodes** | Type `:shrug:`, and the pill shows 🤷. Pretype knows some Gemoji names and all Unicode character names that macOS knows, for example `:rocket:` and `:thinking_face:`. It does not ship its own table. |
+| **Emoji shortcodes** | Type `:shrug:`, and the pill shows 🤷. Pretype knows some Gemoji names and all Unicode character names that macOS knows, for example `:rocket:` and `:thinking_face:`. It does not ship its own table. Key names give Mac key symbols: `:cmd:` shows ⌘, `:opt:` shows ⌥, `:shift:` shows ⇧. |
 | **Arithmetic** | Type a sum that ends with `=`, for example `12*7=` or `(1+2)*3 =`. The pill shows the result. |
 | **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing in place. It keeps your tone. |
 | **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes a draft of your next message from the conversation on the screen. |

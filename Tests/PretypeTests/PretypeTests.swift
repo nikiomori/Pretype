@@ -1931,6 +1931,7 @@ final class PretypeTests: XCTestCase {
         // Only through the alias table — Gemoji nicknames are not Unicode names.
         XCTAssertEqual(EmojiShortcodes.emoji(for: ":joy:"), "😂")
         XCTAssertEqual(EmojiShortcodes.emoji(for: ":tada:"), "🎉")
+        XCTAssertEqual(EmojiShortcodes.emoji(for: ":cmd:"), "⌘")
 
         // "+1"/"-1" are the two letterless bodies that ARE names — the reason
         // +/- are in the scanner's charset at all.

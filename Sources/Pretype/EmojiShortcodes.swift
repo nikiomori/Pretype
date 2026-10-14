@@ -101,5 +101,9 @@ enum EmojiShortcodes {
         ":gift:": "🎁", ":checkered_flag:": "🏁", ":puzzle:": "🧩", ":dice:": "🎲",
         ":chart_increasing:": "📈", ":chart_decreasing:": "📉",
         ":arrow_up:": "⬆️", ":arrow_down:": "⬇️", ":arrow_right:": "➡️", ":arrow_left:": "⬅️",
+        // Mac key symbols, for writing shortcuts the way menus print them.
+        ":cmd:": "⌘", ":command:": "⌘", ":opt:": "⌥", ":option:": "⌥", ":alt:": "⌥",
+        ":ctrl:": "⌃", ":control:": "⌃", ":shift:": "⇧", ":return:": "↩", ":tab:": "⇥",
+        ":esc:": "⎋", ":delete:": "⌫", ":capslock:": "⇪",
     ]
 }
