@@ -5,11 +5,9 @@ import NaturalLanguage
 /// local, instant, multilingual (RU + EN, etc.). Fast enough to run per keystroke on
 /// the word at the caret; the LLM is reserved for the explicit ⌥⇥ fix.
 enum SpellChecker {
-    private static let checker: NSSpellChecker = {
-        let c = NSSpellChecker.shared
-        c.automaticallyIdentifiesLanguages = true
-        return c
-    }()
+    /// Every call passes its language explicitly, so the checker's own
+    /// language detection never comes into play.
+    private static let checker = NSSpellChecker.shared
 
     /// Reused across calls — NLLanguageRecognizer is expensive to create
     /// (backed by a Core ML model) and `language(for:context:)` runs on every

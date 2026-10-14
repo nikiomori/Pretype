@@ -34,7 +34,7 @@ final class SuggestionController: NSObject {
     lazy var indicator = CaretIndicator(owner: self)
     /// The text-fixing flows (⌥⇥ fix-selection / last word, inline spell-fix),
     /// kept separate from the completion pipeline below.
-    let correctionController = CorrectionController()
+    lazy var correctionController = CorrectionController(owner: self)
 
     /// Hold-to-talk dictation. Owns the microphone, the caret pill while it
     /// listens, and nothing else — the transcript comes back through
@@ -155,7 +155,6 @@ final class SuggestionController: NSObject {
         // old engine.
         engineCoordinator.onRebuild = { [weak self] in self?.dismiss() }
         window.presentation = Settings.suggestionPresentation
-        correctionController.owner = self
         dictationController.owner = self
         focusTracker.delegate = self
         keyTap.handler = { [weak self] event in
@@ -296,10 +295,7 @@ final class SuggestionController: NSObject {
     }
 
     func dismiss() {
-        resolveJournal(.abandoned)
-        refreshTask?.cancel()
-        refreshTask = nil
-        active = nil
+        clearActiveCompletion()
         activeIsInstant = false
         lastAcceptedChunk = nil
         correctionController.reset()
@@ -1026,20 +1022,10 @@ final class SuggestionController: NSObject {
     /// `maxChars` is the hard backstop on what can reach the field: a keystroke
     /// completion is a few words, a composed reply a few sentences.
     private func sanitize(_ raw: String, maxChars: Int) -> String {
-        var out = raw.replacingOccurrences(of: "\t", with: " ")
-        if let newline = out.firstIndex(where: { $0.isNewline }) {
-            out = String(out[..<newline])
-        }
-        while out.contains("  ") {
-            out = out.replacingOccurrences(of: "  ", with: " ")
-        }
-        if out.count > maxChars {
-            out = String(out.prefix(maxChars))
-        }
-        while out.hasSuffix(" ") {
-            out.removeLast()
-        }
-        return out
+        let line = String(raw.replacingOccurrences(of: "\t", with: " ").prefix { !$0.isNewline })
+        // Runs collapsed first, so at most one space can trail the cut.
+        let out = line.replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression).prefix(maxChars)
+        return String(out.hasSuffix(" ") ? out.dropLast() : out)
     }
 
     // MARK: - Reply
@@ -1365,11 +1351,15 @@ final class SuggestionController: NSObject {
         // window anchors on this cache, and pre-keystroke text would make Tab
         // duplicate the typed character. Control input (backspace, arrows)
         // can't be replayed onto the cache — nil it so apply() falls back to a
-        // fresh AX read.
+        // fresh AX read. Typed text is appended with no re-cap: the AX read
+        // window's start holds still (`AXText.windowStart`), so a fresh read is
+        // this plus what was typed — a cap counted in Characters sat at a
+        // different offset than the UTF-16 window and failed the settle/undo
+        // equality gates. Every AX read re-syncs it, so it can't grow unbounded.
         if isControl {
             latestTextBeforeCaret = nil
         } else {
-            advanceCache(typed)
+            latestTextBeforeCaret? += typed
         }
         guard var current = active else { return }
         guard let remaining = Self.narrowedSuggestion(current.text, typedCharacters: typed) else {
@@ -1392,15 +1382,6 @@ final class SuggestionController: NSObject {
         if let shown = window.advance(past: typed, remaining: remaining), shown != remaining {
             active?.text = shown
         }
-    }
-
-    /// Append injected/typed text to the cache marker. No re-cap: the AX read
-    /// window's start holds still (`AXText.windowStart`), so a fresh read is
-    /// this plus what was typed — a cap counted in Characters sat at a
-    /// different offset than the UTF-16 window and failed the settle/undo
-    /// equality gates. Every AX read re-syncs it, so it can't grow unbounded.
-    private func advanceCache(_ s: String) {
-        latestTextBeforeCaret? += s
     }
 
     /// The one way text is typed into the host — accept, dictation, ⌘Z undo
@@ -1723,26 +1704,20 @@ final class SuggestionController: NSObject {
     /// nothing before punctuation that belongs to the word it hugs; the right
     /// seam is the same rules mirrored. Both are decided here so the caller
     /// injects, caches and books ONE chunk — a trailing space added by a second
-    /// insert would be missing from `advanceCache` and the undo snapshot.
+    /// insert would be missing from the cache and the undo snapshot.
     ///
     /// `following` defaults to empty because a caret at the end of the field
     /// has no right seam to judge, which is where dictation usually lands.
     nonisolated static func spacedForInsertion(_ text: String, after context: String,
                                                before following: String = "") -> String {
-        var chunk = text
-        if let last = context.last, let first = text.first,
-           !last.isWhitespace, !last.isNewline, !first.isWhitespace,
-           !"([{«“„<".contains(last), !".,!?;:)]}»”…".contains(first),
-           !isScriptioContinua(last), !isScriptioContinua(first) {
-            chunk = " " + chunk
+        // `isWhitespace` covers newlines too.
+        func seam(_ last: Character?, _ first: Character?) -> Bool {
+            guard let last, let first else { return false }
+            return !last.isWhitespace && !first.isWhitespace
+                && !"([{«“„<".contains(last) && !".,!?;:)]}»”…".contains(first)
+                && !isScriptioContinua(last) && !isScriptioContinua(first)
         }
-        if let last = text.last, let first = following.first,
-           !last.isWhitespace, !last.isNewline, !first.isWhitespace, !first.isNewline,
-           !"([{«“„<".contains(last), !".,!?;:)]}»”…".contains(first),
-           !isScriptioContinua(last), !isScriptioContinua(first) {
-            chunk += " "
-        }
-        return chunk
+        return (seam(context.last, text.first) ? " " : "") + text + (seam(text.last, following.first) ? " " : "")
     }
 
     /// Han, kana, and the CJK/fullwidth punctuation that travels with them —
@@ -1753,19 +1728,9 @@ final class SuggestionController: NSObject {
     /// orthography spaces its words like ours, so it takes the ordinary rules.
     nonisolated private static func isScriptioContinua(_ ch: Character) -> Bool {
         guard let scalar = ch.unicodeScalars.first else { return false }
-        switch scalar.value {
-        case 0x3000...0x303F,      // CJK symbols and punctuation (、。「」)
-             0x3040...0x309F,      // hiragana
-             0x30A0...0x30FF,      // katakana
-             0x3400...0x4DBF,      // CJK ideographs ext. A
-             0x4E00...0x9FFF,      // CJK unified ideographs
-             0xF900...0xFAFF,      // CJK compatibility ideographs
-             0xFF00...0xFFEF,      // fullwidth and halfwidth forms (！？，)
-             0x20000...0x2FA1F:    // CJK ext. B–F (e.g. 𨐈)
-            return true
-        default:
-            return false
-        }
+        return scalar.properties.isIdeographic          // Han, every block
+            || (0x3000...0x30FF).contains(scalar.value)  // CJK punctuation (、。「」), hiragana, katakana
+            || (0xFF00...0xFFEF).contains(scalar.value)  // fullwidth and halfwidth forms (！？，)
     }
 
     /// Drop a leading space the context already supplies. You type "спасибо за "
@@ -1845,8 +1810,8 @@ extension SuggestionController: FocusTrackerDelegate {
         screenCapturedAt = .distantPast
         // The cache and any live settle window are field-scoped: carried into
         // the new app they would hold textDidChange hostage to the OLD field's
-        // text (retry loop until the deadline) and advanceCache would glue new
-        // keystrokes onto it.
+        // text (retry loop until the deadline) and the next keystroke would be
+        // glued onto it.
         latestTextBeforeCaret = nil
         injectionSettleDeadline = nil
         // Examples anchored to the previous app's text go stale too; the next

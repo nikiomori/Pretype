@@ -147,8 +147,15 @@ final class KeyTap {
 /// Pure and time-injected: the timing rules are the whole feature, so they are
 /// testable without an event tap.
 struct ModifierDoubleTap {
-    var holdLimit: TimeInterval = 0.4
-    var gap: TimeInterval = 0.45
+    let holdLimit: TimeInterval = 0.4
+    let gap: TimeInterval = 0.45
+
+    /// Held alongside the gesture's own key, these make a press a chord. fn
+    /// counts (fn-⌥ and friends are system shortcuts); caps lock is
+    /// deliberately absent — its flag is a latched state, not a held key, and
+    /// caps-lock-on users still get to use the gesture. Shared with `ModifierHold`.
+    static let chordModifiers: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate,
+                                               .maskShift, .maskSecondaryFn]
 
     private var downAt: Date?
     private var interrupted = false
@@ -168,14 +175,8 @@ struct ModifierDoubleTap {
             return false
         }
         if flags.contains(keys.mask) {
-            // Down. Already holding another modifier means a chord is being
-            // built. fn counts (fn-⌥ and friends are system shortcuts); caps
-            // lock is deliberately absent — its flag is a latched state, not a
-            // held key, and caps-lock-on users still get to use the gesture.
-            let others = CGEventFlags([.maskCommand, .maskControl, .maskAlternate,
-                                       .maskShift, .maskSecondaryFn])
-                .subtracting(keys.mask)
-            downAt = flags.isDisjoint(with: others) ? now : nil
+            // Down. Already holding another modifier means a chord is being built.
+            downAt = flags.isDisjoint(with: Self.chordModifiers.subtracting(keys.mask)) ? now : nil
             interrupted = false
             return false
         }
@@ -245,10 +246,7 @@ struct ModifierHold {
         if flags.contains(keys.mask) {
             // Down. Already holding something else means a chord — don't arm.
             // Same mask as `ModifierDoubleTap`: fn in, caps lock out.
-            let others = CGEventFlags([.maskCommand, .maskControl, .maskAlternate,
-                                       .maskShift, .maskSecondaryFn])
-                .subtracting(keys.mask)
-            downAt = flags.isDisjoint(with: others) ? now : nil
+            downAt = flags.isDisjoint(with: ModifierDoubleTap.chordModifiers.subtracting(keys.mask)) ? now : nil
             return nil
         }
         // Up.

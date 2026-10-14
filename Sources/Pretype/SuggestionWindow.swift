@@ -208,7 +208,7 @@ final class SuggestionWindow: NSPanel {
         // The probe's verdict is the top rung of one shared resolver — it must
         // not assign `appearance` itself, or a nil cache (no Screen Recording)
         // would clobber the AX-derived verdict on every keystroke.
-        backgroundProbe.refresh(near: caretRect) { [weak self] _ in self?.resolveAppearance() }
+        backgroundProbe.refresh(near: caretRect) { [weak self] in self?.resolveAppearance() }
         // The host's own font, family included, when we have it: the ghost then
         // reads as the field's next word instead of a system-font impostor
         // pasted over a monospace editor, and its metrics land the baseline
@@ -578,11 +578,16 @@ final class SuggestionWindow: NSPanel {
                                       - (labelFont.ascender + labelFont.descender - labelFont.capHeight) / 2))
             return true
         }
+        return attachment(image, y: ((font.capHeight - cap.height) / 2).rounded())
+    }
+
+    /// `image` inline, its bottom `y` off the baseline. Drawn at draw time
+    /// (`cacheMode = .never`), so its colours follow the window's appearance.
+    private static func attachment(_ image: NSImage, y: CGFloat) -> NSAttributedString {
         image.cacheMode = .never
         let attachment = NSTextAttachment()
         attachment.image = image
-        attachment.bounds = NSRect(x: 0, y: ((font.capHeight - cap.height) / 2).rounded(),
-                                   width: cap.width, height: cap.height)
+        attachment.bounds = NSRect(origin: NSPoint(x: 0, y: y), size: image.size)
         return NSAttributedString(attachment: attachment)
     }
 
@@ -598,12 +603,8 @@ final class SuggestionWindow: NSPanel {
             rect.fill(using: .sourceIn)
             return true
         }
-        image.cacheMode = .never
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        attachment.bounds = NSRect(x: 0, y: ((pillFont.capHeight - template.size.height) / 2).rounded(),
-                                   width: template.size.width, height: template.size.height)
-        let out = NSMutableAttributedString(attachment: attachment)
+        let out = NSMutableAttributedString(
+            attributedString: attachment(image, y: ((pillFont.capHeight - template.size.height) / 2).rounded()))
         out.append(plain("  "))
         return out
     }
@@ -840,9 +841,7 @@ final class SuggestionWindow: NSPanel {
             if appearance?.name != name { appearance = NSAppearance(named: name); repaint() }
         }
         if let probed = backgroundProbe.appearance {
-            logTone("probe → \(probed.name == .darkAqua ? "dark" : "light")")
-            if appearance?.name != probed.name { appearance = probed; repaint() }
-            return
+            return adopt(probed.name == .darkAqua ? 0 : 1, "probe")
         }
         if let bg = lastHost.background.flatMap(Self.staticLuminance) {
             return adopt(bg, "field bg \(String(format: "%.2f", bg))")

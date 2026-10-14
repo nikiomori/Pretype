@@ -34,11 +34,7 @@ enum InlineCalculator {
 
     static func format(_ value: Double) -> String {
         if value == value.rounded(), abs(value) < 1e15 { return String(Int64(value)) }
-        var text = String(format: "%.10g", value)
-        if text.contains("."), !text.contains("e") {
-            while text.hasSuffix("0") { text.removeLast() }
-        }
-        return text
+        return String(format: "%.10g", value)  // %g already drops trailing zeros
     }
 
     private struct Parser {

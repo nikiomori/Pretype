@@ -49,8 +49,7 @@ final class FocusTracker {
     static let axMessagingTimeout: Float = 0.1
 
     private(set) var focusedTextElement: AXUIElement?
-    private(set) var observedBundleID: String?
-    private(set) var observedAppName: String?
+    private var observedApp: NSRunningApplication?
     private(set) var typingContext = TypingContext()
 
     private var observer: AXObserver?
@@ -115,8 +114,7 @@ final class FocusTracker {
         }
 
         observedPID = pid
-        observedBundleID = app.bundleIdentifier
-        observedAppName = app.localizedName
+        observedApp = app
         let appEl = AXUIElementCreateApplication(pid)
         appElement = appEl
         // Per-element timeout too (the global default doesn't always propagate to
@@ -152,8 +150,7 @@ final class FocusTracker {
         focusedTextElement = nil
         elementNotificationsAdded = false
         observedPID = 0
-        observedBundleID = nil
-        observedAppName = nil
+        observedApp = nil
     }
 
     deinit {
@@ -205,8 +202,8 @@ final class FocusTracker {
         let window = AXText.element(appEl, kAXFocusedWindowAttribute)
         observeWindow(window)
         typingContext = TypingContext(
-            appName: observedAppName,
-            bundleID: observedBundleID,
+            appName: observedApp?.localizedName,
+            bundleID: observedApp?.bundleIdentifier,
             windowTitle: window.flatMap { AXText.attribute($0, kAXTitleAttribute) },
             fieldLabel: focusedTextElement.flatMap { AXText.fieldLabel(for: $0) },
             site: focusedTextElement.flatMap { AXText.pageHost(for: $0) }

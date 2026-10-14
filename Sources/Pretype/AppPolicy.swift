@@ -71,12 +71,7 @@ enum AppPolicy {
     /// Menu-bar "Disable/Enable on <site>": the exact host, and on the way back
     /// every entry that covered it — same contract as `toggleUserBlacklist`.
     static func toggleUserBlacklist(site host: String) {
-        let hits = Settings.userBlacklist.filter { site(host, matches: $0) }
-        if hits.isEmpty {
-            Settings.userBlacklist.append(siteEntry(host))
-        } else {
-            Settings.userBlacklist.removeAll { hits.contains($0) }
-        }
+        toggle(siteEntry(host), hits: Settings.userBlacklist.filter { site(host, matches: $0) })
     }
 
     static func isBlacklisted(_ bundleID: String?) -> Bool {
@@ -99,9 +94,13 @@ enum AppPolicy {
     /// off drops every marker that covered it, so one click always reverses the
     /// previous one even when the block came from a hand-typed fragment.
     static func toggleUserBlacklist(_ bundleID: String) {
-        let hits = userBlacklistEntries(for: bundleID)
+        toggle(bundleID.lowercased(), hits: userBlacklistEntries(for: bundleID))
+    }
+
+    /// Nothing hit → block with `entry`; else drop every entry that hit.
+    private static func toggle(_ entry: String, hits: [String]) {
         if hits.isEmpty {
-            Settings.userBlacklist.append(bundleID.lowercased())
+            Settings.userBlacklist.append(entry)
         } else {
             Settings.userBlacklist.removeAll { hits.contains($0) }
         }

@@ -31,12 +31,12 @@ final class BackgroundProbe {
     private var lastAt: CFAbsoluteTime = 0
     private var inFlight = false
 
-    /// Hand the cached appearance to `apply` immediately, then re-sample near
-    /// `caretRect` (Cocoa screen coordinates) and call `apply` again if the
-    /// verdict changed. Throttled: the same spot within 0.7 s reuses the cache,
-    /// so per-keystroke callers cost nothing between samples.
-    func refresh(near caretRect: CGRect, apply: @escaping (NSAppearance?) -> Void) {
-        apply(appearance)
+    /// Call `apply` (which reads `appearance`) immediately, then re-sample near
+    /// `caretRect` (Cocoa screen coordinates) and call it again once the sample
+    /// lands. Throttled: the same spot within 0.7 s reuses the cache, so
+    /// per-keystroke callers cost nothing between samples.
+    func refresh(near caretRect: CGRect, apply: @escaping () -> Void) {
+        apply()
         let now = CFAbsoluteTimeGetCurrent()
         let moved = abs(caretRect.midY - lastRect.midY) > caretRect.height
             || abs(caretRect.midX - lastRect.midX) > 200
@@ -63,7 +63,7 @@ final class BackgroundProbe {
             } else if luminance > 0.58 {
                 self.appearance = NSAppearance(named: .aqua)
             }
-            apply(self.appearance)
+            apply()
         }
     }
 
