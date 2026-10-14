@@ -1,5 +1,6 @@
 import Foundation
 import NaturalLanguage
+import os
 
 struct CompletionRequest {
     let textBeforeCaret: String
@@ -264,39 +265,20 @@ extension CompletionRequest {
 /// Minimal thread-safe value holder: completion knobs are set on the main
 /// thread (menu) and read on the engine's background task.
 final class LockedValue<Value>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: Value
-    init(_ initial: Value) { value = initial }
-
-    func set(_ newValue: Value) {
-        lock.lock()
-        value = newValue
-        lock.unlock()
-    }
-
-    func get() -> Value {
-        lock.lock()
-        defer { lock.unlock() }
-        return value
-    }
-
-    /// Atomically store `newValue` and return the previous one — for a
-    /// race-free test-and-set (e.g. a single-flight guard).
-    func exchange(_ newValue: Value) -> Value {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = value
-        value = newValue
-        return old
-    }
+    private let lock: OSAllocatedUnfairLock<Value>
+    init(_ initial: Value) { lock = OSAllocatedUnfairLock(uncheckedState: initial) }
 
     /// Read-modify-write under the one lock — a get then a set would let a
     /// concurrent writer's change fall between them and be lost.
-    func mutate<R>(_ body: (inout Value) -> R) -> R {
-        lock.lock()
-        defer { lock.unlock() }
-        return body(&value)
-    }
+    func mutate<R>(_ body: (inout Value) -> R) -> R { lock.withLockUnchecked(body) }
+
+    func get() -> Value { mutate { $0 } }
+
+    func set(_ newValue: Value) { mutate { $0 = newValue } }
+
+    /// Atomically store `newValue` and return the previous one — for a
+    /// race-free test-and-set (e.g. a single-flight guard).
+    func exchange(_ newValue: Value) -> Value { mutate { let old = $0; $0 = newValue; return old } }
 }
 
 enum EngineState: Equatable {

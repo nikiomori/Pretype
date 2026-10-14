@@ -438,20 +438,9 @@ final class CloudEngine: CompletionEngine {
 
     /// `text` cut after its `words`-th whitespace-separated word.
     static func clip(_ text: String, words: Int) -> String {
-        var count = 0
-        var inWord = false
-        for i in text.indices {
-            if text[i].isWhitespace {
-                if inWord {
-                    count += 1
-                    if count == words { return String(text[..<i]) }
-                }
-                inWord = false
-            } else {
-                inWord = true
-            }
-        }
-        return text
+        let runs = text.ranges(of: #/\S+/#)
+        guard words > 0, runs.count >= words else { return text }
+        return String(text[..<runs[words - 1].upperBound])
     }
 
     /// The Settings "Test" button: one tiny round trip, timed.

@@ -123,10 +123,10 @@ final class MLXEngine: CompletionEngine {
     var state: EngineState { correctionStatus.get().map(EngineState.preparing) ?? stateBox.get() }
 
     var isLoading: Bool {
-        modelLock.lock()
-        defer { modelLock.unlock() }
-        return Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
-                              correctionStatus: correctionStatus.get())
+        modelLock.withLock {
+            Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
+                           correctionStatus: correctionStatus.get())
+        }
     }
 
     /// `.preparing` with a live task = loading or downloading; `.preparing`
@@ -262,12 +262,17 @@ final class MLXEngine: CompletionEngine {
                 }
                 try Task.checkCancellation()
                 stateBox.set(.ready)
-                self?.markLoadSucceeded()
+                if let self { self.modelLock.withLock { self.lastLoadFailure = nil } }
                 return loaded
             } catch {
                 if !(error is CancellationError) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
                 stateBox.set(.failed(error.localizedDescription))
-                self?.clearLoadTaskOnFailure()
+                if let self {
+                    self.modelLock.withLock {
+                        self.loadTask = nil
+                        self.lastLoadFailure = Date()
+                    }
+                }
                 throw error
             }
         }
@@ -363,40 +368,28 @@ final class MLXEngine: CompletionEngine {
         return model
     }
 
-    private func clearLoadTaskOnFailure() {
-        modelLock.lock()
-        defer { modelLock.unlock() }
-        loadTask = nil
-        lastLoadFailure = Date()
-    }
-
-    private func markLoadSucceeded() {
-        modelLock.lock()
-        defer { modelLock.unlock() }
-        lastLoadFailure = nil
-    }
-
     /// Marks a request in-flight and returns the model-load task, reloading it if
     /// it was idle-unloaded. Returns nil when the engine never initialized (e.g.
     /// Metal missing) or is in its post-failure cooldown — callers then abstain.
     /// Pair with `endRequest()`.
     func beginRequest() -> Task<ModelContainer, Error>? {
-        modelLock.lock(); defer { modelLock.unlock() }
-        guard didInitLoad else { return nil }
-        if loadTask == nil {
-            // Back off after a failure: don't recreate the load task (and re-hit
-            // the Hub) until the cooldown passes, so an unavailable model isn't
-            // retried on every keystroke. Abstain meanwhile without leaking the
-            // in-flight count.
-            if let failedAt = lastLoadFailure, Date().timeIntervalSince(failedAt) < Self.loadRetryCooldown {
-                return nil
+        modelLock.withLock {
+            guard didInitLoad else { return nil }
+            if loadTask == nil {
+                // Back off after a failure: don't recreate the load task (and re-hit
+                // the Hub) until the cooldown passes, so an unavailable model isn't
+                // retried on every keystroke. Abstain meanwhile without leaking the
+                // in-flight count.
+                if let failedAt = lastLoadFailure, Date().timeIntervalSince(failedAt) < Self.loadRetryCooldown {
+                    return nil
+                }
+                DebugLog.shared.log("MLX", "loading model (idle-unloaded or retry after failure)")
+                loadTask = makeLoadTask()
             }
-            DebugLog.shared.log("MLX", "loading model (idle-unloaded or retry after failure)")
-            loadTask = makeLoadTask()
+            inFlightCount += 1
+            lastActivity = Date()
+            return loadTask
         }
-        inFlightCount += 1
-        lastActivity = Date()
-        return loadTask
     }
 
     /// `beginRequest` for work that runs on the fix sibling only (base style's
@@ -404,32 +397,34 @@ final class MLXEngine: CompletionEngine {
     /// failure cooldown, refusing on behalf of — the completion model, which
     /// this request never touches. Pair with `endRequest()`.
     private func beginSiblingRequest() -> Bool {
-        modelLock.lock(); defer { modelLock.unlock() }
-        guard didInitLoad else { return false }
-        inFlightCount += 1
-        lastActivity = Date()
-        return true
+        modelLock.withLock {
+            guard didInitLoad else { return false }
+            inFlightCount += 1
+            lastActivity = Date()
+            return true
+        }
     }
 
     func endRequest() {
-        modelLock.lock()
-        inFlightCount = max(0, inFlightCount - 1)
-        lastActivity = Date()
-        modelLock.unlock()
+        modelLock.withLock {
+            inFlightCount = max(0, inFlightCount - 1)
+            lastActivity = Date()
+        }
     }
 
     /// Starts a background reload if the model was idle-unloaded, so a focus
     /// change or first keystroke hides the reload latency. Cheap no-op (lock +
     /// nil check) when the model is already loaded or loading.
     func prewarmIfNeeded() {
-        modelLock.lock(); defer { modelLock.unlock() }
-        guard didInitLoad, loadTask == nil else { return }
-        // Same failure backoff as beginRequest — a focus change shouldn't retry a
-        // model that just failed to load.
-        if let failedAt = lastLoadFailure, Date().timeIntervalSince(failedAt) < Self.loadRetryCooldown { return }
-        DebugLog.shared.log("MLX", "prewarming model after idle")
-        lastActivity = Date()
-        loadTask = makeLoadTask()
+        modelLock.withLock {
+            guard didInitLoad, loadTask == nil else { return }
+            // Same failure backoff as beginRequest — a focus change shouldn't retry a
+            // model that just failed to load.
+            if let failedAt = lastLoadFailure, Date().timeIntervalSince(failedAt) < Self.loadRetryCooldown { return }
+            DebugLog.shared.log("MLX", "prewarming model after idle")
+            lastActivity = Date()
+            loadTask = makeLoadTask()
+        }
     }
 
     /// Prefills `request`'s prompt into the KV cache without decoding. The
@@ -441,16 +436,9 @@ final class MLXEngine: CompletionEngine {
     /// with the model resident or already loading (it then prefills once the
     /// load lands) — a context refresh is no reason to start a load.
     func warmPrompt(for request: CompletionRequest) {
-        modelLock.lock()
-        let live = loadTask != nil
-        modelLock.unlock()
-        guard live else { return }
+        guard modelLock.withLock({ loadTask != nil }) else { return }
         Task { [weak self] in
-            guard let self else { return }
-            switch self.style {
-            case .base: _ = try? await self.completeBase(request, prefillOnly: true)
-            case .instruct: _ = try? await self.completeInstruct(request, prefillOnly: true)
-            }
+            _ = try? await self?.run(request, prefillOnly: true)
         }
     }
 
@@ -515,10 +503,9 @@ final class MLXEngine: CompletionEngine {
             guard let self else { return }
             let minutes = Settings.idleUnloadMinutes
             guard minutes > 0 else { return }
-            self.modelLock.lock()
-            let idle = Date().timeIntervalSince(self.lastActivity)
-            let busy = self.inFlightCount > 0
-            self.modelLock.unlock()
+            let (idle, busy) = self.modelLock.withLock {
+                (Date().timeIntervalSince(self.lastActivity), self.inFlightCount > 0)
+            }
             if !busy, idle >= TimeInterval(minutes) * 60 {
                 self.unload(reason: "idle \(Int(idle))s")
             }
@@ -535,9 +522,15 @@ final class MLXEngine: CompletionEngine {
     // MARK: - Completion
 
     func complete(_ request: CompletionRequest) async throws -> String? {
+        try await run(request)
+    }
+
+    /// The completion path for this engine's style.
+    private func run(_ request: CompletionRequest, onPartial: (@Sendable (String) -> Void)? = nil,
+                     prefillOnly: Bool = false) async throws -> String? {
         switch style {
-        case .base: return try await completeBase(request)
-        case .instruct: return try await completeInstruct(request)
+        case .base: return try await completeBase(request, onPartial: onPartial, prefillOnly: prefillOnly)
+        case .instruct: return try await completeInstruct(request, onPartial: onPartial, prefillOnly: prefillOnly)
         }
     }
 
@@ -554,11 +547,7 @@ final class MLXEngine: CompletionEngine {
                         lastYielded.set($0)
                         continuation.yield($0)
                     }
-                    let final: String?
-                    switch style {
-                    case .base: final = try await completeBase(request, onPartial: onPartial)
-                    case .instruct: final = try await completeInstruct(request, onPartial: onPartial)
-                    }
+                    let final = try await run(request, onPartial: onPartial)
                     // The confidence trim shortens the final text AFTER the last
                     // partial went out — yield the reconciled result so the UI
                     // replaces the streamed tail with the trimmed suggestion.
@@ -878,7 +867,7 @@ final class MLXEngine: CompletionEngine {
     /// favored-word bias, which measured null (p=1.0): context-free frequent
     /// words are already probable, so biasing them moves nothing. nil when
     /// personalization is off or the context is unseen.
-    private func ngramBias(for prepared: PreparedPrompt) -> PersonalizationBias? {
+    private func ngramBias(for prepared: PreparedPrompt) -> [String: Float]? {
         let level = personalizationBox.get()
         guard level.bias > 0 else { return nil }
         // An unfinished word at the caret: a next-word boost could truncate it.
@@ -889,9 +878,9 @@ final class MLXEngine: CompletionEngine {
         // encodes in makeBiasProcessor (a frequent context word can carry
         // hundreds of continuations); raise if a measured win ever wants more.
         let top = counts.sorted { $0.value > $1.value }.prefix(32)
-        return PersonalizationBias(weights: Dictionary(uniqueKeysWithValues: top.map {
+        return Dictionary(uniqueKeysWithValues: top.map {
             ($0.key, level.bias * Float(PersonalNgram.fusionBoost(count: $0.value)))
-        }))
+        })
     }
 
     /// True when the recent text is majority-Cyrillic — used to widen the token
@@ -1018,13 +1007,13 @@ final class MLXEngine: CompletionEngine {
     func shutdown() {
         idleTimer?.cancel(); idleTimer = nil
         memoryPressureSource?.cancel(); memoryPressureSource = nil
-        modelLock.lock()
-        // A late `warmPrompt` or prewarm on this retired engine must not
-        // rebuild a whole model next to the replacement's.
-        didInitLoad = false
-        loadTask?.cancel(); loadTask = nil
-        correctionLoadTask?.cancel(); correctionLoadTask = nil
-        modelLock.unlock()
+        modelLock.withLock {
+            // A late `warmPrompt` or prewarm on this retired engine must not
+            // rebuild a whole model next to the replacement's.
+            didInitLoad = false
+            loadTask?.cancel(); loadTask = nil
+            correctionLoadTask?.cancel(); correctionLoadTask = nil
+        }
     }
 
     /// Whether a fix would cost at most a LOAD, never a download.
@@ -1068,49 +1057,44 @@ final class MLXEngine: CompletionEngine {
     }
 
     private func correctionLoadTaskOrCreate() -> Task<ModelContainer, Error> {
-        modelLock.lock(); defer { modelLock.unlock() }
-        if let correctionLoadTask { return correctionLoadTask }
-        let id = correctionModelID
-        let status = self.correctionStatus
-        let correctionFetched = self.correctionFetched
-        let tokenizers = self.tokenizers
-        let drafterBox = self.correctionDrafter
-        // Set under the lock, before the task runs, so `unload` can't cancel
-        // a load that hasn't reported itself yet.
-        status.set("loading fix model…")
-        let task = Task<ModelContainer, Error> { [weak self] in
-            let repo = ModelCatalog.repo(for: id)
-            do {
-                let container = try await Self.loadTarget(
-                    Self.configuration(for: repo),
-                    drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
-                    progressHandler: { progress in
-                        status.set(Self.downloadStatus(progress, label: "fix model"))
-                    }
-                )
-                ModelStorage.noteLoad(repo: repo, succeeded: true)
-                status.set(nil)
-                // Whatever the disk probe thought, the weights are provably
-                // here now — and after an idle unload nils the task, this is
-                // what keeps the next fix from being skipped as "not fetched".
-                correctionFetched.set(true)
-                return container
-            } catch {
-                if !(error is CancellationError) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
-                // Before the slot frees: a retry's fresh status must not be cleared.
-                status.set(nil)
-                self?.clearCorrectionLoadTaskOnFailure()
-                throw error
+        modelLock.withLock {
+            if let correctionLoadTask { return correctionLoadTask }
+            let id = correctionModelID
+            let status = self.correctionStatus
+            let correctionFetched = self.correctionFetched
+            let tokenizers = self.tokenizers
+            let drafterBox = self.correctionDrafter
+            // Set under the lock, before the task runs, so `unload` can't cancel
+            // a load that hasn't reported itself yet.
+            status.set("loading fix model…")
+            let task = Task<ModelContainer, Error> { [weak self] in
+                let repo = ModelCatalog.repo(for: id)
+                do {
+                    let container = try await Self.loadTarget(
+                        Self.configuration(for: repo),
+                        drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
+                        progressHandler: { progress in
+                            status.set(Self.downloadStatus(progress, label: "fix model"))
+                        }
+                    )
+                    ModelStorage.noteLoad(repo: repo, succeeded: true)
+                    status.set(nil)
+                    // Whatever the disk probe thought, the weights are provably
+                    // here now — and after an idle unload nils the task, this is
+                    // what keeps the next fix from being skipped as "not fetched".
+                    correctionFetched.set(true)
+                    return container
+                } catch {
+                    if !(error is CancellationError) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
+                    // Before the slot frees: a retry's fresh status must not be cleared.
+                    status.set(nil)
+                    if let self { self.modelLock.withLock { self.correctionLoadTask = nil } }
+                    throw error
+                }
             }
+            correctionLoadTask = task
+            return task
         }
-        correctionLoadTask = task
-        return task
-    }
-
-    private func clearCorrectionLoadTaskOnFailure() {
-        modelLock.lock()
-        defer { modelLock.unlock() }
-        correctionLoadTask = nil
     }
 }
 

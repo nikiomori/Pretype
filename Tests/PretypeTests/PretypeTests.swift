@@ -1149,17 +1149,14 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(base.accuracyPct, 28)
         XCTAssertEqual(base.p50Ms, 49)
         XCTAssertEqual(base.ramGB, 2.2)
-        XCTAssertFalse(base.broken)
 
         // Instruct on a base-only model is truthfully broken, not hidden.
         let broken = cfg(mini, .instruct)
-        XCTAssertTrue(broken.broken)
         XCTAssertEqual(broken.accuracyPct, 0)
 
         // Instruct on E4B: measured sibling figures, second-model memory.
         let instruct = cfg(e4b6, .instruct)
         XCTAssertEqual(instruct.accuracyPct, 22)
-        XCTAssertEqual(instruct.authoredPct, 85)
         XCTAssertEqual(instruct.p50Ms, 129)
 
         // Instruct on a tier with an unmeasured sibling: base figure stands in,

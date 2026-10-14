@@ -121,8 +121,8 @@ enum ModelPriority: String, CaseIterable {
         }
     }
 
-    /// The downloadable measured catalog (system model and local fine-tunes
-    /// have no place in a footprint/speed contest).
+    /// The downloadable measured catalog (the system model has no place in a
+    /// footprint/speed contest).
     private static var measured: [ModelMetrics] {
         ModelMetrics.all.filter { $0.ramGB > 0 }
     }
@@ -174,10 +174,6 @@ struct ConfigProjection {
     let accuracyText: String       // "33%", "62–67%", "~0%", "—"
     let accuracySub: String
     let coveragePct: Int?
-    /// Instruct on a model that answers instead of continuing (~0% measured).
-    let broken: Bool
-    /// Instruct's authored-text figure (85%) alongside the real-text one.
-    let authoredPct: Int?
 
     // Latency, warm median per suggestion.
     let p50Ms: Int?
@@ -220,7 +216,7 @@ struct ConfigProjection {
             return ConfigProjection(
                 accuracyPct: nil, accuracyText: "—",
                 accuracySub: "No eval figures — run it through the harness to compare.",
-                coveragePct: nil, broken: false, authoredPct: nil,
+                coveragePct: nil,
                 p50Ms: nil, latencyIsApprox: false, latencySub: "not measured",
                 ramGB: nil, memorySub: "not measured",
                 computeRel: nil, computeSub: "not measured")
@@ -233,7 +229,7 @@ struct ConfigProjection {
             return ConfigProjection(
                 accuracyPct: m.firstWordPct, accuracyText: "\(m.firstWordPct)%",
                 accuracySub: "offers \(m.coveragePct)% of the time · \(ModelMetrics.evalSource)",
-                coveragePct: m.coveragePct, broken: false, authoredPct: nil,
+                coveragePct: m.coveragePct,
                 p50Ms: m.p50Ms, latencyIsApprox: true,
                 latencySub: "median on the Neural Engine — an upper bound",
                 ramGB: 0, memorySub: "system model — no app memory",
@@ -247,11 +243,9 @@ struct ConfigProjection {
                 return ConfigProjection(
                     accuracyPct: 0, accuracyText: "~0%",
                     accuracySub: "broken combination — this model answers the text instead of continuing it",
-                    coveragePct: 99, broken: true, authoredPct: nil,
+                    coveragePct: 99,
                     p50Ms: m.p50Ms, latencyIsApprox: true, latencySub: "base-model figure — instruct unmeasured here",
-                    ramGB: gb, memorySub: "instruct sibling weights (hub size)",
-                    computeRel: gb * tokenFactor(c.length) / computeReferenceGB,
-                    computeSub: "chip load per keystroke vs default (est.)")
+                    gb: gb, memorySub: "instruct sibling weights (hub size)", length: c.length)
             }
             // Only the it-6bit instruct sibling went through the harness — the
             // measured 129 ms applies exactly to models that RUN that sibling
@@ -262,13 +256,11 @@ struct ConfigProjection {
             return ConfigProjection(
                 accuracyPct: 22, accuracyText: "22%",
                 accuracySub: "real text · 85% on text you author (eval-v2, with persona)",
-                coveragePct: 99, broken: false, authoredPct: 85,
+                coveragePct: 99,
                 p50Ms: measuredMs ?? m.p50Ms, latencyIsApprox: measuredMs == nil,
                 latencySub: measuredMs != nil ? "instruct sibling, measured (it-6bit)"
                                               : "base-model figure — the instruct sibling on this tier is unmeasured",
-                ramGB: gb, memorySub: "instruct sibling weights (hub size)",
-                computeRel: gb * tokenFactor(c.length) / computeReferenceGB,
-                computeSub: "chip load per keystroke vs default (est.)")
+                gb: gb, memorySub: "instruct sibling weights (hub size)", length: c.length)
         }
 
         // Base style — the only path the gate applies to.
@@ -293,23 +285,19 @@ struct ConfigProjection {
                 accuracySub: calibrated
                     ? "offers ~30% of the time — split-half calibration (eval-real, n=870, 2026-07-15)"
                     : "offers ~\(cov)% of the time — scaled from the default-model calibration (62–67% measured there), not measured on this model",
-                coveragePct: cov, broken: false, authoredPct: nil,
+                coveragePct: cov,
                 p50Ms: ms, latencyIsApprox: lf > 1, latencySub: "no added latency over plain Base",
-                ramGB: m.ramGB, memorySub: "resident model weights",
-                computeRel: m.ramGB * tokenFactor(c.length) / computeReferenceGB,
-                computeSub: "chip load per keystroke vs default (est.)")
+                gb: m.ramGB, length: c.length)
         }
         let ms = Int((Double(m.p50Ms) * lf).rounded())
         return ConfigProjection(
             accuracyPct: m.firstWordPct,
             accuracyText: "\(m.firstWordPct)%",
             accuracySub: "offers \(m.coveragePct)% of the time · \(ModelMetrics.evalSource)",
-            coveragePct: m.coveragePct, broken: false, authoredPct: nil,
+            coveragePct: m.coveragePct,
             p50Ms: ms, latencyIsApprox: lf > 1,
             latencySub: lf > 1 ? "scaled by the measured length factor" : "median per suggestion, measured",
-            ramGB: m.ramGB, memorySub: "resident model weights",
-            computeRel: m.ramGB * tokenFactor(c.length) / computeReferenceGB,
-            computeSub: "chip load per keystroke vs default (est.)")
+            gb: m.ramGB, length: c.length)
     }
 
     // MARK: Meter fractions (0…1, longer bar = better)
@@ -410,5 +398,20 @@ struct ConfigProjection {
     private static func ratioText(_ ratio: Double) -> String {
         ratio >= 10 ? "\(Int(ratio.rounded()))×"
                     : String(format: "%g×", (ratio * 10).rounded() / 10)
+    }
+}
+
+extension ConfigProjection {
+    /// A config that runs `gb` of MLX weights: the memory figure and the
+    /// compute estimate (that much weight read per decoded token, over the
+    /// length's token budget) both follow from them.
+    init(accuracyPct: Int, accuracyText: String, accuracySub: String, coveragePct: Int,
+         p50Ms: Int, latencyIsApprox: Bool, latencySub: String,
+         gb: Double, memorySub: String = "resident model weights", length: CompletionLength) {
+        self.init(accuracyPct: accuracyPct, accuracyText: accuracyText, accuracySub: accuracySub,
+                  coveragePct: coveragePct, p50Ms: p50Ms, latencyIsApprox: latencyIsApprox,
+                  latencySub: latencySub, ramGB: gb, memorySub: memorySub,
+                  computeRel: gb * Self.tokenFactor(length) / Self.computeReferenceGB,
+                  computeSub: "chip load per keystroke vs default (est.)")
     }
 }

@@ -1,8 +1,6 @@
 import Foundation
 import MLX
-import MLXLLM
 import MLXLMCommon
-import Tokenizers
 
 // MARK: - Generation core (KV-cache reuse, logit processors, token iteration)
 
@@ -304,25 +302,19 @@ extension MLXEngine {
 
     // MARK: Personalization (n-gram first-token boost)
 
-    /// Personal next-word candidates → additive logit boost, for one generation
-    /// (built from the n-gram evidence after the current context in `ngramBias`).
-    struct PersonalizationBias {
-        let weights: [String: Float]
-    }
-
     /// Builds a logit processor that keeps the parameters' penalties (repetition
     /// etc.) and boosts each candidate word's *start* token on the FIRST decode
     /// step only — the step that picks the next word; later steps just spell it.
     /// Returns nil if nothing resolves to a token.
     private static func makeBiasProcessor(
-        _ bias: PersonalizationBias, context: ModelContext, inner: LogitProcessor?
+        _ bias: [String: Float], context: ModelContext, inner: LogitProcessor?
     ) -> LogitProcessor? {
         // encode() prepends BOS (e.g. " appreciate" → [2, 14756]); bias the first
         // real content token (the "▁word" start), never BOS. Related surface
         // forms sharing a start token keep the max boost, not the sum.
         let bosID = context.tokenizer.convertTokenToId("<bos>")
         var boosts: [Int: Float] = [:]
-        for (word, weight) in bias.weights {
+        for (word, weight) in bias {
             let tokens = context.tokenizer.encode(text: " " + word)
             if let id = tokens.first(where: { $0 != bosID }) {
                 boosts[id] = max(boosts[id] ?? 0, weight)
@@ -576,7 +568,9 @@ extension MLXEngine {
         makeTokens: @Sendable @escaping (ModelContext) throws -> [Int],
         parameters: GenerateParameters,
         promptCache: PromptCache?,
-        bias: PersonalizationBias? = nil,
+        /// Personal next-word candidates → additive logit boost on the first
+        /// decode step (see `MLXEngine.ngramBias`).
+        bias: [String: Float]? = nil,
         logProbSink: LockedValue<Double?>? = nil,
         trimLogProb: Float? = nil,
         /// Entropy trim (nats): see `confidenceTrimmed`. nil = off.

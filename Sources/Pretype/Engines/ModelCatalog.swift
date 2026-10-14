@@ -3,7 +3,8 @@ import Foundation
 struct ModelOption {
     let id: String
     let title: String
-    let approxSizeMB: Int
+    /// Download size, MB: the booked `ModelMetrics.ramGB` (0 without a row).
+    var approxSizeMB: Int { Int(((ModelMetrics.metrics(for: id)?.ramGB ?? 0) * 1000).rounded()) }
     /// Instruct sibling used for fix-selection: corrections need instruction
     /// following (the base model paraphrases), while completion needs a base
     /// model (the instruct one echoes the prompt). Loaded lazily on first use.
@@ -29,21 +30,18 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e4b-8bit",
             title: "Gemma 4 E4B 8-bit — best quality",
-            approxSizeMB: 5980,  // slim download (see slimRepos); the original was 8.6 GB
             correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e4b-6bit",
             title: "Gemma 4 E4B 6-bit — lighter, near-best",
-            approxSizeMB: 5030,
             correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e2b-8bit",
             title: "Gemma 4 E2B 8-bit — small but precise",
-            approxSizeMB: 3410,
             // E4B-it, not E2B-it: its chords fix 65% of noisy lines against 50%,
             // and the installs that ran it as their Instruct primary before
             // 2026-10-14 already hold it.
@@ -56,7 +54,6 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e2b-4bit",
             title: "Gemma 4 E2B — for 8–16 GB Macs",
-            approxSizeMB: 2510,
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
@@ -78,7 +75,6 @@ enum ModelCatalog {
         ModelOption(
             id: "openbmb/MiniCPM5-1B-Base",
             title: "MiniCPM5 1B — fastest, English & Russian",
-            approxSizeMB: 2200,
             correctionModelID: "openbmb/MiniCPM5-1B",  // fixes are instruction-following — the RL model handles them
             instructModelID: "openbmb/MiniCPM5-1B"     // manual instruct flip only; completion there is broken (see above)
         ),
@@ -93,7 +89,6 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/Qwen2.5-0.5B-bf16",
             title: "Qwen2.5 0.5B — smallest footprint",
-            approxSizeMB: 990,
             correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
             instructModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
         ),
@@ -115,14 +110,12 @@ enum ModelCatalog {
         ModelOption(
             id: "nikimori/Qwen3.5-2B-Base-6bit",
             title: "Qwen3.5 2B — best small multilingual",
-            approxSizeMB: 1530,
             correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
             instructModelID: "mlx-community/Qwen3.5-2B-4bit"
         ),
         ModelOption(
             id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             title: "Ternary Bonsai 4B — 1 GB base",  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
-            approxSizeMB: 1100,
             correctionModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             instructModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit"
         ),
@@ -298,7 +291,6 @@ enum ModelCatalog {
             return ModelOption(
                 id: appleIntelligenceID,
                 title: "Apple Intelligence — system model",
-                approxSizeMB: 0,
                 correctionModelID: appleIntelligenceID,
                 instructModelID: appleIntelligenceID
             )

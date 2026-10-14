@@ -150,49 +150,24 @@ enum CompletionGates {
     }
 
     /// Four or more identical consecutive letters is never legitimate prose.
+    /// `Alphabetic`, not `L`: the property `Character.isLetter` reads.
     private static func hasDegenerateRun(_ text: String) -> Bool {
-        var run = 1
-        var previous: Character?
-        for ch in text {
-            if ch == previous, ch.isLetter {
-                run += 1
-                if run >= 4 { return true }
-            } else {
-                run = 1
-            }
-            previous = ch
-        }
-        return false
+        text.contains(#/(\p{Alphabetic})\1{3}/#)
     }
 
+    /// Han (every block, e.g. 𨐈), kana and Hangul.
     private static func containsCJK(_ text: String) -> Bool {
-        text.unicodeScalars.contains { scalar in
-            let v = scalar.value
-            return (0x3040...0x30FF).contains(v)    // hiragana, katakana
-                || (0x3400...0x4DBF).contains(v)    // CJK ext. A
-                || (0x4E00...0x9FFF).contains(v)    // CJK ideographs
-                || (0xAC00...0xD7AF).contains(v)    // hangul
-                || (0x20000...0x2FA1F).contains(v)  // CJK ext. B–F (e.g. 𨐈)
+        text.unicodeScalars.contains {
+            $0.properties.isIdeographic || (0x3040...0x30FF).contains($0.value) || (0xAC00...0xD7AF).contains($0.value)
         }
     }
 
     /// Cuts a suggestion after the first sentence boundary — long completions
-    /// drift, and short precise ones win trust.
-    private static func trimAtSentenceEnd(_ text: String, minChars: Int = 2) -> String {
-        let enders: Set<Character> = [".", "!", "?", "…"]
-        var count = 0
-        var index = text.startIndex
-        while index < text.endIndex {
-            count += 1
-            if count >= minChars, enders.contains(text[index]) {
-                let next = text.index(after: index)
-                if next == text.endIndex || text[next] == " " {
-                    return String(text[..<next])
-                }
-            }
-            index = text.index(after: index)
-        }
-        return text
+    /// drift, and short precise ones win trust. The leading `.` keeps an ender
+    /// in first position (". Then…") from cutting there.
+    private static func trimAtSentenceEnd(_ text: String) -> String {
+        guard let end = text.firstRange(of: #/.[.!?…](?= |$)/#) else { return text }
+        return String(text[..<end.upperBound])
     }
 }
 
