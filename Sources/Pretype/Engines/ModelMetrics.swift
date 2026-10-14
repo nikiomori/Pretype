@@ -2,7 +2,7 @@ import Foundation
 
 /// Measured per-model figures behind the settings UI (the quality/speed/size
 /// chart and the model detail card). No spec-sheet estimates: accuracy and
-/// latency come from eval runs (one derived p50 says so where it's booked),
+/// latency come from eval runs (a derived p50 says so where it's booked),
 /// `ramGB` is the weights a model loads — the size of what it downloads.
 ///
 /// Protocol: `Eval/eval-real.jsonl` (5649 rows / 17 languages), base · greedy ·
@@ -61,9 +61,14 @@ struct ModelMetrics {
                      firstWordPct: 29, ci: 27...32, coveragePct: 85,
                      logProbPerChar: -0.925, p50Ms: 127, ramGB: 2.51,
                      note: "Mildest 4-bit cost in the field: ties E2B 8-bit on English (27 vs 26) and on Russian (22 vs 23) alike, measurably behind it on 17 languages (p<0.001) yet still ahead of every smaller model — at 0.9 GB less, though slower."),
-        ModelMetrics(id: "openbmb/MiniCPM5-1B-Base", shortName: "MiniCPM5 1B",
+        // The 8-bit build (2026-10-15) ties the bf16 one this row was booked
+        // on — both book 29 [26–32] off the same binary, so the 07-16 figures
+        // and per-language cells stand; logP/char is the 8-bit build's own
+        // (bf16 −1.041). p50 scaled from bf16's 49 ms by the interleaved
+        // same-binary ratio 28/40 ms (Eval/runs-2026-10-14-small).
+        ModelMetrics(id: "nikimori/MiniCPM5-1B-Base-8bit", shortName: "MiniCPM5 1B",
                      firstWordPct: 28, ci: 26...31, coveragePct: 81,
-                     logProbPerChar: -1.041, p50Ms: 49, ramGB: 2.2,
+                     logProbPerChar: -1.042, p50Ms: 34, ramGB: 1.1,
                      note: "Fastest in the catalog and an English specialist — on English it ties E2B 8-bit outright (27% vs 26%, p=0.35). Russian is a different story: 17% against E2B 8-bit's 23% (p<0.001), still the best of the small models there but not parity. Wider multilingual coverage collapses (uk/ro/tr/cs 53–69% vs the Gemmas' ≥78%), and Hebrew is its floor at 1% — effectively blind."),
         ModelMetrics(id: "mlx-community/Qwen2.5-0.5B-bf16", shortName: "Qwen2.5 0.5B",
                      firstWordPct: 26, ci: 23...28, coveragePct: 84,
@@ -117,7 +122,7 @@ struct ModelMetrics {
             ["ar": 11, "cs": 21, "de": 25, "en": 26, "es": 29, "fr": 25, "he": 18, "it": 26, "ja": 5, "ko": 11, "nl": 24, "pl": 28, "pt": 21, "ro": 31, "ru": 23, "sv": 22, "tr": 17, "uk": 19, "zh": 14],
         "mlx-community/gemma-4-e2b-4bit":
             ["ar": 8, "cs": 17, "de": 21, "en": 27, "es": 28, "fr": 26, "he": 16, "it": 24, "ja": 3, "ko": 9, "nl": 22, "pl": 24, "pt": 23, "ro": 27, "ru": 22, "sv": 20, "tr": 13, "uk": 18, "zh": 11],
-        "openbmb/MiniCPM5-1B-Base":
+        "nikimori/MiniCPM5-1B-Base-8bit":
             ["ar": 5, "cs": 6, "de": 16, "en": 27, "es": 25, "fr": 20, "he": 1, "it": 17, "ja": 6, "ko": 7, "nl": 13, "pl": 10, "pt": 16, "ro": 6, "ru": 17, "sv": 9, "tr": 5, "uk": 5, "zh": 9],
         "mlx-community/Qwen2.5-0.5B-bf16":
             ["ar": 6, "cs": 6, "de": 15, "en": 26, "es": 21, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 5, "nl": 14, "pl": 13, "pt": 16, "ro": 9, "ru": 16, "sv": 6, "tr": 6, "uk": 6, "zh": 10],
@@ -144,7 +149,7 @@ struct ModelMetrics {
             ["ar": 71, "cs": 87, "de": 93, "en": 85, "es": 89, "fr": 86, "he": 81, "it": 85, "ja": 71, "ko": 60, "nl": 88, "pl": 82, "pt": 90, "ro": 82, "ru": 84, "sv": 90, "tr": 84, "uk": 78, "zh": 55],
         "mlx-community/gemma-4-e2b-4bit":
             ["ar": 72, "cs": 81, "de": 92, "en": 86, "es": 89, "fr": 88, "he": 82, "it": 86, "ja": 68, "ko": 60, "nl": 89, "pl": 80, "pt": 93, "ro": 81, "ru": 84, "sv": 90, "tr": 82, "uk": 73, "zh": 55],
-        "openbmb/MiniCPM5-1B-Base":
+        "nikimori/MiniCPM5-1B-Base-8bit":
             ["ar": 59, "cs": 60, "de": 89, "en": 86, "es": 88, "fr": 83, "he": 58, "it": 83, "ja": 70, "ko": 55, "nl": 74, "pl": 69, "pt": 88, "ro": 57, "ru": 76, "sv": 78, "tr": 57, "uk": 53, "zh": 51],
         "mlx-community/Qwen2.5-0.5B-bf16":
             ["ar": 68, "cs": 65, "de": 88, "en": 88, "es": 90, "fr": 83, "he": 71, "it": 80, "ja": 72, "ko": 50, "nl": 79, "pl": 73, "pt": 90, "ro": 67, "ru": 80, "sv": 66, "tr": 64, "uk": 67, "zh": 55],

@@ -267,13 +267,14 @@ struct ConfigProjection {
         if c.logprobGate {
             let ms = Int((Double(m.p50Ms) * lf).rounded())
             // The calibration (62–67% shown at ~30% offered) was measured on
-            // MiniCPM5 only (split-half, eval-real n=870, 2026-07-15) — pinned
-            // to that id, NOT to `ModelCatalog.defaultID`. Other models get
+            // MiniCPM5 only (split-half, eval-real n=870, 2026-07-15; its bf16
+            // build, which the 8-bit one ties) — pinned to that id, NOT to
+            // `ModelCatalog.defaultID`. Other models get
             // the same measured TRADE scaled from their own base figures — the
             // ratios read the calibration model's eval row, so a re-run can't
             // leave a stale divisor here — capped and labeled as scaled, never
             // as measured.
-            let calibrationID = "openbmb/MiniCPM5-1B-Base"
+            let calibrationID = "nikimori/MiniCPM5-1B-Base-8bit"
             let calibrated = c.modelID == calibrationID
             let ref = ModelMetrics.metrics(for: calibrationID)
             let accLift = 64.0 / Double(ref?.firstWordPct ?? 30)

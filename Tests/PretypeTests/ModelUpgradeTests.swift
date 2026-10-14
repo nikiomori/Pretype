@@ -26,6 +26,22 @@ final class ModelUpgradeTests: XCTestCase {
         XCTAssertNil(ModelCatalog.options.first { $0.id == old || $0.id == base4 })
     }
 
+    // MiniCPM5 moved to our 8-bit build (10-15): the hub bf16 keeps serving
+    // until it's fetched, then goes — the chords ride Qwen3.5's sibling, so
+    // the bf16 is no sibling to keep.
+    func testMiniCPMServesBF16UntilEightBitIsFetched() {
+        let id = "nikimori/MiniCPM5-1B-Base-8bit"
+        let bf16 = "openbmb/MiniCPM5-1B-Base"
+        XCTAssertEqual(ModelCatalog.previousBuilds[id], [bf16])
+        for (have, expected) in [([String](), id), ([bf16], bf16), ([bf16, id], id)] {
+            XCTAssertEqual(ModelCatalog.repo(for: id, isFetched: have.contains), expected, "\(have)")
+        }
+        let option = ModelCatalog.option(for: id)
+        XCTAssertFalse([option?.correctionModelID, option?.instructModelID].contains(bf16))
+        XCTAssertTrue(ModelStorage.repos(for: id).contains(bf16))
+        XCTAssertNotNil(ModelCatalog.pinnedRevisions[id])
+    }
+
     // A replacement that fails to load counts as absent for the rest of the
     // launch, so the engine's retry resolves the original still on disk.
     func testFailedReplacementFallsBackToTheOriginal() {

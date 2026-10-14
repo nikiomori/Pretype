@@ -1092,7 +1092,7 @@ final class PretypeTests: XCTestCase {
     // do — pin the cascade rules and the eval-backed figures it projects.
     func testConfigProjectionCascades() {
         let e4b6 = "mlx-community/gemma-4-e4b-6bit"
-        let mini = "openbmb/MiniCPM5-1B-Base"
+        let mini = "nikimori/MiniCPM5-1B-Base-8bit"
         var c = ProjectionConfig(modelID: e4b6, style: .base, length: .short,
                                  logprobGate: true, useRecommended: false)
 
@@ -1136,7 +1136,7 @@ final class PretypeTests: XCTestCase {
 
     func testConfigProjectionFigures() {
         let e4b6 = "mlx-community/gemma-4-e4b-6bit"
-        let mini = "openbmb/MiniCPM5-1B-Base"
+        let mini = "nikimori/MiniCPM5-1B-Base-8bit"
         func cfg(_ id: String, _ style: CompletionStyle, _ length: CompletionLength = .short,
                  logprob: Bool = false) -> ConfigProjection {
             ConfigProjection.project(ProjectionConfig(
@@ -1147,8 +1147,8 @@ final class PretypeTests: XCTestCase {
         // Plain base = the model's own eval row.
         let base = cfg(mini, .base)
         XCTAssertEqual(base.accuracyPct, 28)
-        XCTAssertEqual(base.p50Ms, 49)
-        XCTAssertEqual(base.ramGB, 2.2)
+        XCTAssertEqual(base.p50Ms, 34)
+        XCTAssertEqual(base.ramGB, 1.1)
 
         // Instruct on a base-only model is truthfully broken, not hidden.
         let broken = cfg(mini, .instruct)
@@ -1168,7 +1168,7 @@ final class PretypeTests: XCTestCase {
         // Logprob gate on the calibration (default) model: the measured band.
         let gated = cfg(mini, .base, logprob: true)
         XCTAssertEqual(gated.accuracyText, "62–67%")
-        XCTAssertEqual(gated.p50Ms, 49)
+        XCTAssertEqual(gated.p50Ms, 34)
 
         // On any other model the gate figure is SCALED from that model's own
         // base accuracy (and says so) — different models project differently.
@@ -1180,7 +1180,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertNotEqual(gatedE4B.accuracyPct, gatedQwen05.accuracyPct)
 
         // Length scales latency by the measured sweep factor.
-        XCTAssertEqual(cfg(mini, .base, .long).p50Ms, Int((49 * 3.5).rounded()))
+        XCTAssertEqual(cfg(mini, .base, .long).p50Ms, Int((34 * 3.5).rounded()))
 
         // System model: no app memory, compute is the Neural Engine.
         let ai = cfg(ModelCatalog.appleIntelligenceID, .instruct)
@@ -1278,7 +1278,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelMetrics.axisBest("uk"), 24)  // Gemma E4B 8-bit
         // RTL: the small models tie each other, so the axis best is a Gemma.
         XCTAssertEqual(ModelMetrics.axisBest("he"), 18)  // Gemma E2B 8-bit
-        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "openbmb/MiniCPM5-1B-Base", axis: "he"), 1)
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "nikimori/MiniCPM5-1B-Base-8bit", axis: "he"), 1)
         XCTAssertEqual(ModelMetrics.evalLanguages.count, 19)
 
         // A preset lands on the measured protocol its card advertises
@@ -1340,7 +1340,7 @@ final class PretypeTests: XCTestCase {
         TypedLanguage.reset()
         for _ in 0..<TypedLanguage.minObservations { TypedLanguage.observe("zh-Hans") }
         XCTAssertEqual(TypedLanguage.dominant, "zh", "script subtags must not hide a measured language")
-        XCTAssertNotNil(ModelMetrics.materiallyBetter(than: "openbmb/MiniCPM5-1B-Base", on: "zh"),
+        XCTAssertNotNil(ModelMetrics.materiallyBetter(than: "nikimori/MiniCPM5-1B-Base-8bit", on: "zh"),
                         "the zh nudge the normalization exists for must actually fire")
         TypedLanguage.reset()
     }
@@ -1348,7 +1348,7 @@ final class PretypeTests: XCTestCase {
     /// The nudge's whole risk is crying wolf, so the thresholds are asserted
     /// against the booked table rather than described in a comment.
     func testMateriallyBetterModelForLanguage() {
-        let minicpm = "openbmb/MiniCPM5-1B-Base"
+        let minicpm = "nikimori/MiniCPM5-1B-Base-8bit"
         // Fires where the model is the wrong tool: Hebrew 1% and Turkish 5%.
         let he = ModelMetrics.materiallyBetter(than: minicpm, on: "he")
         XCTAssertEqual(he?.id, "mlx-community/gemma-4-e2b-8bit")
@@ -1439,7 +1439,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelMetrics.taskUserIDs(of: "mlx-community/gemma-4-e4b-it-4bit"),
                        ["mlx-community/gemma-4-e2b-8bit"])
         XCTAssertEqual(ModelMetrics.taskUserIDs(of: "openbmb/MiniCPM5-1B"),
-                       ["openbmb/MiniCPM5-1B-Base"])
+                       ["nikimori/MiniCPM5-1B-Base-8bit"])
         // Instruct style on E2B 8-bit runs the E4B-it 4-bit primary — the
         // measured 65% fixer — not E2B's own correction sibling.
         let e2b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e2b-8bit", style: .instruct)
@@ -1455,7 +1455,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(e4bBase?.measuredID, "mlx-community/gemma-4-e4b-it-4bit")
         // MiniCPM5: a near-inert fixer, and — once echoes stopped counting as
         // replies — a weak replier too.
-        let minicpm = ModelMetrics.taskMetrics(for: "openbmb/MiniCPM5-1B-Base", style: .base)
+        let minicpm = ModelMetrics.taskMetrics(for: "nikimori/MiniCPM5-1B-Base-8bit", style: .base)
         XCTAssertEqual(minicpm?.m.fixPct, 4)
         XCTAssertEqual(minicpm?.m.replyPct, 35)
         // Bonsai corrects with itself, through its own chat template.
@@ -1480,15 +1480,17 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelCatalog.recommended(for: e2b).style, .base)
     }
 
-    /// Both earlier Qwen3.5 picks land on the 6-bit Base entry, not on a
-    /// cleared (unknown) id.
-    func testOldQwenPicksMigrateToSixBit() {
+    /// A pick of an earlier build lands on its entry's current build, not on
+    /// a cleared (unknown) id.
+    func testOldBuildPicksMigrate() {
         let saved = Settings.mlxModelID
         defer { Settings.mlxModelID = saved }
-        for old in ["mlx-community/Qwen3.5-2B-4bit", "nikimori/Qwen3.5-2B-Base-4bit"] {
+        for (old, new) in [("mlx-community/Qwen3.5-2B-4bit", "nikimori/Qwen3.5-2B-Base-6bit"),
+                           ("nikimori/Qwen3.5-2B-Base-4bit", "nikimori/Qwen3.5-2B-Base-6bit"),
+                           ("openbmb/MiniCPM5-1B-Base", "nikimori/MiniCPM5-1B-Base-8bit")] {
             Settings.mlxModelID = old
             Settings.migrate()
-            XCTAssertEqual(Settings.mlxModelID, "nikimori/Qwen3.5-2B-Base-6bit", old)
+            XCTAssertEqual(Settings.mlxModelID, new, old)
         }
     }
 
@@ -1531,7 +1533,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: 0), 0)
         // The Hebrew cliff must stay a real gap and not a noise artifact:
         // 1% and 18% at n=280 don't come close to touching.
-        let minicpm = ModelMetrics.axisAccuracy(for: "openbmb/MiniCPM5-1B-Base", axis: "he")!
+        let minicpm = ModelMetrics.axisAccuracy(for: "nikimori/MiniCPM5-1B-Base-8bit", axis: "he")!
         let gemma = ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e2b-8bit", axis: "he")!
         let n = ModelMetrics.axisSampleSize("he")
         XCTAssertGreaterThan(gemma - ModelMetrics.marginOfError(pct: gemma, n: n),
@@ -1592,7 +1594,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(tau("mlx-community/gemma-4-e4b-6bit"), -0.79)
         XCTAssertEqual(tau("mlx-community/gemma-4-e2b-8bit"), -0.88)
         XCTAssertEqual(tau("mlx-community/gemma-4-e2b-4bit"), -0.94)
-        XCTAssertEqual(tau("openbmb/MiniCPM5-1B-Base"), -1.00)
+        XCTAssertEqual(tau("nikimori/MiniCPM5-1B-Base-8bit"), -1.00)
         XCTAssertEqual(tau("nikimori/Qwen3.5-2B-Base-6bit"), -1.00)
         XCTAssertEqual(tau("mlx-community/Qwen2.5-0.5B-bf16"), -1.12)
         XCTAssertNil(tau(ModelCatalog.appleIntelligenceID))   // no logprob to gate on
@@ -1845,7 +1847,7 @@ final class PretypeTests: XCTestCase {
         // Every slim re-pack replaces something the catalog actually downloads.
         let downloaded = Set(ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] })
         XCTAssertTrue(Set(ModelCatalog.slimRepos.keys).isSubset(of: downloaded))
-        XCTAssertEqual(ModelCatalog.repo(for: "openbmb/MiniCPM5-1B-Base"), "openbmb/MiniCPM5-1B-Base")
+        XCTAssertEqual(ModelCatalog.repo(for: "mlx-community/Qwen2.5-0.5B-bf16"), "mlx-community/Qwen2.5-0.5B-bf16")
         // The re-pack wins whenever it's here; the original only while it's all there is.
         let slim = "nikimori/gemma-4-e2b-4bit-slim"
         for (have, expected) in [([String](), slim), ([id], id), ([id, slim], slim), ([slim], slim)] {

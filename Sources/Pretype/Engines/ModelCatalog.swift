@@ -70,10 +70,13 @@ enum ModelCatalog {
         // lowest completion latency. Runs base-only — its instruct mode ANSWERS
         // the text instead of continuing it (first-word ~0%), so
         // `recommended(for:)` and the fresh-install defaults both pin base
-        // style. bf16 straight from the hub; no 8-bit Base conversion is
-        // published yet.
+        // style. Our own 8-bit conversion since 2026-10-15: it ties the hub's
+        // bf16 (15% of all rows each on the 17-language set, 14 vs 21
+        // discordant) at 1.1 GB instead of 2.0 and ~30% less time per
+        // suggestion; 6-bit trends down, 4-bit loses (p<0.001)
+        // (Eval/runs-2026-10-14-small).
         ModelOption(
-            id: "openbmb/MiniCPM5-1B-Base",
+            id: "nikimori/MiniCPM5-1B-Base-8bit",
             title: "MiniCPM5 1B — fastest, English & Russian",
             correctionModelID: "openbmb/MiniCPM5-1B",  // fixes are instruction-following — the RL model handles them
             instructModelID: "openbmb/MiniCPM5-1B"     // manual instruct flip only; completion there is broken (see above)
@@ -226,6 +229,7 @@ enum ModelCatalog {
     /// slim original.
     static let previousBuilds: [String: [String]] = [
         "nikimori/Qwen3.5-2B-Base-6bit": ["nikimori/Qwen3.5-2B-Base-4bit", "mlx-community/Qwen3.5-2B-4bit"],
+        "nikimori/MiniCPM5-1B-Base-8bit": ["openbmb/MiniCPM5-1B-Base"],
     ]
 
     /// The Hub repo `id`'s weights come from: its slim re-pack (or its new
@@ -264,6 +268,7 @@ enum ModelCatalog {
         "mlx-community/gemma-4-e4b-8bit": "ddd5748af7babe0706bd334de7e32b9a91ee394b",
         "mlx-community/gemma-4-e4b-it-4bit": "475b9088d29754a3379866cf5aeb6b41acd313c2",
         "mlx-community/gemma-4-e4b-it-6bit": "7b781e6489f260b3a24ff38aebb6313b2db516d7",
+        "nikimori/MiniCPM5-1B-Base-8bit": "5ccc5190f40e2a2d23caf12283d949d581f6fb16",
         "nikimori/Qwen3.5-2B-Base-4bit": "9254a84e0f65f6d4cd97e70cd0957bf66d59a663",
         "nikimori/Qwen3.5-2B-Base-6bit": "03abc6421ac277c0a4ea27aa2d594db5143a168b",
         "nikimori/gemma-4-e2b-4bit-slim": "305acaa7d45feb640158ea6344cee719578e989f",

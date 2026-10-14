@@ -11,18 +11,18 @@ We measure every model in the catalog on the same held-out eval. The Apple Intel
 For most people, the correct answer is the default. Pretype selects the default from the memory of your Mac. Change it only for the cases in the diagram and the table below.
 
 <div align="center">
-<img src="diagram-models-choose.svg" width="720" alt="Decision diagram. Which language do you type? English only: if speed is most important, use MiniCPM5 1B (49 ms, the fastest); if least memory is most important, use Qwen2.5 0.5B (about 1 GB); if the best fix and reply chords are most important, keep the default. Any other language, Russian included: keep the default. The default follows the memory of your Mac: 8 GB gives Qwen3.5 2B (Base), 16 to 18 GB gives Gemma 4 E2B 4-bit, 24 GB gives Gemma 4 E2B 8-bit, 32 GB and up gives Gemma 4 E4B 6-bit." />
+<img src="diagram-models-choose.svg" width="720" alt="Decision diagram. Which language do you type? English only: if speed is most important, use MiniCPM5 1B (34 ms, the fastest); if least memory is most important, use Qwen2.5 0.5B (about 1 GB); if the best fix and reply chords are most important, keep the default. Any other language, Russian included: keep the default. The default follows the memory of your Mac: 8 GB gives Qwen3.5 2B (Base), 16 to 18 GB gives Gemma 4 E2B 4-bit, 24 GB gives Gemma 4 E2B 8-bit, 32 GB and up gives Gemma 4 E4B 6-bit." />
 </div>
 
 | Situation | Model | Evidence |
 |---|---|---|
-| You type in English | Any model. For speed, MiniCPM5 1B. | No model is measurably better than another. All nine score between 24% and 28%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B is the fastest model in the catalog: 49 ms. |
+| You type in English | Any model. For speed, MiniCPM5 1B. | No model is measurably better than another. All nine score between 24% and 28%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B is the fastest model in the catalog: 34 ms. |
 | You type in English and have little free memory | Qwen2.5 0.5B | It runs in ≈1 GB. On English, its accuracy is equal to the other models. |
 | You type in another language | The default | Outside English, the tie stops. The Gemma 4 tiers lose 4–8 points. MiniCPM5, Bonsai and Qwen 0.5B lose more than half of their English score. |
 | You type in another language on an 8 GB Mac | Qwen3.5 2B (Base), the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). |
 | You type in Russian | The default. A Gemma tier from 16 GB. | See [English and Russian are different](#english-and-russian-are-different). |
 | You type in Arabic or Hebrew | The default. Do not use MiniCPM5 for Hebrew. | See [Arabic and Hebrew](#arabic-and-hebrew). |
-| You want no download and no app memory | Apple Intelligence (macOS 26+) | It is last on accuracy and on speed: 430 ms, against 49–145 ms. It has the largest drop outside English in the chart. It does not support Polish, Romanian or Czech. |
+| You want no download and no app memory | Apple Intelligence (macOS 26+) | It is last on accuracy and on speed: 430 ms, against 34–145 ms. It has the largest drop outside English in the chart. It does not support Polish, Romanian or Czech. |
 | You want the best quality and have the memory | Gemma 4 E4B 8-bit | It ties E4B 6-bit (p=0.052), and it uses ≈1 GB more. You must select it manually. |
 
 ### English and Russian are different
@@ -57,6 +57,17 @@ Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is o
 * Since 2026-10-14, the build is 6-bit. It gets 19% of all rows, against 17% for the 4-bit build (p<0.001). An 8-bit build is not better (19%, 1.9 GB).
 * Size: 1.5 GB.
 
+### MiniCPM5 1B uses an 8-bit build
+
+Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it used the bf16 weights from the hub. This build is our own MLX conversion: [nikimori/MiniCPM5-1B-Base-8bit](https://huggingface.co/nikimori/MiniCPM5-1B-Base-8bit).
+
+* Accuracy: the 8-bit and bf16 builds tie. Each gets 15% of all rows (14 against 21 discordant rows). English: 28% for both.
+* Size: 1.1 GB, against 2.0 GB.
+* Speed: about 30% faster per suggestion.
+* A 6-bit build is a little worse, and a 4-bit build is worse (12%, p<0.001).
+
+If your install has the bf16 build, Pretype downloads the 8-bit build in the background. When the 8-bit build has loaded, Pretype deletes the bf16 build.
+
 ### The E2B tiers use Base style
 
 Since 2026-10-14, the recommended style of Gemma E2B 4-bit and E2B 8-bit is Base. Before, it was Instruct.
@@ -87,7 +98,7 @@ The rule does not use language, for two reasons:
 
 Two models stay as manual selections:
 
-* MiniCPM5 1B, for the lowest latency (49 ms).
+* MiniCPM5 1B, for the lowest latency (34 ms).
 * Gemma 4 E4B 8-bit, for the best quality. It ties 6-bit (p=0.052) and uses ≈1 GB more.
 
 Your keyboard languages continue to set the persona and the per-language menu suggestion. To change the model, use **Settings → Model**. Each entry has its own recommended settings from the eval. The catalog ranks the models again for each of the 19 evaluated languages.
@@ -155,7 +166,7 @@ Disk use and memory use increase together.
 | Memory of the default model, while you type | ≈1.1–5.6 GB. This is about a quarter of the memory of the Mac (see the ladder above). |
 | Smallest model in the catalog | ≈1 GB |
 | Largest download | Gemma 4 E4B 8-bit, ≈6 GB |
-| Warm completion time, local models | 49–145 ms |
+| Warm completion time, local models | 34–145 ms |
 | Apple Intelligence | 430 ms. No download and no app memory. |
 
 ### Slim Gemma re-packs

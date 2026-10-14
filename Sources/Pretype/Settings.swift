@@ -460,12 +460,12 @@ enum Settings {
         if defaults.object(forKey: "completionStyle") == nil, keepsLegacyInstruct(model: mlxModelID) {
             completionStyle = .instruct
         }
-        // Qwen3.5 2B completes on its Base build since 2026-10-11, at 6-bit
-        // since 2026-10-14; a user who picked it keeps the pick (the
-        // post-trained build stays its ⌥⇥ sibling).
-        if ["mlx-community/Qwen3.5-2B-4bit", "nikimori/Qwen3.5-2B-Base-4bit"]
-            .contains(defaults.string(forKey: "mlxModelID")) {
-            defaults.set("nikimori/Qwen3.5-2B-Base-6bit", forKey: "mlxModelID")
+        // A pick whose build changed (Qwen3.5 → Base 6-bit, MiniCPM5 → 8-bit)
+        // follows it; the old build keeps serving until the new one is here
+        // (`ModelCatalog.repo(for:)`).
+        if let stored = defaults.string(forKey: "mlxModelID"),
+           let new = ModelCatalog.previousBuilds.first(where: { $0.value.contains(stored) })?.key {
+            defaults.set(new, forKey: "mlxModelID")
         }
         // The catalog changes over time; clear stale model picks every launch.
         if let stored = defaults.string(forKey: "mlxModelID"), ModelCatalog.option(for: stored) == nil {

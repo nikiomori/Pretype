@@ -126,15 +126,16 @@ per-language nudge in the menu. You select all other models manually in
 | **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB.* It ties E4B 8-bit (p=0.052) and the download is smaller. |
 | **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB.* About 1 pp behind E4B, at approximately two times the speed. |
 | **Gemma 4 E2B 4-bit** | ≈2.5 GB | *Default at 16–18 GB.* The smallest 4-bit cost in the field. |
-| MiniCPM5 1B | ≈2.2 GB | The fastest model in the catalog, at 49 ms. Strong on English, weaker in other languages. |
+| MiniCPM5 1B | ≈1.1 GB | The fastest model in the catalog, at 34 ms. Strong on English, weaker in other languages. |
 | Ternary Bonsai 4B | ≈1.1 GB | A 4B model in about one gigabyte. |
-| **Qwen3.5 2B (Base)** | ≈1.0 GB | *Default on 8 GB.* The best model below 2 GB for many languages (p<0.001). |
+| **Qwen3.5 2B (Base)** | ≈1.5 GB | *Default on 8 GB.* The best model below 2 GB for many languages (p<0.001). |
 | Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
 
-The sizes are the download sizes of the catalog (`ModelOption.approxSizeMB`).
+The sizes are the download sizes of the catalog (`ModelMetrics.ramGB`).
 The Gemma tiers download slim re-packs (`ModelCatalog.slimRepos`). Qwen3.5
-completes text on its Base build, which is our own conversion. The fix chord
-(⌥⇥) and the reply draft run on the post-trained build.
+completes text on its Base build, and MiniCPM5 on an 8-bit build. Both are our
+own conversions. On Qwen3.5, the fix chord (⌥⇥) and the reply draft run on the
+post-trained build.
 
 ### Quantization
 
