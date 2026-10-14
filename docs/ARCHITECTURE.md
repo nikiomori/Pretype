@@ -371,4 +371,4 @@ All app code is in `Sources/Pretype/`:
 | Personalization | `SuggestionJournal`, `PersonalNgram`, `TypedLanguage`, `Stats` | The local journal, the personal n-gram model, the typed language and the usage statistics. |
 | Dictation (`Dictation/`) | `DictationController`, `DictationHost`, `AudioCapture`, `AudioDevices`, `Transcription`, `Parakeet`, `CloudTranscription` | The state machine and its host protocol. Microphone capture and device selection. Apple's `SpeechAnalyzer`. The opt-in Parakeet engine. The opt-in API transcription. |
 | Settings UI | `Settings`, `SettingsWindowController`, `SettingsStore`, `SettingsView`, `SettingsUI`, `ModelTabView`, `ImpactRailView`, `APITabView` | Stored defaults. The observable bridge to the pipeline. Tabs. Presets, sharing and alerts. The model map and list. The Live Impact meters. The API tab. |
-| Debugging | `DebugLog`, `ConsoleMetrics` | Ring buffer and Debug Console. |
+| Debugging | `DebugLog` | Ring buffer and Debug Console. |
