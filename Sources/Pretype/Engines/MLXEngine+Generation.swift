@@ -763,6 +763,7 @@ extension MLXEngine {
             let decodeStart = Date()
             var generated: [Int] = []       // sampled tokens, in order
             var cachedGenerated = 0         // of those, how many the cache holds
+            var liveMatchesPrompt = true    // false: speculative trim fell short
             var textTokens: [Int] = []
             var perToken: [Float] = []
             var perEntropy: [Float] = []
@@ -835,7 +836,11 @@ extension MLXEngine {
                 // plus whatever it committed; bring it back to the prompt so the
                 // live state below describes exactly `fullTokens`.
                 let held = cache.first?.offset ?? n
-                if held > n, canTrimPromptCache(cache) { trimPromptCache(cache, numTokens: held - n) }
+                if held > n, canTrimPromptCache(cache) {
+                    // A short trim leaves the cache longer than `fullTokens` (from
+                    // mlx-swift-lm #622 it trims nothing if any layer can't rewind).
+                    liveMatchesPrompt = trimPromptCache(cache, numTokens: held - n) == held - n
+                }
                 cachedGenerated = 0
             }
             let decodeSeconds = Date().timeIntervalSince(decodeStart)
@@ -872,7 +877,7 @@ extension MLXEngine {
             if let pc = promptCache {
                 // The cache now holds the prompt + every sampled token that was
                 // fed back in. Keep it only if it can trim back next time.
-                let live = canTrimPromptCache(cache)
+                let live = liveMatchesPrompt && canTrimPromptCache(cache)
                     ? PromptCache.Snapshot(tokens: fullTokens + generated.prefix(cachedGenerated), cache: cache)
                     : nil
                 pc.store(forFullTokens: fullTokens, live: live, checkpoint: checkpoint)
