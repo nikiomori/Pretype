@@ -56,6 +56,18 @@ Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is o
 * Accuracy: 17.1% of all rows, against 16.1% for the post-trained build (p=0.005).
 * Size: 1.1 GB, against 1.6 GB.
 
+### The E2B tiers use Base style
+
+Since 2026-10-14, the recommended style of Gemma E2B 4-bit and E2B 8-bit is Base. Before, it was Instruct.
+
+* On real text, E2B 4-bit in Instruct style with the default persona gets the first word on 5% of all rows. In Base style, it gets 21% (paired: 988 against 87 discordant rows).
+* English: 14% against 28%. Russian: 9% against 23%.
+* Base style is also faster: p50 48 ms against 64 ms.
+* The fix and reply chords run on the instruct sibling. It loads on the first chord.
+* If you use the recommended settings, Pretype downloads the Base build in the background. When the download is complete, Pretype changes the style.
+
+Gemma E4B keeps Instruct style, because only E4B fills in text in the middle of a line.
+
 ## The default follows the memory of your Mac
 
 Since 2026-07-25, Pretype selects the default from the memory of your Mac. Before that date, your keyboard layouts selected it. The default is the strongest tier whose resident model uses about a quarter of physical memory or less.
@@ -63,8 +75,8 @@ Since 2026-07-25, Pretype selects the default from the memory of your Mac. Befor
 | Mac memory | Default | Resident (recommended config) |
 |---|---|--:|
 | 8 GB | Qwen3.5 2B (Base) | ≈1.1 GB |
-| 16–18 GB | Gemma E2B 4-bit | ≈3.0 GB |
-| 24 GB | Gemma E2B 8-bit | ≈4.6 GB |
+| 16–18 GB | Gemma E2B 4-bit | ≈2.5 GB |
+| 24 GB | Gemma E2B 8-bit | ≈3.4 GB |
 | 32 GB and up | Gemma E4B 6-bit | ≈5.6 GB |
 
 The rule does not use language, for two reasons:
@@ -184,7 +196,7 @@ On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one ti
 | Qwen3.5 | ≈1.6 GB (its post-trained build) |
 | A Gemma tier in Base style | up to ≈5 GB |
 | Bonsai | None. Bonsai corrects with itself. |
-| A Gemma tier in its recommended Instruct style | None. The loaded model is already the instruct build. |
+| Gemma E4B in its recommended Instruct style | None. The loaded model is already the instruct build. |
 
 ## Hosted models (API)
 

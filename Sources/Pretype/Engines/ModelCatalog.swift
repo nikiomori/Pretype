@@ -9,6 +9,7 @@ struct ModelOption {
     /// following (the base model paraphrases), while completion needs a base
     /// model (the instruct one echoes the prompt). Loaded lazily on first use.
     /// Kept at 4-bit — correction is easy and the model loads lazily.
+    /// Base style runs BOTH chords (fix and reply) on it.
     let correctionModelID: String
     /// Instruct sibling that becomes the *primary* model in instruct
     /// completion style. On the Gemma builds it is sized to the entry's RAM
@@ -47,7 +48,10 @@ enum ModelCatalog {
             title: "Gemma 4 E2B 8-bit — small but precise",
             approxSizeMB: 3410,
             extraEOSTokens: ["<end_of_turn>"],
-            correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
+            // E4B-it, not E2B-it: its chords fix 65% of noisy lines against 50%,
+            // and the installs that ran it as their Instruct primary before
+            // 2026-10-14 already hold it.
+            correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-4bit"  // ~5 GB — fits the 11–16 GB tier
         ),
         // E4B-4bit dropped 2026-07-17: strictly dominated by E2B-4bit on every
@@ -150,8 +154,9 @@ enum ModelCatalog {
 
     /// The rule behind `defaultID`, memory injected so tests stay
     /// machine-independent: the best Gemma tier whose RECOMMENDED-config
-    /// resident model (the instruct primary — what the pick actually keeps
-    /// loaded) stays within about a QUARTER of physical memory. Quality order
+    /// resident model (what the pick actually keeps loaded: E4B's instruct
+    /// primary, the E2B tiers' base build) stays within about a QUARTER of
+    /// physical memory. Quality order
     /// E4B 6-bit > E2B 8-bit > E2B 4-bit is the 17-language catalog run
     /// (p ≤ 0.001 each step); E4B 8-bit is never the default — it ties 6-bit
     /// (p=0.052) for more memory, so it stays the manual "best quality" pick.
@@ -162,8 +167,9 @@ enum ModelCatalog {
     ///
     /// A fixed table, not derived from the size tables: the thresholds are 4×
     /// each tier's resident size as booked on 2026-07-25 (6.8 / 5.0 / 3.5 GB);
-    /// the slim re-packs only made every tier lighter (5.6 / 4.6 / 3.0), so
-    /// the quarter rule still holds. The registered default is live — moving
+    /// the slim re-packs and the E2B tiers' move to base style (2026-10-14)
+    /// only made every tier lighter (5.6 / 3.4 / 2.5), so the quarter rule
+    /// still holds. The registered default is live — moving
     /// a threshold moves every auto-default install of that size onto another
     /// model, a multi-GB download nobody asked for. Re-tier on purpose (24 GB
     /// now fits E4B 6-bit) and with a migration that keeps installed defaults.
@@ -189,9 +195,9 @@ enum ModelCatalog {
         case "mlx-community/gemma-4-e4b-6bit":
             return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5.6 GB resident, freed again after idle). Measurably ahead of the E2B tiers across the evaluated languages (p=0.001), statistically tied with E4B 8-bit for less memory, and its fix sibling restores 69% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory."
         case "mlx-community/gemma-4-e2b-8bit":
-            return "Auto-picked for this Mac's memory (~4.6 GB resident in its recommended configuration, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
+            return "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
         case "mlx-community/gemma-4-e2b-4bit":
-            return "Auto-picked for this Mac's memory (~3 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and it fixes half of noisy lines exactly where the small models manage 4–33%."
+            return "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — measurably better Russian than any small model (direct McNemar p<0.001), ahead of every small across 17 languages, and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 4–33%."
         case "nikimori/Qwen3.5-2B-Base-4bit":
             return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.1 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 76%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory."
         default:
@@ -374,14 +380,18 @@ enum ModelCatalog {
             return Recommendation(style: .base, length: .short, fim: false,
                                   logprobGateTau: tau)
         }
-        // Gemma E-series: instruct + short + persona is the validated default
-        // (~85% first-word on authored text); fill-in is E4B-class only.
+        // Gemma E-series, short. E4B: instruct + persona, the authored-text
+        // winner (~85% first-word) and the only class with fill-in. E2B: base
+        // since 2026-10-14 — on real text its instruct sibling + the default
+        // persona gets the first word on 5% of all rows against base's 21%
+        // (eval-real 17 langs, paired 988 vs 87 discordant; en 14 vs 28, ru 9
+        // vs 23), and it never abstains (Eval/runs-2026-10-14-small).
         let isE4B = id.contains("e4b")
         let is4bit = id.contains("4bit")
         let tau: Double = isE4B
             ? (is4bit ? -1.00 : id.contains("6bit") ? -0.79 : -0.75)
             : (is4bit ? -0.94 : -0.88)
-        return Recommendation(style: .instruct, length: .short,
+        return Recommendation(style: isE4B ? .instruct : .base, length: .short,
                               fim: isE4B,
                               logprobGateTau: tau)
     }

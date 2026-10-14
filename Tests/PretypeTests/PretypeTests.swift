@@ -1300,6 +1300,10 @@ final class PretypeTests: XCTestCase {
         // (Explicit Qwen3.5, not the Balanced pick: Balanced is RAM-sized now
         // and lands on an instruct-recommended Gemma tier on big machines.)
         XCTAssertTrue(custom.applying(.preset("nikimori/Qwen3.5-2B-Base-4bit")).useRecommended)
+        // So does every E2B tier since 2026-10-14; E4B keeps Instruct (fill-in).
+        XCTAssertTrue(custom.applying(.preset("mlx-community/gemma-4-e2b-4bit")).useRecommended)
+        XCTAssertTrue(custom.applying(.preset("mlx-community/gemma-4-e2b-8bit")).useRecommended)
+        XCTAssertEqual(ModelCatalog.recommended(for: "mlx-community/gemma-4-e4b-6bit").style, .instruct)
 
         // A map settings-dot jumps to its exact configuration, verbatim.
         let dot = ProjectionConfig(modelID: custom.modelID, style: .base, length: .medium,
@@ -1485,6 +1489,20 @@ final class PretypeTests: XCTestCase {
         Settings.accuracyAxis = "ru"
         Settings.registerDefaults()
         XCTAssertEqual(Settings.accuracyAxis, "ru")
+    }
+
+    /// The E2B tiers' move to base (2026-10-14) must not turn an update into a
+    /// forced download: an install holding only the instruct weights keeps
+    /// Instruct until the base build is fetched in the background.
+    func testE2BInstallKeepsInstructUntilBaseIsHere() {
+        let e2b = "mlx-community/gemma-4-e2b-4bit"
+        let have = { (repos: [String]) in { (id: String) in repos.contains(id) } }
+        XCTAssertTrue(Settings.keepsLegacyInstruct(model: e2b, isFetched: have(["mlx-community/gemma-4-e2b-it-4bit"])))
+        XCTAssertFalse(Settings.keepsLegacyInstruct(model: e2b, isFetched: have([])))           // fresh install
+        XCTAssertFalse(Settings.keepsLegacyInstruct(model: e2b, isFetched: have([e2b, "mlx-community/gemma-4-e2b-it-4bit"])))
+        XCTAssertFalse(Settings.keepsLegacyInstruct(model: "mlx-community/gemma-4-e4b-6bit",
+                                                    isFetched: have(["mlx-community/gemma-4-e4b-it-6bit"])))
+        XCTAssertEqual(ModelCatalog.recommended(for: e2b).style, .base)
     }
 
     /// The confidence figure is the whole point of showing n, so it has to be

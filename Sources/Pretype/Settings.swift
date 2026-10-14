@@ -414,6 +414,17 @@ enum Settings {
         return formatter.string(from: names) ?? ""
     }
 
+    /// Gemma E2B registered Instruct until 2026-10-14. An install that never
+    /// stored a style and holds only the instruct weights keeps running them
+    /// until `ModelStorage.fetchRecommendedWeights` has the base build here —
+    /// the registered default alone would make the update a forced download.
+    static func keepsLegacyInstruct(model: String,
+                                    isFetched: (String) -> Bool = ModelStorage.isFetched) -> Bool {
+        guard model.contains("gemma-4-e2b"),
+              let instruct = ModelCatalog.option(for: model)?.instructModelID else { return false }
+        return !isFetched(model) && isFetched(instruct)
+    }
+
     static func registerDefaults() {
         // Per-app "this is useless here" verdicts predate the fair denominator.
         Stats.migrateAppRecordsIfNeeded()
@@ -426,6 +437,11 @@ enum Settings {
         if defaults.string(forKey: "accuracyAxis") == "core" {
             defaults.set(true, forKey: "settingsMapMode")
             defaults.set("*", forKey: "accuracyAxis")
+        }
+        // Read before `register`, which would answer for an unset key.
+        if defaults.object(forKey: "completionStyle") == nil,
+           keepsLegacyInstruct(model: defaults.string(forKey: "mlxModelID") ?? ModelCatalog.defaultID) {
+            defaults.set(CompletionStyle.instruct.rawValue, forKey: "completionStyle")
         }
         // Style/length ship pre-matched to the default model's recommendation:
         // nothing applies it at boot (main only registers defaults), and the

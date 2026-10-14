@@ -274,7 +274,6 @@ enum ModelStorage {
     /// builds at once; the next launch tries again.
     static func upgradeToSlim(selected: String) async {
         let inUse = repos(for: selected)
-        var networkOK: Bool?
         let pairs = ModelCatalog.slimRepos.map { (original: $0.key, slim: $0.value, keepOriginal: false) }
             + ModelCatalog.previousBuilds.map { (original: $0.value, slim: $0.key, keepOriginal: true) }
         for (original, slim, keepOriginal) in pairs where inUse.contains(original) && inUse.contains(slim) {
@@ -283,23 +282,8 @@ enum ModelStorage {
             if !isFetched(at: slimDir) {
                 // Half an original: the engine already loads (and fetches) the
                 // re-pack; this one is deleted on a later pass, once it's here.
-                guard isFetched(at: originalDir) else { continue }
-                let free = (try? originalDir.deletingLastPathComponent()
-                    .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
-                    .volumeAvailableCapacityForImportantUsage ?? 0
-                guard free > bytes(at: originalDir) + 2_000_000_000 else { continue }
-                if networkOK == nil { networkOK = await isNetworkUnmetered() }
-                guard networkOK == true else { continue }
-                DebugLog.shared.log("MLX", "fetching slim re-pack \(slim) to replace \(original)")
-                do {
-                    _ = try await resolve(configuration: ModelConfiguration(id: slim, revision: ModelCatalog.revision(for: slim)),
-                                          from: #hubDownloader(),
-                                          useLatest: false, progressHandler: { _ in })
-                } catch {
-                    DebugLog.shared.log("MLX", "slim re-pack fetch failed: \(error.localizedDescription)")
-                    continue
-                }
-                guard isFetched(at: slimDir) else { continue }
+                guard isFetched(at: originalDir),
+                      await fetchQuietly(repo: slim, sizeHint: bytes(at: originalDir)) else { continue }
             }
             guard !keepOriginal, hasLoaded(repo: slim) else { continue }
             // An engine holding the original keeps it: its weights are in
@@ -309,6 +293,43 @@ enum ModelStorage {
             try? delete(repo: original)
             DebugLog.shared.log("MLX", "replaced \(original) with \(slim)")
         }
+    }
+
+    /// Auto mode follows `ModelCatalog.recommended(for:)`, and a recommendation
+    /// can move an existing install onto weights it doesn't hold (the E2B tiers'
+    /// switch to base, 2026-10-14). The stored style keeps serving while those
+    /// are fetched quietly; true once the caller can re-apply the
+    /// recommendation without a download wait.
+    static func fetchRecommendedWeights(selected: String) async -> Bool {
+        guard Settings.useRecommendedSettings, let option = ModelCatalog.option(for: selected) else { return false }
+        let style = ModelCatalog.recommended(for: selected).style
+        guard style != Settings.completionStyle else { return false }
+        let weights = style == .instruct ? option.instructModelID : option.id
+        if isFetched(weights) { return true }
+        return await fetchQuietly(repo: ModelCatalog.repo(for: weights),
+                                  sizeHint: Int64(option.approxSizeMB) * 1_000_000)
+    }
+
+    /// A download nobody clicked for, on the terms every such fetch keeps: an
+    /// unmetered network (`isNetworkUnmetered`) and room for about `sizeHint`
+    /// bytes plus 2 GB. Whether `repo` is complete on disk afterwards; a
+    /// declined or failed fetch is retried at the next launch.
+    static func fetchQuietly(repo: String, sizeHint: Int64) async -> Bool {
+        guard let directory = cacheDirectory(repo: repo) else { return false }
+        let free = (try? directory.deletingLastPathComponent()
+            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage ?? 0
+        guard free > sizeHint + 2_000_000_000, await isNetworkUnmetered() else { return false }
+        DebugLog.shared.log("MLX", "fetching \(repo) in the background")
+        do {
+            _ = try await resolve(configuration: ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo)),
+                                  from: #hubDownloader(),
+                                  useLatest: false, progressHandler: { _ in })
+        } catch {
+            DebugLog.shared.log("MLX", "background fetch of \(repo) failed: \(error.localizedDescription)")
+            return false
+        }
+        return isFetched(at: directory)
     }
 
     /// Whether the network is one a multi-GB background fetch may use: up, not

@@ -99,6 +99,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task.detached(priority: .utility) { _ = try? await Parakeet.prepare() }
         }
         let selected = Settings.mlxModelID
-        Task.detached(priority: .background) { await ModelStorage.upgradeToSlim(selected: selected) }
+        Task.detached(priority: .background) {
+            await ModelStorage.upgradeToSlim(selected: selected)
+            guard await ModelStorage.fetchRecommendedWeights(selected: selected) else { return }
+            await MainActor.run {
+                // The pick may have changed while the weights downloaded.
+                guard Settings.mlxModelID == selected, Settings.useRecommendedSettings,
+                      Settings.completionStyle != ModelCatalog.recommended(for: selected).style else { return }
+                controller.engineCoordinator.apply(.useRecommended(true))
+            }
+        }
     }
 }

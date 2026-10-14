@@ -217,7 +217,7 @@ The thresholds for each model are `Recommendation.logprobGateTau` in
 | Feature | How it operates |
 |---|---|
 | Inline typo fix | The macOS system spell-checker. The language is the one that `NLLanguageRecognizer` finds in the text before the caret. |
-| Fix selection (<kbd>⌥Tab</kbd>) | The local model rewrites the selection in place. A correction must follow instructions. Thus, on most models in base style, the first <kbd>⌥Tab</kbd> downloads an instruct sibling of the completion model one time. The menu bar shows *preparing…* during the download. Bonsai corrects with itself. A Gemma tier in its recommended Instruct style fixes with the model that is already loaded. |
+| Fix selection (<kbd>⌥Tab</kbd>) | The local model rewrites the selection in place. A correction must follow instructions. Thus, on most models in base style, the first <kbd>⌥Tab</kbd> downloads an instruct sibling of the completion model one time. The menu bar shows *preparing…* during the download. Bonsai corrects with itself. Gemma E4B in its recommended Instruct style fixes with the model that is already loaded. |
 
 ## Dictation
 
