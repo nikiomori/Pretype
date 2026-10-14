@@ -289,9 +289,7 @@ struct ModelTab: View {
     /// the overall comparator breaks its coarse-% ties.
     private var rankedEntries: [(id: String, title: String)] {
         var entries: [(id: String, title: String)] = ModelCatalog.options.map { ($0.id, $0.title) }
-        if #available(macOS 26.0, *) {
-            entries.append((ModelCatalog.appleIntelligenceID, "Apple Intelligence — system model"))
-        }
+        entries.append((ModelCatalog.appleIntelligenceID, "Apple Intelligence — system model"))
         if store.modelID.hasPrefix("/") {
             entries.append((store.modelID, store.selectedModelName))
         }
@@ -547,7 +545,7 @@ struct ModelRow: View {
                 let fixText = Text("\(chord.m.fixPct)%").foregroundStyle(Color.orange.legible)
                 let dotText = Text(" · ").foregroundStyle(Color.secondary)
                 let replyText = Text("\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
-                (fixText + dotText + replyText)
+                Text("\(fixText)\(dotText)\(replyText)")
                     .font(.caption2.monospacedDigit())
             } else {
                 Text("—").font(.caption2).foregroundStyle(.secondary)
@@ -635,9 +633,9 @@ private struct PriorityCard: View {
                     // cards leave ~96 pt for a ~113 pt triple, so memory takes
                     // a second line instead of the whole triple shrinking to 8 pt.
                     ViewThatFits(in: .horizontal) {
-                        (accText + dot + msText + dot + gbText).lineLimit(1)
+                        Text("\(accText)\(dot)\(msText)\(dot)\(gbText)").lineLimit(1)
                         VStack(alignment: .leading, spacing: 1) {
-                            (accText + dot + msText).lineLimit(1)
+                            Text("\(accText)\(dot)\(msText)").lineLimit(1)
                             gbText
                         }
                     }
@@ -744,7 +742,7 @@ struct ModelMapView: View {
         switch lens {
         case .completion:
             guard axis != "core" else { return (Scale.accMin, Scale.accMax) }
-            values = visibleMetrics.map {
+            values = ModelMetrics.all.map {
                 Double(ModelMetrics.axisAccuracy(for: $0.id, axis: axis) ?? $0.firstWordPct)
             }
         case .fix, .reply:
@@ -835,16 +833,6 @@ struct ModelMapView: View {
             let clamped = min(max(acc, accLo), accHi)
             let f = (clamped - accLo) / (accHi - accLo)
             return minY + (1 - f) * (maxY - minY)
-        }
-    }
-
-    /// Every measured model shown on this Mac (the system model needs macOS 26).
-    private var visibleMetrics: [ModelMetrics] {
-        ModelMetrics.all.filter { m in
-            if m.id == ModelCatalog.appleIntelligenceID {
-                if #available(macOS 26.0, *) { return true } else { return false }
-            }
-            return true
         }
     }
 
@@ -989,7 +977,7 @@ struct ModelMapView: View {
     }
 
     private func bubbles(_ plot: PlotFrame) -> some View {
-        ForEach(visibleMetrics, id: \.id) { m in
+        ForEach(ModelMetrics.all, id: \.id) { m in
             let selected = m.id == store.modelID
             let r = radius(m.ramGB)
             let center = bubbleCenter(for: m.id, plot)

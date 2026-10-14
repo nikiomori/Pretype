@@ -30,7 +30,7 @@ The requirements are the same as for *Build from source* in the README.
 | SDK | The macOS 26 SDK | `FoundationModelsEngine` imports the `FoundationModels` framework. Xcode 16.x does not have this framework. |
 | Metal | The Metal shader compiler | The MLX engine needs it. |
 
-macOS 14 is the minimum *runtime* version of the app. It is not the minimum version for the toolchain. CI builds on macOS 26.
+macOS 26 is the minimum runtime version of the app. CI builds on macOS 26.
 
 To build and run the app:
 

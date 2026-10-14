@@ -69,7 +69,6 @@ First, open **Settings → General → Dictation**. That section shows the name 
 
 | Symptom | Cause | Remedy |
 |---|---|---|
-| The section says that<br>dictation needs macOS 26 | Dictation uses the on-device<br>speech models of the system.<br>macOS 14–15 does not have them. | Use macOS 26 or later. Pretype does not include a speech model of its own. |
 | The section says<br>"built app only" | A raw `swift build` binary<br>has no bundle. macOS gives<br>microphone access by bundle. | Run `./Scripts/make-app.sh`. Then start the `.app`. |
 | The section says that<br>the microphone is denied | macOS asks only one time.<br>After a refusal, it does<br>not ask again. | Allow Pretype in **System Settings → Privacy & Security → Microphone**. The button below the notice opens that pane. Then enable dictation again. |
 | The language line says that<br>macOS has no model for it | The newer Apple model covers<br>30 locales. Other languages use<br>the system dictation model.<br>Some languages have neither. | Use a language that has a model. The Settings caption shows which model your current language gets. Pretype cannot add a model that macOS does not supply. |

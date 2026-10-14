@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "Pretype",
     platforms: [
-        .macOS(.v14)
+        .macOS("26.0")
     ],
     dependencies: [
         // 3.32: Gemma 4 MTP drafters (speculative fix/reply decoding), and

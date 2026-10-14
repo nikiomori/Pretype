@@ -307,8 +307,8 @@ final class SettingsStore {
                 + "and macOS grants microphone access by bundle."
         }
         if !Transcription.isSupported {
-            return "Needs macOS 26 or later: dictation uses the system's own on-device speech models, "
-                + "so there is nothing to download from us and nothing to send anywhere."
+            return "Not available on this Mac: dictation uses the system's own on-device speech models, "
+                + "and macOS reports none here."
         }
         if dictationMicDenied {
             return "Microphone access is denied for Pretype, and macOS only ever asks once — "

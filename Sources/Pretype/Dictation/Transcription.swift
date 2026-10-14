@@ -20,8 +20,6 @@ protocol TranscriptionSession: AnyObject, Sendable {
 }
 
 enum TranscriptionError: LocalizedError {
-    /// Below macOS 26 there is no on-device transcriber to talk to.
-    case unsupportedSystem
     /// Neither speech model has this language.
     case unsupportedLanguage(String)
     /// The analyzer's finalization outran its watchdog.
@@ -29,8 +27,6 @@ enum TranscriptionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedSystem:
-            return "dictation needs macOS 26 or later"
         case .unsupportedLanguage(let name):
             return "macOS can't dictate \(name)"
         case .timedOut:
@@ -39,8 +35,7 @@ enum TranscriptionError: LocalizedError {
     }
 }
 
-/// Entry point to on-device speech recognition, version-gating Apple's Speech
-/// framework in one place.
+/// Entry point to on-device speech recognition.
 ///
 /// Nothing here ships a model: both transcribers use the system's own dictation
 /// assets, downloaded by macOS on demand and shared with every other app that
@@ -57,16 +52,12 @@ enum TranscriptionError: LocalizedError {
 /// as a support test — it canonicalizes an identifier ("ru" → "ru_RU") whether
 /// or not the model exists, which reads as support and then fails at load.
 enum Transcription {
-    /// Whether this Mac can transcribe at all (OS version + hardware support).
-    static var isSupported: Bool {
-        guard #available(macOS 26.0, *) else { return false }
-        return SpeechTranscriber.isAvailable
-    }
+    /// Whether this Mac can transcribe at all (hardware support).
+    static var isSupported: Bool { SpeechTranscriber.isAvailable }
 
     /// Every language either model can handle, deduplicated — what the settings
     /// picker offers.
     static func supportedLocales() async -> [Locale] {
-        guard #available(macOS 26.0, *) else { return [] }
         var seen = Set<String>()
         var result: [Locale] = []
         for locale in await SpeechTranscriber.supportedLocales
@@ -79,7 +70,6 @@ enum Transcription {
     /// The transcriber's own identifier for `locale` and which model will serve
     /// it, or nil when neither can. The membership test is the point: a match
     /// here is the only honest answer to "can this Mac dictate Russian".
-    @available(macOS 26.0, *)
     static func resolve(_ locale: Locale) async -> (locale: Locale, preferred: Bool)? {
         if let canonical = await SpeechTranscriber.supportedLocale(equivalentTo: locale),
            await SpeechTranscriber.supportedLocales.contains(where: { $0.identifier == canonical.identifier }) {
@@ -110,7 +100,6 @@ enum Transcription {
 
     static func support(for locale: Locale) async -> LanguageSupport {
         if Settings.apiAudio.enabled { return .api }
-        guard #available(macOS 26.0, *) else { return .unsupported }
         let resolved = await resolve(locale)
         if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
             return .parakeet
@@ -133,7 +122,6 @@ enum Transcription {
         if Settings.apiAudio.enabled {
             return try CloudTranscription(Settings.apiAudio, locale: locale, onPartial: onPartial)
         }
-        guard #available(macOS 26.0, *) else { throw TranscriptionError.unsupportedSystem }
         let resolved = await resolve(locale)
         if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
             return try await Parakeet.start(locale: locale, onPartial: onPartial)
@@ -200,7 +188,6 @@ enum Transcription {
     /// would start it over). A plain microphone open is the other, short one.
     static let isDownloading = LockedValue(false)
 
-    @available(macOS 26.0, *)
     private static func install(_ module: any SpeechModule, locale: Locale) async throws {
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             DebugLog.shared.log("DICTATE", "downloading the \(name(of: locale)) speech model…")
@@ -248,7 +235,6 @@ enum Transcription {
 /// Generic over the module so the two transcribers — whose `Result` types are
 /// unrelated apart from `isFinal` — share one implementation; `text` pulls the
 /// words out of whichever one this is.
-@available(macOS 26.0, *)
 private final class SystemTranscription<Module: SpeechModule>: TranscriptionSession, @unchecked Sendable {
     let audioFormat: AVAudioFormat?
 

@@ -13,7 +13,7 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 [![Latest release](https://img.shields.io/github/v/release/nikiomori/Pretype?label=release&color=brightgreen)](https://github.com/nikiomori/Pretype/releases/latest)
 [![CI](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml/badge.svg)](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B%20·%20Apple%20Silicon-lightgrey.svg)](#requirements)
+[![Platform: macOS 26+](https://img.shields.io/badge/platform-macOS%2026%2B%20·%20Apple%20Silicon-lightgrey.svg)](#requirements)
 [![Website](https://img.shields.io/badge/pretype.app-6E56CF.svg)](https://pretype.app)
 
 <p>
@@ -307,7 +307,7 @@ You can read the documentation at **[pretype.app/docs](https://pretype.app/docs)
 
 | Item | Requirement |
 |---|---|
-| **OS** | macOS 14 or later. The Apple Intelligence engine needs macOS 26 or later. |
+| **OS** | macOS 26 or later. |
 | **Hardware** | Apple Silicon (M1 or newer). Intel Macs cannot run MLX. |
 | **Memory** | 8 GB is sufficient. The default model uses about a quarter of the memory of your Mac. It is ≈1.5 GB resident on 8 GB Macs, up to ≈5.6 GB from 32 GB. The catalog goes down to ≈1 GB. On Macs with much memory, you can select Gemma 4 E4B 8-bit (a ≈6 GB download). |
 | **Storage** | ≈1–5.7 GB for the default model (the size depends on your Mac). ≈1–6 GB for the other models. |

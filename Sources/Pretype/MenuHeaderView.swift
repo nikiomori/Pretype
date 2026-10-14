@@ -83,13 +83,10 @@ struct MenuHeaderView: View {
         // today" over "saved today" read as one garbled sentence.
         let none = savings.todayKeystrokes == 0
         let (value, unit) = none ? ("0", "min") : savings.todayFigure
+        let big = Text(value).font(.system(size: 24, weight: .semibold, design: .rounded))
+        let small = Text(" \(unit)").font(.system(size: 13, weight: .semibold, design: .rounded))
         return VStack(alignment: .leading, spacing: 0) {
-            (
-                Text(value)
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
-                + Text(" \(unit)")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-            )
+            Text("\(big)\(small)")
             .foregroundStyle(none ? AnyShapeStyle(.secondary) : AnyShapeStyle(Self.gain))
             .monospacedDigit()
             Text("saved today")

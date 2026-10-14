@@ -230,7 +230,7 @@ final class DictationController {
     var statusLine: String {
         guard Settings.dictationEnabled else { return "off" }
         guard MicrophoneAccess.isBundled else { return "unavailable — not running as an .app" }
-        guard Transcription.isSupported else { return "unavailable — needs macOS 26" }
+        guard Transcription.isSupported else { return "unavailable — no system speech model on this Mac" }
         switch MicrophoneAccess.status {
         case .authorized: break
         case .notDetermined: return "microphone never asked for — hold the key and it will ask"
@@ -571,7 +571,7 @@ final class DictationController {
                           notice: .error("dictation needs the built app — run make-app.sh"), at: rect)
         }
         guard gates.transcriptionSupported() else {
-            return refuse("needs macOS 26", notice: .error("dictation needs macOS 26"), at: rect)
+            return refuse("no system speech model", notice: .error("this Mac can't dictate"), at: rect)
         }
         // A released capture's language-pack download is still running (see
         // `discard`). A second session start now would race it for the same

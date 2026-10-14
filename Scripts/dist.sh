@@ -61,7 +61,7 @@ echo "Built build/Pretype.app.zip ($(du -h build/Pretype.app.zip | cut -f1), ad-
 
 cat <<'EOF'
 
-Send build/Pretype.app.zip to testers (Apple Silicon, macOS 14+). To open it once:
+Send build/Pretype.app.zip to testers (Apple Silicon, macOS 26+). To open it once:
 
   xattr -dr com.apple.quarantine /path/to/Pretype.app && open /path/to/Pretype.app
 

@@ -5,7 +5,6 @@ import FoundationModels
 /// Zero download, zero app memory — the ~3B model is OS-managed and runs on
 /// the Neural Engine. Quality differs from Gemma; it's the lightweight option.
 /// Prompting recipe adapted from Cotabby's Foundation Models path.
-@available(macOS 26.0, *)
 final class FoundationModelsEngine: CompletionEngine {
     let name = "Apple Intelligence"
 
@@ -113,7 +112,7 @@ final class FoundationModelsEngine: CompletionEngine {
     private func generationOptions() -> GenerationOptions {
         let maxTokens = lengthBox.get().maxTokens + 8
         if Self.greedy.get() {
-            return GenerationOptions(sampling: .greedy, maximumResponseTokens: maxTokens)
+            return GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maxTokens)
         }
         if let temperature = Self.temperatureOverride {
             return GenerationOptions(temperature: temperature, maximumResponseTokens: maxTokens)
@@ -145,7 +144,7 @@ final class FoundationModelsEngine: CompletionEngine {
             let response = try await session.respond(
                 to: prompt,
                 options: GenerationOptions(
-                    sampling: .greedy,
+                    samplingMode: .greedy,
                     maximumResponseTokens: CorrectionGates.correctionTokenBudget(forChars: trimmed.count)
                 )
             )
@@ -187,7 +186,7 @@ final class FoundationModelsEngine: CompletionEngine {
         do {
             let response = try await session.respond(
                 to: prompt,
-                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 200)
+                options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 200)
             )
             try Task.checkCancellation()
             return request.cleanReply(response.content, conversation: conversation)
@@ -213,7 +212,7 @@ final class FoundationModelsEngine: CompletionEngine {
         do {
             let response = try await LanguageModelSession().respond(
                 to: CorrectionGates.commandPrompt(instruction: spoken, text: text),
-                options: GenerationOptions(sampling: .greedy,
+                options: GenerationOptions(samplingMode: .greedy,
                                            maximumResponseTokens: min(1024, max(64, text.count))))
             try Task.checkCancellation()
             let result = CorrectionGates.cleanCommandOutput(response.content)

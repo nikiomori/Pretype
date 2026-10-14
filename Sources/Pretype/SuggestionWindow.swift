@@ -94,15 +94,12 @@ final class SuggestionWindow: NSPanel {
     private let ghost = GhostTextView()
     private var highlightLayer: CALayer?
 
-    /// Panel background. Liquid Glass (`NSGlassEffectView`) on macOS 26+, the
-    /// classic HUD blur (`NSVisualEffectView`) below it. The label (`pillText`)
-    /// is a SIBLING stacked above the backdrop — not inside it.
+    /// Panel background: Liquid Glass. The label (`pillText`) is a SIBLING
+    /// stacked above the backdrop — not inside it.
     /// NOTE: never dim the backdrop via alphaValue — glass/blur materials lose
     /// their blending when translucent, and the text behind bleeds through sharp
     /// (tried; unreadable). The pill must stay opaque to do its job.
-    private let visualBackdrop = NSVisualEffectView()
-    private var glassBackdrop: NSView?
-    private var panelBackdrop: NSView { glassBackdrop ?? visualBackdrop }
+    private let backdrop = NSGlassEffectView()
 
     private let pillPadH: CGFloat = 9
 
@@ -159,23 +156,11 @@ final class SuggestionWindow: NSPanel {
 
         container.wantsLayer = true
 
-        if #available(macOS 26.0, *) {
-            // Liquid Glass — the macOS 26 material that refracts whatever is
-            // behind the caret. Corner is set per-layout to capsule the pill.
-            let glass = NSGlassEffectView()
-            glass.style = .regular
-            glass.cornerRadius = 11
-            glassBackdrop = glass
-            container.addSubview(glass)
-        } else {
-            visualBackdrop.material = .hudWindow
-            visualBackdrop.state = .active
-            visualBackdrop.blendingMode = .behindWindow
-            visualBackdrop.wantsLayer = true
-            visualBackdrop.layer?.cornerRadius = 6
-            visualBackdrop.layer?.masksToBounds = true
-            container.addSubview(visualBackdrop)
-        }
+        // Liquid Glass refracts whatever is behind the caret. Corner is set
+        // per-layout to capsule the pill.
+        backdrop.style = .regular
+        backdrop.cornerRadius = 11
+        container.addSubview(backdrop)
         container.addSubview(pillText)
         container.addSubview(ghost)
         contentView = container
@@ -1076,7 +1061,7 @@ final class SuggestionWindow: NSPanel {
 
         ghost.isHidden = !ghostMode
         // Both the floating panel and the over-word correction draw in the pill.
-        panelBackdrop.isHidden = ghostMode
+        backdrop.isHidden = ghostMode
         pillText.isHidden = ghostMode
         // The inline ghost casts no shadow; the floating pill / over-word fix do.
         let wantShadow = !ghostMode
@@ -1173,12 +1158,10 @@ final class SuggestionWindow: NSPanel {
             ghost.frame = bounds
         } else {
             // Pill modes and the over-word correction share the panel layout.
-            panelBackdrop.frame = bounds
+            backdrop.frame = bounds
             pillText.frame = bounds.insetBy(dx: pillPadH, dy: pillPadV)
             // Capsule the glass to the pill height — the signature Liquid Glass shape.
-            if #available(macOS 26.0, *), let glass = glassBackdrop as? NSGlassEffectView {
-                glass.cornerRadius = min(16, bounds.height / 2)
-            }
+            backdrop.cornerRadius = min(16, bounds.height / 2)
         }
         
         if let highlightLayer {
@@ -1186,7 +1169,7 @@ final class SuggestionWindow: NSPanel {
             CATransaction.setValue(kCFBooleanTrue, forKey: kCATransactionDisableActions)
             highlightLayer.frame = bounds
             // Match the backdrop: glass capsule (macOS 26+) or the HUD's 6 pt.
-            highlightLayer.cornerRadius = ghostMode ? 4 : glassBackdrop != nil ? min(16, bounds.height / 2) : 6
+            highlightLayer.cornerRadius = ghostMode ? 4 : min(16, bounds.height / 2)
             CATransaction.commit()
         }
     }

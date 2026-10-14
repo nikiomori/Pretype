@@ -323,16 +323,12 @@ private struct EngineStatusFooter: View {
     }
 }
 
-/// Liquid Glass where available, material fallback earlier. For small
+/// Liquid Glass. For small
 /// floating layers only (chart info card and the like) — content sections
 /// stay on standard backgrounds.
 extension View {
-    @ViewBuilder func glassCard(cornerRadius: CGFloat = 10) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-        } else {
-            self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
-        }
+    func glassCard(cornerRadius: CGFloat = 10) -> some View {
+        glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
     }
 }
 
@@ -977,9 +973,7 @@ struct OverlayPreview: View {
             if presentation == .inline {
                 // The ghost, then the accept keycap a new user sees beside it.
                 HStack(spacing: 6) {
-                    Text("Write ").foregroundColor(ink)
-                        + Text("a reply").foregroundColor(head)
-                        + Text(" to Anna").foregroundColor(tail)
+                    Text("\(Text("Write ").foregroundColor(ink))\(Text("a reply").foregroundColor(head))\(Text(" to Anna").foregroundColor(tail))")
                     MenuHintsView.keycap(hotkey.label)
                         .opacity(min(1, effective / 0.7))
                 }
@@ -990,8 +984,7 @@ struct OverlayPreview: View {
                     HStack(spacing: 0) {
                         Text("Write ").hidden()
                         HStack(spacing: 6) {
-                            Text("a reply").foregroundColor(ink)
-                                + Text(" to Anna").foregroundColor(ink.opacity(0.55))
+                            Text("\(Text("a reply").foregroundColor(ink))\(Text(" to Anna").foregroundColor(ink.opacity(0.55)))")
                             MenuHintsView.keycap(hotkey.label)
                         }
                         .padding(.horizontal, 8)
@@ -1081,8 +1074,7 @@ private struct PresentationCard: View {
 
     @ViewBuilder private var previewLine: some View {
         if mode == .inline {
-            (Text("Write ").foregroundColor(.primary)
-                + Text("a reply").foregroundColor(.secondary))
+            Text("\(Text("Write ").foregroundColor(.primary))\(Text("a reply").foregroundColor(.secondary))")
                 .font(.system(size: 13))
         } else {
             // Above the line, from the caret — where the real pill floats.

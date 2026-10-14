@@ -221,7 +221,7 @@ The thresholds for each model are `Recommendation.logprobGateTau` in
 
 ## Dictation
 
-Dictation is hold-to-talk. It is off by default and needs macOS 26 or later.
+Dictation is hold-to-talk. It is off by default.
 The code is in `Sources/Pretype/Dictation/`.
 
 ### The capture lifecycle
