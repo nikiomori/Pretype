@@ -14,8 +14,6 @@ enum MicrophoneAccess {
 
     static var status: AVAuthorizationStatus { AVCaptureDevice.authorizationStatus(for: .audio) }
 
-    static var isGranted: Bool { isBundled && status == .authorized }
-
     /// Prompts only on `.notDetermined` — a previous refusal is answered from
     /// the cached status, because macOS never re-prompts and a silent `false`
     /// would read as a broken button.

@@ -1,4 +1,3 @@
-import AVFoundation
 import FluidAudio
 import Foundation
 
@@ -42,7 +41,18 @@ enum Parakeet {
                       onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
         let manager = try await prepare()
         let language = locale.language.languageCode.flatMap { Language(rawValue: $0.identifier) }
-        return ParakeetTranscription(manager: manager, language: language, onPartial: onPartial)
+        // ponytail: the live preview re-transcribes the whole take, ~6 ms per
+        // audio second on the ANE — a ten-minute latch costs ~4 s a refresh;
+        // FluidAudio's SlidingWindowAsrManager if long takes ever matter.
+        return RecordedTranscription(preview: true, onPartial: onPartial) { audio, _ in
+            // The model refuses a clip under its minimum; a one-word "да" padded
+            // with silence transcribes fine.
+            var audio = audio
+            let minimum = ASRConstants.minimumRequiredSamples(forSampleRate: 16_000)
+            if audio.count < minimum { audio += [Float](repeating: 0, count: minimum - audio.count) }
+            var state = TdtDecoderState.make()
+            return try await manager.transcribe(audio, decoderState: &state, language: language).text
+        }
     }
 
     private static let loader = Loader()
@@ -109,72 +119,5 @@ enum Parakeet {
         } catch {
             DebugLog.shared.log("DICTATE", "Parakeet Ultra upgrade failed, staying on v3: \(error.localizedDescription)")
         }
-    }
-}
-
-/// Parakeet is an offline model: audio accumulates, and `finish()` transcribes
-/// the whole take in one pass. The live preview re-transcribes everything heard
-/// so far about once a second.
-/// ponytail: whole-take re-transcription, ~6 ms per audio second on the ANE —
-/// a ten-minute latch costs ~4 s a refresh; FluidAudio's SlidingWindowAsrManager
-/// if long takes ever matter.
-private final class ParakeetTranscription: TranscriptionSession, @unchecked Sendable {
-    let audioFormat: AVAudioFormat? = AVAudioFormat(
-        commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)
-
-    private let manager: AsrManager
-    private let language: Language?
-    private let samples = LockedValue<[Float]>([])
-    private let preview = LockedValue<Task<Void, Never>?>(nil)
-
-    init(manager: AsrManager, language: Language?, onPartial: @escaping @Sendable (String) -> Void) {
-        self.manager = manager
-        self.language = language
-        preview.set(Task { [samples] in
-            var previewed = 0
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                let audio = samples.get()
-                // Half a second of new audio, or the pill would repaint the same guess.
-                guard audio.count >= previewed + 8_000 else { continue }
-                previewed = audio.count
-                if let text = try? await Self.transcribe(audio, manager: manager, language: language),
-                   !Task.isCancelled {
-                    onPartial(text)
-                }
-            }
-        })
-    }
-
-    func feed(_ buffer: AVAudioPCMBuffer) {
-        guard let channel = buffer.floatChannelData?[0] else { return }
-        let chunk = UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
-        samples.mutate { $0.append(contentsOf: chunk) }
-    }
-
-    func finish() async throws -> String {
-        if let task = preview.exchange(nil) {
-            task.cancel()
-            await task.value  // one model call at a time
-        }
-        let audio = samples.get()
-        guard !audio.isEmpty else { return "" }
-        return try await Self.transcribe(audio, manager: manager, language: language)
-    }
-
-    func cancel() {
-        preview.exchange(nil)?.cancel()
-        samples.set([])
-    }
-
-    private static func transcribe(_ audio: [Float], manager: AsrManager,
-                                   language: Language?) async throws -> String {
-        // The model refuses a clip under its minimum; a one-word "да" padded
-        // with silence transcribes fine.
-        var audio = audio
-        let minimum = ASRConstants.minimumRequiredSamples(forSampleRate: 16_000)
-        if audio.count < minimum { audio += [Float](repeating: 0, count: minimum - audio.count) }
-        var state = TdtDecoderState.make()
-        return try await manager.transcribe(audio, decoderState: &state, language: language).text
     }
 }

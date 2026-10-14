@@ -184,8 +184,8 @@ final class CloudAPITests: XCTestCase {
     func testLocalServerGetsLivePreview() async throws {
         StubProtocol.response = (200, Data(#"{"text":"привет"}"#.utf8))
         let partials = LockedValue<[String]>([])
-        let session = try CloudTranscription(APIConfig(provider: .named("refrain"), kind: .audio),
-                                             locale: Locale(identifier: "ru")) { text in partials.mutate { $0.append(text) } }
+        let session = try CloudTranscription.start(APIConfig(provider: .named("refrain"), kind: .audio),
+                                                   locale: Locale(identifier: "ru")) { text in partials.mutate { $0.append(text) } }
         session.feed(silence(seconds: 1))
         try await Task.sleep(for: .seconds(1.5))
         XCTAssertEqual(partials.get(), ["привет"])
@@ -200,7 +200,7 @@ final class CloudAPITests: XCTestCase {
         config.baseURL = "https://speech.example.com/v1"
         config.model = "whisper-1"
         let partials = LockedValue<[String]>([])
-        let session = try CloudTranscription(config, locale: Locale(identifier: "en")) { text in partials.mutate { $0.append(text) } }
+        let session = try CloudTranscription.start(config, locale: Locale(identifier: "en")) { text in partials.mutate { $0.append(text) } }
         session.feed(silence(seconds: 1))
         try await Task.sleep(for: .seconds(1.5))
         XCTAssertTrue(partials.get().isEmpty)

@@ -60,14 +60,6 @@ enum AudioDevices {
             default: self = .device(uid: stored)
             }
         }
-
-        var stored: String {
-            switch self {
-            case .automatic: return "auto"
-            case .systemDefault: return "system"
-            case .device(let uid): return uid
-            }
-        }
     }
 
     /// Which device a capture should open, or nil to accept whatever the engine

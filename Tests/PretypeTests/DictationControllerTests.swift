@@ -127,6 +127,9 @@ final class DictationControllerTests: XCTestCase {
     private var savedLatchCeiling: TimeInterval = 0
     private var savedSilenceTick: TimeInterval = 0
     private var savedOpeningSilence: TimeInterval = 0
+    private var savedCaptureCeiling: TimeInterval = 0
+    private var savedPolishSeconds: TimeInterval = 0
+    private var savedFinalizeSeconds: TimeInterval = 0
 
     override func setUp() {
         super.setUp()
@@ -139,6 +142,9 @@ final class DictationControllerTests: XCTestCase {
         savedLatchCeiling = DictationController.maxLatchedSeconds
         savedSilenceTick = DictationController.silenceTick
         savedOpeningSilence = DictationController.openingSilenceSeconds
+        savedCaptureCeiling = DictationController.maxCaptureSeconds
+        savedPolishSeconds = DictationController.polishSeconds
+        savedFinalizeSeconds = DictationController.finalizeSeconds
         Settings.enabled = true
         Settings.dictationEnabled = true
         Settings.dictationGesture = .option
@@ -161,6 +167,9 @@ final class DictationControllerTests: XCTestCase {
         DictationController.maxLatchedSeconds = savedLatchCeiling
         DictationController.silenceTick = savedSilenceTick
         DictationController.openingSilenceSeconds = savedOpeningSilence
+        DictationController.maxCaptureSeconds = savedCaptureCeiling
+        DictationController.polishSeconds = savedPolishSeconds
+        DictationController.finalizeSeconds = savedFinalizeSeconds
         super.tearDown()
     }
 
@@ -184,7 +193,6 @@ final class DictationControllerTests: XCTestCase {
         controller.gates.appIsActive = { false }
         controller.gates.secureInput = { false }
         controller.gates.micBundled = { true }
-        controller.gates.micGranted = { true }
         controller.gates.micStatus = { .authorized }
         controller.gates.transcriptionSupported = { true }
         controller.gates.startSession = { _, onPartial in
@@ -195,22 +203,17 @@ final class DictationControllerTests: XCTestCase {
     }
 
     /// A `.flagsChanged`-shaped event: `modifierChanged` only reads the keycode
-    /// field and the flags, so a keyboard event carrying them is enough.
-    private func optionEvent(down: Bool) -> CGEvent {
-        let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.leftOption),
-                            keyDown: down)!
-        event.flags = down ? .maskAlternate : []
+    /// field and the flags, so a keyboard event carrying them is enough. ⌥ —
+    /// the dictation gesture — unless told otherwise.
+    private func modifierEvent(key: Int64 = KeyCode.leftOption, flag: CGEventFlags = .maskAlternate,
+                               down: Bool) -> CGEvent {
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(key), keyDown: down)!
+        event.flags = down ? flag : []
         return event
     }
 
     /// Spin the main run loop so `Timer`s fire and queued MainActor tasks run.
-    private func pump(_ seconds: TimeInterval) async {
-        let end = Date().addingTimeInterval(seconds)
-        while Date() < end {
-            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.005))
-            await Task.yield()
-        }
-    }
+    private func pump(_ seconds: TimeInterval) async { await pump(until: { false }, timeout: seconds) }
 
     /// Pump until `condition` holds. A fixed margin that holds locally loses
     /// by an order of magnitude on a loaded CI runner — each `Task { @MainActor }`
@@ -228,21 +231,12 @@ final class DictationControllerTests: XCTestCase {
 
     /// Press the dictation key and wait out the (shortened) hold threshold.
     private func holdDown(_ controller: DictationController) async {
-        controller.modifierChanged(optionEvent(down: true))
+        controller.modifierChanged(modifierEvent(down: true))
         await pump(0.12)
     }
 
-    /// A `.flagsChanged` for a modifier that is NOT the dictation gesture —
-    /// the other half of a ⌃⌥ chord coming back up.
-    private func controlEvent(down: Bool) -> CGEvent {
-        let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.leftControl),
-                            keyDown: down)!
-        event.flags = down ? .maskControl : []
-        return event
-    }
-
     private func release(_ controller: DictationController) async {
-        controller.modifierChanged(optionEvent(down: false))
+        controller.modifierChanged(modifierEvent(down: false))
         await pump(0.05)
     }
 
@@ -255,6 +249,17 @@ final class DictationControllerTests: XCTestCase {
     private func startCapture(_ rig: Rig) async {
         await holdDown(rig.controller)
         await pump(until: { rig.controller.phase == .listening("") })
+    }
+
+    /// Hold the capture open in `.preparing` — a Bluetooth microphone spends
+    /// seconds there and a first-use language pack minutes.
+    private func slowStart(_ rig: Rig, seconds: TimeInterval) {
+        let session = rig.session
+        rig.controller.gates.startSession = { _, onPartial in
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            session.onPartial = onPartial
+            return session
+        }
     }
 
     /// Push a partial and wait until the controller has heard it.
@@ -420,12 +425,8 @@ final class DictationControllerTests: XCTestCase {
     func testReleaseDuringMicOpenCancelsTheStart() async {
         let rig = makeRig()
         let session = rig.session
-        rig.controller.gates.startSession = { _, onPartial in
-            try await Task.sleep(nanoseconds: 200_000_000)
-            session.onPartial = onPartial
-            return session
-        }
-        rig.controller.modifierChanged(optionEvent(down: true))
+        slowStart(rig, seconds: 0.2)
+        rig.controller.modifierChanged(modifierEvent(down: true))
         await pump(until: { rig.controller.phase == .preparing })
         XCTAssertEqual(rig.controller.phase, .preparing)
         await release(rig.controller)
@@ -447,12 +448,8 @@ final class DictationControllerTests: XCTestCase {
     func testReleaseDuringDownloadKeepsTheStartAndCancelsSessionOnArrival() async {
         let rig = makeRig()
         let session = rig.session
-        rig.controller.gates.startSession = { _, onPartial in
-            try await Task.sleep(nanoseconds: 200_000_000)
-            session.onPartial = onPartial
-            return session
-        }
-        rig.controller.modifierChanged(optionEvent(down: true))
+        slowStart(rig, seconds: 0.2)
+        rig.controller.modifierChanged(modifierEvent(down: true))
         await pump(until: { rig.controller.phase == .preparing })
         Transcription.isDownloading.set(true)
         defer { Transcription.isDownloading.set(false) }
@@ -482,9 +479,7 @@ final class DictationControllerTests: XCTestCase {
     }
 
     func testPolishPastBudgetFallsBackToRawTranscript() async {
-        let saved = DictationController.polishSeconds
         DictationController.polishSeconds = 0.05
-        defer { DictationController.polishSeconds = saved }
         Settings.dictationPolish = true
         let rig = makeRig()
         rig.host.tidy = { _ in "Polished." }
@@ -539,9 +534,7 @@ final class DictationControllerTests: XCTestCase {
     }
 
     func testHungFinalizeTripsWatchdog() async {
-        let saved = DictationController.finalizeSeconds
         DictationController.finalizeSeconds = 0.1
-        defer { DictationController.finalizeSeconds = saved }
         let rig = makeRig { $0.finishDelay = 5 }
         await startCapture(rig)
         await hear("x", in: rig)
@@ -607,9 +600,9 @@ final class DictationControllerTests: XCTestCase {
             AudioDevices.resolve(preference: .device(uid: "gone"), inputs: inputs,
                                  defaultInput: podsIn, defaultOutput: podsOut),
             podsIn)
-        // The stored form round-trips, and an empty default reads as automatic.
+        // The stored form parses, and an empty default reads as automatic.
         XCTAssertEqual(AudioDevices.Preference(stored: ""), .automatic)
-        XCTAssertEqual(AudioDevices.Preference(stored: "auto").stored, "auto")
+        XCTAssertEqual(AudioDevices.Preference(stored: "auto"), .automatic)
         XCTAssertEqual(AudioDevices.Preference(stored: podsIn.uid), .device(uid: podsIn.uid))
     }
 
@@ -683,6 +676,11 @@ final class DictationControllerTests: XCTestCase {
         // No shard index at all — a single-file repo is ready on its weights.
         XCTAssertTrue(ModelStorage.isFetched(
             at: try repo("single", files: ["config.json": "{}", "model.safetensors": "w"])))
+        // ...and mid-download that single file IS a dangling link: the no-index
+        // branch must check it resolves too, or the tidy-up stalls on it.
+        XCTAssertFalse(ModelStorage.isFetched(at: try repo(
+            "single-dangling", files: ["config.json": "{}"], danglingLinks: ["model.safetensors"])),
+            "a dangling single-file weight link is a download in flight")
         // Nothing there at all.
         XCTAssertFalse(ModelStorage.isFetched(at: root.appendingPathComponent("absent")))
 
@@ -728,9 +726,7 @@ final class DictationControllerTests: XCTestCase {
     }
 
     func testWatchdogAbandonsUncancellableFinalize() async {
-        let saved = DictationController.finalizeSeconds
         DictationController.finalizeSeconds = 0.1
-        defer { DictationController.finalizeSeconds = saved }
         let rig = makeRig { $0.uncancellableFinishDelay = 1.0 }
         await startCapture(rig)
         await hear("x", in: rig)
@@ -770,12 +766,10 @@ final class DictationControllerTests: XCTestCase {
     /// The 2-minute ceiling *finishes* a listening capture: the key-up was
     /// never delivered, but whatever was said still gets typed.
     func testCaptureCeilingFinishesInsteadOfDiscarding() async {
-        let saved = DictationController.maxCaptureSeconds
         // The ceiling clock starts inside `begin`, racing the same hops
         // `startCapture` waits out — 0.6 keeps it comfortably behind them on a
         // loaded runner, while still ending the test in under a second.
         DictationController.maxCaptureSeconds = 0.6
-        defer { DictationController.maxCaptureSeconds = saved }
         let rig = makeRig()
         await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
@@ -792,9 +786,7 @@ final class DictationControllerTests: XCTestCase {
     /// while suppressing the completion pipeline. Nothing was heard, so this
     /// one discards — with a notice.
     func testPreparingCeilingDiscardsAHungStart() async {
-        let saved = DictationController.maxCaptureSeconds
         DictationController.maxCaptureSeconds = 0.15
-        defer { DictationController.maxCaptureSeconds = saved }
         let rig = makeRig()
         rig.controller.gates.startSession = { _, _ in
             try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -883,26 +875,6 @@ final class DictationControllerTests: XCTestCase {
             return XCTFail("a swallowed queued hold must be said out loud")
         }
         XCTAssertTrue(notice.contains("wasn't listening"), notice)
-    }
-
-    /// The no-index branch of the fetch gate has the same dangling-symlink
-    /// hole the indexed branch was already tested for: a single-file repo
-    /// mid-download IS a dangling `model.safetensors` link, and answering
-    /// "fetched" there sends the tidy-up into the very stall the gate exists
-    /// to prevent.
-    func testFetchGateNoIndexBranchChecksTheLinkResolves() throws {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("pretype-fetch-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let revision = root.appendingPathComponent("snapshots/rev1")
-        try FileManager.default.createDirectory(at: revision, withIntermediateDirectories: true)
-        try "{}".write(to: revision.appendingPathComponent("config.json"),
-                       atomically: true, encoding: .utf8)
-        try FileManager.default.createSymbolicLink(
-            at: revision.appendingPathComponent("model.safetensors"),
-            withDestinationURL: root.appendingPathComponent("blobs/not-here-yet"))
-        XCTAssertFalse(ModelStorage.isFetched(at: root),
-                       "a dangling single-file weight link is a download in flight")
     }
 
     // MARK: - Hands-free
@@ -1136,13 +1108,11 @@ final class DictationControllerTests: XCTestCase {
     /// A latch bound by the hold's ceiling would cut a long dictation off at
     /// two minutes for a reason that does not apply to it.
     func testAHandsFreeCaptureRunsPastTheHoldCeiling() async {
-        let saved = DictationController.maxCaptureSeconds
         // 0.6 for the same reason `testCaptureCeilingFinishesInsteadOfDiscarding`
         // picks it: the short bound still covers `.preparing`, so anything
         // tighter races the two awaits before `.listening` on a loaded runner.
         DictationController.maxCaptureSeconds = 0.6
         DictationController.maxLatchedSeconds = 5
-        defer { DictationController.maxCaptureSeconds = saved }
         let rig = makeRig()
         await startLatched(rig)
         await hear("a long one", in: rig)
@@ -1178,17 +1148,6 @@ final class DictationControllerTests: XCTestCase {
         await pump(until: { rig.controller.phase == .idle }, timeout: 3)
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertEqual(rig.capture.startCount, 1, "the queued capture was taken back")
-    }
-
-    /// Hold the capture open in `.preparing` — a Bluetooth microphone spends
-    /// seconds there and a first-use language pack minutes.
-    private func slowStart(_ rig: Rig, seconds: TimeInterval) {
-        let session = rig.session
-        rig.controller.gates.startSession = { _, onPartial in
-            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            session.onPartial = onPartial
-            return session
-        }
     }
 
     /// `.preparing` is inside the hands-free window, not outside it. Scoping
@@ -1236,7 +1195,7 @@ final class DictationControllerTests: XCTestCase {
     /// paragraph away.
     func testAModifierHeldIntoALatchLeavesNoPhantomHold() async {
         let rig = makeRig { $0.finishDelay = 0.2 }
-        rig.controller.modifierChanged(optionEvent(down: true))
+        rig.controller.modifierChanged(modifierEvent(down: true))
         rig.controller.toggleLatch()
         await pump(until: { rig.controller.phase == .listening("") })
         // Past the (shortened) hold threshold, so the arm timer has fired.
@@ -1247,8 +1206,8 @@ final class DictationControllerTests: XCTestCase {
         rig.controller.toggleLatch()
         XCTAssertEqual(rig.controller.phase, .working)
         // ⌃ lifts before ⌥ — the coin flip that used to end in a cancel.
-        rig.controller.modifierChanged(controlEvent(down: false))
-        rig.controller.modifierChanged(optionEvent(down: false))
+        rig.controller.modifierChanged(modifierEvent(key: KeyCode.leftControl, flag: .maskControl, down: false))
+        rig.controller.modifierChanged(modifierEvent(down: false))
         await pump(until: { !rig.host.inserted.isEmpty }, timeout: 3)
         XCTAssertEqual(rig.host.inserted, ["hello world"],
                        "letting go of a modifier must not cancel what was already said")
@@ -1332,10 +1291,8 @@ final class DictationControllerTests: XCTestCase {
     /// dictation…" on screen for ten minutes with the completion pipeline
     /// suppressed behind `isBusy` the whole time.
     func testAHungHandsFreeStartGivesUpOnTheShortCeiling() async {
-        let saved = DictationController.maxCaptureSeconds
         DictationController.maxCaptureSeconds = 0.15
         DictationController.maxLatchedSeconds = 30
-        defer { DictationController.maxCaptureSeconds = saved }
         let rig = makeRig()
         rig.controller.gates.startSession = { _, _ in
             try await Task.sleep(nanoseconds: 5_000_000_000)

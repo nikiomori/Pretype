@@ -14,7 +14,7 @@ final class TranscriptionBiasWordsTests: XCTestCase {
 
     func testDeduplicatesCaseInsensitivelyAndCaps() {
         let text = (0..<80).map { "word Name\($0)x" }.joined(separator: " ") + " NAME79X"
-        let words = Transcription.biasWords(in: text, limit: 50)
+        let words = Transcription.biasWords(in: text)
         XCTAssertEqual(words.count, 50)
         XCTAssertEqual(words.filter { $0.lowercased() == "name79x" }.count, 1)
     }

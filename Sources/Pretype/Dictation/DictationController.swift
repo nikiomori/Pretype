@@ -1,3 +1,4 @@
+import Accelerate
 import AppKit
 import ApplicationServices
 import AVFoundation
@@ -32,7 +33,6 @@ final class DictationController {
         var appIsActive: @MainActor () -> Bool = { NSApp.isActive }
         var secureInput: () -> Bool = { AXText.isSecureInputActive() }
         var micBundled: () -> Bool = { MicrophoneAccess.isBundled }
-        var micGranted: () -> Bool = { MicrophoneAccess.isGranted }
         var micStatus: () -> AVAuthorizationStatus = { MicrophoneAccess.status }
         var transcriptionSupported: () -> Bool = { Transcription.isSupported }
         var startSession: @Sendable (Locale, @escaping @Sendable (String) -> Void)
@@ -216,8 +216,8 @@ final class DictationController {
     /// arguments by default, and an `NSLog("...%@", message)` here showed up as
     /// a row of `<private>` — a log line that proves something happened and
     /// refuses to say what.
-    nonisolated static func note(_ message: String, detail: String? = nil) {
-        DebugLog.shared.log("DICTATE", message, detail: detail)
+    nonisolated static func note(_ message: String) {
+        DebugLog.shared.log("DICTATE", message)
         os_log("%{public}@", log: dictationLog, type: .default, message)
     }
 
@@ -580,7 +580,7 @@ final class DictationController {
             return refuse("the language pack is still downloading",
                           notice: .hint("getting the dictation model ready…"), at: rect)
         }
-        guard gates.micGranted() else {
+        guard gates.micStatus() == .authorized else {
             // Never asked. Dictation can be switched on without passing through
             // the Settings toggle that normally does the asking — a stored
             // default, a synced preference, a `defaults write` — and refusing a
@@ -644,13 +644,8 @@ final class DictationController {
         let onPartial: @Sendable (String) -> Void = { [weak self] text in
             Task { @MainActor in self?.updatePartial(text, generation: gen) }
         }
-        // Same rule, and the sharper case for it: this one is called from
-        // whatever thread the capture's device-loss notification is posted on.
         captureEpoch += 1
         let epoch = captureEpoch
-        let onDeviceChange: @Sendable () -> Void = { [weak self] in
-            Task { @MainActor in await self?.deviceChanged(generation: gen, epoch: epoch) }
-        }
         // Fresh per capture, so a buffer straggling out of the previous one
         // cannot count as this one having heard something. Written on the
         // delivery queue, read by `silenceTimer` — hence the lock inside, and
@@ -675,13 +670,7 @@ final class DictationController {
                 let session = try await startSession(locale, onPartial)
                 started = session
                 guard let self, self.generation == gen else { return session.cancel() }
-                try await self.capture.start(
-                    deviceUID: Self.inputDevice()?.uid,
-                    outputFormat: session.audioFormat, onDeviceChange: onDeviceChange
-                ) { buffer in
-                    session.feed(buffer)
-                    meter.feed(buffer)
-                }
+                try await self.openMic(for: session, meter: meter, generation: gen, epoch: epoch)
                 // Re-checked across the device-open suspension: a discard that
                 // landed mid-open already called `capture.stop()`, but ours
                 // may have re-opened the microphone after it. Epoch-guarded,
@@ -827,6 +816,14 @@ final class DictationController {
     private func deviceChanged(generation: Int, epoch: Int) async {
         guard self.generation == generation, epoch == captureEpoch,
               isCapturing, let session else { return }
+        func end() {
+            _ = hold.interrupt()
+            if case .listening(let partial) = phase, !partial.isEmpty {
+                finish()
+            } else {
+                fail(AudioCapture.Failure.deviceChanged)
+            }
+        }
         // Circuit breaker. A reopened device can disappear again immediately —
         // a dying Bluetooth headset does exactly this — and one wrong move
         // upstream turns that into a loop that restarts the tap dozens of
@@ -843,13 +840,7 @@ final class DictationController {
         restarts += 1
         guard restarts <= Self.maxRestarts else {
             Self.note("input kept changing — ending the capture instead of restarting again")
-            _ = hold.interrupt()
-            if case .listening(let partial) = phase, !partial.isEmpty {
-                finish()
-            } else {
-                fail(AudioCapture.Failure.deviceChanged)
-            }
-            return
+            return end()
         }
         // Carrying on is only sound when the session PINNED a format: the
         // restart resamples the new device into it, and the analyzer never
@@ -869,25 +860,15 @@ final class DictationController {
             captureEpoch += 1
             let epoch = captureEpoch
             restartEpoch = epoch
-            let onDeviceChange: @Sendable () -> Void = { [weak self] in
-                Task { @MainActor in await self?.deviceChanged(generation: gen, epoch: epoch) }
-            }
             do {
-                // Re-resolved, not remembered: the loss that brought us here
-                // may be the very headset the automatic rule steps around
-                // leaving the room.
+                // The device is re-resolved, not remembered: the loss that
+                // brought us here may be the very headset the automatic rule
+                // steps around leaving the room.
                 // The same meter across the swap: a capture that keeps going
                 // through a device change is still one capture, and handing it
                 // a fresh meter would restart its noise floor from scratch
                 // mid-sentence — on the new device, in the same room.
-                let meter = self.meter
-                try await capture.start(
-                    deviceUID: Self.inputDevice()?.uid,
-                    outputFormat: session.audioFormat, onDeviceChange: onDeviceChange
-                ) { buffer in
-                    session.feed(buffer)
-                    meter?.feed(buffer)
-                }
+                try await openMic(for: session, meter: meter, generation: gen, epoch: epoch)
                 // Re-checked across the device-open suspension: a keystroke's
                 // discard landing mid-open already stopped the capture, and
                 // ours may have re-opened the microphone after it. Same epoch
@@ -912,11 +893,28 @@ final class DictationController {
         // kill the very capture that restart just saved.
         guard self.generation == generation, isCapturing,
               captureEpoch == restartEpoch else { return }
-        _ = hold.interrupt()
-        if case .listening(let partial) = phase, !partial.isEmpty {
-            finish()
-        } else {
-            fail(AudioCapture.Failure.deviceChanged)
+        end()
+    }
+
+    /// Open the microphone for `session` under `epoch` (see `captureEpoch`),
+    /// feeding it and `meter` — `begin`'s first open and `deviceChanged`'s
+    /// restart alike.
+    ///
+    /// The device-change callback is built here, in a method, rather than
+    /// inside a `[weak self]` task: there it would capture the task's optional
+    /// `self` *variable*, a data race the moment the capture calls it from
+    /// whatever thread the device-loss notification is posted on.
+    private func openMic(for session: any TranscriptionSession, meter: VoiceMeter?,
+                         generation gen: Int, epoch: Int) async throws {
+        let onDeviceChange: @Sendable () -> Void = { [weak self] in
+            Task { @MainActor in await self?.deviceChanged(generation: gen, epoch: epoch) }
+        }
+        try await capture.start(
+            deviceUID: Self.inputDevice()?.uid,
+            outputFormat: session.audioFormat, onDeviceChange: onDeviceChange
+        ) { buffer in
+            session.feed(buffer)
+            meter?.feed(buffer)
         }
     }
 
@@ -955,11 +953,10 @@ final class DictationController {
                 // would otherwise leave the pill saying "writing it down…"
                 // forever, with every keystroke silently discarding. Ten
                 // seconds is far past any real finalization of a two-minute
-                // ceiling's audio — this is a watchdog, not a budget.
-                // An upload is not a local finalization: a long take over a
-                // slow link legitimately takes longer than ten seconds.
+                // ceiling's audio — this is a watchdog, not a budget. A
+                // session that uploads asks for longer (`finishDeadline`).
                 let raw = try await Self.withDeadline(
-                    seconds: session is CloudTranscription ? 60 : Self.finalizeSeconds) {
+                    seconds: session.finishDeadline ?? Self.finalizeSeconds) {
                     try await session.finish()
                 }
                 guard let self else { return }
@@ -1408,21 +1405,15 @@ final class VoiceMeter: Sendable {
     nonisolated static func decibels(_ buffer: AVAudioPCMBuffer) -> Float {
         let frames = Int(buffer.frameLength)
         guard frames > 0 else { return -120 }
-        var sum: Float = 0
+        let rms: Float
         if let channel = buffer.floatChannelData?[0] {
-            for index in 0..<frames {
-                let sample = channel[index]
-                sum += sample * sample
-            }
+            rms = vDSP.rootMeanSquare(UnsafeBufferPointer(start: channel, count: frames))
         } else if let channel = buffer.int16ChannelData?[0] {
-            for index in 0..<frames {
-                let sample = Float(channel[index]) / 32768
-                sum += sample * sample
-            }
+            let samples = UnsafeBufferPointer(start: channel, count: frames)
+            rms = vDSP.rootMeanSquare(vDSP.integerToFloatingPoint(samples, floatingPointType: Float.self)) / 32768
         } else {
             return 0
         }
-        let rms = (sum / Float(frames)).squareRoot()
         guard rms > 0 else { return -120 }
         return 20 * log10(rms)
     }

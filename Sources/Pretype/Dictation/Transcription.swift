@@ -4,19 +4,26 @@ import Speech
 
 /// One dictation session: audio in, text out.
 ///
-/// A protocol, not a concrete type, so `DictationController` doesn't have to be
-/// version-gated: Apple's `SpeechAnalyzer` (macOS 26) is the only implementation
-/// today, and a bundled Whisper/Parakeet engine for macOS 14–15 would slot in
-/// here without the controller noticing.
+/// A protocol, not a concrete type, so `DictationController` needs no model of
+/// its own: Apple's `SpeechAnalyzer` (`SystemTranscription`)
+/// and the whole-take models — Parakeet and the speech APIs
+/// (`RecordedTranscription`) — sit behind it, and a test drives a scripted one.
 protocol TranscriptionSession: AnyObject, Sendable {
     /// The format the session wants its audio in — nil accepts the device's own.
     var audioFormat: AVAudioFormat? { get }
+    /// How long `finish()` may run before the controller's watchdog gives up,
+    /// or nil for the controller's own bound (a local finalization).
+    var finishDeadline: TimeInterval? { get }
     /// Hand over one buffer of microphone audio. Called from the audio thread.
     func feed(_ buffer: AVAudioPCMBuffer)
     /// Stop, flush, and return the finished transcript.
     func finish() async throws -> String
     /// Abandon the session — nothing is transcribed and nothing is returned.
     func cancel()
+}
+
+extension TranscriptionSession {
+    var finishDeadline: TimeInterval? { nil }
 }
 
 enum TranscriptionError: LocalizedError {
@@ -120,7 +127,7 @@ enum Transcription {
     static func start(locale: Locale,
                       onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
         if Settings.apiAudio.enabled {
-            return try CloudTranscription(Settings.apiAudio, locale: locale, onPartial: onPartial)
+            return try CloudTranscription.start(Settings.apiAudio, locale: locale, onPartial: onPartial)
         }
         let resolved = await resolve(locale)
         if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
@@ -167,7 +174,7 @@ enum Transcription {
     /// The bias candidates in `text`, most recent first, deduplicated: words
     /// capitalized mid-sentence (names) and words with an inner capital or
     /// digit (iPhone, MLX, GPT4). Sentence-initial capitals carry no signal.
-    static func biasWords(in text: String, limit: Int = 50) -> [String] {
+    static func biasWords(in text: String) -> [String] {
         var picked: [String] = []
         for line in text.split(whereSeparator: \.isNewline) {
             var atStart = true  // a new line starts a sentence (or a list item)
@@ -180,7 +187,7 @@ enum Transcription {
             }
         }
         var seen = Set<String>()
-        return Array(picked.reversed().filter { seen.insert($0.lowercased()).inserted }.prefix(limit))
+        return Array(picked.reversed().filter { seen.insert($0.lowercased()).inserted }.prefix(50))
     }
 
     /// A language pack is downloading — the one `.preparing` wait worth
@@ -316,5 +323,63 @@ private final class SystemTranscription<Module: SpeechModule>: TranscriptionSess
         collector.cancel()
         let analyzer = analyzer
         Task { await analyzer.cancelAndFinishNow() }
+    }
+}
+
+/// A whole-take model driven as a live session — Parakeet, or a speech API:
+/// audio accumulates in memory, and `finish()` transcribes the whole take in
+/// one pass. With `preview` on, everything heard so far is re-transcribed
+/// about once a second for the pill.
+final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
+    let audioFormat: AVAudioFormat? = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)
+    let finishDeadline: TimeInterval?
+
+    private let transcribe: @Sendable (_ audio: [Float], _ final: Bool) async throws -> String
+    private let samples = LockedValue<[Float]>([])
+    private let previewTask = LockedValue<Task<Void, Never>?>(nil)
+
+    init(preview: Bool, finishDeadline: TimeInterval? = nil,
+         onPartial: @escaping @Sendable (String) -> Void,
+         transcribe: @escaping @Sendable (_ audio: [Float], _ final: Bool) async throws -> String) {
+        self.finishDeadline = finishDeadline
+        self.transcribe = transcribe
+        guard preview else { return }
+        previewTask.set(Task { [samples] in
+            var previewed = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                let audio = samples.get()
+                // Half a second of new audio, or the pill would repaint the same guess.
+                guard audio.count >= previewed + 8_000 else { continue }
+                previewed = audio.count
+                if let text = try? await transcribe(audio, false), !Task.isCancelled {
+                    onPartial(text)
+                }
+            }
+        })
+    }
+
+    func feed(_ buffer: AVAudioPCMBuffer) {
+        guard let channel = buffer.floatChannelData?[0] else { return }
+        let chunk = UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
+        samples.mutate { $0.append(contentsOf: chunk) }
+    }
+
+    func finish() async throws -> String {
+        if let task = previewTask.exchange(nil) {
+            task.cancel()
+            // One model call at a time; an upload in flight is cancelled with
+            // the task rather than waited out.
+            await task.value
+        }
+        let audio = samples.exchange([])
+        guard !audio.isEmpty else { return "" }
+        return try await transcribe(audio, true)
+    }
+
+    func cancel() {
+        previewTask.exchange(nil)?.cancel()
+        samples.set([])
     }
 }

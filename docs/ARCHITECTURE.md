@@ -66,7 +66,7 @@ default.
 | Item | Text (`CloudEngine`) | Dictation (`CloudTranscription`) |
 |---|---|---|
 | Request | `chat/completions` in the OpenAI format, or `messages` in the Anthropic format. | `audio/transcriptions` in the OpenAI format. |
-| Prompt or payload | The continuation prompt of `FoundationModelsEngine` (`CompletionRequest.continuationTurn`). The fix, reply and command prompts of the local engines. | One WAV file (16 kHz, 16-bit, mono) when the capture stops. No live preview. |
+| Prompt or payload | The continuation prompt of `FoundationModelsEngine` (`CompletionRequest.continuationTurn`). The fix, reply and command prompts of the local engines. | One WAV file (16 kHz, 16-bit, mono) when the capture stops. A hosted model gets no live preview. A server on this Mac gets the take so far about once a second. |
 | Output | The shared output gates of the local engines. | The same tidy-up pass as a local transcript. |
 | Length | A words hint in the prompt, and a word cap on the result (`CloudEngine.wordCap`). A token budget cannot set the length, because a reasoning model uses tokens before its first word. | One take. OpenAI and Groq accept up to 25 MB, which is ≈13 minutes. |
 | Spelling hints | — | The names and terms in the field. `gpt-transcribe` gets them as `keywords[]`. Whisper models get them as `prompt`. |
@@ -320,8 +320,8 @@ without this suffix.
   like support and then fails at load.
 * **One protocol.** `Transcription` wraps Apple's `SpeechAnalyzer` behind the
   `TranscriptionSession` protocol. Parakeet and the API provider use the same
-  protocol. Thus the
-  controller has no version checks.
+  protocol through one `RecordedTranscription`: it keeps the take in memory
+  and transcribes it whole. Thus the controller has no version checks.
 * **Zero bytes from us.** The Apple models belong to the system. macOS
   downloads them for each language on first use, and all apps share them.
 * **Live pill.** Volatile results update the pill at the caret while you

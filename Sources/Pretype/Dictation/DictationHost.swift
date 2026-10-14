@@ -98,7 +98,3 @@ protocol AudioCapturing: AnyObject {
 }
 
 extension AudioCapture: AudioCapturing {}
-
-extension DictationHost {
-    var focusIsInLauncher: Bool { false }
-}
