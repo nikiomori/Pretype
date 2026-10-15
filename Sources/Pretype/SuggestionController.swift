@@ -940,6 +940,14 @@ final class SuggestionController: NSObject {
             ctx = cachedContext
         } else if let element = currentTextElement(),
                   let fresh = AXText.context(for: element, allowEmpty: allowEmpty) {
+            // The host hasn't caught up with a key the tap already saw ("hel"
+            // read, "hell" cached): anchoring here would let ⇥ type the "l"
+            // twice. Wait for the keystroke's own refresh instead.
+            if let cached = latestTextBeforeCaret, cached.count > fresh.textBeforeCaret.count,
+               cached.hasPrefix(fresh.textBeforeCaret) {
+                lastEvent = "field read trails the last keystroke; result dropped"
+                return false
+            }
             ctx = fresh
         } else {
             // The reply path lands here whenever the field is empty and this read
