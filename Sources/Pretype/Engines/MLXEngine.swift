@@ -112,6 +112,27 @@ final class MLXEngine: CompletionEngine {
     private let drafter = LockedValue<(any MTPDrafterModel)?>(nil)
     private let correctionDrafter = LockedValue<(any MTPDrafterModel)?>(nil)
 
+    /// How to rebuild each unloaded model without the build leak, by repo —
+    /// see `keepBlueprint`.
+    private let blueprints = LockedValue<[String: Blueprint]>([:])
+
+    /// An unloaded model's configuration, plus a placeholder for each of its
+    /// quantized layers. The tokenizer stays with `tokenizers` — held here it
+    /// could never be let go. `vlm`: the MTP-capable build (see `loadTarget`).
+    struct Blueprint: @unchecked Sendable {
+        let configuration: ModelConfiguration
+        let tokenizerDirectory: URL
+        let layers: [(path: String, placeholder: () -> Module)]
+        let vlm: Bool
+    }
+
+    /// Pretype feeds models token arrays it builds itself, never a
+    /// `UserInput`: a rebuilt context needs no input processor — and the
+    /// factory's holds the tokenizer, which `tokenizers` must be able to drop.
+    private struct UnusedInputProcessor: UserInputProcessor {
+        func prepare(input: UserInput) async throws -> LMInput { throw EngineNotReady() }
+    }
+
     /// Parsed tokenizers, kept across idle unloads. Parsing tokenizer.json is
     /// most of a reload — Gemma 1.45 s of ~1.9 s, the weights loading in
     /// parallel finish first — for ~120 MB resident (Qwen3.5 ~86 MB) against
@@ -226,6 +247,7 @@ final class MLXEngine: CompletionEngine {
         let stateBox = self.stateBox
         let id = self.modelID
         let tokenizers = self.tokenizers
+        let blueprints = self.blueprints
         let drafterBox = self.drafter
         let drafterID = style == .instruct ? ModelCatalog.mtpDrafterID(for: id) : nil
         stateBox.set(.preparing("loading…"))
@@ -234,7 +256,8 @@ final class MLXEngine: CompletionEngine {
             let repo = ModelCatalog.repo(for: id)
             do {
                 let loaded = try await Self.loadTarget(
-                    Self.configuration(for: repo), drafterID: drafterID, into: drafterBox, tokenizers: tokenizers,
+                    Self.configuration(for: repo), repo: repo, drafterID: drafterID, into: drafterBox,
+                    tokenizers: tokenizers, blueprints: blueprints,
                     progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
                 ModelStorage.noteLoad(repo: repo, succeeded: true)
                 // Retired mid-load (a model switch, `shutdown`): don't warm up
@@ -297,7 +320,11 @@ final class MLXEngine: CompletionEngine {
                 ["vision_tower", "audio_tower", "embed_vision", "embed_audio"].contains { key.hasPrefix($0) }
             }
             guard !towers.isEmpty else { return }
-            let empty = Dictionary(uniqueKeysWithValues: towers.map { ($0.0, MLXArray.zeros([0], dtype: $0.1.dtype)) })
+            // Lazy zeros of the real shape: never evaluated, so never
+            // allocated, and the model's blueprint keeps the true shapes.
+            let empty = Dictionary(uniqueKeysWithValues: towers.map {
+                ($0.0, MLXArray.zeros($0.1.shape, dtype: $0.1.dtype))
+            })
             try? context.model.update(parameters: ModuleParameters.unflattened(empty), verify: [.none])
         }
         Memory.clearCache()
@@ -314,20 +341,42 @@ final class MLXEngine: CompletionEngine {
     /// per launch. It is part of the model the user already chose (listed and
     /// deleted with it, see `ModelStorage.repos`), so it rides that consent.
     private static func loadTarget(
-        _ configuration: ModelConfiguration, drafterID: String?,
+        _ configuration: ModelConfiguration, repo: String, drafterID: String?,
         into drafterBox: LockedValue<(any MTPDrafterModel)?>, tokenizers: TokenizerCache,
+        blueprints: LockedValue<[String: Blueprint]>,
         progressHandler: @escaping @Sendable (Progress) -> Void
     ) async throws -> ModelContainer {
         drafterBox.set(nil)
+        let drafterDirectory = drafterID.flatMap(ModelStorage.localSnapshot(for:))
+        if let blueprint = blueprints.mutate({ $0.removeValue(forKey: repo) }),
+           blueprint.vlm == (drafterDirectory != nil),
+           let directory = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:)),
+           // Drawn from this snapshot: an upgrade since gets a fresh load.
+           case .directory(directory) = blueprint.configuration.id {
+            do {
+                let container = try await rebuild(blueprint, from: directory, tokenizers: tokenizers)
+                if let drafterDirectory {
+                    await dropUnusedTowers(container)
+                    drafterBox.set(try await loadDrafter(at: drafterDirectory))
+                }
+                return container
+            } catch {
+                drafterBox.set(nil)
+                if error is CancellationError { throw error }
+                DebugLog.shared.log("MLX", "rebuild from the blueprint failed (\(error.localizedDescription)) — loading afresh")
+            }
+        }
         if let drafterID {
-            if let local = ModelStorage.localSnapshot(for: drafterID) {
+            if let local = drafterDirectory {
                 // MTP needs the target's last hidden state, which only the VLM
                 // build of Gemma 4 emits; its unused vision tower is freed right
                 // after, so the drafter is the whole extra cost.
                 do {
-                    let vlm = try await VLMModelFactory.shared.loadContainer(
-                        from: #hubDownloader(), using: tokenizers,
-                        configuration: configuration, progressHandler: progressHandler)
+                    let vlm = try await withRandomState(MLXRandom.RandomState(seed: 0)) {
+                        try await VLMModelFactory.shared.loadContainer(
+                            from: #hubDownloader(), using: tokenizers,
+                            configuration: configuration, progressHandler: progressHandler)
+                    }
                     await dropUnusedTowers(vlm)
                     drafterBox.set(try await loadDrafter(at: local))
                     return vlm
@@ -353,17 +402,107 @@ final class MLXEngine: CompletionEngine {
         }
         // LLMModelFactory, not loadModelContainer: with MLXVLM linked the generic
         // loader picks the VLM classes first (Qwen3.5's lacks the raw-token call
-        // the decode loop uses).
-        return try await LLMModelFactory.shared.loadContainer(
-            from: #hubDownloader(), using: tokenizers,
-            configuration: configuration, progressHandler: progressHandler)
+        // the decode loop uses). A scoped random state: building a model draws
+        // placeholder weights for every layer, and from the global state each
+        // draw grew a lazy key chain that state holds for the app's life.
+        return try await withRandomState(MLXRandom.RandomState(seed: 0)) {
+            try await LLMModelFactory.shared.loadContainer(
+                from: #hubDownloader(), using: tokenizers,
+                configuration: configuration, progressHandler: progressHandler)
+        }
+    }
+
+    /// Builds the model again from `blueprint`: a fresh instance with every
+    /// quantized layer already in place as a lazy-zero placeholder, so
+    /// `loadWeights` finds nothing to quantize and only replaces placeholders.
+    private static func rebuild(_ blueprint: Blueprint, from directory: URL,
+                                tokenizers: TokenizerCache) async throws -> ModelContainer {
+        // A cache hit, unless memory pressure let it go: then parsed alongside
+        // the weights, as the factory does.
+        async let tokenizer = tokenizers.load(from: blueprint.tokenizerDirectory)
+        let configData = try Data(contentsOf: directory.appendingPathComponent("config.json"))
+        let decoder = JSONDecoder()
+        decoder.allowsJSON5 = true
+        let base = try decoder.decode(BaseConfiguration.self, from: configData)
+        let registry = blueprint.vlm ? VLMModelFactory.shared.typeRegistry : LLMModelFactory.shared.typeRegistry
+        let model = try await withRandomState(MLXRandom.RandomState(seed: 0)) {
+            try await registry.createModel(configuration: configData, modelType: base.modelType)
+        }
+        try model.update(modules: ModuleChildren.unflattened(blueprint.layers.map { ($0.path, $0.placeholder()) }),
+                         verify: [.none])
+        try await loadWeights(modelDirectory: directory, model: model,
+                              perLayerQuantization: base.perLayerQuantization)
+        return ModelContainer(context: ModelContext(
+            configuration: blueprint.configuration, model: model,
+            processor: UnusedInputProcessor(), tokenizer: try await tokenizer))
+    }
+
+    /// Records how to rebuild an unloaded model (see `Blueprint`), so the next
+    /// load doesn't leak. A build leaked ~5 MB (E4B) to ~20 MB (Qwen3.5 2B)
+    /// for good, and idle unloads made one of every return to the keyboard:
+    /// the bundled MLX predates the fix for sibling arrays released by
+    /// assignment (ml-explore/mlx#4453), and `loadWeights` quantizes each
+    /// layer's placeholder weights into such sibling triples that the loaded
+    /// weights then replace by assignment. Placeholders made here have no
+    /// siblings.
+    /// ponytail: delete once mlx-swift bundles an MLX with #4453 (0.32.3 doesn't).
+    private func keepBlueprint(_ task: Task<ModelContainer, Error>?, repo: String, vlm: Bool) {
+        guard let task else { return }
+        let blueprints = self.blueprints
+        // The sole owner of the old model now (the engine dropped its task):
+        // let go of it before clearing the buffer pool, or its freed weights
+        // fill the pool the unload just emptied and sit there all idle.
+        let owner = LockedValue<Task<ModelContainer, Error>?>(task)
+        Task.detached(priority: .userInitiated) {
+            let blueprint: Blueprint? = await {
+                guard let container = try? await owner.exchange(nil)?.value,
+                      let tokenizerDirectory = try? await container.tokenizerDirectory else { return nil }
+                return await container.perform { context in
+                    Blueprint(configuration: context.configuration, tokenizerDirectory: tokenizerDirectory,
+                              layers: context.model.leafModules().flattened().compactMap(Self.placeholder),
+                              vlm: vlm)
+                }
+            }()
+            if let blueprint { blueprints.mutate { $0[repo] = blueprint } }
+            Memory.clearCache()
+        }
+    }
+
+    /// A lazy-zero stand-in for a loaded quantized layer, same shapes and
+    /// settings — what `quantize` would have built, minus the siblings. Only
+    /// shapes are captured: an array captured here would keep its weights.
+    private static func placeholder(_ path: String, _ module: Module) -> (path: String, placeholder: () -> Module)? {
+        typealias Spec = (shape: [Int], dtype: DType)
+        func spec(_ array: MLXArray) -> Spec { (array.shape, array.dtype) }
+        func zeros(_ spec: Spec) -> MLXArray { MLXArray.zeros(spec.shape, dtype: spec.dtype) }
+        // Exact classes: a subclass (QLoRA, a rotated or sharded layer) is no
+        // plain layer to stand in for.
+        if type(of: module) == QuantizedLinear.self, let layer = module as? QuantizedLinear, layer.globalScale == nil {
+            let (weight, scales) = (spec(layer.weight), spec(layer.scales))
+            let (bias, biases) = (layer.bias.map(spec), layer.biases.map(spec))
+            let (groupSize, bits, mode) = (layer.groupSize, layer.bits, layer.mode)
+            return (path, {
+                QuantizedLinear(weight: zeros(weight), bias: bias.map(zeros), scales: zeros(scales),
+                                biases: biases.map(zeros), groupSize: groupSize, bits: bits, mode: mode)
+            })
+        }
+        if type(of: module) == QuantizedEmbedding.self, let layer = module as? QuantizedEmbedding, layer.globalScale == nil {
+            let (weight, scales, biases) = (spec(layer.weight), spec(layer.scales), layer.biases.map(spec))
+            let (groupSize, bits, mode) = (layer.groupSize, layer.bits, layer.mode)
+            return (path, {
+                QuantizedEmbedding(weight: zeros(weight), scales: zeros(scales), biases: biases.map(zeros),
+                                   groupSize: groupSize, bits: bits, mode: mode)
+            })
+        }
+        return nil
     }
 
     private static func loadDrafter(at directory: URL) async throws -> any MTPDrafterModel {
         let config = try JSONDecoder().decode(
             Gemma4AssistantConfiguration.self,
             from: Data(contentsOf: directory.appendingPathComponent("config.json")))
-        let model = Gemma4AssistantDraftModel(config)
+        // Scoped random state, as for the target's build (see `loadTarget`).
+        let model = withRandomState(MLXRandom.RandomState(seed: 0)) { Gemma4AssistantDraftModel(config) }
         try await loadWeights(modelDirectory: directory, model: model)
         return model
     }
@@ -464,6 +603,13 @@ final class MLXEngine: CompletionEngine {
             modelLock.unlock(); return
         }
         let before = Memory.snapshot().activeMemory
+        if reason == "memory pressure" {
+            blueprints.set([:])
+        } else {
+            keepBlueprint(loadTask, repo: ModelCatalog.repo(for: modelID), vlm: drafter.get() != nil)
+            keepBlueprint(correctionLoadTask, repo: ModelCatalog.repo(for: correctionModelID),
+                          vlm: correctionDrafter.get() != nil)
+        }
         loadTask?.cancel(); loadTask = nil
         correctionLoadTask?.cancel(); correctionLoadTask = nil
         // Still under the lock: a request arriving the moment it drops starts
@@ -1063,6 +1209,7 @@ final class MLXEngine: CompletionEngine {
             let status = self.correctionStatus
             let correctionFetched = self.correctionFetched
             let tokenizers = self.tokenizers
+            let blueprints = self.blueprints
             let drafterBox = self.correctionDrafter
             // Set under the lock, before the task runs, so `unload` can't cancel
             // a load that hasn't reported itself yet.
@@ -1071,8 +1218,9 @@ final class MLXEngine: CompletionEngine {
                 let repo = ModelCatalog.repo(for: id)
                 do {
                     let container = try await Self.loadTarget(
-                        Self.configuration(for: repo),
-                        drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox, tokenizers: tokenizers,
+                        Self.configuration(for: repo), repo: repo,
+                        drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox,
+                        tokenizers: tokenizers, blueprints: blueprints,
                         progressHandler: { progress in
                             status.set(Self.downloadStatus(progress, label: "fix model"))
                         }
