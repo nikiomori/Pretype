@@ -33,14 +33,15 @@ final class BackgroundProbe {
 
     /// Call `apply` (which reads `appearance`) immediately, then re-sample near
     /// `caretRect` (Cocoa screen coordinates) and call it again once the sample
-    /// lands. Throttled: the same spot within 0.7 s reuses the cache, so
-    /// per-keystroke callers cost nothing between samples.
+    /// lands. Throttled: the background beside a caret moving along its line
+    /// doesn't change, so a new line or field samples at once and the same
+    /// line only every 5 s — at 0.7 s, typing paid ~1.4 captures a second.
     func refresh(near caretRect: CGRect, apply: @escaping () -> Void) {
         apply()
         let now = CFAbsoluteTimeGetCurrent()
         let moved = abs(caretRect.midY - lastRect.midY) > caretRect.height
             || abs(caretRect.midX - lastRect.midX) > 200
-        guard !inFlight, moved || now - lastAt > 0.7,
+        guard !inFlight, moved || now - lastAt > 5,
               CGPreflightScreenCaptureAccess() else { return }
         inFlight = true
         lastRect = caretRect
@@ -71,15 +72,7 @@ final class BackgroundProbe {
     /// overlay's own app excluded from the capture so it never samples itself.
     nonisolated private static func sampleLuminance(in cgRect: CGRect) async -> CGFloat? {
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(
-                true, onScreenWindowsOnly: true
-            )
-            guard let display = content.displays.first(where: { $0.frame.intersects(cgRect) })
-            else { return nil }
-            let ownApp = content.applications.filter { $0.processID == getpid() }
-            let filter = SCContentFilter(display: display,
-                                         excludingApplications: ownApp,
-                                         exceptingWindows: [])
+            guard let (display, filter) = try await filter(for: cgRect) else { return nil }
             let local = cgRect
                 .offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
                 .intersection(CGRect(origin: .zero, size: display.frame.size))
@@ -96,6 +89,31 @@ final class BackgroundProbe {
         } catch {
             return nil
         }
+    }
+
+    /// The capture filter per display, kept: listing the shareable content
+    /// walks every window on screen, per sample. Dropped when the displays
+    /// change; kept only once it excludes our own app — listed before the
+    /// overlay is on screen, it can't, and the probe would sample its own ghost.
+    nonisolated private static let filters = LockedValue<[CGDirectDisplayID: (SCDisplay, SCContentFilter)]>([:])
+    nonisolated(unsafe) private static var screensObserver: NSObjectProtocol?
+
+    nonisolated private static func filter(for cgRect: CGRect) async throws -> (SCDisplay, SCContentFilter)? {
+        if let hit = filters.get().values.first(where: { $0.0.frame.intersects(cgRect) }) { return hit }
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        guard let display = content.displays.first(where: { $0.frame.intersects(cgRect) }) else { return nil }
+        let ownApp = content.applications.filter { $0.processID == getpid() }
+        let filter = SCContentFilter(display: display, excludingApplications: ownApp, exceptingWindows: [])
+        if !ownApp.isEmpty {
+            filters.mutate { $0[display.displayID] = (display, filter) }
+            await MainActor.run {
+                guard screensObserver == nil else { return }
+                screensObserver = NotificationCenter.default.addObserver(
+                    forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil
+                ) { _ in filters.set([:]) }
+            }
+        }
+        return (display, filter)
     }
 
     /// Average the capture down to one sRGB pixel and read its luminance.

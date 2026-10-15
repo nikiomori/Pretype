@@ -415,7 +415,7 @@ enum Settings {
 
     /// First language of each enabled keyboard layout / input mode (e.g. the
     /// "Russian – PC" keyboard → "ru"). Carbon Text Input Sources; no permission.
-    private static func keyboardLanguages() -> [String] {
+    static func keyboardLanguages() -> [String] {
         guard let sources = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else {
             return []
         }

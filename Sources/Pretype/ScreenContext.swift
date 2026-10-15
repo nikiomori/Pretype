@@ -29,6 +29,8 @@ enum ScreenContext {
     /// bottom of the window — in chats that's where the recent messages are).
     static func capture(pid: pid_t, excluding typedText: String, caretRect: CGRect?, maxChars: Int = 600) async -> String? {
         guard hasPermission else { return nil }
+        // Text Input Sources answer on the main thread only.
+        let languages = recognitionLanguages(keyboard: await MainActor.run { keyboardLanguages })
         // Privacy floor, mirroring the AX text path: while a password field is
         // engaged anywhere, don't capture the window either — the screenshot
         // would show the field's surroundings (reveal toggles, account data).
@@ -68,19 +70,48 @@ enum ScreenContext {
                 roi = CGRect(x: 0, y: 1 - (top + cropHeight) / height, width: 1, height: cropHeight / height)
             }
 
-            return try recognizeText(in: image, regionOfInterest: roi, excluding: typedText, maxChars: maxChars)
+            return try recognizeText(in: image, regionOfInterest: roi, languages: languages,
+                                     excluding: typedText, maxChars: maxChars)
         } catch {
             NSLog("Pretype: screen capture failed: %@", error.localizedDescription)
             return nil
         }
     }
 
+    /// Read once, on the main thread (Text Input Sources answer only there).
+    @MainActor private static let keyboardLanguages = Settings.keyboardLanguages()
+    private static let supportedLanguages = (try? VNRecognizeTextRequest().supportedRecognitionLanguages()) ?? []
+
+    /// What Vision reads: the user's keyboard languages, English always among
+    /// them (UI text) — when all of them are Latin or Cyrillic, which one
+    /// recognizer covers at the same speed. Auto-detection loads a recognizer
+    /// per script instead (CJK, Korean, Devanagari, Arabic, Thai — ~10 MB held
+    /// for the process). nil keeps detection on: for a language Vision can't
+    /// be told to read, and for other scripts, where the list order picks the
+    /// recognizer (Japanese first garbled Cyrillic into Latin lookalikes).
+    static func recognitionLanguages(keyboard: [String]) -> [String]? {
+        let otherScripts: Set<Substring> = ["zh", "yue", "ja", "ko", "th", "ar", "ars", "hi", "mr"]
+        func primary(_ code: String) -> Substring { code.lowercased().prefix { $0 != "-" && $0 != "_" } }
+        var picked: [String] = []
+        for language in keyboard + ["en"] {
+            guard let match = supportedLanguages.first(where: { primary($0) == primary(language) }),
+                  !otherScripts.contains(primary(match)) else { return nil }
+            if !picked.contains(match) { picked.append(match) }
+        }
+        return picked
+    }
+
     private static func recognizeText(
-        in image: CGImage, regionOfInterest: CGRect?, excluding typedText: String, maxChars: Int
+        in image: CGImage, regionOfInterest: CGRect?, languages: [String]?,
+        excluding typedText: String, maxChars: Int
     ) throws -> String? {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
-        request.automaticallyDetectsLanguage = true
+        if let languages {
+            request.recognitionLanguages = languages
+        } else {
+            request.automaticallyDetectsLanguage = true
+        }
         if let roi = regionOfInterest {
             request.regionOfInterest = roi
         }

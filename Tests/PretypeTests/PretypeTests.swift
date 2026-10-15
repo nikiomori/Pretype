@@ -470,6 +470,15 @@ final class PretypeTests: XCTestCase {
     // Terminal.app's AX text around the caret, as read from a live Claude
     // Code session (v2.1): the input box is the only place a terminal gets
     // completions, and its soft wraps must rejoin into the typed prompt.
+    /// OCR reads the keyboard's languages only where one recognizer covers
+    /// them all; any other script keeps Vision's auto-detection.
+    func testOCRLanguagesFollowTheKeyboard() {
+        XCTAssertEqual(ScreenContext.recognitionLanguages(keyboard: ["en", "ru"]), ["en-US", "ru-RU"])
+        XCTAssertEqual(ScreenContext.recognitionLanguages(keyboard: ["ru"]), ["ru-RU", "en-US"])
+        XCTAssertNil(ScreenContext.recognitionLanguages(keyboard: ["ja", "ru"]), "Japanese first garbles Cyrillic")
+        XCTAssertNil(ScreenContext.recognitionLanguages(keyboard: ["en", "xx"]), "unknown to Vision")
+    }
+
     /// The xterm reader fetches only the rows over the caret `AgentPrompt`
     /// reads: the verdict must match the whole 20-row window it used to read.
     func testAgentBoxRowsMatchTheFullWindow() {
