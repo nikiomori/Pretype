@@ -237,6 +237,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
         item.image = name.flatMap(symbol)
+        #if compiler(>=6.4)
+        // macOS 27 hides menu images unless an item asks to keep them. CI's
+        // Xcode 26 SDK has no such property; its builds go without icons.
+        if #available(macOS 27, *) { item.preferredImageVisibility = .visible }
+        #endif
         (menu ?? self.menu).addItem(item)
         return item
     }
