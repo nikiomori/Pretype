@@ -672,8 +672,9 @@ final class SuggestionController: NSObject {
 
         // A reviving last-word fix preview, or an inline spell-fix on the word at
         // the caret, preempts a completion — fixing what's written matters more
-        // than predicting ahead.
-        if correctionController.handleCaret(ctx) { return }
+        // than predicting ahead. Not in a terminal: the key handler leaves ⇥/⎋
+        // to the terminal there, so a pill could be neither applied nor dismissed.
+        if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleCaret(ctx) { return }
 
         // A letter or digit right after the caret: the caret splits a word, and
         // any completion accepted there fuses into its remainder ("hel|lo" +
@@ -1241,8 +1242,9 @@ final class SuggestionController: NSObject {
         guard !latch.collidesWithFixChord else { return false }
         // An app Pretype has been told to stay out of is one where holding on
         // to its keystrokes is still being in the way; `begin` would refuse a
-        // moment later anyway, having already eaten the key.
-        guard !AppPolicy.isBlacklisted(typingContext) else { return false }
+        // moment later anyway, having already eaten the key. A terminal is
+        // let through, as `begin` lets its agent prompt through.
+        guard AppPolicy.allowsCompletions(typingContext) else { return false }
         // Our own Settings window: `begin` refuses while we are frontmost, so
         // swallowing here would take a keystroke out of our own text fields to
         // do nothing with it. A launcher holding the keys: same, `begin`
@@ -1717,6 +1719,11 @@ final class SuggestionController: NSObject {
         // Through the same re-resolving read the anchor uses — the handle this
         // very method invalidated last time is the one that would fail here.
         let context = dictationFieldContext()
+        // Dictation took the words in a terminal only inside an agent's input
+        // box; one that closed meanwhile leaves a shell under the caret.
+        if AppPolicy.isTerminal(typingContext.bundleID), context == nil {
+            return drop("the agent prompt closed", notice: String(localized: "the agent prompt closed — dictation copied, ⌘V to paste"))
+        }
         let before = context?.textBeforeCaret
         clearActiveCompletion()
         window.hide()

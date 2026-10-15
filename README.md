@@ -148,7 +148,7 @@ Rewrites and reply drafts have measurements for each model. The best model fixes
 * Pretype changes its style for each app and each website. For example, Gmail and Slack in the same browser can have different styles.
 * You can disable Pretype for one app or one website from the menu.
 * Pretype does not operate in password managers or in the shell.
-* In a terminal, Pretype completes only the prompts that you type to an AI agent, for example Claude Code. This applies to Terminal, iTerm2, and the VS Code terminal.
+* In a terminal, Pretype completes and dictates only the prompts that you type to an AI agent, for example Claude Code. This applies to Terminal, iTerm2, and the VS Code terminal.
 * Pretype stops all reading while macOS reports secure input.
 * **Pause on Battery** in the menu stops suggestions while the Mac is not connected to power.
 * If you almost never accept the suggestions in an app, Pretype stops in that app. The menu shows the numbers and a **Resume** item.

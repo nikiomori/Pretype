@@ -510,10 +510,11 @@ final class DictationController {
         }
         // The three "we should not be here at all" cases draw nothing on
         // purpose — a paused or blacklisted app is one Pretype has been told to
-        // keep out of, pills included.
+        // keep out of, pills included. A terminal is let through to the agent
+        // check below, as for completions.
         guard Settings.enabled else { return refuse("Pretype is paused") }
         guard !gates.appIsActive() else { return refuse("our own window is frontmost") }
-        guard !AppPolicy.isBlacklisted(owner.typingContext) else {
+        guard AppPolicy.allowsCompletions(owner.typingContext) else {
             return refuse("off in \(owner.typingContext.appName ?? "this app")")
         }
         // Something has to receive the words. This is the only hard requirement:
@@ -526,7 +527,7 @@ final class DictationController {
         }
         // Again: finding the field can read the site of one the focus tracker
         // missed, and that site may be switched off.
-        guard !AppPolicy.isBlacklisted(owner.typingContext) else {
+        guard AppPolicy.allowsCompletions(owner.typingContext) else {
             return refuse("off on \(owner.typingContext.site ?? "this site")")
         }
         // An open IME composition is the one focused-field state synthetic
@@ -557,6 +558,12 @@ final class DictationController {
         // whatever holds keyboard focus; the read only buys the pill's position
         // and the sentence the tidy-up pass is continuing.
         let anchor = owner.dictationAnchor()
+        // A terminal's field reads only as an AI agent's input box (see
+        // `AgentPrompt`); anywhere else in it is a shell, which would run what
+        // it heard. Silent, like the blacklist this used to be.
+        if AppPolicy.isTerminal(owner.typingContext.bundleID), anchor == nil {
+            return refuse("a terminal outside an agent's prompt")
+        }
         if anchor == nil {
             Self.note("field publishes no caret yet — listening anyway, without the pill")
         }

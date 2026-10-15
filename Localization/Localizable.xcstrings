@@ -6081,6 +6081,16 @@
         }
       }
     },
+    "the agent prompt closed — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "поле ввода агента закрылось — текст скопирован, вставьте ⌘V"
+          }
+        }
+      }
+    },
     "the capture session refused to start" : {
       "localizations" : {
         "ru" : {
