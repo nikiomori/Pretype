@@ -89,6 +89,7 @@ private final class MockDictationHost: DictationHost {
     func cancelPendingFix() { cancelledFixes += 1 }
     private(set) var prewarms = 0
     func prewarmTidy() { prewarms += 1 }
+    func dictationBusyChanged() {}
     func dictationAnchor() -> DictationAnchor? { anchor }
     func clearActiveCompletion() {}
     func stopProgressIndicator() {}

@@ -15,7 +15,7 @@ final class SuggestionController: NSObject {
     /// The active completion engine, owned by `engineCoordinator`. Read-only here;
     /// model/style/gate changes flow through the coordinator's methods.
     var engine: CompletionEngine { engineCoordinator.engine }
-    private var refreshTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Never>? { didSet { updateScrollMonitoring(canStop: false) } }
     /// Bumped per scheduled completion query so a finishing task only clears
     /// `refreshTask` when it's still the current one (a newer query owns it
     /// otherwise). Without this the reference lingers after a normal finish and
@@ -59,7 +59,7 @@ final class SuggestionController: NSObject {
         var trimToLine = true
     }
 
-    private var active: Active?
+    private var active: Active? { didSet { updateScrollMonitoring(canStop: false) } }
     var hasActiveSuggestion: Bool { active != nil }
 
     /// Journal record for the currently shown suggestion, opened when it first
@@ -163,6 +163,7 @@ final class SuggestionController: NSObject {
         // old engine.
         engineCoordinator.onRebuild = { [weak self] in self?.dismiss() }
         window.presentation = Settings.suggestionPresentation
+        window.onVisibilityChange = { [weak self] in self?.updateScrollMonitoring() }
         dictationController.owner = self
         focusTracker.delegate = self
         keyTap.handler = { [weak self] event in
@@ -183,6 +184,8 @@ final class SuggestionController: NSObject {
             // discard anyway. (`mouseDownHandler` skips it for the same
             // reason.)
             if !dictating { self.dropOverlay(why: "the view scrolled") }
+            // Not from inside the monitor's own handler.
+            DispatchQueue.main.async { [weak self] in self?.updateScrollMonitoring() }
         }
         keyTap.mouseDownHandler = { [weak self] in
             guard let self else { return }
@@ -206,6 +209,7 @@ final class SuggestionController: NSObject {
             // reply only ever fires on a pair of taps, a dictation capture only
             // on a hold past `ModifierHold.threshold`.
             self?.dictationController.modifierChanged(event)
+            self?.updateScrollMonitoring()
             guard let self, self.replyTap.modifierChanged(
                 keyCode: event.getIntegerValueField(.keyboardEventKeycode),
                 flags: event.flags, gesture: Settings.replyGesture, now: Date()) else { return }
@@ -314,6 +318,20 @@ final class SuggestionController: NSObject {
         }
     }
 
+    /// Scrolls matter while a suggestion is up or on its way (the line slides
+    /// out from under it — and a query still running would land its ghost at
+    /// the pre-scroll caret), and to dictation while it captures or a hold is
+    /// arming (⌃-scroll zoom must not open the microphone): the only times the
+    /// system-wide scroll monitor runs. `canStop: false` from the per-keystroke
+    /// query/ghost bookkeeping: those start it, and the next modifier, overlay
+    /// or capture change — or the first scroll nobody needed — stops it, so
+    /// typing doesn't add and remove a global monitor every key.
+    func updateScrollMonitoring(canStop: Bool = true) {
+        let needed = window.isVisible || active != nil || refreshTask != nil
+            || dictationController.isBusy || dictationController.isHoldArmed
+        if needed || canStop { keyTap.wantsScroll = needed }
+    }
+
     /// The overlay is placed in screen coordinates, and nothing re-places it
     /// when the host view moves under it: AX posts no scroll notification, and
     /// the caret rect it would report after one can sit outside the visible clip
@@ -374,8 +392,10 @@ final class SuggestionController: NSObject {
     /// revoked stays disabled after the re-grant — so keep watching, and
     /// rebuild it whenever it's down while trust is there.
     private func ensureKeyTap() {
-        if !keyTap.isActive, Permissions.isTrusted { keyTap.stop() }
+        let rebuild = !keyTap.isActive && Permissions.isTrusted
+        if rebuild { keyTap.stop() }
         keyTap.start()
+        if rebuild { updateScrollMonitoring() }   // `stop` dropped the scroll monitor too
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             self?.ensureKeyTap()
         }
@@ -2059,6 +2079,8 @@ extension SuggestionController: DictationHost {
     func applyVoiceCommand(_ instruction: String, to selection: String) {
         correctionController.runVoiceCommand(instruction, selection: selection)
     }
+
+    func dictationBusyChanged() { updateScrollMonitoring() }
 
     func prewarmTidy() {
         // Fetched only: a download is the tidy-up's own call (see below).

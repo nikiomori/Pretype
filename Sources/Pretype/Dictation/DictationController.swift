@@ -105,6 +105,7 @@ final class DictationController {
 
     private(set) var phase: Phase = .idle {
         didSet {
+            if (oldValue == .idle) != (phase == .idle) { owner?.dictationBusyChanged() }
             // The status item mirrors the microphone: only the open/closed
             // flip matters there, not every partial-transcript repaint.
             guard Self.isListening(oldValue) != Self.isListening(phase) else { return }
@@ -117,6 +118,8 @@ final class DictationController {
     var isBusy: Bool { phase != .idle }
     /// True while audio is actually being captured.
     var isCapturing: Bool { Self.isListening(phase) }
+    /// A gesture modifier is down and counting toward the hold threshold.
+    var isHoldArmed: Bool { hold.isArmed }
 
     private static func isListening(_ phase: Phase) -> Bool {
         if case .listening = phase { return true }

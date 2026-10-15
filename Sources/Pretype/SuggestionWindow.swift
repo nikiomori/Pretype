@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 
 /// What the caret-side panel is currently communicating.
-enum SuggestionDisplayMode {
+enum SuggestionDisplayMode: Equatable {
     /// Ghost text the user can accept with Tab.
     case suggestion(String)
     /// The model is generating; `phase` animates the dots.
@@ -105,7 +105,7 @@ final class SuggestionWindow: NSPanel {
 
     /// Inline ghost text vs a floating panel beside the caret. Set by the
     /// controller from `Settings.suggestionPresentation`.
-    var presentation: SuggestionPresentation = .panel
+    var presentation: SuggestionPresentation = .panel { didSet { lastShow = nil } }
 
     /// Flips the window's appearance to match the host app's background under
     /// the caret (dark editor ↔ light page), so every semantic color in the
@@ -126,6 +126,16 @@ final class SuggestionWindow: NSPanel {
     private var lineFont: CGFloat = 13
     /// The caret of the current suggestion, so a panel can re-place on accept.
     private var lastCaret = CGRect.zero
+    /// The last `show`'s inputs and what it rendered. The same call again — an
+    /// AX event that moved nothing (a selection notification, a terminal
+    /// redrawing around the agent box), a status pill re-shown per tick —
+    /// returns that instead of a full layout, redraw and alpha animation.
+    private var lastShow: (mode: SuggestionDisplayMode, caret: CGRect, host: HostTextStyle,
+                           trimToLine: Bool, shown: String?)?
+    /// A `hide()` fade is running; `place` must pull it back to opaque.
+    private var fadingOut = false
+    /// The window just came on screen, or just left it.
+    var onVisibilityChange: (() -> Void)?
     /// Font/color/box of the field under that caret.
     private var lastHost = HostTextStyle()
     /// Writing direction of the ghost currently drawn: an Arabic or Hebrew
@@ -194,6 +204,11 @@ final class SuggestionWindow: NSPanel {
             case .thinking, .status: return nil
             default: noticeProtectedUntil = .distantPast
             }
+        }
+        if let last = lastShow, isVisible, !fadingOut, last.mode == mode, last.caret == caretRect,
+           last.host == host, last.trimToLine == trimToLine {
+            hideGeneration += 1   // as `place` would: a show cancels a pending timed hide
+            return last.shown
         }
         currentMode = mode
         lastCaret = caretRect
@@ -266,6 +281,7 @@ final class SuggestionWindow: NSPanel {
         place(ghost: ghostMode, at: caretRect)
 
         setHighlight(Self.offersSuggestion(mode) && !Settings.onboardingCompleted)
+        lastShow = isVisible && !fadingOut ? (mode, caretRect, host, trimToLine, shown) : nil
         return shown
     }
 
@@ -280,6 +296,7 @@ final class SuggestionWindow: NSPanel {
         // stopped — the focus moved" on resign, a hop before this runs, and it
         // holds off only thinking/status for ≤1.2 s — a real overlay still wins.
         lastHost = HostTextStyle()
+        lastShow = nil
         // The thinking dots inherit the direction of the last suggestion (they
         // have no letters of their own); across a field change that is the wrong
         // field's direction, and they'd open on the wrong side of the caret.
@@ -345,9 +362,11 @@ final class SuggestionWindow: NSPanel {
         // Before the visibility guard: "nothing is being offered" has to become
         // true the moment the dismissal is accepted, not when the fade lands.
         currentMode = nil
+        lastShow = nil
         guard isVisible else { setHighlight(false); return }
         hideGeneration += 1
         let gen = hideGeneration
+        fadingOut = true
         // Symmetric to the 0.09 s fade-in: dismissal melts instead of popping.
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.12
@@ -355,12 +374,14 @@ final class SuggestionWindow: NSPanel {
             animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             guard let self, self.hideGeneration == gen else { return }
+            self.fadingOut = false
             // Drop the accent glow WITH the fade, not a frame before it — any
             // show() landing mid-fade fails the generation check and sets its
             // own highlight, so this can't clear a live one.
             self.setHighlight(false)
             self.orderOut(nil)
             self.alphaValue = 1
+            self.onVisibilityChange?()
         })
     }
 
@@ -407,6 +428,7 @@ final class SuggestionWindow: NSPanel {
         }
         // The caret moved by the accepted word's width — forward in the ghost's
         // own writing direction, which is leftward for Arabic or Hebrew.
+        lastShow = nil
         let dx = ceil((accepted as NSString).size(withAttributes: [.font: ghostFont]).width)
         ghostAnchorX += ghostRTL ? -dx : dx
         ghost.attributed = suggestionGhost(remaining)
@@ -1118,16 +1140,19 @@ final class SuggestionWindow: NSPanel {
             // A quick fade so the suggestion doesn't pop; repositions don't re-fade.
             alphaValue = 0
             orderFrontRegardless()
+            onVisibilityChange?()
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.09
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 animator().alphaValue = 1
             }
-        } else {
+        } else if fadingOut {
             // Caught mid-fade-out: retarget the alpha animation back to opaque.
-            // Unconditional: a hide() earlier in this same pass still reads 1.0
-            // here (AppKit steps alpha on later frames), and its completion is
-            // already cancelled — skipping this left the window ordered in at 0.
+            // On the flag, not on alpha: a hide() earlier in this same pass still
+            // reads 1.0 here (AppKit steps alpha on later frames), and its
+            // completion is already cancelled — skipping this left the window
+            // ordered in at 0. A plain reposition animates nothing.
+            fadingOut = false
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.06
                 animator().alphaValue = 1

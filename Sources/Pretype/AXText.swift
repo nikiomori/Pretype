@@ -5,7 +5,7 @@ import Carbon.HIToolbox
 /// How the field under the caret renders its own text — what the inline ghost
 /// has to match instead of guessing. All three are optional; each one that is
 /// missing falls back to the caret-box estimate it replaced.
-struct HostTextStyle {
+struct HostTextStyle: Equatable {
     /// The host font, family included — a monospace or serif field used to get a
     /// system-font ghost that lined up with nothing.
     var font: NSFont?

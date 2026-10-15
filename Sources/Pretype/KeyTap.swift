@@ -42,6 +42,26 @@ final class KeyTap {
     /// own UI. The local twins close exactly that hole; both observe and pass
     /// the event on.
     private var monitors: [Any] = []
+    private var scrollMonitor: Any?
+
+    /// The GLOBAL scroll monitor is up only while something needs scrolls (a
+    /// live overlay, a capture, an armed hold — see `SuggestionController.
+    /// updateScrollMonitoring`): installed for good, every scroll on the
+    /// system, momentum frames included — 60–120 a second on a trackpad —
+    /// woke this process to be thrown away.
+    var wantsScroll = false {
+        didSet {
+            guard wantsScroll != oldValue else { return }
+            if wantsScroll {
+                scrollMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                    self?.scrollHandler?(!event.momentumPhase.isEmpty)
+                }
+            } else if let monitor = scrollMonitor {
+                NSEvent.removeMonitor(monitor)
+                scrollMonitor = nil
+            }
+        }
+    }
 
     /// Created AND enabled: macOS disables a live tap when Accessibility is
     /// revoked, and a port that merely exists read "active" over a tap that
@@ -54,9 +74,6 @@ final class KeyTap {
         if monitors.isEmpty {
             let mouseDown: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
             monitors = [
-                NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                    self?.scrollHandler?(!event.momentumPhase.isEmpty)
-                },
                 NSEvent.addGlobalMonitorForEvents(matching: mouseDown) { [weak self] _ in
                     self?.mouseDownHandler?()
                 },
@@ -128,6 +145,7 @@ final class KeyTap {
         }
         monitors.forEach(NSEvent.removeMonitor)
         monitors = []
+        wantsScroll = false
         runLoopSource = nil
         tapPort = nil
     }

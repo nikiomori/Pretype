@@ -81,6 +81,8 @@ protocol DictationHost: AnyObject {
     /// a voice command: load that model while the user speaks, so its reload
     /// isn't paid inside the tidy-up's time budget.
     func prewarmTidy()
+    /// The controller went busy (`.preparing` on) or back to idle.
+    func dictationBusyChanged()
 }
 
 /// The slice of `AudioCapture` the controller drives, injectable so a test can
