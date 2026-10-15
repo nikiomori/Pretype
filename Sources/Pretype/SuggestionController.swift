@@ -185,7 +185,7 @@ final class SuggestionController: NSObject {
             // erase either one, and dictation tears down its own overlay on
             // discard anyway. (`mouseDownHandler` skips it for the same
             // reason.)
-            if !dictating { self.dropOverlay(why: "the view scrolled") }
+            if !dictating { self.viewScrolled() }
             // Not from inside the monitor's own handler.
             DispatchQueue.main.async { [weak self] in self?.updateScrollMonitoring() }
         }
@@ -349,6 +349,22 @@ final class SuggestionController: NSObject {
         // stranded as a ghost would be.
         window.clearNoticeProtection()
         dismiss()
+    }
+
+    /// A scroll strands what is drawn, not what is being written: a reply or
+    /// fix in flight (seconds of OCR and generation — scrolling the chat to
+    /// read it meanwhile is natural) keeps running and lands on a fresh read of
+    /// the caret. Forgetting the cache and the caret is what forces that read,
+    /// and keeps the thinking dots from painting at the pre-scroll spot.
+    private func viewScrolled() {
+        let replyInFlight = refreshTask != nil && refreshKey == nil
+        guard replyInFlight || correctionController.inFlight else {
+            return dropOverlay(why: "the view scrolled")
+        }
+        latestTextBeforeCaret = nil
+        lastCaretRect = nil
+        window.clearNoticeProtection()
+        window.hide()
     }
 
     /// A click, or keystrokes the tap never saw, can move the caret where no
@@ -1098,6 +1114,8 @@ final class SuggestionController: NSObject {
         }
         guard Settings.enabled else { return stop("Pretype is paused") }
         guard !isOwnUIFrontmost else { return stop("our own window is frontmost") }
+        // A hands-free capture owns the overlay; a reply would hide its pill.
+        guard !dictationController.isBusy else { return stop("dictation is listening") }
         // Element first: it reads the site the blacklist check needs.
         guard let element = currentTextElement() else {
             return stop("no text field in focus")
@@ -1202,12 +1220,14 @@ final class SuggestionController: NSObject {
                 guard !auto else { return }
                 self.lastEvent = "reply: \(why)"
                 self.indicator.flashTransient(.hint(conversation == nil
-                    ? String(localized: "nothing to reply to") : String(localized: "no answer from the model")))
+                    ? String(localized: "nothing to reply to") : String(localized: "no answer from the model")),
+                    orAtPointer: true)
             case .failure(let error):
                 DebugLog.shared.log("ERROR", "reply failed: \(error.localizedDescription)")
                 guard !auto else { return }
                 self.lastEvent = "reply failed: \(error.localizedDescription)"
-                self.indicator.flashTransient(Self.failureNotice(error, fallback: String(localized: "reply failed")))
+                self.indicator.flashTransient(Self.failureNotice(error, fallback: String(localized: "reply failed")),
+                                              orAtPointer: true)
             }
         }
         return true
@@ -1324,7 +1344,9 @@ final class SuggestionController: NSObject {
         // off the tap: the flow does synchronous AX reads.
         // In an app (or site) Pretype stays out of, neither chord is ours: the
         // keystroke goes to the app, and nothing of the field reaches a model.
-        let offHere = AppPolicy.isBlacklisted(typingContext)
+        // Nor while a hands-free capture listens (typing is allowed then): the
+        // capture owns the overlay, and a reply or fix would fight its pill.
+        let offHere = AppPolicy.isBlacklisted(typingContext) || dictationController.isBusy
         if !offHere, Settings.hotkeyStyle.matchesReply(keyCode: keyCode, flags: flags) {
             lastAcceptedChunk = nil
             DispatchQueue.main.async { [weak self] in self?.composeReply() }

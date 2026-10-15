@@ -363,11 +363,12 @@ final class CorrectionController {
             case .success(nil):
                 owner.lastEvent = "nothing to fix"
                 DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
-                owner.indicator.flashTransient(.hint(unchangedNotice))
+                owner.indicator.flashTransient(.hint(unchangedNotice), orAtPointer: true)
             case .failure(let error):
                 owner.lastEvent = "fix failed: \(error.localizedDescription)"
                 DebugLog.shared.log("ERROR", "correction failed: \(error.localizedDescription)")
-                owner.indicator.flashTransient(SuggestionController.failureNotice(error, fallback: String(localized: "fix failed")))
+                owner.indicator.flashTransient(SuggestionController.failureNotice(error, fallback: String(localized: "fix failed")),
+                                               orAtPointer: true)
             }
         }
     }
@@ -421,15 +422,19 @@ final class CorrectionController {
     /// computed against — a last-word fix needs its word still just before the
     /// caret, a selection fix the same selection. Synchronous AX read: never
     /// call inside the event-tap callback.
+    /// Also re-anchors a caret a scroll forgot (`viewScrolled`), so a fix that
+    /// lands after one is drawn at its text, not under the pointer.
     private func liveRead(confirming fix: PendingFix) -> LiveRead? {
         guard let element = owner.currentTextElement() else { return nil }
         if fix.deleteCount > 0 {
             guard let ctx = AXText.context(for: element),
                   ctx.textAfterCaret.first?.isLetter != true,
                   Self.lastToken(of: ctx.textBeforeCaret) == fix.original else { return nil }
+            if owner.lastCaretRect == nil { owner.lastCaretRect = ctx.caretRect }
             return LiveRead(textBeforeCaret: ctx.textBeforeCaret)
         }
-        guard AXText.selectionInfo(for: element)?.text == fix.original else { return nil }
+        guard let info = AXText.selectionInfo(for: element), info.text == fix.original else { return nil }
+        if owner.lastCaretRect == nil { owner.lastCaretRect = info.rect }
         return LiveRead(textBeforeCaret: nil)
     }
 

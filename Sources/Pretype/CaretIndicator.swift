@@ -60,12 +60,16 @@ final class CaretIndicator {
 
     /// Briefly show `mode` at the caret, then hide it (unless a real suggestion
     /// took the window over in the meantime).
-    func flashTransient(_ mode: SuggestionDisplayMode, hideAfter: TimeInterval = 1.8) {
+    func flashTransient(_ mode: SuggestionDisplayMode, hideAfter: TimeInterval = 1.8,
+                        orAtPointer: Bool = false) {
         // Never overdraw a live suggestion — same invariant update() enforces.
         // Stomping it leaves `active` non-nil under the transient pill, so the
         // suggestion stays Tab-acceptable while invisible. The transient is
         // purely informational; the real ghost wins.
-        guard let rect = owner.lastCaretRect, !owner.hasActiveSuggestion else { return }
+        // `orAtPointer`: the answer to an explicit chord whose caret a scroll
+        // forgot (`viewScrolled`) goes where the user is looking instead.
+        guard let rect = owner.lastCaretRect ?? (orAtPointer ? DictationController.pointerAnchor() : nil),
+              !owner.hasActiveSuggestion else { return }
         // The auto-hide is superseded by any later overlay (completion ghost,
         // correction pill, status) via hideGeneration — see showTransient.
         window.showTransient(mode, at: rect, host: owner.lastHostStyle, hideAfter: hideAfter)
