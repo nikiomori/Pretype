@@ -25,7 +25,11 @@ final class BackgroundProbe {
         appearance = nil
         lastRect = .null
         lastAt = 0
+        generation &+= 1
     }
+
+    /// A sample still in flight across `invalidate` describes the old field.
+    private var generation = 0
 
     private var lastRect = CGRect.null
     private var lastAt: CFAbsoluteTime = 0
@@ -52,11 +56,12 @@ final class BackgroundProbe {
         let sample = CGRect(x: caretRect.maxX + 2, y: caretRect.minY,
                             width: 60, height: max(4, caretRect.height))
         let cgRect = AXText.flipped(sample)
+        let gen = generation
         Task { [weak self] in
             let luminance = await Self.sampleLuminance(in: cgRect)
             guard let self else { return }
             self.inFlight = false
-            guard let luminance else { return }
+            guard let luminance, gen == self.generation else { return }
             // Hysteresis: mid-gray backgrounds keep the previous verdict
             // instead of flickering between themes at a hard threshold.
             if luminance < 0.42 {
