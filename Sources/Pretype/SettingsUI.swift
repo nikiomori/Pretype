@@ -253,11 +253,13 @@ enum AppLanguage {
     /// The language this process is drawing in.
     static var running: String { Bundle.main.preferredLocalizations.first ?? "en" }
 
-    /// "English", "Русский" — each language in its own words, as language
-    /// lists show them.
+    /// "English", "Русский", "Português (Brasil)", "简体中文" — each language in
+    /// its own words, as language lists show them, with the region or script
+    /// its code names.
     static func nativeName(_ code: String) -> String {
         let locale = Locale(identifier: code)
-        return locale.localizedString(forLanguageCode: code)?.capitalized(with: locale) ?? code
+        guard let name = locale.localizedString(forIdentifier: code) else { return code }
+        return name.prefix(1).uppercased(with: locale) + name.dropFirst()
     }
 
     /// Only a bundled app can reopen itself; a bare dev binary is restarted by hand.

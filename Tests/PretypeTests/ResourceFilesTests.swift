@@ -28,6 +28,11 @@ final class ResourceFilesTests: XCTestCase {
             return out
         }
         XCTAssertGreaterThan(strings.count, 500)
+        // Every language the catalog has, on every key: a half-translated
+        // language shows English mid-sentence.
+        let languages = Set(strings.values.flatMap { ($0["localizations"] as? [String: Any] ?? [:]).keys })
+            .subtracting(["en"])  // the source; it carries only English plural forms
+        XCTAssertTrue(languages.contains("ru"))
         for (key, entry) in strings where entry["extractionState"] as? String != "stale" {
             let localizations = entry["localizations"] as? [String: [String: Any]] ?? [:]
             for (language, localization) in localizations {
@@ -39,7 +44,9 @@ final class ResourceFilesTests: XCTestCase {
                 }
             }
             if entry["shouldTranslate"] as? Bool != false {
-                XCTAssertNotNil(localizations["ru"], "untranslated: \(key)")
+                for language in languages {
+                    XCTAssertNotNil(localizations[language], "untranslated in \(language): \(key)")
+                }
             }
         }
     }

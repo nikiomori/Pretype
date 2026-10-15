@@ -16,6 +16,96 @@
             "state": "translated",
             "value": "Pretype превращает вашу речь в текст прямо в поле, где вы печатаете, на этом Mac. Звук никогда не записывается на диск и покидает компьютер, только если вы выберете облачный сервис распознавания в Настройках → API."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype schreibt auf diesem Mac, was Sie sagen, in das Textfeld, in dem Sie tippen. Audio wird nie auf der Festplatte gespeichert und verlässt Ihren Computer nur, wenn Sie unter Einstellungen → API einen Cloud-Sprachdienst wählen."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype zet wat je zegt op deze Mac om in tekst, in het tekstveld waarin je typt. Audio wordt nooit op schijf bewaard en verlaat je computer alleen als je in Instellingen → API een spraakdienst in de cloud kiest."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype transcrit ce que vous dites dans le champ de texte où vous tapez, sur ce Mac. L’audio n’est jamais enregistré sur le disque et ne quitte votre ordinateur que si vous choisissez un fournisseur vocal dans le cloud dans Réglages → API."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype trascrive ciò che dici nel campo di testo in cui stai scrivendo, su questo Mac. L'audio non viene mai registrato su disco e lascia il computer solo se scegli un fornitore vocale cloud in Impostazioni → API."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype transcribe lo que dices en el campo de texto en el que escribes, en este Mac. El audio nunca se graba en el disco y solo sale de tu ordenador si eliges un proveedor de voz en la nube en Ajustes → API."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pretype transcreve o que você fala no campo de texto em que está digitando, neste Mac. O áudio nunca é gravado no disco e só sai do seu computador se você escolher um provedor de fala na nuvem em Ajustes → API."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype zamienia Twoją mowę na tekst w polu, w którym piszesz, na tym Macu. Dźwięk nigdy nie jest zapisywany na dysku i opuszcza komputer tylko wtedy, gdy wybierzesz chmurowego dostawcę rozpoznawania mowy w Ustawieniach → API."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype přepisuje vaši řeč do textového pole, ve kterém píšete, přímo v tomto Macu. Zvuk se nikdy neukládá na disk a počítač opustí, jen pokud v Nastavení → API zvolíte cloudovou službu pro rozpoznávání řeči."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype розпізнає ваше мовлення й вводить текст у поле, де ви друкуєте, на цьому Mac. Аудіо ніколи не записується на диск і залишає комп’ютер, лише якщо ви виберете хмарного провайдера розпізнавання мовлення (Параметри → API)."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype transcrie ce spuneți în câmpul de text în care tastați, pe acest Mac. Audio nu este înregistrat niciodată pe disc și părăsește computerul doar dacă alegeți un furnizor vocal în cloud în Configurări → API."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype, söylediklerinizi bu Mac’te yazıya döker ve yazdığınız metin alanına aktarır. Ses asla diske kaydedilmez ve yalnızca Ayarlar → API bölümünde bir bulut konuşma sağlayıcısı seçerseniz bilgisayarınızdan çıkar."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype transkriberar det du säger till textfältet du skriver i, på den här Macen. Ljud spelas aldrig in på disk, och det lämnar datorn bara om du väljer en molntjänst för tal i Inställningar → API."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretypeは、話した内容をこのMac上で文字に変換し、入力中のテキストフィールドに入力します。音声がディスクに記録されることはなく、「設定」→「API」でクラウドの音声プロバイダを選んだ場合にのみ、コンピュータの外部に送信されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype은 사용자가 말하는 내용을 이 Mac에서 텍스트로 변환하여 입력 중인 텍스트 필드에 입력합니다. 오디오는 디스크에 녹음되지 않으며, ‘설정’ → ‘API’에서 클라우드 음성 제공업체를 선택한 경우에만 컴퓨터 밖으로 전송됩니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype 会在这台 Mac 上将你说的话转录到你正在输入的文本栏中。音频绝不会录制到磁盘，仅当你在“设置”→“API”中选择云端语音提供商时才会离开你的电脑。"
+          }
         }
       }
     }
