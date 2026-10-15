@@ -217,7 +217,7 @@ enum ModelStorage {
     /// they are zero-byte in practice, so chasing them isn't worth the extra
     /// paths pointed at a delete call.
     static func delete(repo id: String) throws {
-        guard let directory = cacheDirectory(repo: id),
+        guard quietFetches.get()[id] == nil, let directory = cacheDirectory(repo: id),
               directory.lastPathComponent.hasPrefix("models--"),
               directory.deletingLastPathComponent().standardizedFileURL.path
                 == HubCache.default.cacheDirectory.standardizedFileURL.path
@@ -275,12 +275,7 @@ enum ModelStorage {
     /// builds at once; the next pass (`AppDelegate`, hourly) tries again.
     static func upgradeToSlim(selected: String) async {
         let inUse = repos(for: selected)
-        let pairs = ModelCatalog.slimRepos.map { (original: $0.key, slim: $0.value, keepOriginal: false) }
-            + ModelCatalog.previousBuilds.flatMap { new, olds in
-                let siblings = ModelCatalog.option(for: new).map { [$0.correctionModelID, $0.instructModelID] } ?? []
-                return olds.map { (original: $0, slim: new, keepOriginal: siblings.contains($0)) }
-            }
-        for (original, slim, keepOriginal) in pairs where inUse.contains(original) && inUse.contains(slim) {
+        for (original, slim, keepOriginal) in upgradePairs where inUse.contains(original) && inUse.contains(slim) {
             guard let originalDir = cacheDirectory(repo: original), let slimDir = cacheDirectory(repo: slim),
                   FileManager.default.fileExists(atPath: originalDir.path) else { continue }
             if !isFetched(at: slimDir) {
@@ -297,6 +292,19 @@ enum ModelStorage {
             try? delete(repo: original)
             DebugLog.shared.log("MLX", "replaced \(original) with \(slim)")
         }
+    }
+
+    /// What `upgradeToSlim` may replace: each original with its re-pack, each
+    /// previous build with its new one. A previous build that ANY entry still
+    /// runs its ⌥⇥ or Instruct style on is kept — not just the new build's own
+    /// siblings: the next catalog edit must not quietly delete weights a chord
+    /// of another model loads (Qwen3.5's post-trained build serves MiniCPM5 too).
+    static var upgradePairs: [(original: String, slim: String, keepOriginal: Bool)] {
+        let siblings = Set(ModelCatalog.options.flatMap { [$0.correctionModelID, $0.instructModelID] })
+        return ModelCatalog.slimRepos.map { (original: $0.key, slim: $0.value, keepOriginal: false) }
+            + ModelCatalog.previousBuilds.flatMap { new, olds in
+                olds.map { (original: $0, slim: new, keepOriginal: siblings.contains($0)) }
+            }
     }
 
     /// Auto mode follows `ModelCatalog.recommended(for:)`, and a recommendation
@@ -339,18 +347,39 @@ enum ModelStorage {
             .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
             .volumeAvailableCapacityForImportantUsage ?? 0
         guard free > sizeHint + 2_000_000_000, await isNetworkUnmetered() else { return false }
-        DebugLog.shared.log("MLX", "fetching \(repo) in the background")
-        quietFetchProgress.set(0)
-        defer { quietFetchProgress.set(nil) }
-        do {
-            _ = try await resolve(configuration: ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo)),
-                                  from: #hubDownloader(),
-                                  useLatest: false, progressHandler: { quietFetchProgress.set($0.fractionCompleted) })
-        } catch {
-            DebugLog.shared.log("MLX", "background fetch of \(repo) failed: \(error.localizedDescription)")
-            return false
+        func fetch() -> Task<Bool, Never> { Task {
+            DebugLog.shared.log("MLX", "fetching \(repo) in the background")
+            quietFetchProgress.set(0)
+            defer { quietFetchProgress.set(nil) }
+            do {
+                _ = try await resolve(configuration: ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo)),
+                                      from: #hubDownloader(),
+                                      useLatest: false, progressHandler: { quietFetchProgress.set($0.fractionCompleted) })
+            } catch {
+                DebugLog.shared.log("MLX", "background fetch of \(repo) failed: \(error.localizedDescription)")
+                return false
+            }
+            return isFetched(at: directory)
+        } }
+        // Check and claim in one step: two passes asking at once share a fetch.
+        let (task, started) = quietFetches.mutate { fetches in
+            if let running = fetches[repo] { return (running, false) }
+            let task = fetch()
+            fetches[repo] = task
+            return (task, true)
         }
-        return isFetched(at: directory)
+        let fetched = await task.value
+        if started { quietFetches.mutate { $0[repo] = nil } }
+        return fetched
+    }
+
+    /// Background fetches in flight, by repo. A load of the same repo waits for
+    /// one (two hub downloaders moving blobs into one cache fail each other),
+    /// and a delete leaves the repo alone until it ends.
+    private static let quietFetches = LockedValue<[String: Task<Bool, Never>]>([:])
+
+    static func waitForQuietFetch(repo: String) async {
+        if let running = quietFetches.get()[repo] { _ = await running.value }
     }
 
     /// Whether the network is one a multi-GB background fetch may use: up, not

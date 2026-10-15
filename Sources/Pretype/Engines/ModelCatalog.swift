@@ -194,7 +194,7 @@ enum ModelCatalog {
         case "mlx-community/gemma-4-e4b-6bit":
             return String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory.")
         case "mlx-community/gemma-4-e2b-8bit":
-            return String(localized: "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less.")
+            return String(localized: "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less.")
         case "mlx-community/gemma-4-e2b-4bit":
             return String(localized: "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%.")
         case "nikimori/Qwen3.5-2B-Base-6bit":
@@ -232,7 +232,7 @@ enum ModelCatalog {
     /// an older install may already hold, newest first, which keep serving
     /// until `ModelStorage.upgradeToSlim` has fetched the new one in the
     /// background — so an update never turns into a forced download (or a
-    /// dead engine offline). One still serving as the entry's ⌥⇥ sibling is
+    /// dead engine offline). One still serving as any entry's ⌥⇥ sibling is
     /// never deleted; any other goes once the new build has loaded, like a
     /// slim original.
     static let previousBuilds: [String: [String]] = [

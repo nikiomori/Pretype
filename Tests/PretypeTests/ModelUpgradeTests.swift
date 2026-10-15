@@ -115,6 +115,20 @@ final class ModelUpgradeTests: XCTestCase {
         XCTAssertFalse(ModelStorage.loadFailed(repo: id))
     }
 
+    /// `upgradeToSlim` is the only code that deletes weights on its own. A
+    /// previous build some entry still runs ⌥⇥ or Instruct on must never be in
+    /// its delete list, whichever entry names it.
+    func testUpgradeNeverDeletesABuildAChordStillLoads() {
+        let siblings = Set(ModelCatalog.options.flatMap { [$0.correctionModelID, $0.instructModelID] })
+        for pair in ModelStorage.upgradePairs where ModelCatalog.previousBuilds[pair.slim] != nil {
+            XCTAssertEqual(pair.keepOriginal, siblings.contains(pair.original), pair.original)
+        }
+        let qwen = ModelStorage.upgradePairs.first { $0.original == "mlx-community/Qwen3.5-2B-4bit" }
+        XCTAssertEqual(qwen?.keepOriginal, true, "MiniCPM5's and Qwen3.5's chords load it")
+        let base4 = ModelStorage.upgradePairs.first { $0.original == "nikimori/Qwen3.5-2B-Base-4bit" }
+        XCTAssertEqual(base4?.keepOriginal, false)
+    }
+
     /// The Gemma tiers' move to base (E2B 2026-10-14, E4B -15) must not turn
     /// an update into a forced download: an install holding only the instruct
     /// weights keeps Instruct until the base build is fetched in the background.

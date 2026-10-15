@@ -344,6 +344,10 @@ final class MLXEngine: CompletionEngine {
     /// reload retried it every time — offline, a failure per reload; on a slow
     /// line, a second 150 MB fetch overlapping the first.
     private static let drafterFetches = LockedValue<Set<String>>([])
+    /// Drafters on disk that failed to load this launch. Without the memo every
+    /// idle reload paid two loads (the VLM build, then the plain fallback) and
+    /// never matched a blueprint again.
+    private static let brokenDrafters = LockedValue<Set<String>>([])
 
     /// Loads a model, with its MTP drafter into `drafterBox` when `drafterID`
     /// names one that is already on disk. A missing drafter downloads in the
@@ -356,7 +360,11 @@ final class MLXEngine: CompletionEngine {
         blueprints: LockedValue<[String: Blueprint]>,
         progressHandler: @escaping @Sendable (Progress) -> Void
     ) async throws -> ModelContainer {
+        // The same bytes a background fetch is already bringing in.
+        await ModelStorage.waitForQuietFetch(repo: repo)
+        try Task.checkCancellation()
         drafterBox.set(nil)
+        let drafterID = drafterID.flatMap { brokenDrafters.get().contains($0) ? nil : $0 }
         let drafterDirectory = drafterID.flatMap(ModelStorage.localSnapshot(for:))
         if let blueprint = blueprints.mutate({ $0.removeValue(forKey: repo) }),
            blueprint.vlm == (drafterDirectory != nil),
@@ -388,7 +396,14 @@ final class MLXEngine: CompletionEngine {
                             configuration: configuration, progressHandler: progressHandler)
                     }
                     await dropUnusedTowers(vlm)
-                    drafterBox.set(try await loadDrafter(at: local))
+                    do {
+                        drafterBox.set(try await loadDrafter(at: local))
+                    } catch {
+                        // The drafter itself, not the target's load (a dropped
+                        // download, memory): only that is worth remembering.
+                        if !(error is CancellationError) { brokenDrafters.mutate { _ = $0.insert(drafterID) } }
+                        throw error
+                    }
                     return vlm
                 } catch {
                     drafterBox.set(nil)
@@ -1221,7 +1236,7 @@ final class MLXEngine: CompletionEngine {
     private func chatGenerate(_ content: String, maxTokens: Int, copiesInput: Bool = false,
                               logRaw: Bool = true) async throws -> String {
         let primary: Task<ModelContainer, Error>?
-        if style == .instruct {
+        if fixesOnPrimary {
             guard let task = beginRequest() else { throw EngineNotReady() }
             primary = task
         } else {
@@ -1249,7 +1264,7 @@ final class MLXEngine: CompletionEngine {
             },
             parameters: GenerateParameters(maxTokens: maxTokens, temperature: 0.0),
             promptCache: nil,
-            drafter: style == .instruct ? drafter.get() : correctionDrafter.get(),
+            drafter: primary != nil ? drafter.get() : correctionDrafter.get(),
             lookup: copiesInput,
             logRaw: logRaw
         )
@@ -1310,15 +1325,20 @@ final class MLXEngine: CompletionEngine {
     /// spares every call after it.
     var isCorrectionReady: Bool {
         if correctionFetched.get() { return true }
-        let fetched = ModelStorage.isFetched(style == .instruct ? modelID : correctionModelID)
+        let fetched = ModelStorage.isFetched(fixesOnPrimary ? modelID : correctionModelID)
         if fetched { correctionFetched.set(true) }
         return fetched
     }
 
     func prewarmCorrection() {
-        guard style != .instruct else { return prewarmIfNeeded() }
+        guard !fixesOnPrimary else { return prewarmIfNeeded() }
         _ = correctionLoadTaskOrCreate()
     }
+
+    /// Fixes and replies run on the loaded primary: an instruct primary, or a
+    /// model that is its own fix sibling (Ternary Bonsai) — loading that one
+    /// again would hold it twice, both copies sharing one blueprint slot.
+    private var fixesOnPrimary: Bool { style == .instruct || correctionModelID == modelID }
 
     /// The sibling `correct` would use — resolved the same way
     /// `correctionLoadTaskOrCreate` resolves it.
