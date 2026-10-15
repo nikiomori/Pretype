@@ -265,7 +265,8 @@ final class SuggestionJournal: @unchecked Sendable {
         queue.sync {
             var prevByApp: [String: String] = [:]
             var chunks: [String] = []
-            for entry in entriesLocked() where entry.outcome != .undone && !entry.ctx.isEmpty {
+            forEachEntryLocked { entry in
+                guard entry.outcome != .undone, !entry.ctx.isEmpty else { return }
                 let app = entry.app ?? "?"
                 let prev = prevByApp[app] ?? ""
                 prevByApp[app] = entry.ctx
@@ -306,7 +307,7 @@ final class SuggestionJournal: @unchecked Sendable {
         guard phrases == nil else { return }
         var loaded: [AcceptedPhrase] = []
         var undone = Set<String>()
-        for entry in entriesLocked() {
+        forEachEntryLocked { entry in
             if entry.outcome == .undone {
                 undone.insert(entry.suggestion)
             } else if let phrase = Self.phrase(from: entry) {
@@ -319,13 +320,21 @@ final class SuggestionJournal: @unchecked Sendable {
         }
     }
 
-    /// Every decodable line of the file, oldest first. Runs on `queue`.
-    private func entriesLocked() -> [Entry] {
-        guard let data = try? Data(contentsOf: url),
-              let content = String(data: data, encoding: .utf8) else { return [] }
+    /// Every decodable line of the file, oldest first, one at a time. Mapped,
+    /// not read: the file as Data, again as a String, then every entry decoded
+    /// at once held ~4× its size together (~200 MB at the 50 MB cap). A bad
+    /// line costs only itself — a String of the whole file failed on one
+    /// invalid byte and dropped every entry. Runs on `queue`.
+    private func forEachEntryLocked(_ body: (Entry) -> Void) {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return }
         let decoder = JSONDecoder()
-        return content.split(separator: "\n").compactMap {
-            try? decoder.decode(Entry.self, from: Data($0.utf8))
+        var start = data.startIndex
+        while start < data.endIndex {
+            let end = data[start...].firstIndex(of: 0x0A) ?? data.endIndex
+            if end > start, let entry = try? decoder.decode(Entry.self, from: data[start..<end]) {
+                body(entry)
+            }
+            start = end + 1
         }
     }
 

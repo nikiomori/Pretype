@@ -594,7 +594,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func openSettings() {
         guard let controller = suggestionController else { return }
         if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(controller: controller)
+            let window = SettingsWindowController(controller: controller)
+            window.onClose = { [weak self, weak window] in
+                // Reopened in the meantime: it is in use again.
+                guard let self, let window, self.settingsWindow === window,
+                      window.window?.isVisible != true else { return }
+                self.settingsWindow = nil
+            }
+            settingsWindow = window
         }
         settingsWindow?.present()
     }

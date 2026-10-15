@@ -121,8 +121,7 @@ final class FocusTracker {
         // Per-element timeout too (the global default doesn't always propagate to
         // freshly created app elements on every macOS version).
         AXUIElementSetMessagingTimeout(appEl, Self.axMessagingTimeout)
-        // Wakes up the accessibility tree in Electron/Chromium apps.
-        AXUIElementSetAttributeValue(appEl, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        wakeAccessibility()
 
         observer = obs
         let refcon = Unmanaged.passUnretained(self).toOpaque()
@@ -130,6 +129,16 @@ final class FocusTracker {
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
 
         refreshFocusedElement()
+    }
+
+    /// Wakes up the accessibility tree in Electron/Chromium apps — which then
+    /// keep it up, at their own CPU cost, for as long as they run. Not in a
+    /// password manager (Pretype never reads one) nor while paused: resuming
+    /// calls this again for the app in front.
+    func wakeAccessibility() {
+        guard let appEl = appElement, Settings.enabled,
+              !AppPolicy.isCredentialApp(observedApp?.bundleIdentifier) else { return }
+        AXUIElementSetAttributeValue(appEl, "AXManualAccessibility" as CFString, kCFBooleanTrue)
     }
 
     private func detach() {

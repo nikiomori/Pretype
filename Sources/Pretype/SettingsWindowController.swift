@@ -8,6 +8,10 @@ import SwiftUI
 /// persona and personalization apply immediately. Opened from the menu (⌘,).
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let store: SettingsStore
+    /// Runs a turn after the window closes, so the owner can drop this
+    /// controller — kept, a closed window held its whole SwiftUI tree
+    /// (~15 MB) and its 1 s status timeline for the app's life.
+    var onClose: (() -> Void)?
 
     init(controller: SuggestionController) {
         store = SettingsStore(controller: controller)
@@ -47,5 +51,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         store.stopStatusTimer()
         NSApp.setActivationPolicy(.accessory)
+        // Not from inside its own close: AppKit is still using it.
+        DispatchQueue.main.async { [weak self] in self?.onClose?() }
     }
 }

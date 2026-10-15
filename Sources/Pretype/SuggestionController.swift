@@ -238,7 +238,7 @@ final class SuggestionController: NSObject {
     /// just switched off.
     func setEnabled(_ on: Bool) {
         Settings.enabled = on
-        guard !on else { return }
+        guard !on else { return focusTracker.wakeAccessibility() }
         dictationController.invalidate()
         dismiss()
     }
