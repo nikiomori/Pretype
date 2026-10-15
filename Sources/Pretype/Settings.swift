@@ -713,8 +713,9 @@ enum Settings {
     @Pref("dictationCommands", false) static var dictationCommands: Bool
 
     /// Apps and websites where a dictation ends with ⏎ — "send" in a chat or
-    /// an agent's prompt. Exact entries (see `AppPolicy.dictationSendEntry`),
-    /// added from the menu bar or Settings; empty by default.
+    /// an agent's prompt. Exact bundle IDs and site entries (see
+    /// `AppPolicy.dictationSendHits`), added from the menu bar or Settings;
+    /// empty by default.
     @Pref("dictationSendApps", []) static var dictationSendApps: [String]
 
     /// Dictate the languages Apple's newer speech model doesn't cover with

@@ -62,6 +62,41 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertEqual(Settings.perAppInstructions(for: "com.google.Chrome", site: nil), "browser voice")
     }
 
+    func testABrowserAddedWholeSendsOnEverySiteAndUnchecksFromAny() {
+        let saved = Settings.dictationSendApps
+        defer { Settings.dictationSendApps = saved }
+        // Settings → Add App… stores the browser's bundle ID.
+        Settings.dictationSendApps = ["com.apple.safari"]
+        let page = TypingContext(appName: "Safari", bundleID: "com.apple.Safari", site: "chatgpt.com")
+        XCTAssertTrue(AppPolicy.sendsAfterDictation(page), "the browser row covers its pages")
+        // Unchecking from the menu on one page must stick: every covering entry goes.
+        AppPolicy.toggleDictationSend(page)
+        XCTAssertEqual(Settings.dictationSendApps, [])
+        // A parent domain covers its subdomains, as in the blacklist.
+        Settings.dictationSendApps = ["site:slack.com"]
+        XCTAssertTrue(AppPolicy.sendsAfterDictation(
+            TypingContext(bundleID: "com.google.Chrome", site: "app.slack.com")))
+        XCTAssertFalse(AppPolicy.sendsAfterDictation(
+            TypingContext(bundleID: "com.google.Chrome", site: "notslack.com")))
+    }
+
+    func testAppMarkersMatchAtABundleIDComponent() {
+        XCTAssertTrue(AppPolicy.isTerminal("com.mitchellh.ghostty"))
+        XCTAssertTrue(AppPolicy.isTerminal("com.googlecode.iterm2"))
+        XCTAssertTrue(AppPolicy.isTerminal("dev.warp.Warp-Stable"))
+        XCTAssertTrue(AppPolicy.isCodeEditor("dev.zed.Zed"))
+        XCTAssertTrue(AppPolicy.isCodeEditor("com.panic.Nova"))
+        XCTAssertTrue(AppPolicy.isCredentialApp("com.agilebits.onepassword7"))
+        XCTAssertTrue(AppPolicy.isCredentialApp("me.proton.pass.electron"))
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.microsoft.teams2")))
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.tencent.xinWeChat")))
+        // A marker inside a word is no match: these used to lose screen
+        // context as "code editors".
+        XCTAssertFalse(AppPolicy.isCodeEditor("com.organized.notes"))
+        XCTAssertFalse(AppPolicy.isCodeEditor("com.innovation.writer"))
+        XCTAssertFalse(AppPolicy.isTerminal("com.example.thekitty"))
+    }
+
     func testAppPolicyBlacklist() {
         // Save current blacklist
         let originalBlacklist = Settings.userBlacklist

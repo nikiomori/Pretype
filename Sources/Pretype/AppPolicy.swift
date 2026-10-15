@@ -33,7 +33,7 @@ enum AppPolicy {
 
     static func isCredentialApp(_ bundleID: String?) -> Bool {
         matches(bundleID, ["1password", "onepassword", "bitwarden", "keepass", "dashlane",
-                           "lastpass", "enpass", "nordpass", "protonpass", "strongbox",
+                           "lastpass", "enpass", "nordpass", "protonpass", "proton.pass", "strongbox",
                            "keychainaccess", "passwords"])
     }
 
@@ -115,7 +115,7 @@ enum AppPolicy {
                 .contains { host == $0 || host.hasSuffix("." + $0) }
         }
         return matches(context.bundleID, ["mobilesms", "telegram", "whatsapp", "slack", "discord", "signal",
-                                          "microsoft.teams", "mattermost", "im.riot", "viber", "wechat"])
+                                          "microsoft.teams", "mattermost", "im.riot", "viber", "wechat", "xinwechat"])
     }
 
     /// The `Settings.dictationSendApps` entry for this field: the website in a
@@ -125,17 +125,31 @@ enum AppPolicy {
         return context.bundleID?.lowercased()
     }
 
-    /// Dictation presses ⏎ after typing here.
-    static func sendsAfterDictation(_ context: TypingContext) -> Bool {
-        dictationSendEntry(context).map(Settings.dictationSendApps.contains) ?? false
+    /// The `Settings.dictationSendApps` entries that cover this field: its
+    /// website (a parent domain covers its subdomains, as in the blacklist) and
+    /// its app — a browser added in Settings means every page in it.
+    static func dictationSendHits(_ context: TypingContext) -> [String] {
+        let app = context.bundleID?.lowercased()
+        return Settings.dictationSendApps.filter { entry in
+            if let host = context.site, site(host, matches: entry) { return true }
+            return entry == app
+        }
     }
 
+    /// Dictation presses ⏎ after typing here.
+    static func sendsAfterDictation(_ context: TypingContext) -> Bool {
+        !dictationSendHits(context).isEmpty
+    }
+
+    /// Nothing covers the field → add its entry; else drop every entry that
+    /// does, or unchecking on one site of a browser added whole would not stick.
     static func toggleDictationSend(_ context: TypingContext) {
         guard let entry = dictationSendEntry(context) else { return }
-        if Settings.dictationSendApps.contains(entry) {
-            Settings.dictationSendApps.removeAll { $0 == entry }
-        } else {
+        let hits = dictationSendHits(context)
+        if hits.isEmpty {
             Settings.dictationSendApps.append(entry)
+        } else {
+            Settings.dictationSendApps.removeAll { hits.contains($0) }
         }
     }
 
@@ -145,8 +159,12 @@ enum AppPolicy {
         !isBlacklisted(context) && !isCodeEditor(context.bundleID)
     }
 
-    private static func matches(_ bundleID: String?, _ markers: [String]) -> Bool {
+    /// A marker at the start of a bundle-ID component: "dev.zed.zed" is Zed and
+    /// "com.googlecode.iterm2" is iTerm, but "com.organized.app" isn't Zed and
+    /// "com.innovation.notes" isn't Nova.
+    static func matches(_ bundleID: String?, _ markers: [String]) -> Bool {
         guard let id = bundleID?.lowercased() else { return false }
-        return markers.contains { id.contains($0) }
+        let dotted = "." + id
+        return markers.contains { dotted.contains("." + $0) }
     }
 }
