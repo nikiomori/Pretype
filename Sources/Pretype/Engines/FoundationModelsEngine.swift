@@ -107,8 +107,18 @@ final class FoundationModelsEngine: CompletionEngine {
     private func generationOptions() -> GenerationOptions {
         let maxTokens = lengthBox.get().maxTokens + 8
         return Self.greedy.get()
-            ? GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maxTokens)
+            ? Self.greedyOptions(maxTokens: maxTokens)
             : GenerationOptions(maximumResponseTokens: maxTokens)
+    }
+
+    /// Greedy decoding in both SDKs' spelling: Xcode 26 (CI) has only
+    /// `sampling:`, Xcode 27 renamed it `samplingMode:` and deprecated the old.
+    private static func greedyOptions(maxTokens: Int) -> GenerationOptions {
+        #if compiler(>=6.4)
+        GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maxTokens)
+        #else
+        GenerationOptions(sampling: .greedy, maximumResponseTokens: maxTokens)
+        #endif
     }
 
     func updateCompletion(length: CompletionLength, instructions: String) {
@@ -148,7 +158,7 @@ final class FoundationModelsEngine: CompletionEngine {
     private static func respond(to prompt: String, maxTokens: Int, label: String) async throws -> String? {
         do {
             return try await LanguageModelSession().respond(
-                to: prompt, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maxTokens)
+                to: prompt, options: greedyOptions(maxTokens: maxTokens)
             ).content
         } catch let error as LanguageModelSession.GenerationError {
             switch error {
