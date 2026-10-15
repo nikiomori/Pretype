@@ -69,7 +69,7 @@ final class MLXEngine: CompletionEngine {
     /// (Eval/runs-2026-10-11-audit, analyze-ient.py).
     private static let trimEntropyThreshold: Float = 2.5
     /// The PRIMARY model's state, written only by its own load and unload.
-    private let stateBox = LockedValue<EngineState>(.preparing("starting…"))
+    private let stateBox = LockedValue<EngineState>(.preparing(String(localized: "starting…")))
     private var loadTask: Task<ModelContainer, Error>?
     /// Instruct model for fix-selection; loaded lazily on first ⌥Tab.
     private var correctionLoadTask: Task<ModelContainer, Error>?
@@ -189,8 +189,8 @@ final class MLXEngine: CompletionEngine {
         let model = modelID.split(separator: "/").last.map(String.init) ?? modelID
         switch state {
         case .preparing(let detail): return "\(model): \(detail)"
-        case .ready: return "\(model): ready"
-        case .failed(let detail): return "\(model): failed — \(detail)"
+        case .ready: return String(localized: "\(model): ready")
+        case .failed(let detail): return String(localized: "\(model): failed — \(detail)")
         }
     }
 
@@ -238,7 +238,7 @@ final class MLXEngine: CompletionEngine {
         }
 
         guard MLXSupport.isAvailable else {
-            stateBox.set(.failed("Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh"))
+            stateBox.set(.failed(String(localized: "Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh")))
             return
         }
         // MLX's freed-buffer pool fills to whatever cap it gets: 512 MB sat
@@ -260,7 +260,7 @@ final class MLXEngine: CompletionEngine {
         let blueprints = self.blueprints
         let drafterBox = self.drafter
         let drafterID = style == .instruct ? ModelCatalog.mtpDrafterID(for: id) : nil
-        stateBox.set(.preparing("loading…"))
+        stateBox.set(.preparing(String(localized: "loading…")))
         return Task { [weak self] in
             // Resolved once, so the load report names the build that loaded.
             let repo = ModelCatalog.repo(for: id)
@@ -283,7 +283,7 @@ final class MLXEngine: CompletionEngine {
                 // Reloads after an idle unload warm up too: kernels survive the
                 // unload, but the fresh weights and buffer pool don't — skipping
                 // it moved +30–140 ms onto the first keystroke (measured).
-                stateBox.set(.preparing("warming up…"))
+                stateBox.set(.preparing(String(localized: "warming up…")))
                 do {
                     _ = try await Self.generate(
                         in: loaded, makeTokens: { $0.tokenizer.encode(text: Self.warmUpPrompt) },
@@ -714,7 +714,7 @@ final class MLXEngine: CompletionEngine {
         Memory.clearCache()
         if reason == "memory pressure" { tokenizers.clear() }
         // A failure stays on screen until a retry replaces it.
-        if case .failed = primary {} else { stateBox.set(.preparing("idle — model unloaded")) }
+        if case .failed = primary {} else { stateBox.set(.preparing(String(localized: "idle — model unloaded"))) }
         modelLock.unlock()
 
         let freed = Int64(max(0, before - Memory.snapshot().activeMemory))
@@ -1266,15 +1266,18 @@ final class MLXEngine: CompletionEngine {
     /// minutes — the percent only reaches 1% after ~1% of several GB, and the
     /// large shards stream over HF's slower Xet path. Showing the byte counts
     /// proves it is alive and moving.
-    private static func downloadStatus(_ progress: Progress, label: String = "downloading") -> String {
+    private static func downloadStatus(_ progress: Progress, fixModel: Bool = false) -> String {
         let pct = Int((progress.fractionCompleted * 100).rounded())
-        guard progress.totalUnitCount > 0 else { return "\(label) \(pct)%" }
+        guard progress.totalUnitCount > 0 else {
+            return fixModel ? String(localized: "fix model \(pct)%") : String(localized: "downloading \(pct)%")
+        }
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         formatter.allowedUnits = [.useMB, .useGB]
         let done = formatter.string(fromByteCount: progress.completedUnitCount)
         let total = formatter.string(fromByteCount: progress.totalUnitCount)
-        return "\(label) \(done) / \(total) (\(pct)%)"
+        return fixModel ? String(localized: "fix model \(done) / \(total) (\(pct)%)")
+                        : String(localized: "downloading \(done) / \(total) (\(pct)%)")
     }
 
     func shutdown() {
@@ -1343,7 +1346,7 @@ final class MLXEngine: CompletionEngine {
             let drafterBox = self.correctionDrafter
             // Set under the lock, before the task runs, so `unload` can't cancel
             // a load that hasn't reported itself yet.
-            status.set("loading fix model…")
+            status.set(String(localized: "loading fix model…"))
             let task = Task<ModelContainer, Error> { [weak self] in
                 let repo = ModelCatalog.repo(for: id)
                 do {
@@ -1352,7 +1355,7 @@ final class MLXEngine: CompletionEngine {
                         drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox,
                         tokenizers: tokenizers, blueprints: blueprints,
                         progressHandler: { progress in
-                            status.set(Self.downloadStatus(progress, label: "fix model"))
+                            status.set(Self.downloadStatus(progress, fixModel: true))
                         }
                     )
                     ModelStorage.noteLoad(repo: repo, succeeded: true)

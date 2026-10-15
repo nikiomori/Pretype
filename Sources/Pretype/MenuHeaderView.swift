@@ -56,7 +56,7 @@ struct MenuHeaderView: View {
                 }
                 // Secondary, not tertiary: tertiary caption text sits near 2:1
                 // on a light menu.
-                Text("\(savings.totalText) all time · \(savings.totalKeystrokes.formatted()) keystrokes")
+                Text("\(savings.totalText) all time · \(savings.totalKeystrokes) keystrokes")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -70,9 +70,8 @@ struct MenuHeaderView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             savings.isEmpty
-                ? "\(statusText). Press \(acceptLabel) on a suggestion to start saving typing time."
-                : "\(statusText). Saved \(savings.todayText) of typing today, "
-                    + "\(savings.totalText) all time."
+                ? Text("\(statusText). Press \(acceptLabel) on a suggestion to start saving typing time.")
+                : Text("\(statusText). Saved \(savings.todayText) of typing today, \(savings.totalText) all time.")
         )
     }
 
@@ -82,7 +81,7 @@ struct MenuHeaderView: View {
         // The same figure as any other day at zero, just grey — "Nothing yet
         // today" over "saved today" read as one garbled sentence.
         let none = savings.todayKeystrokes == 0
-        let (value, unit) = none ? ("0", "min") : savings.todayFigure
+        let (value, unit) = none ? ("0", String(localized: "min")) : savings.todayFigure
         let big = Text(value).font(.system(size: 24, weight: .semibold, design: .rounded))
         let small = Text(" \(unit)").font(.system(size: 13, weight: .semibold, design: .rounded))
         return VStack(alignment: .leading, spacing: 0) {

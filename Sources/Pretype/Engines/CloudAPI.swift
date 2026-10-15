@@ -68,21 +68,21 @@ struct APIProvider: Identifiable {
                     textExtras: ["thinking": ["type": "disabled"]]),
         // The local servers default to Gemma 4 E4B, the instruct tier that
         // Pretype's own fix and reply run on.
-        APIProvider(id: "ollama", name: "Ollama (local)", baseURL: "http://localhost:11434/v1",
+        APIProvider(id: "ollama", name: String(localized: "Ollama (local)"), baseURL: "http://localhost:11434/v1",
                     textModel: "gemma4:e4b", needsKey: false,
                     textExtras: ["reasoning_effort": "none"]),
-        APIProvider(id: "lmstudio", name: "LM Studio (local)", baseURL: "http://localhost:1234/v1",
+        APIProvider(id: "lmstudio", name: String(localized: "LM Studio (local)"), baseURL: "http://localhost:1234/v1",
                     textModel: "google/gemma-4-e4b", needsKey: false),
         // Refrain, the speech engine shared by every app on this Mac (github.com/nikiomori/Refrain):
         // dictation only, and it picks Apple's model or Parakeet by language, so any model name does.
-        APIProvider(id: "refrain", name: "Refrain (this Mac)", baseURL: "http://127.0.0.1:8178/v1",
+        APIProvider(id: "refrain", name: String(localized: "Refrain (this Mac)"), baseURL: "http://127.0.0.1:8178/v1",
                     audioModel: "auto", needsKey: false),
         custom,
     ]
 
     /// Any other OpenAI-compatible server — vLLM, llama.cpp, a whisper
     /// server, a company proxy. The key is optional.
-    static let custom = APIProvider(id: "custom", name: "Custom (OpenAI-compatible)", baseURL: "",
+    static let custom = APIProvider(id: "custom", name: String(localized: "Custom (OpenAI-compatible)"), baseURL: "",
                                     textModel: "", audioModel: "", needsKey: false)
 
     static func named(_ id: String) -> APIProvider { all.first { $0.id == id } ?? custom }
@@ -123,11 +123,11 @@ struct APIConfig: Codable, Equatable {
         let trimmed = baseURL.trimmingCharacters(in: .whitespaces)
         guard let url = URL(string: trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed),
               ["http", "https"].contains(url.scheme ?? ""), url.host != nil
-        else { throw APIError.setup("enter the server's base URL") }
+        else { throw APIError.setup(String(localized: "enter the server's base URL")) }
         let model = model.trimmingCharacters(in: .whitespaces)
-        guard !model.isEmpty else { throw APIError.setup("enter a model name") }
+        guard !model.isEmpty else { throw APIError.setup(String(localized: "enter a model name")) }
         let key = APIKeychain.key(for: provider)
-        if preset.needsKey, key == nil { throw APIError.setup("add an API key in Settings → API") }
+        if preset.needsKey, key == nil { throw APIError.setup(String(localized: "add an API key in Settings → API")) }
         return APIEndpoint(provider: preset, baseURL: url, model: model, key: key)
     }
 }
@@ -151,7 +151,7 @@ enum APIError: LocalizedError {
         switch self {
         case .setup(let why): return why
         case .http(let status, let message):
-            if status == 401 || status == 403 { return "the API key was rejected (\(status))" }
+            if status == 401 || status == 403 { return String(localized: "the API key was rejected (\(status))") }
             return "HTTP \(status)" + (message.isEmpty ? "" : ": \(message)")
         }
     }
@@ -420,7 +420,7 @@ final class CloudEngine: CompletionEngine {
     /// requests: when the API isn't set up this throws, saying why nothing ran.
     private func chat() throws -> CorrectionGates.Generate {
         guard case .ready = stateBox.get(), let endpoint else {
-            throw EngineNotReady(message: "API isn't set up — see Settings → API")
+            throw EngineNotReady(message: String(localized: "API isn't set up — see Settings → API"))
         }
         return { try await APIClient.chat(endpoint, system: "", user: $0, maxTokens: $1, timeout: 30) }
     }
@@ -449,7 +449,7 @@ final class CloudEngine: CompletionEngine {
         do {
             _ = try await APIClient.chat(try config.endpoint(), system: "Reply with the single word OK.",
                                          user: "ping", maxTokens: 16, timeout: 20)
-            return "✓ Connected — answered in \(Int(Date().timeIntervalSince(start) * 1000)) ms"
+            return String(localized: "✓ Connected — answered in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
         } catch {
             return "⚠︎ \(error.localizedDescription)"
         }

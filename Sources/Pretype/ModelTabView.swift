@@ -66,8 +66,7 @@ struct ModelTab: View {
                         Text("Measured on English and Russian.")
                     }
                 }
-                .help("Plots this model's other settings on the map. They were measured on English and "
-                    + "Russian together, so the whole tab switches to that sample.")
+                .help("Plots this model's other settings on the map. They were measured on English and Russian together, so the whole tab switches to that sample.")
             }
 
             Section {
@@ -91,10 +90,10 @@ struct ModelTab: View {
                 // The two chord tasks run on a different, smaller set of
                 // models (the instruct siblings), so they are a lens on the
                 // map rather than extra bubbles — same axes, different task.
-                HoverSegments(title: "Map task", options: [
-                    (MapLens.completion, "Completions"),
-                    (MapLens.fix, "Fix"),
-                    (MapLens.reply, "Reply"),
+                HoverSegments(title: String(localized: "Map task"), options: [
+                    (MapLens.completion, String(localized: "Completions")),
+                    (MapLens.fix, String(localized: "Fix")),
+                    (MapLens.reply, String(localized: "Reply")),
                 ], selection: mapLens, select: { mapLens = $0 })
                 ModelMapView(store: store, lens: mapLens)
             } header: {
@@ -132,7 +131,7 @@ struct ModelTab: View {
                 } label: {
                     Text("Free memory when idle")
                     if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
-                        Text(String(format: "Frees about %.1f GB while unused.", store.selectedRamGB))
+                        Text("Frees about \(oneDecimal(store.selectedRamGB)) GB while unused.")
                     }
                 }
                 .help("The next keystroke reloads the model from disk; switching to a text field pre-warms it.")
@@ -156,8 +155,7 @@ struct ModelTab: View {
             }
             Button("Cancel", role: .cancel) { confirmingDelete = nil }
         } message: {
-            Text("Frees \(ByteCountFormatter.string(fromByteCount: store.modelDiskBytes[confirmingDelete ?? ""] ?? 0, countStyle: .file)). "
-                + "Picking this model again downloads it over the network.")
+            Text("Frees \(ByteCountFormatter.string(fromByteCount: store.modelDiskBytes[confirmingDelete ?? ""] ?? 0, countStyle: .file)). Picking this model again downloads it over the network.")
         }
     }
 
@@ -190,9 +188,10 @@ struct ModelTab: View {
     /// The selected model's accuracy evidence — rule, sample, tolerance and
     /// the catalog note — as one tooltip.
     private func accuracyHelp(note: String?) -> String {
-        let rule = axis == "core" ? "First word right" : "First word right, silence counted as a miss"
-        let sample = "\(ModelMetrics.axisDisplayName(axis)), \(ModelMetrics.axisSampleSize(axis)) samples, "
-            + "±\(margin(for: axis)) pp."
+        let rule = axis == "core"
+            ? String(localized: "First word right")
+            : String(localized: "First word right, silence counted as a miss")
+        let sample = String(localized: "\(ModelMetrics.axisDisplayName(axis)), \(ModelMetrics.axisSampleSize(axis)) samples, ±\(margin(for: axis)) pp.")
         return "\(rule) — \(sample)" + (note.map { "\n\n" + $0 } ?? "")
     }
 
@@ -211,7 +210,7 @@ struct ModelTab: View {
     /// the overall comparator breaks its coarse-% ties.
     private var rankedEntries: [(id: String, title: String)] {
         let entries: [(id: String, title: String)] = ModelCatalog.options.map { ($0.id, $0.title) }
-            + [(ModelCatalog.appleIntelligenceID, "Apple Intelligence — system model")]
+            + [(ModelCatalog.appleIntelligenceID, String(localized: "Apple Intelligence — system model"))]
         return entries.sorted { a, b in
             if axis != "core" {
                 let la = ModelMetrics.axisAccuracy(for: a.id, axis: axis)
@@ -243,7 +242,7 @@ struct ModelTab: View {
                 // tolerance, the catalog note) is a tooltip, not a paragraph.
                 let v = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis)
                 LabeledContent("Accuracy") {
-                    Text(v.map { "\($0)%" } ?? "Not measured")
+                    v.map { Text("\($0)%") } ?? Text("Not measured")
                 }
                 .help(accuracyHelp(note: m.note))
                 LabeledContent("Suggests") {
@@ -259,7 +258,7 @@ struct ModelTab: View {
                 }
                 ChordTaskRows(store: store)
             } else {
-                Caption("Not measured yet.")
+                Caption(String(localized: "Not measured yet."))
             }
         }
     }
@@ -348,12 +347,11 @@ struct ModelRow: View {
                             .padding(.horizontal, 5).padding(.vertical, 1.5)
                             .foregroundStyle(Color.orange.legible)
                             .background(Color.orange.opacity(0.15), in: Capsule())
-                            .help(String(format: "Keeps ~%.1f GB resident — over a quarter of this Mac's %.0f GB, the line the auto-picked model stays under. Everything else you run gets that much less room.",
-                                         heavyGB, ModelCatalog.machineRamGB))
+                            .help("Keeps ~\(oneDecimal(heavyGB)) GB resident — over a quarter of this Mac's \(String(format: "%.0f", ModelCatalog.machineRamGB)) GB, the line the auto-picked model stays under. Everything else you run gets that much less room.")
                     }
                     Spacer()
                     if let downloadGB {
-                        let size = String(format: "%.1f GB", downloadGB)
+                        let size = gbLabel(downloadGB)
                         Text("↓ \(size)")
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(.secondary)
@@ -382,35 +380,34 @@ struct ModelRow: View {
                         }
                         .buttonStyle(.borderless)
                         .help(deleteDisabled
-                            ? "The model is loading — deleting is available once it finishes."
-                            : "Delete the downloaded weights (\(size), incl. any \(Settings.hotkeyStyle.correctionLabel) rewrite sibling) — picking this model again re-downloads them.")
+                            ? Text("The model is loading — deleting is available once it finishes.")
+                            : Text("Delete the downloaded weights (\(size), incl. any \(Settings.hotkeyStyle.correctionLabel) rewrite sibling) — picking this model again re-downloads them."))
                         .accessibilityLabel(deleteDisabled
-                            ? "Delete downloaded \(title) — unavailable while a model loads"
-                            : "Delete downloaded \(title), frees \(size)")
+                            ? Text("Delete downloaded \(title) — unavailable while a model loads")
+                            : Text("Delete downloaded \(title), frees \(size)"))
                     }
                 }
                 if let m = ModelMetrics.metrics(for: id) {
                     HStack(spacing: 16) {
                         if let la = langAccuracy {
-                            MetricBar(label: "Accuracy", fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
+                            MetricBar(label: String(localized: "Accuracy"), fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
                                       text: "\(la.pct)%",
                                       color: .green,
-                                      help: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other.")
+                                      help: String(localized: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other."))
                         } else {
-                            MetricBar(label: "Accuracy", fraction: Bounds.accuracy(m), text: "\(m.firstWordPct)%",
+                            MetricBar(label: String(localized: "Accuracy"), fraction: Bounds.accuracy(m), text: "\(m.firstWordPct)%",
                                       color: .green,
-                                      help: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). "
-                                        + "English and Russian are pooled here; pick either as the axis to see it alone.")
+                                      help: String(localized: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). English and Russian are pooled here; pick either as the axis to see it alone."))
                         }
-                        MetricBar(label: "Speed", fraction: Bounds.speed(m), text: "\(m.p50Ms) ms",
+                        MetricBar(label: String(localized: "Speed"), fraction: Bounds.speed(m), text: String(localized: "\(m.p50Ms) ms"),
                                   color: .blue,
-                                  help: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster.")
-                        MetricBar(label: "Memory", fraction: Bounds.lightness(m),
-                                  text: m.ramGB > 0 ? String(format: "%.1f GB", m.ramGB) : "0 GB",
+                                  help: String(localized: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster."))
+                        MetricBar(label: String(localized: "Memory"), fraction: Bounds.lightness(m),
+                                  text: m.ramGB > 0 ? gbLabel(m.ramGB) : String(localized: "0 GB"),
                                   color: .teal,
                                   help: m.ramGB > 0
-                                    ? String(format: "Resident weights: %.1f GB — longer bar = lighter.", m.ramGB)
-                                    : "System model — no download, no app memory.")
+                                    ? String(localized: "Resident weights: \(oneDecimal(m.ramGB)) GB — longer bar = lighter.")
+                                    : String(localized: "System model — no download, no app memory."))
                         chordFigures
                     }
                     .padding(.leading, 24)
@@ -457,14 +454,9 @@ struct ModelRow: View {
     private func chordHelp(
         _ chord: (m: ModelMetrics.TaskMetrics, runsOn: String, measuredID: String)?) -> String {
         guard let c = chord else {
-            return "The fix and reply chords for this model aren't measured by the task eval yet."
+            return String(localized: "The fix and reply chords for this model aren't measured by the task eval yet.")
         }
-        var out = "The fix and reply chords run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly "
-        out += "[\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(c.m.replyPct)% usable reply drafts "
-        out += "[\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this "
-        out += "model's recommended settings; they don't follow the language picker. "
-        out += ModelMetrics.taskSource + "."
-        return out
+        return String(localized: "The fix and reply chords run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly [\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(c.m.replyPct)% usable reply drafts [\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. \(ModelMetrics.taskSource).")
     }
 
     /// Normalization bounds across the measured catalog, so bar lengths are
@@ -527,7 +519,7 @@ private struct PriorityCard: View {
                     let accText = Text("\(acc ?? m.firstWordPct)%").foregroundStyle(Color.green.legible)
                     let dot = Text(" · ").foregroundStyle(.tertiary)
                     let msText = Text("\(m.p50Ms) ms").foregroundStyle(Color.blue.legible)
-                    let gbText = Text(String(format: "%.1f GB", m.ramGB)).foregroundStyle(Color.teal.legible)
+                    let gbText = Text(gbLabel(m.ramGB)).foregroundStyle(Color.teal.legible)
                     // One line where it fits; at the 1020 pt minimum width four
                     // cards leave ~96 pt for a ~113 pt triple, so memory takes
                     // a second line instead of the whole triple shrinking to 8 pt.
@@ -700,8 +692,10 @@ struct ModelMapView: View {
         // equivalent, so describe the chart and point VoiceOver at the list.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(lens == .completion
-            ? "Model map — accuracy, speed and memory of every model. Use the ranked list below to choose a model, and the Suggestions tab for the style, length and confidence settings the map previews."
-            : "Task map — how well each instruct sibling handles the \(lens == .fix ? "fix" : "reply") chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model.")
+            ? Text("Model map — accuracy, speed and memory of every model. Use the ranked list below to choose a model, and the Suggestions tab for the style, length and confidence settings the map previews.")
+            : lens == .fix
+            ? Text("Task map — how well each instruct sibling handles the fix chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model.")
+            : Text("Task map — how well each instruct sibling handles the reply chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model."))
     }
 
     /// Latency span of the chord lenses: fixes and replies run 33–409 ms warm
@@ -770,9 +764,9 @@ struct ModelMapView: View {
     /// totals, so they say they ignore the language picker.
     private var legend: String {
         switch lens {
-        case .completion: return "↑ accuracy · bubble = memory"
-        case .fix: return "↑ exact fixes, all languages · bubble = memory"
-        case .reply: return "↑ usable replies, all languages · bubble = memory"
+        case .completion: return String(localized: "↑ accuracy · bubble = memory")
+        case .fix: return String(localized: "↑ exact fixes, all languages · bubble = memory")
+        case .reply: return String(localized: "↑ usable replies, all languages · bubble = memory")
         }
     }
 
@@ -799,12 +793,12 @@ struct ModelMapView: View {
                              useRecommended: false)
         }
         if id == ModelCatalog.appleIntelligenceID {
-            return [ReachableConfig(label: "Short", config: cfg(.instruct, .short))]
+            return [ReachableConfig(label: String(localized: "Short"), config: cfg(.instruct, .short))]
         }
-        var out = [ReachableConfig(label: "Short", config: cfg(.base, .short)),
-                   ReachableConfig(label: "Confident-only", config: cfg(.base, .short, logprob: true))]
+        var out = [ReachableConfig(label: String(localized: "Short"), config: cfg(.base, .short)),
+                   ReachableConfig(label: String(localized: "Confident-only"), config: cfg(.base, .short, logprob: true))]
         if ModelCatalog.instructCompletes(id) {
-            out.append(ReachableConfig(label: "Instruct", config: cfg(.instruct, .short)))
+            out.append(ReachableConfig(label: String(localized: "Instruct"), config: cfg(.instruct, .short)))
         }
         return out
     }
@@ -994,9 +988,9 @@ struct ModelMapView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(m.shortName).font(.caption.weight(.bold))
                 HStack(spacing: 10) {
-                    stat("ACC", "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%", .green)
-                    stat("SPEED", latencyLabel(ms: m.p50Ms), .blue)
-                    stat("MEM", m.ramGB <= 0 ? "0 GB" : String(format: "%.1f GB", m.ramGB), .teal)
+                    stat(String(localized: "ACC"), "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%", .green)
+                    stat(String(localized: "SPEED"), latencyLabel(ms: m.p50Ms), .blue)
+                    stat(String(localized: "MEM"), m.ramGB <= 0 ? String(localized: "0 GB") : gbLabel(m.ramGB), .teal)
                 }
             }
             .padding(.horizontal, 10)
@@ -1121,12 +1115,11 @@ struct ModelMapView: View {
     private func chordBubbleHelp(_ s: ChordStat) -> String {
         let users = ModelMetrics.taskUsers(of: s.id)
         guard let first = users.first else {
-            return "\(s.name) — no catalog pick routes its chords here."
+            return String(localized: "\(s.name) — no catalog pick routes its chords here.")
         }
-        let serves = users.count > 1
-            ? "Runs the chords for \(users.joined(separator: ", "))."
-            : "Runs the chords for \(first)."
-        return "\(serves) Click to switch to \(first)."
+        return users.count > 1
+            ? String(localized: "Runs the chords for \(users.joined(separator: ", ")). Click to switch to \(first).")
+            : String(localized: "Runs the chords for \(first). Click to switch to \(first).")
     }
 
     @ViewBuilder private var chordInfoCard: some View {
@@ -1135,10 +1128,10 @@ struct ModelMapView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(s.name).font(.caption.weight(.bold))
                 HStack(spacing: 10) {
-                    stat(lens == .fix ? "EXACT FIX" : "USABLE REPLY",
+                    stat(lens == .fix ? String(localized: "EXACT FIX") : String(localized: "USABLE REPLY"),
                          "\(s.pct)% [\(s.ci.lowerBound)–\(s.ci.upperBound)]", chordTint)
-                    stat("SPEED", latencyLabel(ms: s.p50Ms), .blue)
-                    stat("MEM", String(format: "%.1f GB", s.ramGB), .teal)
+                    stat(String(localized: "SPEED"), latencyLabel(ms: s.p50Ms), .blue)
+                    stat(String(localized: "MEM"), gbLabel(s.ramGB), .teal)
                 }
                 if lens == .fix, let t = ModelMetrics.tasks[s.id] {
                     Text("touches \(t.falseFixPct)% of clean lines")
@@ -1158,6 +1151,11 @@ struct ModelMapView: View {
             .allowsHitTesting(false)
         }
     }
+}
+
+/// "1.4 GB" — one decimal, the unit through the catalog.
+private func gbLabel(_ gb: Double) -> String {
+    String(localized: "\(oneDecimal(gb)) GB")
 }
 
 /// A labeled mini-bar: name left, measured value right, fill = "how good"

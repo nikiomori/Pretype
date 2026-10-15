@@ -294,7 +294,7 @@ enum EngineState: Equatable {
 /// shows "✓ looks fine" — a verdict on text no model ever read.
 struct EngineNotReady: Error {
     /// Shown at the caret, so short and pointing at where the reason is.
-    var message = "model isn't loaded — see the menu"
+    var message = String(localized: "model isn't loaded — see the menu")
 }
 
 /// A pluggable source of completions. Implementations must be fast: anything

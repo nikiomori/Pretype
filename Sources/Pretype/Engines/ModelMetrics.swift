@@ -40,52 +40,52 @@ struct ModelMetrics {
     let note: String?
 
     /// Umbrella citation for surfaces that describe the whole catalog.
-    static let evalSource = "eval-real, English+Russian pooled, n=1449, 2026-10-15"
+    static let evalSource = String(localized: "eval-real, English+Russian pooled, n=1449, 2026-10-15")
 
     static let all: [ModelMetrics] = [
         ModelMetrics(id: "mlx-community/gemma-4-e4b-8bit", shortName: "E4B 8-bit",
                      firstWordPct: 31, ci: 29...34, coveragePct: 83,
                      logProbPerChar: -0.855, p50Ms: 78, ramGB: 5.98,
-                     note: "Top of the 17-language set and steady across all of them — but only a trend ahead of E2B 8-bit (p=0.013, n=5649) and tied with E4B 6-bit (p=0.28), for the most memory in the catalog."),
+                     note: String(localized: "Top of the 17-language set and steady across all of them — but only a trend ahead of E2B 8-bit (p=0.013, n=5649) and tied with E4B 6-bit (p=0.28), for the most memory in the catalog.")),
         ModelMetrics(id: "mlx-community/gemma-4-e4b-6bit", shortName: "E4B 6-bit",
                      firstWordPct: 32, ci: 29...34, coveragePct: 82,
                      logProbPerChar: -0.865, p50Ms: 81, ramGB: 5.03,
-                     note: "Ties E4B 8-bit on the 17-language set (p=0.28) at ~1 GB less — and E2B 8-bit too (p=0.11)."),
+                     note: String(localized: "Ties E4B 8-bit on the 17-language set (p=0.28) at ~1 GB less — and E2B 8-bit too (p=0.11).")),
         ModelMetrics(id: "mlx-community/gemma-4-e2b-8bit", shortName: "E2B 8-bit",
                      firstWordPct: 31, ci: 28...34, coveragePct: 83,
                      logProbPerChar: -0.886, p50Ms: 46, ramGB: 3.41,
-                     note: "Statistically level with both E4B builds on the 17-language set (p=0.013 vs 8-bit, p=0.11 vs 6-bit) in less memory and ~40% less time per suggestion; robust across all 17 eval languages."),
+                     note: String(localized: "Statistically level with both E4B builds on the 17-language set (p=0.013 vs 8-bit, p=0.11 vs 6-bit) in less memory and ~40% less time per suggestion; robust across all 17 eval languages.")),
         // E4B-4bit and LFM2.5 delisted 2026-07-17: each strictly dominated by a
         // catalog neighbor on every axis (E2B-4bit and MiniCPM5 respectively).
         ModelMetrics(id: "mlx-community/gemma-4-e2b-4bit", shortName: "E2B 4-bit",
                      firstWordPct: 30, ci: 28...33, coveragePct: 84,
                      logProbPerChar: -0.925, p50Ms: 34, ramGB: 2.51,
-                     note: "Mildest 4-bit cost in the field: level with E2B 8-bit on English (28 vs 26) and on Russian (22 vs 25) — neither gap significant — but behind it on 17 languages (p<0.001), and still ahead of every smaller model there (Qwen3.5 2B p<0.001), at 0.9 GB less and a little faster."),
+                     note: String(localized: "Mildest 4-bit cost in the field: level with E2B 8-bit on English (28 vs 26) and on Russian (22 vs 25) — neither gap significant — but behind it on 17 languages (p<0.001), and still ahead of every smaller model there (Qwen3.5 2B p<0.001), at 0.9 GB less and a little faster.")),
         // Our 8-bit build since 2026-10-15; it ties the hub's bf16 (paired,
         // Eval/runs-2026-10-14-small), and this row is the 8-bit build's own.
         ModelMetrics(id: "nikimori/MiniCPM5-1B-Base-8bit", shortName: "MiniCPM5 1B",
                      firstWordPct: 29, ci: 26...32, coveragePct: 82,
                      logProbPerChar: -1.042, p50Ms: 18, ramGB: 1.1,
-                     note: "An English specialist and, with Qwen 0.5B, the fastest model in the catalog — on English it ties E2B 8-bit outright (28% vs 26%, p=0.12). Russian is a different story: 17% against E2B 8-bit's 25% (p<0.001). Wider multilingual coverage collapses (uk/ro/tr/cs 56–62% vs the Gemmas' ≥74%), and Hebrew is its floor at 3% — effectively blind."),
+                     note: String(localized: "An English specialist and, with Qwen 0.5B, the fastest model in the catalog — on English it ties E2B 8-bit outright (28% vs 26%, p=0.12). Russian is a different story: 17% against E2B 8-bit's 25% (p<0.001). Wider multilingual coverage collapses (uk/ro/tr/cs 56–62% vs the Gemmas' ≥74%), and Hebrew is its floor at 3% — effectively blind.")),
         ModelMetrics(id: "mlx-community/Qwen2.5-0.5B-bf16", shortName: "Qwen2.5 0.5B",
                      firstWordPct: 27, ci: 25...30, coveragePct: 82,
                      logProbPerChar: -1.051, p50Ms: 17, ramGB: 1.0,
-                     note: "Smallest footprint; a trend behind MiniCPM5 on 17 languages (p=0.028), and clearly behind its bigger sibling Qwen3.5 2B (p<0.001)."),
+                     note: String(localized: "Smallest footprint; a trend behind MiniCPM5 on 17 languages (p=0.028), and clearly behind its bigger sibling Qwen3.5 2B (p<0.001).")),
         // The Base build at 6-bit; the 10-15 run reproduces its 10-14 booking
         // output for output (Eval/runs-2026-10-14-small).
         ModelMetrics(id: "nikimori/Qwen3.5-2B-Base-6bit", shortName: "Qwen3.5 2B",
                      firstWordPct: 30, ci: 27...33, coveragePct: 81,
                      logProbPerChar: -0.942, p50Ms: 32, ramGB: 1.5,
-                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; ties MiniCPM5 on English (28 vs 28), leads it on Russian (21 vs 17, a trend: p=0.018), and on Russian is level with the lightest Gemma (21 vs 22, p=0.19). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there."),
+                     note: String(localized: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; ties MiniCPM5 on English (28 vs 28), leads it on Russian (21 vs 17, a trend: p=0.018), and on Russian is level with the lightest Gemma (21 vs 22, p=0.19). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there.")),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 24...29, coveragePct: 82,
                      logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1,
-                     note: "Ternary 4B in 1.1 GB; measurably behind MiniCPM5 on the 17-language set (p=0.004), with the same coverage sag outside English and Western Europe (uk 62%, cs 63%)."),
+                     note: String(localized: "Ternary 4B in 1.1 GB; measurably behind MiniCPM5 on the 17-language set (p=0.004), with the same coverage sag outside English and Western Europe (uk 62%, cs 63%).")),
         // Apple Intelligence exposes no logprobs, so the /char scoring can't run.
         ModelMetrics(id: "system.apple-intelligence", shortName: "Apple Intelligence",
                      firstWordPct: 17, ci: 15...19, coveragePct: 97,
                      logProbPerChar: nil, p50Ms: 480, ramGB: 0,
-                     note: "System model on the Neural Engine — no download, no app memory. The macOS 27 model answers almost every prompt (97% on English and Russian) and now covers Polish, Romanian and Czech too, but it is right less often than any downloadable model: 10% of Russian rows against 22% of English, and next to none in Japanese or Chinese. On Arabic and Hebrew it answers 84–87% and is right 6% of the time."),
+                     note: String(localized: "System model on the Neural Engine — no download, no app memory. The macOS 27 model answers almost every prompt (97% on English and Russian) and now covers Polish, Romanian and Czech too, but it is right less often than any downloadable model: 10% of Russian rows against 22% of English, and next to none in Japanese or Chinese. On Arabic and Hebrew it answers 84–87% and is right 6% of the time.")),
     ]
 
     static func metrics(for id: String) -> ModelMetrics? {
@@ -289,8 +289,8 @@ struct ModelMetrics {
         // "pooled" carries the caveat in the name: the two languages inside it
         // measure differently on every small model, so a label reading
         // "English + Russian" was one number pretending to answer for both.
-        case "core": return "English + Russian pooled"
-        case "*": return "all \(evalLanguages.count) languages"
+        case "core": return String(localized: "English + Russian pooled")
+        case "*": return String(localized: "all \(evalLanguages.count) languages")
         default: return Locale.current.localizedString(forLanguageCode: axis)?.capitalized ?? axis
         }
     }

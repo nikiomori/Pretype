@@ -122,15 +122,15 @@ enum SettingsUI {
         Settings.screenContextEnabled = true
         guard !ScreenContext.hasPermission else { return }
         let alert = NSAlert()
-        alert.messageText = "Screen Recording permission"
-        alert.informativeText = """
+        alert.messageText = String(localized: "Screen Recording permission")
+        alert.informativeText = String(localized: """
         Screen context reads the window you're typing in, on this Mac, and macOS \
         asks for Screen Recording permission for that. Enable Pretype in System \
         Settings → Privacy & Security → Screen Recording, then quit and relaunch \
         Pretype — macOS applies this permission only at app launch.
-        """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
+        """)
+        alert.addButton(withTitle: String(localized: "Open System Settings"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         present(alert) { openScreenRecordingPane() }
     }
 
@@ -162,16 +162,16 @@ enum SettingsUI {
             completion(granted)
             guard !granted else { return }
             let alert = NSAlert()
-            alert.messageText = "Pretype needs the microphone"
-            alert.informativeText = """
+            alert.messageText = String(localized: "Pretype needs the microphone")
+            alert.informativeText = String(localized: """
             Dictation transcribes what you say on this Mac and types it into the field \
             you're in. Nothing is recorded to disk and nothing leaves your computer.
 
             Allow Pretype under System Settings → Privacy & Security → Microphone, \
             then switch dictation on again.
-            """
-            alert.addButton(withTitle: "Open System Settings")
-            alert.addButton(withTitle: "Cancel")
+            """)
+            alert.addButton(withTitle: String(localized: "Open System Settings"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
             present(alert) {
                 if let url = MicrophoneAccess.settingsURL { NSWorkspace.shared.open(url) }
             }

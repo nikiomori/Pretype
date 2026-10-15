@@ -24,15 +24,21 @@ private struct APIEndpointSection: View {
     @State private var key = ""
 
     private var provider: APIProvider { config.preset }
-    private var host: String { URL(string: config.baseURL)?.host ?? "the server" }
+    private var host: String {
+        URL(string: config.baseURL)?.host
+            ?? String(localized: "the server", comment: "Stands in for the host name in the API privacy note.")
+    }
 
     var body: some View {
         Section {
             Toggle(isOn: $config.enabled) {
-                Text(kind == .text ? "Use an API model for text" : "Use an API model for dictation")
-                Text(kind == .text
-                    ? "Suggestions, fix, reply and voice commands use this model."
-                    : "Transcribes dictation with this model.")
+                if kind == .text {
+                    Text("Use an API model for text")
+                    Text("Suggestions, fix, reply and voice commands use this model.")
+                } else {
+                    Text("Use an API model for dictation")
+                    Text("Transcribes dictation with this model.")
+                }
             }
             Picker("Provider", selection: Binding(
                 get: { config.provider },
@@ -40,12 +46,13 @@ private struct APIEndpointSection: View {
                 set: { config = APIConfig(provider: .named($0), kind: kind, enabled: config.enabled) })) {
                 ForEach(APIProvider.offering(kind)) { Text($0.name).tag($0.id) }
             }
-            TextField("Base URL", text: $config.baseURL, prompt: Text("https://example.com/v1"))
+            TextField("Base URL", text: $config.baseURL, prompt: Text(verbatim: "https://example.com/v1"))
             TextField("Model", text: $config.model, prompt: Text("model name"))
-            SecureField("API key", text: $key, prompt: Text(provider.needsKey ? "required" : "optional"))
+            SecureField("API key", text: $key, prompt: provider.needsKey ? Text("required") : Text("optional"))
             HStack {
                 Button("Test connection") { store.testAPI(kind) }
-                    .disabled(test == "Testing…")
+                    // Same key SettingsStore sets it from, so the match holds in every language.
+                    .disabled(test == String(localized: "Testing…"))
                 if let page = provider.keyPage, let url = URL(string: page) {
                     Link("Get a key", destination: url)
                 }
@@ -54,7 +61,7 @@ private struct APIEndpointSection: View {
             if let test { Caption(test) }
             Caption(privacyNote)
         } header: {
-            Text(kind == .text ? "Text" : "Dictation")
+            kind == .text ? Text("Text") : Text("Dictation")
         }
         .onAppear(perform: loadKey)
         .onChange(of: config.provider) { loadKey() }
@@ -70,17 +77,14 @@ private struct APIEndpointSection: View {
 
     private var privacyNote: String {
         if config.isLocal {
-            return "This server runs on your Mac, so nothing leaves it."
+            return String(localized: "This server runs on your Mac, so nothing leaves it.")
         }
         // Short, but never vaguer: what leaves the Mac, when, and what doesn't.
         if kind == .text {
-            return "What you type goes to \(host) with each suggestion, plus screen and clipboard "
-                + "context and dictation to tidy up when those are on. Password fields and turned-off "
-                + "apps send nothing. The provider may charge per request."
+            return String(localized: "What you type goes to \(host) with each suggestion, plus screen and clipboard context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request.")
         }
-        return "Each recording goes to \(host) when you stop speaking"
-            + (APIClient.sendsHints(model: config.model, provider: config.provider)
-                ? ", with names from the field as spelling hints. " : ". ")
-            + "Audio is never saved to disk."
+        return APIClient.sendsHints(model: config.model, provider: config.provider)
+            ? String(localized: "Each recording goes to \(host) when you stop speaking, with names from the field as spelling hints. Audio is never saved to disk.")
+            : String(localized: "Each recording goes to \(host) when you stop speaking. Audio is never saved to disk.")
     }
 }

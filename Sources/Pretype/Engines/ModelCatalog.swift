@@ -28,13 +28,13 @@ enum ModelCatalog {
     static let options: [ModelOption] = [
         ModelOption(
             id: "mlx-community/gemma-4-e4b-8bit",
-            title: "Gemma 4 E4B 8-bit — best quality",
+            title: String(localized: "Gemma 4 E4B 8-bit — best quality"),
             correctionModelID: "mlx-community/gemma-4-e4b-it-6bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e4b-6bit",
-            title: "Gemma 4 E4B 6-bit — lighter, near-best",
+            title: String(localized: "Gemma 4 E4B 6-bit — lighter, near-best"),
             // it-6bit, not 4-bit: it fixes 69% of noisy lines against 65%
             // (p<0.001), and the installs that ran it as their Instruct
             // primary before 2026-10-15 already hold it.
@@ -43,7 +43,7 @@ enum ModelCatalog {
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e2b-8bit",
-            title: "Gemma 4 E2B 8-bit — small but precise",
+            title: String(localized: "Gemma 4 E2B 8-bit — small but precise"),
             // E4B-it, not E2B-it: its chords fix 65% of noisy lines against 50%,
             // and the installs that ran it as their Instruct primary before
             // 2026-10-14 already hold it.
@@ -55,7 +55,7 @@ enum ModelCatalog {
         // 5.0 vs 3.5 GB) — the 4-bit quantization cliff hits E4B hardest.
         ModelOption(
             id: "mlx-community/gemma-4-e2b-4bit",
-            title: "Gemma 4 E2B — for 8–16 GB Macs",
+            title: String(localized: "Gemma 4 E2B — for 8–16 GB Macs"),
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
             instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
@@ -82,7 +82,7 @@ enum ModelCatalog {
         // (Eval/runs-2026-10-14-small).
         ModelOption(
             id: "nikimori/MiniCPM5-1B-Base-8bit",
-            title: "MiniCPM5 1B — fastest, English & Russian",
+            title: String(localized: "MiniCPM5 1B — fastest, English & Russian"),
             correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
             instructModelID: "openbmb/MiniCPM5-1B"  // manual instruct flip only; completion there is broken (see above)
         ),
@@ -96,7 +96,7 @@ enum ModelCatalog {
         // from the hub; runs base-only (Qwen2.5 instruct echoes the prompt).
         ModelOption(
             id: "mlx-community/Qwen2.5-0.5B-bf16",
-            title: "Qwen2.5 0.5B — smallest footprint",
+            title: String(localized: "Qwen2.5 0.5B — smallest footprint"),
             correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
             instructModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
         ),
@@ -117,13 +117,13 @@ enum ModelCatalog {
         // instruct mode).
         ModelOption(
             id: "nikimori/Qwen3.5-2B-Base-6bit",
-            title: "Qwen3.5 2B — best small multilingual",
+            title: String(localized: "Qwen3.5 2B — best small multilingual"),
             correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
             instructModelID: "mlx-community/Qwen3.5-2B-4bit"
         ),
         ModelOption(
             id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
-            title: "Ternary Bonsai 4B — 1 GB base",  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
+            title: String(localized: "Ternary Bonsai 4B — 1 GB base"),  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
             correctionModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             instructModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit"
         ),
@@ -192,15 +192,15 @@ enum ModelCatalog {
     static var defaultRationale: String {
         switch defaultID {
         case "mlx-community/gemma-4-e4b-6bit":
-            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory."
+            return String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory.")
         case "mlx-community/gemma-4-e2b-8bit":
-            return "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
+            return String(localized: "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less.")
         case "mlx-community/gemma-4-e2b-4bit":
-            return "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%."
+            return String(localized: "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%.")
         case "nikimori/Qwen3.5-2B-Base-6bit":
-            return "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 72%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory."
+            return String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 72%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")
         default:
-            return "Auto-picked for this Mac."
+            return String(localized: "Auto-picked for this Mac.")
         }
     }
 
@@ -303,7 +303,7 @@ enum ModelCatalog {
         if id == appleIntelligenceID {
             return ModelOption(
                 id: appleIntelligenceID,
-                title: "Apple Intelligence — system model",
+                title: String(localized: "Apple Intelligence — system model"),
                 correctionModelID: appleIntelligenceID,
                 instructModelID: appleIntelligenceID
             )
@@ -327,8 +327,7 @@ enum ModelCatalog {
         let logprobGateTau: Double?
         /// One-line human summary for the settings UI, e.g. "Instruct · Short".
         var summary: String {
-            [style == .instruct ? "Instruct" : "Base", length.rawValue.capitalized]
-                .joined(separator: " · ")
+            [style.label, length.label].joined(separator: " · ")
         }
     }
 

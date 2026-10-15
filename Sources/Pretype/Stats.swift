@@ -209,7 +209,7 @@ enum Stats {
 
     private static func duration(_ keystrokes: Int) -> String {
         let seconds = Double(keystrokes) / charsPerMinute * 60
-        guard seconds >= 60, let text = durationFormatter.string(from: seconds) else { return "under a minute" }
+        guard seconds >= 60, let text = durationFormatter.string(from: seconds) else { return String(localized: "under a minute") }
         return text
     }
 
@@ -217,10 +217,10 @@ enum Stats {
     /// sizes — and so no wording ("under a minute") can overflow the big figure.
     private static func figure(_ keystrokes: Int) -> (value: String, unit: String) {
         let minutes = Double(keystrokes) / charsPerMinute
-        if minutes < 1 { return ("<1", "min") }
-        if minutes < 60 { return ("\(Int(minutes.rounded()))", "min") }
+        if minutes < 1 { return ("<1", String(localized: "min")) }
+        if minutes < 60 { return ("\(Int(minutes.rounded()))", String(localized: "min")) }
         let hours = minutes / 60
-        return (hours < 10 ? String(format: "%.1f", hours) : "\(Int(hours.rounded()))", "h")
+        return (hours < 10 ? oneDecimal(hours) : "\(Int(hours.rounded()))", String(localized: "h"))
     }
 
     /// What the menu header leads with: time bought, not counts. An acceptance
@@ -266,17 +266,18 @@ enum Stats {
         flushLatency()
         let latencyCount = defaults.integer(forKey: "stats.latencyCount")
 
-        let rate = shown > 0 ? " (\(accepted * 100 / shown)%)" : ""
         var lines = [
-            "Suggestions: \(accepted) accepted of \(shown) shown\(rate)",
-            "Fixes applied: \(defaults.integer(forKey: "stats.corrections"))",
+            shown > 0
+                ? String(localized: "Suggestions: \(accepted) accepted of \(shown) shown (\(accepted * 100 / shown)%)")
+                : String(localized: "Suggestions: \(accepted) accepted of \(shown) shown"),
+            String(localized: "Fixes applied: \(defaults.integer(forKey: "stats.corrections"))"),
         ]
         if latencyCount > 0 {
-            lines.append("Engine latency: ~\(defaults.integer(forKey: "stats.latencySumMs") / latencyCount) ms")
+            lines.append(String(localized: "Engine latency: ~\(defaults.integer(forKey: "stats.latencySumMs") / latencyCount) ms"))
         }
         let dictated = defaults.integer(forKey: "stats.dictatedChars")
         if dictated > 0 || dictatedTotal > 0 {
-            lines.append("Dictated: \(dictated) chars today, \(dictatedTotal) in total")
+            lines.append(String(localized: "Dictated: \(dictated) chars today, \(dictatedTotal) in total"))
         }
         return lines
     }

@@ -87,14 +87,13 @@ final class SettingsStore {
     /// Fetch and load the model the moment the user opts in, so the first
     /// dictation after it doesn't sit in "preparing" for a 610 MB download.
     func prepareParakeet() {
-        parakeetNote = Parakeet.isDownloaded ? nil : "Downloading the Parakeet model (~610 MB)…"
+        parakeetNote = Parakeet.isDownloaded ? nil : String(localized: "Downloading the Parakeet model (~610 MB)…")
         Task { @MainActor [weak self] in
             do {
                 _ = try await Parakeet.prepare()
                 self?.parakeetNote = nil
             } catch {
-                self?.parakeetNote = "⚠︎ Download failed: \(error.localizedDescription). "
-                    + "The next dictation tries again."
+                self?.parakeetNote = String(localized: "⚠︎ Download failed: \(error.localizedDescription). The next dictation tries again.")
             }
         }
     }
@@ -134,7 +133,7 @@ final class SettingsStore {
 
     func testAPI(_ kind: APIKind) {
         let config = kind == .text ? apiText : apiAudio
-        if kind == .text { apiTextTest = "Testing…" } else { apiAudioTest = "Testing…" }
+        if kind == .text { apiTextTest = String(localized: "Testing…") } else { apiAudioTest = String(localized: "Testing…") }
         Task { @MainActor [weak self] in
             let result = kind == .text ? await CloudEngine.test(config) : await CloudTranscription.test(config)
             guard let self else { return }
@@ -310,17 +309,13 @@ final class SettingsStore {
     /// controls: a switch that flips but never works is worse than none.
     var dictationBlocker: String? {
         if !MicrophoneAccess.isBundled {
-            return "Available in the built app only — this binary is running outside a .app bundle, "
-                + "and macOS grants microphone access by bundle."
+            return String(localized: "Available in the built app only — this binary is running outside a .app bundle, and macOS grants microphone access by bundle.")
         }
         if !Transcription.isSupported {
-            return "Not available on this Mac: dictation uses the system's own on-device speech models, "
-                + "and macOS reports none here."
+            return String(localized: "Not available on this Mac: dictation uses the system's own on-device speech models, and macOS reports none here.")
         }
         if dictationMicDenied {
-            return "Microphone access is denied for Pretype, and macOS only ever asks once — "
-                + "allow it under Privacy & Security → Microphone, then come back and switch "
-                + "dictation on."
+            return String(localized: "Microphone access is denied for Pretype, and macOS only ever asks once — allow it under Privacy & Security → Microphone, then come back and switch dictation on.")
         }
         return nil
     }
@@ -424,11 +419,11 @@ final class SettingsStore {
 
     /// "MiniCPM5 1B · Base · Short · Confident-only" — what is running now.
     var setupLine: String {
-        if apiText.enabled { return "API · \(apiText.preset.name) · \(apiText.model)" }
+        if apiText.enabled { return String(localized: "API · \(apiText.preset.name) · \(apiText.model)") }
         var parts = [ModelMetrics.metrics(for: modelID)?.shortName ?? selectedModelName]
-        if !isAppleIntelligence { parts.append(style == .instruct ? "Instruct" : "Base") }
-        parts.append(length.rawValue.capitalized)
-        if logprobGate { parts.append("Confident-only") }
+        if !isAppleIntelligence { parts.append(style.label) }
+        parts.append(length.label)
+        if logprobGate { parts.append(String(localized: "Confident-only")) }
         return parts.joined(separator: " · ")
     }
 
@@ -518,8 +513,8 @@ final class SettingsStore {
     /// Add an app to the blacklist via the standard app-picker panel; stores
     /// the lowercased bundle ID (AppPolicy matches by substring of it).
     func addBlacklistApp() {
-        pickApps(prompt: "Disable Pretype Here",
-                 message: "Choose applications where Pretype should stay silent.") { [weak self] urls in
+        pickApps(prompt: String(localized: "Disable Pretype Here"),
+                 message: String(localized: "Choose applications where Pretype should stay silent.")) { [weak self] urls in
             for url in urls {
                 let entry = (Bundle(url: url)?.bundleIdentifier ?? url.deletingPathExtension().lastPathComponent)
                     .lowercased()
@@ -548,8 +543,8 @@ final class SettingsStore {
     /// Exact bundle IDs, unlike the blacklist's fragments — the menu toggle
     /// matches exactly. Re-seeded from the live list for the same reason.
     func addDictationSendApp() {
-        pickApps(prompt: "Press Return Here",
-                 message: "Choose applications where a dictation ends with Return.") { [weak self] urls in
+        pickApps(prompt: String(localized: "Press Return Here"),
+                 message: String(localized: "Choose applications where a dictation ends with Return.")) { [weak self] urls in
             var live = Settings.dictationSendApps
             for id in urls.compactMap({ Bundle(url: $0)?.bundleIdentifier?.lowercased() }) where !live.contains(id) {
                 live.append(id)
@@ -567,8 +562,8 @@ final class SettingsStore {
     /// unlike the blacklist's substring markers, instructions shouldn't leak
     /// into look-alike apps).
     func addPerAppInstructionApp() {
-        pickApps(prompt: "Add Instructions",
-                 message: "Choose applications that get their own style instructions.") { [weak self] urls in
+        pickApps(prompt: String(localized: "Add Instructions"),
+                 message: String(localized: "Choose applications that get their own style instructions.")) { [weak self] urls in
             guard let self else { return }
             for url in urls {
                 guard let id = Bundle(url: url)?.bundleIdentifier?.lowercased() else { continue }
@@ -585,14 +580,13 @@ final class SettingsStore {
     /// while typing on it): one address field, as a sheet.
     func addPerSiteInstruction() {
         let alert = NSAlert()
-        alert.messageText = "Add a Website"
-        alert.informativeText = "Its style lines replace the browser's while you type on it. "
-            + "A domain covers its subdomains — google.com includes mail.google.com."
+        alert.messageText = String(localized: "Add a Website")
+        alert.informativeText = String(localized: "Its style lines replace the browser's while you type on it. A domain covers its subdomains — google.com includes mail.google.com.")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
         field.placeholderString = "mail.google.com"
         alert.accessoryView = field
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Add"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
         SettingsUI.present(alert) { [weak self] in
             guard let self, let host = Self.host(fromTyped: field.stringValue) else { return }
@@ -631,12 +625,10 @@ final class SettingsStore {
         guard let text = perAppInstructions[key], let url = PerAppPresets.shareURL(key: key, name: name, text: text)
         else { return }
         let alert = NSAlert()
-        alert.messageText = "Share Your Style for \(name)?"
-        alert.informativeText = "GitHub opens in your browser with this style ready to propose to Pretype. "
-            + "Everyone who uses \(name) can then add it in one click, so check it says nothing personal. "
-            + "Nothing is sent until you submit it there (a free GitHub account is needed)."
-        alert.addButton(withTitle: "Open GitHub")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = String(localized: "Share Your Style for \(name)?")
+        alert.informativeText = String(localized: "GitHub opens in your browser with this style ready to propose to Pretype. Everyone who uses \(name) can then add it in one click, so check it says nothing personal. Nothing is sent until you submit it there (a free GitHub account is needed).")
+        alert.addButton(withTitle: String(localized: "Open GitHub"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         SettingsUI.present(alert) { NSWorkspace.shared.open(url) }
     }
 
@@ -674,14 +666,14 @@ final class SettingsStore {
         panel.allowsMultipleSelection = true
         // .md and .txt both conform to public.plain-text.
         panel.allowedContentTypes = [.plainText]
-        panel.prompt = "Import"
-        panel.message = "Choose plain-text or Markdown files you wrote — Pretype learns your phrasing from them."
+        panel.prompt = String(localized: "Import")
+        panel.message = String(localized: "Choose plain-text or Markdown files you wrote — Pretype learns your phrasing from them.")
         SettingsUI.run(panel) { [weak self] urls in self?.importTextFiles(urls) }
     }
 
     private func importTextFiles(_ urls: [URL]) {
         importing = true
-        importStatus = "Importing…"
+        importStatus = String(localized: "Importing…")
         Task.detached {
             var rows = 0
             var files = 0
@@ -718,8 +710,10 @@ final class SettingsStore {
                 try? await Task.sleep(nanoseconds: 50_000_000)
             }
             let summary = rows == 0
-                ? "Nothing to import — the files were empty, or not UTF-8 text."
-                : "Imported \(rows) passages from \(files) file\(files == 1 ? "" : "s")."
+                ? String(localized: "Nothing to import — the files were empty, or not UTF-8 text.")
+                : files == 1
+                ? String(localized: "Imported \(rows) passages from \(files) file.")
+                : String(localized: "Imported \(rows) passages from \(files) files.")
             await MainActor.run {
                 self.importing = false
                 self.importStatus = summary

@@ -114,7 +114,7 @@ final class CaretIndicator {
             // caret forever. The transient auto-hides.
             stop()
             guard !owner.hasActiveSuggestion else { return }
-            window.showTransient(.error("engine not working"), at: rect, host: owner.lastHostStyle)
+            window.showTransient(.error(String(localized: "engine not working")), at: rect, host: owner.lastHostStyle)
         }
     }
 }

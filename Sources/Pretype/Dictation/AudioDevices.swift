@@ -89,7 +89,7 @@ enum AudioDevices {
     /// the laptop").
     static func automaticExplanation(defaultInput: Device?, chosen: Device?) -> String? {
         guard let defaultInput, let chosen, chosen.uid != defaultInput.uid else { return nil }
-        return "Using \(chosen.name), so \(defaultInput.name) keeps playing in full quality."
+        return String(localized: "Using \(chosen.name), so \(defaultInput.name) keeps playing in full quality.")
     }
 
     // MARK: - Devices

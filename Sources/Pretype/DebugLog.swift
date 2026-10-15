@@ -81,7 +81,7 @@ final class DebugWindowController: NSObject, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Pretype Debug Console"
+            window.title = String(localized: "Pretype Debug Console")
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.contentViewController = NSHostingController(rootView: DebugConsoleView(model: model))
@@ -187,19 +187,17 @@ final class DebugConsoleModel {
         // turns an in-memory diagnostic into a plaintext record of their content,
         // so make that explicit and require confirmation before the save panel.
         let warning = NSAlert()
-        warning.messageText = "Export debug log?"
-        warning.informativeText = "The exported file contains text you typed this "
-            + "session — suggestions, accepted words, and corrections. Only share it "
-            + "with people you trust."
-        warning.addButton(withTitle: "Export…")
-        warning.addButton(withTitle: "Cancel")
+        warning.messageText = String(localized: "Export debug log?")
+        warning.informativeText = String(localized: "The exported file contains text you typed this session — suggestions, accepted words, and corrections. Only share it with people you trust.")
+        warning.addButton(withTitle: String(localized: "Export…"))
+        warning.addButton(withTitle: String(localized: "Cancel"))
         NSApp.activate(ignoringOtherApps: true)
         guard warning.runModal() == .alertFirstButtonReturn else { return }
 
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.plainText]
         panel.nameFieldStringValue = "pretype-debug-\(Int(Date().timeIntervalSince1970)).txt"
-        panel.prompt = "Export"
+        panel.prompt = String(localized: "Export")
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         let text = DebugLog.shared.snapshot().map { entry in
@@ -250,7 +248,7 @@ struct DebugConsoleView: View {
             }
             HStack(spacing: 8) {
                 Button("Clear") { model.clear() }
-                Button(model.paused ? "Resume" : "Pause") { model.paused.toggle() }
+                Button(model.paused ? String(localized: "Resume") : String(localized: "Pause")) { model.paused.toggle() }
                 Toggle("Details", isOn: $model.showDetails).toggleStyle(.button)
                 Button("Export…") { model.export() }
                 Toggle("Autoscroll", isOn: $model.autoscroll)

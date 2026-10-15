@@ -804,7 +804,7 @@ final class SuggestionController: NSObject {
         if case .failed = engine.state { engine.prewarmIfNeeded() }
         if case .failed(let why) = engine.state {
             lastEvent = "engine failed: \(why)"
-            indicator.flashTransient(.error("engine not working"))
+            indicator.flashTransient(.error(String(localized: "engine not working")))
             return
         }
 
@@ -857,7 +857,7 @@ final class SuggestionController: NSObject {
                 self.lastEvent = "engine error: \(error.localizedDescription)"
                 DebugLog.shared.log("ERROR", error.localizedDescription)
                 self.indicator.stop()
-                self.indicator.flashTransient(.error("engine error"))
+                self.indicator.flashTransient(.error(String(localized: "engine error")))
                 return
             }
             guard let self, !Task.isCancelled else { return }
@@ -1131,10 +1131,11 @@ final class SuggestionController: NSObject {
             // Say which of the three is missing, in the words the fix is found
             // under — "needs screen context" left the user to work out which.
             let why = !Settings.screenContextEnabled
-                ? "reply reads the screen — turn on “Use screen context” in Settings"
+                ? String(localized: "reply reads the screen — turn on “Use screen context” in Settings")
                 : !ScreenContext.hasPermission
-                    ? "reply needs Screen Recording — allow Pretype in System Settings, then relaunch"
-                    : "reply doesn't read the screen in \(typingContext.appName ?? "this app")"
+                    ? String(localized: "reply needs Screen Recording — allow Pretype in System Settings, then relaunch")
+                    : typingContext.appName.map { String(localized: "reply doesn't read the screen in \($0)") }
+                        ?? String(localized: "reply doesn't read the screen in this app")
             indicator.flashTransient(.hint(why), hideAfter: 3.5)
             return false
         }
@@ -1199,12 +1200,13 @@ final class SuggestionController: NSObject {
                 DebugLog.shared.log("REPLY", why)
                 guard !auto else { return }
                 self.lastEvent = "reply: \(why)"
-                self.indicator.flashTransient(.hint(why))
+                self.indicator.flashTransient(.hint(conversation == nil
+                    ? String(localized: "nothing to reply to") : String(localized: "no answer from the model")))
             case .failure(let error):
                 DebugLog.shared.log("ERROR", "reply failed: \(error.localizedDescription)")
                 guard !auto else { return }
                 self.lastEvent = "reply failed: \(error.localizedDescription)"
-                self.indicator.flashTransient(Self.failureNotice(error, fallback: "reply failed"))
+                self.indicator.flashTransient(Self.failureNotice(error, fallback: String(localized: "reply failed")))
             }
         }
         return true
@@ -1571,7 +1573,7 @@ final class SuggestionController: NSObject {
             : "undid acceptance of \"\(accepted)\""
         DebugLog.shared.log(
             "UNDO", wasDictated ? "\(accepted.count) chars — redacted from log" : "\"\(accepted)\"")
-        indicator.flashTransient(.hint("Undone"))
+        indicator.flashTransient(.hint(String(localized: "Undone")))
         // The accept was already journaled; an undo is the strongest reject
         // signal there is, so it gets its own event. Never for dictation: the
         // journal is on disk, the flow promises it never records a transcript,
@@ -1682,31 +1684,31 @@ final class SuggestionController: NSObject {
         //
         // A hands-free capture can be minutes of speech, so the words are not
         // thrown away with the notice: see `parkDictation`.
-        func drop(_ why: String, hint: String) {
+        func drop(_ why: String, notice: String) {
             DictationController.note("dropped \(text.count) chars to the clipboard — \(why)")
-            parkDictation(text, why: why, hint: hint)
+            parkDictation(text, why: why, notice: notice)
         }
         // Paused while the words were being written down (pausing finishes a
         // hands-free capture rather than throwing it away): the switch means
         // nothing gets typed, so the sentence goes to the clipboard.
         guard Settings.enabled else {
-            return drop("Pretype was paused", hint: "paused")
+            return drop("Pretype was paused", notice: String(localized: "paused — dictation copied, ⌘V to paste"))
         }
         guard !NSApp.isActive else {
-            return drop("our own window took focus", hint: "Pretype's window took focus")
+            return drop("our own window took focus", notice: String(localized: "Pretype's window took focus — dictation copied, ⌘V to paste"))
         }
         guard !AXText.isSecureInputActive() else {
-            return drop("secure input engaged", hint: "a password field took focus")
+            return drop("secure input engaged", notice: String(localized: "a password field took focus — dictation copied, ⌘V to paste"))
         }
         guard dictationElement() != nil else {
-            return drop("no text field", hint: "no text field in focus")
+            return drop("no text field", notice: String(localized: "no text field in focus — dictation copied, ⌘V to paste"))
         }
         // Remade at injection time like the rest: a composition opened during
         // the capture (the transcript arrives hundreds of milliseconds after
         // the words) would swallow the synthetic keystrokes into its marked
         // text. Precise marked-text only — see `isComposingInFocusedField`.
         guard !isComposingInFocusedField() else {
-            return drop("an IME composition is open", hint: "a composition is open")
+            return drop("an IME composition is open", notice: String(localized: "a composition is open — dictation copied, ⌘V to paste"))
         }
         // Advisory, exactly as at capture time: a field that publishes no caret
         // (web and Electron inputs before their first keystroke) must still
@@ -1759,7 +1761,7 @@ final class SuggestionController: NSObject {
     /// wherever it was meant to land, and the notice says so. Marked
     /// transient, so clipboard managers keep it out of their on-disk history —
     /// no transcript is ever written to disk — and kept off other devices.
-    private func parkDictation(_ text: String, why: String, hint: String) {
+    private func parkDictation(_ text: String, why: String, notice: String) {
         let pasteboard = NSPasteboard.general
         // This Mac only: Universal Clipboard ignores the transient marker and
         // would offer the transcript to every device on the iCloud account.
@@ -1767,7 +1769,7 @@ final class SuggestionController: NSObject {
         pasteboard.setString(text, forType: .string)
         pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
         lastEvent = "dictation copied to the clipboard — \(why)"
-        showTransientOverlay(.hint("\(hint) — dictation copied, ⌘V to paste"),
+        showTransientOverlay(.hint(notice),
                              at: lastCaretRect ?? DictationController.pointerAnchor(),
                              host: lastHostStyle)
     }
@@ -2086,7 +2088,7 @@ extension SuggestionController: DictationHost {
     func hideOverlay() { window.hide() }
 
     func rescueDictated(_ text: String) {
-        parkDictation(text, why: "the focus moved", hint: "focus moved")
+        parkDictation(text, why: "the focus moved", notice: String(localized: "focus moved — dictation copied, ⌘V to paste"))
     }
 
     func applyVoiceCommand(_ instruction: String, to selection: String) {

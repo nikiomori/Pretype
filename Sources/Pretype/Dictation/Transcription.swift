@@ -35,9 +35,9 @@ enum TranscriptionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedLanguage(let name):
-            return "macOS can't dictate \(name)"
+            return String(localized: "macOS can't dictate \(name)")
         case .timedOut:
-            return "transcription timed out"
+            return String(localized: "transcription timed out")
         }
     }
 }

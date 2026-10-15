@@ -13,15 +13,16 @@ struct ImpactRailView: View {
     /// meter is mostly full in the default state (longer = lighter load), and
     /// a full red bar reads as an alarm, not a resting figure. The source
     /// lines are tooltips: four lines of eval provenance under four bars was
-    /// a wall of fine print.
-    private static let meters: [(icon: String, tint: Color, label: String,
+    /// a wall of fine print. `label` is the identity `MetricDelta.label`
+    /// matches on and stays English; `title` is what the meter shows.
+    private static let meters: [(icon: String, tint: Color, label: String, title: String,
                                  value: KeyPath<ConfigProjection, String>,
                                  help: KeyPath<ConfigProjection, String>,
                                  fraction: KeyPath<ConfigProjection, Double?>)] = [
-        ("scope", .green, "Accuracy", \.accuracyText, \.accuracySub, \.accuracyFraction),
-        ("bolt.fill", .blue, "Speed", \.latencyText, \.latencySub, \.speedFraction),
-        ("memorychip", .teal, "Memory", \.memoryText, \.memorySub, \.memoryFraction),
-        ("gauge.with.needle", .indigo, "Compute", \.computeText, \.computeSub, \.computeFraction),
+        ("scope", .green, "Accuracy", String(localized: "Accuracy"), \.accuracyText, \.accuracySub, \.accuracyFraction),
+        ("bolt.fill", .blue, "Speed", String(localized: "Speed"), \.latencyText, \.latencySub, \.speedFraction),
+        ("memorychip", .teal, "Memory", String(localized: "Memory"), \.memoryText, \.memorySub, \.memoryFraction),
+        ("gauge.with.needle", .indigo, "Compute", String(localized: "Compute"), \.computeText, \.computeSub, \.computeFraction),
     ]
 
     var body: some View {
@@ -41,11 +42,11 @@ struct ImpactRailView: View {
                 // The meters project ON-DEVICE configurations; none of them
                 // describes a hosted model, so none is shown while one runs.
                 if store.apiText.enabled {
-                    Caption("Text runs on \(store.apiText.preset.name). Pretype hasn't measured it.")
+                    Caption(String(localized: "Text runs on \(store.apiText.preset.name). Pretype hasn't measured it."))
                 } else {
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(Self.meters, id: \.label) { m in
-                            MeterView(icon: m.icon, tint: m.tint, label: m.label,
+                            MeterView(icon: m.icon, tint: m.tint, label: m.title,
                                       value: base[keyPath: m.value],
                                       sub: m.label == "Accuracy" ? coverageLine(base, target) : nil,
                                       help: (target ?? base)[keyPath: m.help],
@@ -90,7 +91,7 @@ struct ImpactRailView: View {
                 Circle()
                     .fill(store.enabled ? Color.green : Color.secondary)
                     .frame(width: 7, height: 7)
-                Text(store.enabled ? store.setupLine : "Paused")
+                (store.enabled ? Text(store.setupLine) : Text("Paused"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -108,9 +109,9 @@ struct ImpactRailView: View {
     private func coverageLine(_ base: ConfigProjection, _ target: ConfigProjection?) -> String? {
         guard let now = base.coveragePct else { return nil }
         if let next = target?.coveragePct, next != now {
-            return "suggests \(now)% → \(next)% of the time"
+            return String(localized: "suggests \(now)% → \(next)% of the time")
         }
-        return "suggests \(now)% of the time"
+        return String(localized: "suggests \(now)% of the time")
     }
 }
 

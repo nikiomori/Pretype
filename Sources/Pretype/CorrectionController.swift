@@ -94,7 +94,7 @@ final class CorrectionController {
             if fixable, !inFlight {
                 selection = info
                 if let rect {
-                    owner.window.show(mode: .shortcut(key: Settings.hotkeyStyle.correctionLabel, action: "fix"), at: rect)
+                    owner.window.show(mode: .shortcut(key: Settings.hotkeyStyle.correctionLabel, action: String(localized: "fix")), at: rect)
                 }
             } else if !inFlight {
                 selection = nil
@@ -265,7 +265,7 @@ final class CorrectionController {
             request: owner.makeRequest(text: ""),
             makePending: { PendingFix(original: text, replacement: $0) },
             proposedEvent: "voice command — ⏎ to apply, esc to keep",
-            unchangedNotice: "no change",
+            unchangedNotice: String(localized: "no change"),
             perform: { engine, request in
                 try await engine.rewrite(selection: text, instruction: instruction, request: request)
             }
@@ -307,7 +307,7 @@ final class CorrectionController {
         request: CompletionRequest,
         makePending: @escaping (String) -> PendingFix,
         proposedEvent: String,
-        unchangedNotice: String = "✓ looks fine",
+        unchangedNotice: String = String(localized: "✓ looks fine"),
         perform: (@Sendable (any CompletionEngine, CompletionRequest) async throws -> String?)? = nil
     ) {
         inFlight = true
@@ -367,7 +367,7 @@ final class CorrectionController {
             case .failure(let error):
                 owner.lastEvent = "fix failed: \(error.localizedDescription)"
                 DebugLog.shared.log("ERROR", "correction failed: \(error.localizedDescription)")
-                owner.indicator.flashTransient(SuggestionController.failureNotice(error, fallback: "fix failed"))
+                owner.indicator.flashTransient(SuggestionController.failureNotice(error, fallback: String(localized: "fix failed")))
             }
         }
     }

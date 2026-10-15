@@ -24,7 +24,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
         // The sidebar runs full height under a transparent titlebar; the pane
         // header inside the content names the pane (System Settings-style).
-        window.title = "Pretype Settings"
+        window.title = String(localized: "Pretype Settings")
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.contentViewController = NSHostingController(rootView: SettingsRootView(store: store))

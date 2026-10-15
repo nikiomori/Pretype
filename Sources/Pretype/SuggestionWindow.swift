@@ -554,7 +554,7 @@ final class SuggestionWindow: NSPanel {
             .font: NSFont.systemFont(ofSize: 10),
             .foregroundColor: NSColor.systemRed,
         ])
-        result.append(Self.plain(text.isEmpty ? "Listening…" : text,
+        result.append(Self.plain(text.isEmpty ? String(localized: "Listening…") : text,
                                  text.isEmpty ? .secondaryLabelColor : .labelColor))
         // The leading dot forces the line's base direction LTR, which renders
         // an Arabic or Hebrew transcript backwards: words in RTL order but the
@@ -721,9 +721,9 @@ final class SuggestionWindow: NSPanel {
         }
         result.append(Self.plain("   "))
         result.append(Self.keycap("⏎"))
-        result.append(Self.plain(" apply   ", .secondaryLabelColor, .systemFont(ofSize: 11)))
+        result.append(Self.plain(" " + String(localized: "apply") + "   ", .secondaryLabelColor, .systemFont(ofSize: 11)))
         result.append(Self.keycap("esc"))
-        result.append(Self.plain(" cancel", .secondaryLabelColor, .systemFont(ofSize: 11)))
+        result.append(Self.plain(" " + String(localized: "cancel"), .secondaryLabelColor, .systemFont(ofSize: 11)))
         return result
     }
 
@@ -803,9 +803,9 @@ final class SuggestionWindow: NSPanel {
         let hint = NSFont.systemFont(ofSize: 11)
         result.append(Self.plain("   "))
         result.append(Self.keycap(style.label))
-        result.append(Self.plain(" word   ", .secondaryLabelColor, hint))
+        result.append(Self.plain(" " + String(localized: "word") + "   ", .secondaryLabelColor, hint))
         result.append(Self.keycap(style.shiftLabel))
-        result.append(Self.plain(" all", .secondaryLabelColor, hint))
+        result.append(Self.plain(" " + String(localized: "all"), .secondaryLabelColor, hint))
         return result
     }
 

@@ -51,7 +51,7 @@ enum CloudTranscription {
         do {
             _ = try await APIClient.transcribe(try config.endpoint(), wav: wav([Float](repeating: 0, count: 8_000)),
                                                language: nil, timeout: 30)
-            return "✓ Connected — answered in \(Int(Date().timeIntervalSince(start) * 1000)) ms"
+            return String(localized: "✓ Connected — answered in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
         } catch {
             return "⚠︎ \(error.localizedDescription)"
         }

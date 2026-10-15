@@ -94,10 +94,10 @@ enum ModelPriority: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .lightest: return "Lightest"
-        case .quick: return "Quick & accurate"
-        case .accurate: return "Most accurate"
-        case .balanced: return "Balanced"
+        case .lightest: return String(localized: "Lightest")
+        case .quick: return String(localized: "Quick & accurate")
+        case .accurate: return String(localized: "Most accurate")
+        case .balanced: return String(localized: "Balanced")
         }
     }
 
@@ -112,10 +112,10 @@ enum ModelPriority: String, CaseIterable {
 
     var goal: String {
         switch self {
-        case .lightest: return "Smallest footprint — for Macs with little free memory."
-        case .quick: return "Fastest of the models within 2 pp of the best accuracy."
-        case .accurate: return "Best measured accuracy; first-word ties break on reference scoring."
-        case .balanced: return "The out-of-the-box pick: the best tier that stays within about a quarter of this Mac's memory, working fix/reply chords included."
+        case .lightest: return String(localized: "Smallest footprint — for Macs with little free memory.")
+        case .quick: return String(localized: "Fastest of the models within 2 pp of the best accuracy.")
+        case .accurate: return String(localized: "Best measured accuracy; first-word ties break on reference scoring.")
+        case .balanced: return String(localized: "The out-of-the-box pick: the best tier that stays within about a quarter of this Mac's memory, working fix/reply chords included.")
         }
     }
 
@@ -211,11 +211,11 @@ struct ConfigProjection {
         guard let m = ModelMetrics.metrics(for: c.modelID) else {
             return ConfigProjection(
                 accuracyPct: nil, accuracyText: "—",
-                accuracySub: "No eval figures — run it through the harness to compare.",
+                accuracySub: String(localized: "No eval figures — run it through the harness to compare."),
                 coveragePct: nil,
-                p50Ms: nil, latencyIsApprox: false, latencySub: "not measured",
-                ramGB: nil, memorySub: "not measured",
-                computeRel: nil, computeSub: "not measured")
+                p50Ms: nil, latencyIsApprox: false, latencySub: String(localized: "not measured"),
+                ramGB: nil, memorySub: String(localized: "not measured"),
+                computeRel: nil, computeSub: String(localized: "not measured"))
         }
         let isAI = c.modelID == ModelCatalog.appleIntelligenceID
         let lf = latencyFactor(c.length, style: c.style)
@@ -223,12 +223,12 @@ struct ConfigProjection {
         if isAI {
             return ConfigProjection(
                 accuracyPct: m.firstWordPct, accuracyText: "\(m.firstWordPct)%",
-                accuracySub: "offers \(m.coveragePct)% of the time · \(ModelMetrics.evalSource)",
+                accuracySub: String(localized: "offers \(m.coveragePct)% of the time · \(ModelMetrics.evalSource)"),
                 coveragePct: m.coveragePct,
                 p50Ms: m.p50Ms, latencyIsApprox: true,
-                latencySub: "median on the Neural Engine — an upper bound",
-                ramGB: 0, memorySub: "system model — no app memory",
-                computeRel: nil, computeSub: "Neural Engine — low, efficient")
+                latencySub: String(localized: "median on the Neural Engine — an upper bound"),
+                ramGB: 0, memorySub: String(localized: "system model — no app memory"),
+                computeRel: nil, computeSub: String(localized: "Neural Engine — low, efficient"))
         }
 
         if c.style == .instruct {
@@ -237,21 +237,21 @@ struct ConfigProjection {
             if !usable {
                 return ConfigProjection(
                     accuracyPct: 0, accuracyText: "~0%",
-                    accuracySub: "broken combination — this model answers the text instead of continuing it",
+                    accuracySub: String(localized: "broken combination — this model answers the text instead of continuing it"),
                     coveragePct: 99,
-                    p50Ms: m.p50Ms, latencyIsApprox: true, latencySub: "base-model figure — instruct unmeasured here",
-                    gb: gb, memorySub: "instruct sibling weights (hub size)", lengthFactor: lf)
+                    p50Ms: m.p50Ms, latencyIsApprox: true, latencySub: String(localized: "base-model figure — instruct unmeasured here"),
+                    gb: gb, memorySub: String(localized: "instruct sibling weights (hub size)"), lengthFactor: lf)
             }
             // Usable means the measured it-6bit sibling (the E4B tiers).
             let it = ModelMetrics.instructCompletion
             let ms = Int((Double(it.p50Ms) * lf).rounded())
             return ConfigProjection(
                 accuracyPct: it.firstWordPct, accuracyText: "\(it.firstWordPct)%",
-                accuracySub: "offers \(it.coveragePct)% of the time on real text, where Base measures \(m.firstWordPct)% · 85% on text you author (eval-v2, with persona)",
+                accuracySub: String(localized: "offers \(it.coveragePct)% of the time on real text, where Base measures \(m.firstWordPct)% · 85% on text you author (eval-v2, with persona)"),
                 coveragePct: it.coveragePct,
                 p50Ms: ms, latencyIsApprox: lf > 1,
-                latencySub: lf > 1 ? "instruct sibling, scaled by the measured length factor" : "instruct sibling, measured (it-6bit)",
-                gb: gb, memorySub: "instruct sibling weights (hub size)", lengthFactor: lf)
+                latencySub: lf > 1 ? String(localized: "instruct sibling, scaled by the measured length factor") : String(localized: "instruct sibling, measured (it-6bit)"),
+                gb: gb, memorySub: String(localized: "instruct sibling weights (hub size)"), lengthFactor: lf)
         }
 
         // Base style — the only path the gate applies to.
@@ -259,18 +259,18 @@ struct ConfigProjection {
         if c.logprobGate, let g = ModelMetrics.gated[c.modelID] {
             return ConfigProjection(
                 accuracyPct: g.firstWordPct, accuracyText: "\(g.firstWordPct)%",
-                accuracySub: "offers \(g.shownPct)% of the time at this model's own threshold · \(ModelMetrics.evalSource)",
+                accuracySub: String(localized: "offers \(g.shownPct)% of the time at this model's own threshold · \(ModelMetrics.evalSource)"),
                 coveragePct: g.shownPct,
-                p50Ms: ms, latencyIsApprox: lf > 1, latencySub: "no added latency over plain Base",
+                p50Ms: ms, latencyIsApprox: lf > 1, latencySub: String(localized: "no added latency over plain Base"),
                 gb: m.ramGB, lengthFactor: lf)
         }
         return ConfigProjection(
             accuracyPct: m.firstWordPct,
             accuracyText: "\(m.firstWordPct)%",
-            accuracySub: "offers \(m.coveragePct)% of the time · \(ModelMetrics.evalSource)",
+            accuracySub: String(localized: "offers \(m.coveragePct)% of the time · \(ModelMetrics.evalSource)"),
             coveragePct: m.coveragePct,
             p50Ms: ms, latencyIsApprox: lf > 1,
-            latencySub: lf > 1 ? "scaled by the measured length factor" : "median per suggestion, measured",
+            latencySub: lf > 1 ? String(localized: "scaled by the measured length factor") : String(localized: "median per suggestion, measured"),
             gb: m.ramGB, lengthFactor: lf)
     }
 
@@ -314,16 +314,17 @@ struct ConfigProjection {
 
     var latencyText: String {
         guard let ms = p50Ms else { return "—" }
-        let base = ms >= 1000 ? String(format: "%.1f s", Double(ms) / 1000) : "\(ms) ms"
+        let base = ms >= 1000
+            ? String(localized: "\(oneDecimal(Double(ms) / 1000)) s") : String(localized: "\(ms) ms")
         return latencyIsApprox ? "≈" + base : base
     }
     var memoryText: String {
         guard let gb = ramGB else { return "—" }
-        return gb <= 0 ? "0 GB" : String(format: "%.1f GB", gb)
+        return gb <= 0 ? String(localized: "0 GB") : String(localized: "\(oneDecimal(gb)) GB")
     }
     var computeText: String {
         guard let rel = computeRel else { return "ANE" }
-        return rel < 10 ? String(format: "%.1f×", rel) : "\(Int(rel.rounded()))×"
+        return rel < 10 ? "\(oneDecimal(rel))×" : "\(Int(rel.rounded()))×"
     }
 
     // MARK: Deltas
@@ -341,19 +342,20 @@ struct ConfigProjection {
         var out: [MetricDelta] = []
         if let a = base.accuracyPct, let b = tgt.accuracyPct, abs(a - b) >= 1 {
             out.append(MetricDelta(label: "Accuracy",
-                                   text: (b > a ? "+" : "−") + "\(abs(b - a)) pp",
+                                   text: b > a ? String(localized: "+\(abs(b - a)) pp") : String(localized: "−\(abs(b - a)) pp"),
                                    improved: b > a))
         }
         if let a = base.p50Ms, let b = tgt.p50Ms, a != b {
             let faster = b < a
             let ratio = faster ? Double(a) / Double(b) : Double(b) / Double(a)
             out.append(MetricDelta(label: "Speed",
-                                   text: ratioText(ratio) + (faster ? " faster" : " slower"),
+                                   text: faster ? String(localized: "\(ratioText(ratio)) faster")
+                                                : String(localized: "\(ratioText(ratio)) slower"),
                                    improved: faster))
         }
         if let a = base.ramGB, let b = tgt.ramGB, abs(a - b) >= 0.1 {
             out.append(MetricDelta(label: "Memory",
-                                   text: String(format: "%@%.1f GB", b < a ? "−" : "+", abs(b - a)),
+                                   text: String(localized: "\(b < a ? "−" : "+")\(oneDecimal(abs(b - a))) GB"),
                                    improved: b < a))
         }
         if let a = base.computeRel, let b = tgt.computeRel, abs(a - b) >= 0.1 {
@@ -361,7 +363,8 @@ struct ConfigProjection {
             let ratio = lighter ? a / b : b / a
             if ratio >= 1.1 {
                 out.append(MetricDelta(label: "Compute",
-                                       text: ratioText(ratio) + (lighter ? " lighter" : " heavier"),
+                                       text: lighter ? String(localized: "\(ratioText(ratio)) lighter")
+                                                     : String(localized: "\(ratioText(ratio)) heavier"),
                                        improved: lighter))
             }
         }
@@ -382,11 +385,11 @@ extension ConfigProjection {
     /// measured length factor) both follow from them.
     init(accuracyPct: Int, accuracyText: String, accuracySub: String, coveragePct: Int,
          p50Ms: Int, latencyIsApprox: Bool, latencySub: String,
-         gb: Double, memorySub: String = "resident model weights", lengthFactor: Double) {
+         gb: Double, memorySub: String = String(localized: "resident model weights"), lengthFactor: Double) {
         self.init(accuracyPct: accuracyPct, accuracyText: accuracyText, accuracySub: accuracySub,
                   coveragePct: coveragePct, p50Ms: p50Ms, latencyIsApprox: latencyIsApprox,
                   latencySub: latencySub, ramGB: gb, memorySub: memorySub,
                   computeRel: gb * lengthFactor / Self.computeReferenceGB,
-                  computeSub: "chip load per keystroke vs default (est.)")
+                  computeSub: String(localized: "chip load per keystroke vs default (est.)"))
     }
 }

@@ -8,7 +8,7 @@ import FoundationModels
 final class FoundationModelsEngine: CompletionEngine {
     let name = "Apple Intelligence"
 
-    private let stateBox = LockedValue<EngineState>(.preparing("starting…"))
+    private let stateBox = LockedValue<EngineState>(.preparing(String(localized: "starting…")))
     /// Single-flight guard: the session API rejects concurrent requests, so a
     /// fresh keystroke's request abstains while one is mid-flight (the caller
     /// cancels the prior task, so latest-wins still holds).
@@ -23,7 +23,7 @@ final class FoundationModelsEngine: CompletionEngine {
     var statusLine: String? {
         switch stateBox.get() {
         case .preparing(let detail): return "Apple Intelligence: \(detail)"
-        case .ready: return "Apple Intelligence: ready (system model)"
+        case .ready: return String(localized: "Apple Intelligence: ready (system model)")
         case .failed(let detail): return "Apple Intelligence: \(detail)"
         }
     }
@@ -32,7 +32,7 @@ final class FoundationModelsEngine: CompletionEngine {
     /// (the status line carries why), never answered with "nothing to fix".
     private func requireReady() throws {
         guard case .ready = stateBox.get() else {
-            throw EngineNotReady(message: "Apple Intelligence isn't available — see the menu")
+            throw EngineNotReady(message: String(localized: "Apple Intelligence isn't available — see the menu"))
         }
     }
 
@@ -48,10 +48,10 @@ final class FoundationModelsEngine: CompletionEngine {
             // header and the onboarding card ("unavailable: modelNotReady").
             let why: String
             switch reason {
-            case .deviceNotEligible: why = "this Mac doesn't support Apple Intelligence"
-            case .appleIntelligenceNotEnabled: why = "turn on Apple Intelligence in System Settings"
-            case .modelNotReady: why = "Apple Intelligence is still downloading — retry in a few minutes"
-            @unknown default: why = "Apple Intelligence is unavailable (\(String(describing: reason)))"
+            case .deviceNotEligible: why = String(localized: "this Mac doesn't support Apple Intelligence")
+            case .appleIntelligenceNotEnabled: why = String(localized: "turn on Apple Intelligence in System Settings")
+            case .modelNotReady: why = String(localized: "Apple Intelligence is still downloading — retry in a few minutes")
+            @unknown default: why = String(localized: "Apple Intelligence is unavailable (\(String(describing: reason)))")
             }
             stateBox.set(.failed(why))
         }

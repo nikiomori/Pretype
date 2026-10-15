@@ -307,7 +307,7 @@ final class DictationController {
             _ = hold.keyPressed()
             guard isEscape else { return }
             Self.note("hands-free capture cancelled with ⎋")
-            discard(notice: .hint("dictation cancelled"))
+            discard(notice: .hint(String(localized: "dictation cancelled")))
             return
         }
         if let event = hold.keyPressed() { return apply(event) }
@@ -323,7 +323,7 @@ final class DictationController {
         if !isEscape, isRescueBound { return }
         let wasWorking = phase == .working
         discard(notice: wasWorking
-            ? .hint(isEscape ? "dictation cancelled" : "dictation dropped — you kept typing")
+            ? .hint(isEscape ? String(localized: "dictation cancelled") : String(localized: "dictation dropped — you kept typing"))
             : nil)
     }
 
@@ -360,7 +360,7 @@ final class DictationController {
         guard !isRescueBound else { return }
         _ = hold.interrupt()
         let wasWorking = phase == .working
-        discard(notice: wasWorking ? .hint("dictation dropped — the caret moved") : nil)
+        discard(notice: wasWorking ? .hint(String(localized: "dictation dropped — the caret moved")) : nil)
     }
 
     /// Focus moved, Pretype was paused, the app is quitting: whatever was being
@@ -393,7 +393,7 @@ final class DictationController {
             Self.note("focus moved mid hands-free capture — finishing to the clipboard")
             return finish()
         }
-        discard(notice: spoken ? .hint("dictation stopped — the focus moved") : nil)
+        discard(notice: spoken ? .hint(String(localized: "dictation stopped — the focus moved")) : nil)
     }
 
     /// The latch chord, pressed. Starts a hands-free capture, or ends the one
@@ -441,7 +441,7 @@ final class DictationController {
         switch event {
         case .begin: begin()
         case .end: finish()
-        case .cancel: discard(notice: .hint("dictation cancelled"))
+        case .cancel: discard(notice: .hint(String(localized: "dictation cancelled")))
         case nil: break
         }
     }
@@ -490,9 +490,7 @@ final class DictationController {
         // Every refusal below ends in "then <do the thing again>", and the
         // thing differs: telling someone who just pressed a chord to hold a key
         // sends them looking for a gesture that isn't the one they used.
-        let retry = requested == .latch
-            ? "press \(Settings.dictationLatch.label) again"
-            : "hold to talk"
+        let latchKey = requested == .latch ? Settings.dictationLatch.label : nil
         // `at` is threaded through so a refusal can still be *shown*: the caret
         // rect from this hold's own AX read, not the host's fallback rect, which
         // is nil until the user has typed something in this field — which is
@@ -523,7 +521,8 @@ final class DictationController {
         // of writing a sentence.
         guard owner.hasFocusedTextField() else {
             return refuse("no text field in focus",
-                          notice: .hint("click into a text field, then \(retry)"))
+                          notice: .hint(latchKey.map { String(localized: "click into a text field, then press \($0) again") }
+                              ?? String(localized: "click into a text field, then hold to talk")))
         }
         // Again: finding the field can read the site of one the focus tracker
         // missed, and that site may be switched off.
@@ -537,7 +536,8 @@ final class DictationController {
         // is not consulted here.
         guard !owner.isComposingInFocusedField() else {
             return refuse("an IME composition is open",
-                          notice: .hint("finish composing that word, then \(retry)"))
+                          notice: .hint(latchKey.map { String(localized: "finish composing that word, then press \($0) again") }
+                              ?? String(localized: "finish composing that word, then hold to talk")))
         }
         // The privacy floor `AXText.context` normally enforces has to be
         // restated here, because the anchor read is no longer a gate: while
@@ -545,7 +545,7 @@ final class DictationController {
         // nothing may be captured or typed.
         guard !gates.secureInput() else {
             return refuse("secure input is active",
-                          notice: .hint("dictation stays out of password fields"))
+                          notice: .hint(String(localized: "dictation stays out of password fields")))
         }
         // Everything the anchor gives is ADVISORY. Web and Electron fields
         // routinely publish no `AXSelectedTextRange` until their first
@@ -571,17 +571,17 @@ final class DictationController {
         // as "the user refused" wiped `dictationEnabled` for the built app too.
         guard gates.micBundled() else {
             return refuse("not running as an .app — microphone access is granted by bundle",
-                          notice: .error("dictation needs the built app — run make-app.sh"), at: rect)
+                          notice: .error(String(localized: "dictation needs the built app — run make-app.sh")), at: rect)
         }
         guard gates.transcriptionSupported() else {
-            return refuse("no system speech model", notice: .error("this Mac can't dictate"), at: rect)
+            return refuse("no system speech model", notice: .error(String(localized: "this Mac can't dictate")), at: rect)
         }
         // A released capture's language-pack download is still running (see
         // `discard`). A second session start now would race it for the same
         // install and reservation, so wait it out with the same words.
         guard !Transcription.isDownloading.get() else {
             return refuse("the language pack is still downloading",
-                          notice: .hint("getting the dictation model ready…"), at: rect)
+                          notice: .hint(String(localized: "getting the dictation model ready…")), at: rect)
         }
         guard gates.micStatus() == .authorized else {
             // Never asked. Dictation can be switched on without passing through
@@ -591,7 +591,8 @@ final class DictationController {
             // possible moment to be pedantic. Ask now; the next hold works.
             if gates.micStatus() == .notDetermined {
                 refuse("microphone never asked for — asking now",
-                       notice: .hint("allow the microphone, then \(retry)"), at: rect)
+                       notice: .hint(latchKey.map { String(localized: "allow the microphone, then press \($0) again") }
+                                     ?? String(localized: "allow the microphone, then hold to talk")), at: rect)
                 Task { @MainActor in
                     let granted = await MicrophoneAccess.request()
                     Self.note("microphone \(granted ? "granted" : "refused")")
@@ -600,7 +601,7 @@ final class DictationController {
                 return
             }
             return refuse("no microphone permission",
-                          notice: .error("allow the microphone in Settings"), at: rect)
+                          notice: .error(String(localized: "allow the microphone in Settings")), at: rect)
         }
 
         owner.clearActiveCompletion()
@@ -743,7 +744,7 @@ final class DictationController {
                 case .preparing:
                     Self.note("still preparing when the capture ceiling hit — giving up on this hold")
                     _ = self.hold.interrupt()
-                    self.discard(notice: .error("dictation couldn't start — try again"))
+                    self.discard(notice: .error(String(localized: "dictation couldn't start — try again")))
                 default:
                     break
                 }
@@ -933,8 +934,8 @@ final class DictationController {
             // Bluetooth input negotiates for 0.5–2 s), and "getting the model
             // ready" would send the user waiting for a download that isn't.
             discard(notice: .hint(Transcription.isDownloading.get()
-                ? "getting the dictation model ready…"
-                : "too quick — the microphone was still opening"))
+                ? String(localized: "getting the dictation model ready…")
+                : String(localized: "too quick — the microphone was still opening")))
             return
         }
         guard case .listening = phase, let session else { return }
@@ -973,7 +974,7 @@ final class DictationController {
                 }
                 let transcript = Self.clean(raw)
                 guard !transcript.isEmpty else {
-                    self.discard(notice: .hint("nothing heard"))
+                    self.discard(notice: .hint(String(localized: "nothing heard")))
                     return
                 }
                 if let selection = self.commandSelection {
@@ -1037,7 +1038,7 @@ final class DictationController {
                 Self.note("queued hold released before the microphone could open")
                 let rect = caretRect ?? owner.fallbackCaretRect ?? Self.pointerAnchor()
                 owner.showTransientOverlay(
-                    .hint("wasn't listening yet — hold and say that again"),
+                    .hint(String(localized: "wasn't listening yet — hold and say that again")),
                     at: rect, host: hostStyle)
             }
             return
@@ -1228,11 +1229,11 @@ final class DictationController {
             owner.hideOverlay()
             return
         case .preparing:
-            mode = .status("starting dictation…")
+            mode = .status(String(localized: "starting dictation…"))
         case .listening(let text):
             mode = .listening(Self.tail(text))
         case .working:
-            mode = .status("writing it down…")
+            mode = .status(String(localized: "writing it down…"))
         }
         owner.showOverlay(mode, at: rect, host: hostStyle)
     }

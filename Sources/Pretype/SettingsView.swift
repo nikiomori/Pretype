@@ -33,7 +33,7 @@ struct RequirementRow: View {
                 .foregroundStyle(met ? Color.green : Color.orange)
                 .font(.caption)
                 // Not just symbol + color: VoiceOver read the row the same either way.
-                .accessibilityLabel(met ? "Done" : "Missing")
+                .accessibilityLabel(met ? Text("Done") : Text("Missing"))
             Text(text)
                 .font(.caption)
                 .foregroundStyle(met ? Color.secondary : Color.primary)
@@ -59,9 +59,14 @@ struct Caption: View {
     }
 }
 
+/// One decimal in the user's own number format: "1.2" or "1,2".
+func oneDecimal(_ value: Double) -> String {
+    value.formatted(.number.precision(.fractionLength(1)))
+}
+
 /// "640 ms", "1.2 s": past a second, milliseconds read as seconds.
 func latencyLabel(ms: Int) -> String {
-    ms >= 1000 ? String(format: "%.1f s", Double(ms) / 1000) : "\(ms) ms"
+    ms >= 1000 ? String(localized: "\(oneDecimal(Double(ms) / 1000)) s") : String(localized: "\(ms) ms")
 }
 
 // MARK: - Root
@@ -84,6 +89,16 @@ enum SettingsTab: String, CaseIterable {
         }
     }
 
+    /// Sidebar label and pane title; `rawValue` stays the identity.
+    var title: String {
+        switch self {
+        case .general: return String(localized: "General")
+        case .suggestions: return String(localized: "Suggestions")
+        case .model: return String(localized: "Model")
+        case .personalization: return String(localized: "Personalization")
+        case .api: return String(localized: "API")
+        }
+    }
 }
 
 /// Sidebar + pane + Live Impact inspector — the System Settings shape of the
@@ -106,7 +121,7 @@ struct SettingsRootView: View {
         .frame(minWidth: 1020, minHeight: 620)
         // On the root, not a tab: rows, cards and the map ask from Model, the
         // Style picker and "Use recommended settings" from Suggestions.
-        .confirmationDialog(store.pendingDownload.map { "Download \($0.name)?" } ?? "",
+        .confirmationDialog(store.pendingDownload.map { String(localized: "Download \($0.name)?") } ?? "",
                             isPresented: Binding(get: { store.pendingDownload != nil },
                                                  set: { if !$0 { store.pendingDownload = nil } }),
                             presenting: store.pendingDownload) { pending in
@@ -116,15 +131,16 @@ struct SettingsRootView: View {
             }
             Button("Cancel", role: .cancel) { store.pendingDownload = nil }
         } message: { pending in
-            Text((pending.sizeGB > 0 ? String(format: "About %.1f GB. ", pending.sizeGB) : "")
-                + "Suggestions pause until it's ready.")
+            pending.sizeGB > 0
+                ? Text("About \(oneDecimal(pending.sizeGB)) GB. Suggestions pause until it's ready.")
+                : Text("Suggestions pause until it's ready.")
         }
     }
 
     private var sidebar: some View {
         List(selection: $store.activeTab) {
             ForEach(SettingsTab.allCases, id: \.self) { tab in
-                Label(tab.rawValue, systemImage: tab.symbol)
+                Label(tab.title, systemImage: tab.symbol)
             }
         }
         .listStyle(.sidebar)
@@ -136,7 +152,7 @@ struct SettingsRootView: View {
                     .frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text("Pretype").font(.headline)
+                        Text(verbatim: "Pretype").font(.headline)
                         if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                             Text("v\(v)").font(.caption2).foregroundStyle(.tertiary)
                         }
@@ -154,7 +170,7 @@ struct SettingsRootView: View {
 
     private var detail: some View {
         VStack(spacing: 0) {
-            Text(store.activeTab.rawValue)
+            Text(store.activeTab.title)
                 .font(.title2.weight(.bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 22)
@@ -328,12 +344,22 @@ struct GeneralTab: View {
     /// row's subtitle.
     private var speechModel: String? {
         switch store.dictationSupport {
-        case .preferred: return "Apple's newer speech model"
-        case .fallback: return "System dictation model"
+        case .preferred: return String(localized: "Apple's newer speech model")
+        case .fallback: return String(localized: "System dictation model")
         case .parakeet: return "Parakeet"
         case .api: return store.apiAudio.preset.name
         case .unsupported, nil: return nil
         }
+    }
+
+    /// The Language row's tooltip: what the pick does, plus a note when the
+    /// language falls back to the rougher system model.
+    private var languageHelp: String {
+        let pick = store.dictationLanguage == "auto"
+            ? String(localized: "Follows the keyboard layout that's active when you start — switch layouts to switch dictation language.")
+            : String(localized: "Always listens for this language, whatever the keyboard is set to.")
+        guard store.dictationSupport == .fallback else { return pick }
+        return pick + " " + String(localized: "Apple's newer speech model doesn't cover \(store.dictationLanguageName), so this uses the one macOS's own dictation key uses — a little rougher, which “Tidy up” helps with.")
     }
 
     var body: some View {
@@ -343,12 +369,12 @@ struct GeneralTab: View {
                     // Animate at the mutation site: the Ghost-visibility row
                     // below inserts/removes on this change, and a row cannot
                     // animate its own insertion from a Section modifier.
-                    PresentationCard(mode: .panel, title: "Panel",
+                    PresentationCard(mode: .panel, title: String(localized: "Panel"),
                                      isSelected: store.presentation == .panel,
                                      hotkeyLabel: store.hotkeyStyle.label, ghost: ghost) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
                     }
-                    PresentationCard(mode: .inline, title: "Inline", badge: "Unstable",
+                    PresentationCard(mode: .inline, title: String(localized: "Inline"), badge: String(localized: "Unstable"),
                                      isSelected: store.presentation == .inline,
                                      hotkeyLabel: store.hotkeyStyle.label, ghost: ghost) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
@@ -357,9 +383,9 @@ struct GeneralTab: View {
             } header: {
                 Text("Suggestion display")
             } footer: {
-                Text(store.presentation == .inline
-                    ? "Ghost text right at the cursor. It can leave drawing glitches in some apps."
-                    : "A small box above the line. It never covers your text.")
+                store.presentation == .inline
+                    ? Text("Ghost text right at the cursor. It can leave drawing glitches in some apps.")
+                    : Text("A small box above the line. It never covers your text.")
             }
 
             Section {
@@ -371,9 +397,9 @@ struct GeneralTab: View {
                 // not after the user's input-source switch stops working.
                 switch store.hotkeyStyle {
                 case .ctrlSpace:
-                    Caption("⚠︎ ⌃Space and \(store.hotkeyStyle.correctionLabel) also switch keyboard layouts in macOS.")
+                    Caption(String(localized: "⚠︎ ⌃Space and \(store.hotkeyStyle.correctionLabel) also switch keyboard layouts in macOS."))
                 case .cmdSpace:
-                    Caption("⚠︎ ⌘Space opens Spotlight and \(store.hotkeyStyle.correctionLabel) a Finder search.")
+                    Caption(String(localized: "⚠︎ ⌘Space opens Spotlight and \(store.hotkeyStyle.correctionLabel) a Finder search."))
                 default:
                     EmptyView()
                 }
@@ -412,24 +438,21 @@ struct GeneralTab: View {
                     Text("Write a reply")
                     Text("Drafts your next message from the conversation on screen.")
                 }
-                .help("\(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. "
-                    + "Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
+                .help("\(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
                 Toggle(isOn: $autoReply) {
                     Text("Offer replies in chats")
                     Text("Drafts a reply when you click into an empty message box.")
                 }
-                .help("In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything "
-                    + "drops the reply. It starts once the reply model is downloaded — the chord's first use "
-                    + "downloads it.")
+                .help("In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything drops the reply. It starts once the reply model is downloaded — the chord's first use downloads it.")
                 // Reply is on by default but reads the screen, which is off by
                 // default and needs a permission — the checklist says what's
                 // missing and fixes it in place, instead of the chord flashing
                 // a notice at the caret.
-                RequirementRow(met: store.screenContext, text: "Screen context on",
-                               fixTitle: "Turn On") { store.screenContext = true }
+                RequirementRow(met: store.screenContext, text: String(localized: "Screen context on"),
+                               fixTitle: String(localized: "Turn On")) { store.screenContext = true }
                 RequirementRow(met: ScreenContext.hasPermission,
-                               text: "Screen Recording allowed (then relaunch Pretype)",
-                               fixTitle: "Open System Settings…") { SettingsUI.openScreenRecordingPane() }
+                               text: String(localized: "Screen Recording allowed (then relaunch Pretype)"),
+                               fixTitle: String(localized: "Open System Settings…")) { SettingsUI.openScreenRecordingPane() }
             }
 
             // Right under the reply checklist that asks for it, not on the
@@ -439,15 +462,12 @@ struct GeneralTab: View {
                     Text("Use screen context")
                     Text("Reads the focused window on this Mac.")
                 }
-                .help("On-device OCR of the focused window — the conversation above a chat box, the email "
-                    + "being replied to. It never leaves the Mac and is never written to the journal. With "
-                    + "Screen Recording, the overlay also adapts to the background under the cursor.")
+                .help("On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It never leaves the Mac and is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor.")
                 Toggle(isOn: $clipboardContext) {
                     Text("Use clipboard context")
                     Text("Uses text you just copied.")
                 }
-                .help("Up to 600 characters, read only when the clipboard changes. Copies from password "
-                    + "managers are never read, and nothing is written to the journal or debug log.")
+                .help("Up to 600 characters, read only when the clipboard changes. Copies from password managers are never read, and nothing is written to the journal or debug log.")
             }
 
                         Section("Dictation") {
@@ -465,9 +485,7 @@ struct GeneralTab: View {
                         Text("Talk instead of typing")
                         Text("Hold a key and speak. Transcribed on this Mac.")
                     }
-                    .help("Hold a key for a sentence, or press a chord for a paragraph — either way it is "
-                        + "typed into the field you're in. No audio is written to disk, and nothing records "
-                        + "unless you ask.")
+                    .help("Hold a key for a sentence, or press a chord for a paragraph — either way it is typed into the field you're in. No audio is written to disk, and nothing records unless you ask.")
                     if store.dictation {
                         Picker(selection: $dictationGesture) {
                             ForEach(DictationGesture.allCases, id: \.self) { gesture in
@@ -479,12 +497,11 @@ struct GeneralTab: View {
                                 Text("Hold to record. Esc discards.")
                             }
                         }
-                        .help("A hold, not a tap"
-                            + (replyGesture == .off ? "" : ", so it never collides with “\(replyGesture.label)” for a reply")
-                            + ". Recording starts after about half a second of quiet hold; any other key, "
-                            + "click or scroll before that cancels it.")
+                        .help(replyGesture == .off
+                            ? Text("A hold, not a tap. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it.")
+                            : Text("A hold, not a tap, so it never collides with “\(replyGesture.label)” for a reply. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it."))
                         if dictationGesture == .off, dictationLatch == .off {
-                            Caption("⚠︎ Nothing starts dictation. Pick a key or a chord.")
+                            Caption(String(localized: "⚠︎ Nothing starts dictation. Pick a key or a chord."))
                         }
                         Picker(selection: $dictationLatch) {
                             ForEach(DictationLatch.allCases, id: \.self) { latch in
@@ -496,13 +513,10 @@ struct GeneralTab: View {
                                 Text("Press once to start, again to stop.")
                             }
                         }
-                        .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording "
-                            + "starts on the keypress itself. ⎋ throws the capture away, and moving to another "
-                            + "field ends it.")
+                        .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording starts on the keypress itself. ⎋ throws the capture away, and moving to another field ends it.")
                         if dictationLatch != .off {
                             if dictationLatch.collidesWithFixChord {
-                                Caption("⚠︎ \(dictationLatch.label) is also the fix chord, and the fix wins. "
-                                    + "Pick the other chord.")
+                                Caption(String(localized: "⚠︎ \(dictationLatch.label) is also the fix chord, and the fix wins. Pick the other chord."))
                             }
                             Picker("Stop after silence", selection: $dictationSilence) {
                                 Text("Never").tag(0.0)
@@ -511,9 +525,8 @@ struct GeneralTab: View {
                                 Text("10 seconds").tag(10.0)
                             }
                             .help(dictationSilence == 0
-                                ? "Runs until you press the chord again, or for ten minutes."
-                                : "Types what it has and stops, so a forgotten chord isn't an open "
-                                    + "microphone. The clock starts after your first word.")
+                                ? Text("Runs until you press the chord again, or for ten minutes.")
+                                : Text("Types what it has and stops, so a forgotten chord isn't an open microphone. The clock starts after your first word."))
                         }
                         Picker(selection: $store.dictationInput) {
                             Text("Automatic").tag("auto")
@@ -536,15 +549,12 @@ struct GeneralTab: View {
                         } label: {
                             Text("Microphone")
                             Text(store.dictationInput == "auto"
-                                ? store.dictationInputNote ?? "Keeps wireless headphones out of call mode."
-                                : "Wireless headsets switch to call mode while recording.")
+                                ? store.dictationInputNote ?? String(localized: "Keeps wireless headphones out of call mode.")
+                                : String(localized: "Wireless headsets switch to call mode while recording."))
                         }
                         .help(store.dictationInput == "auto"
-                            ? "A headset carries either good playback or a two-way call, never both. When your "
-                                + "default input and output are the same headset, dictation records from the "
-                                + "built-in microphone instead, so your audio never changes."
-                            : "Recording from a wireless headset switches it into call mode for the capture, "
-                                + "which makes anything playing sound flat and quiet.")
+                            ? Text("A headset carries either good playback or a two-way call, never both. When your default input and output are the same headset, dictation records from the built-in microphone instead, so your audio never changes.")
+                            : Text("Recording from a wireless headset switches it into call mode for the capture, which makes anything playing sound flat and quiet."))
                         Picker(selection: $store.dictationLanguage) {
                             Text("Follow keyboard").tag("auto")
                             Divider()
@@ -557,26 +567,18 @@ struct GeneralTab: View {
                             Text("Language")
                             // Which speech model it lands on, right where the
                             // language is picked.
-                            let line = [store.dictationLanguage == "auto" ? "Now \(store.dictationLanguageName)" : nil,
+                            let line = [store.dictationLanguage == "auto" ? String(localized: "Now \(store.dictationLanguageName)") : nil,
                                         speechModel].compactMap { $0 }
                             if !line.isEmpty {
                                 Text(line.joined(separator: " · "))
                             }
                         }
-                        .help((store.dictationLanguage == "auto"
-                            ? "Follows the keyboard layout that's active when you start — switch layouts to "
-                                + "switch dictation language."
-                            : "Always listens for this language, whatever the keyboard is set to.")
-                            + (store.dictationSupport == .fallback
-                                ? " Apple's newer speech model doesn't cover \(store.dictationLanguageName), so this "
-                                    + "uses the one macOS's own dictation key uses — a little rougher, which "
-                                    + "“Tidy up” helps with."
-                                : ""))
+                        .help(languageHelp)
                         // For the languages macOS simply cannot dictate, say so
                         // HERE instead of letting the user find out by holding
                         // a key and getting nothing.
                         if store.dictationSupport == .unsupported {
-                            Caption("⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language.")
+                            Caption(String(localized: "⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language."))
                         }
                         if [.fallback, .parakeet].contains(store.dictationSupport),
                            Parakeet.covers(Settings.resolvedDictationLocale) {
@@ -584,9 +586,7 @@ struct GeneralTab: View {
                                 Text("Use Parakeet for \(store.dictationLanguageName)")
                                 Text("Fewer errors and real punctuation. A one-time 610 MB download.")
                             }
-                            .help("NVIDIA's open speech model, run locally. On Russian it makes under half the "
-                                + "word errors of the system model, punctuates (F1 0.87 against 0.02) and runs "
-                                + "three times faster.")
+                            .help("NVIDIA's open speech model, run locally. On Russian it makes under half the word errors of the system model, punctuates (F1 0.87 against 0.02) and runs three times faster.")
                             if let note = store.parakeetNote {
                                 Caption(note)
                             }
@@ -595,15 +595,12 @@ struct GeneralTab: View {
                             Text("Tidy up with the model")
                             Text("Fixes capitalization, punctuation and mishearings.")
                         }
-                        .help("The same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses; a result "
-                            + "that rephrases is rejected. Costs one short generation before the text lands. "
-                            + "Where the fix needs a separate model, its first use downloads it.")
+                        .help("The same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses; a result that rephrases is rejected. Costs one short generation before the text lands. Where the fix needs a separate model, its first use downloads it.")
                         Toggle(isOn: $dictationCommands) {
                             Text("Voice commands on selected text")
                             Text("Say an edit like “make this shorter” over a selection.")
                         }
-                        .help("The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. "
-                            + "Off, dictating over a selection replaces it.")
+                        .help("The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. Off, dictating over a selection replaces it.")
                         DictationSendList(store: store)
                     }
                 }
@@ -639,7 +636,7 @@ struct GeneralTab: View {
 
             Section("Turned off in these apps") {
                 if store.blacklist.isEmpty {
-                    Caption("Always off in password managers.")
+                    Caption(String(localized: "Always off in password managers."))
                         .help("Terminals get suggestions only in an AI agent's prompt.")
                 }
                 ForEach(store.blacklist, id: \.self) { entry in
@@ -720,10 +717,9 @@ private struct DictationSendList: View {
         }
         .help("Add a website from the menu bar while you're on it.")
         ForEach(store.dictationSendApps, id: \.self) { entry in
-            BlacklistRow(entry: entry, removeLabel: "Stop pressing Return in",
-                         removeHelp: "Type dictations here without sending them") {
-                store.removeDictationSendApp(entry)
-            }
+            BlacklistRow(entry: entry, removeLabel: { String(localized: "Stop pressing Return in \($0)") },
+                         removeHelp: String(localized: "Type dictations here without sending them"),
+                         remove: { store.removeDictationSendApp(entry) })
         }
     }
 }
@@ -733,8 +729,9 @@ private struct DictationSendList: View {
 /// app-exceptions look instead of a raw comma-separated field.
 private struct BlacklistRow: View {
     let entry: String
-    var removeLabel = "Stop excluding"
-    var removeHelp = "Allow Pretype in this app again"
+    /// The remove button's spoken name, given the app's display name.
+    var removeLabel: (String) -> String = { String(localized: "Stop excluding \($0)") }
+    var removeHelp = String(localized: "Allow Pretype in this app again")
     let remove: () -> Void
 
     var body: some View {
@@ -746,7 +743,7 @@ private struct BlacklistRow: View {
                 Text(entry).font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
-            removeButton("\(removeLabel) \(resolved.name)", help: removeHelp, action: remove)
+            removeButton(removeLabel(resolved.name), help: removeHelp, action: remove)
         }
     }
 }
@@ -768,7 +765,7 @@ private struct BlacklistRow: View {
 /// fuzzy fragments ("slack") stay as typed with a generic glyph.
 @MainActor private func resolveApp(_ entry: String) -> (name: String, icon: NSImage?) {
     if let host = AppPolicy.siteHost(fromEntry: entry) {
-        return (host, NSImage(systemSymbolName: "globe", accessibilityDescription: "Website"))
+        return (host, NSImage(systemSymbolName: "globe", accessibilityDescription: String(localized: "Website")))
     }
     guard entry.contains("."), let app = InstalledApps.lookup(entry) else { return (entry, nil) }
     return (app.name, app.icon)
@@ -824,7 +821,8 @@ private struct PerAppInstructionRow: View {
                 .accessibilityLabel("Share the style for \(resolved.name)")
                 .help("Share this style with other Pretype users")
             }
-            removeButton("Remove instructions for \(resolved.name)", help: "Remove this app's instructions") {
+            removeButton(String(localized: "Remove instructions for \(resolved.name)"),
+                         help: String(localized: "Remove this app's instructions")) {
                 store.perAppInstructions.removeValue(forKey: bundleID)
             }
         }
@@ -881,11 +879,14 @@ struct SuggestionLineMock: View {
         // differently promised a look the caret never delivered.
         let head = ink.opacity(1.0 * effective)
         let tail = ink.opacity(0.72 * effective)
+        let typed = String(localized: "Write ", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 1, the text typed before the caret. Keep the trailing space.")
+        let chunk = String(localized: "a reply", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 2, the suggestion's first chunk right after the caret.")
+        let rest = String(localized: " to Anna", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 3, the rest of the suggestion up to its end. Keep the leading space.")
         return Group {
             if presentation == .inline {
                 // The ghost, then the accept keycap a new user sees beside it.
                 HStack(spacing: 6) {
-                    Text("\(Text("Write ").foregroundColor(ink))\(Text("a reply").foregroundColor(head))\(Text(" to Anna").foregroundColor(tail))")
+                    Text("\(Text(typed).foregroundColor(ink))\(Text(chunk).foregroundColor(head))\(Text(rest).foregroundColor(tail))")
                     MenuHintsView.keycap(hotkey)
                         .opacity(min(1, effective / 0.7))
                 }
@@ -894,9 +895,9 @@ struct SuggestionLineMock: View {
                 // where the real one sits — never beside the typed words.
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 0) {
-                        Text("Write ").hidden()
+                        Text(typed).hidden()
                         HStack(spacing: 6) {
-                            Text("\(Text("a reply").foregroundColor(ink))\(Text(" to Anna").foregroundColor(ink.opacity(0.55)))")
+                            Text("\(Text(chunk).foregroundColor(ink))\(Text(rest).foregroundColor(ink.opacity(0.55)))")
                             MenuHintsView.keycap(hotkey)
                         }
                         .padding(.horizontal, 8)
@@ -904,7 +905,7 @@ struct SuggestionLineMock: View {
                         .background(ink.opacity(0.07), in: Capsule())
                         .overlay(Capsule().stroke(ink.opacity(0.15), lineWidth: 0.5))
                     }
-                    Text("Write ").foregroundColor(ink)
+                    Text(typed).foregroundColor(ink)
                 }
             }
         }
@@ -914,8 +915,8 @@ struct SuggestionLineMock: View {
         // word by word (and twice, once per half).
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(presentation == .inline
-            ? "Preview: grey suggestion text continues the line after the cursor"
-            : "Preview: the suggestion floats in a small box above the line")
+            ? Text("Preview: grey suggestion text continues the line after the cursor")
+            : Text("Preview: the suggestion floats in a small box above the line"))
     }
 }
 
@@ -1001,24 +1002,26 @@ struct SuggestionsTab: View {
             // sections are on-device only.
             if store.isAppleIntelligence {
                 Section {
-                    Caption("Style and precision don't apply to Apple Intelligence.")
+                    Caption(String(localized: "Style and precision don't apply to Apple Intelligence."))
                 }
             }
             if !store.isAppleIntelligence {
                 Section {
                     Toggle(isOn: $store.useRecommended) {
                         Text("Use recommended settings")
-                        Text(store.useRecommended
-                            ? "Now \(store.recommendation.summary). Changing Style or Length turns this off."
-                            : "Best for this model: \(store.recommendation.summary).")
+                        if store.useRecommended {
+                            Text("Now \(store.recommendation.summary). Changing Style or Length turns this off.")
+                        } else {
+                            Text("Best for this model: \(store.recommendation.summary).")
+                        }
                     }
                     .onHover { store.setHover(.useRecommended(!store.useRecommended), $0) }
                 }
 
                 Section {
-                    HoverSegments(title: "Style",
-                                  options: [(CompletionStyle.base, "Base"),
-                                            (CompletionStyle.instruct, "Instruct")],
+                    HoverSegments(title: String(localized: "Style"),
+                                  options: [(CompletionStyle.base, String(localized: "Base")),
+                                            (CompletionStyle.instruct, String(localized: "Instruct"))],
                                   selection: store.style,
                                   select: { style in
                                       // Base↔Instruct inserts/removes requirement
@@ -1030,16 +1033,16 @@ struct SuggestionsTab: View {
                                   })
                     if store.style == .instruct, store.instructUnusable {
                         RequirementRow(met: false,
-                                       text: "Instruct doesn't work on \(store.selectedModelName)",
-                                       fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
+                                       text: String(localized: "Instruct doesn't work on \(store.selectedModelName)"),
+                                       fixTitle: String(localized: "Switch to Base")) { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
                             .help("It answers the text instead of continuing it. Instruct needs a Gemma E4B model.")
                     }
                 } header: {
                     Text("Style")
                 } footer: {
-                    Text(store.style == .instruct
-                        ? "Follows your persona. Loads a second model."
-                        : "Continues your text. Most accurate on everyday typing.")
+                    store.style == .instruct
+                        ? Text("Follows your persona. Loads a second model.")
+                        : Text("Continues your text. Most accurate on everyday typing.")
                 }
 
                 Section("Precision") {
@@ -1053,17 +1056,17 @@ struct SuggestionsTab: View {
                         store.setHover(.logprobGate(!store.logprobGate), hovering)
                     }
                     if !store.logprobGateUsable {
-                        RequirementRow(met: false, text: "Needs Base style",
-                                       fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
+                        RequirementRow(met: false, text: String(localized: "Needs Base style"),
+                                       fixTitle: String(localized: "Switch to Base")) { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
                     }
                 }
             }  // end on-device-only tuning sections (hidden for Apple Intelligence)
 
             Section {
-                HoverSegments(title: "Length",
-                              options: [(CompletionLength.short, "Short"),
-                                        (CompletionLength.medium, "Medium"),
-                                        (CompletionLength.long, "Long")],
+                HoverSegments(title: String(localized: "Length"),
+                              options: [(CompletionLength.short, String(localized: "Short")),
+                                        (CompletionLength.medium, String(localized: "Medium")),
+                                        (CompletionLength.long, String(localized: "Long"))],
                               selection: store.length,
                               select: { store.length = $0 },
                               hover: { length, hovering in
@@ -1086,9 +1089,9 @@ struct SuggestionsTab: View {
         config.logprobGate = true
         let on = ConfigProjection.project(config)
         guard store.logprobGateUsable, on.accuracyPct != nil, let shown = on.coveragePct else {
-            return "Fewer suggestions, more of them right."
+            return String(localized: "Fewer suggestions, more of them right.")
         }
-        return "Suggests \(shown)% of the time; \(on.accuracyText) of those are right."
+        return String(localized: "Suggests \(shown)% of the time; \(on.accuracyText) of those are right.")
     }
 
     /// Base style's entropy stop ends a suggestion inside even Short's budget
@@ -1101,15 +1104,20 @@ struct SuggestionsTab: View {
     /// How far one suggestion runs and what it costs, from the projection
     /// the rail reads (measured on the EN+RU core, 2026-10-15).
     private var lengthLine: String {
-        if lengthInert { return "Base stops at about 2 words, so length has no effect." }
-        let reach: String
+        if lengthInert { return String(localized: "Base stops at about 2 words, so length has no effect.") }
+        // One whole sentence per case, with and without the latency.
+        let each = ConfigProjection.project(store.committedConfig).p50Ms.map { latencyLabel(ms: $0) }
         switch store.length {
-        case .short: reach = "2–3 words ahead"
-        case .medium: reach = "Up to ~6 words ahead"
-        case .long: reach = "Up to a sentence ahead"
+        case .short:
+            return each.map { String(localized: "2–3 words ahead, about \($0) each.") }
+                ?? String(localized: "2–3 words ahead.")
+        case .medium:
+            return each.map { String(localized: "Up to ~6 words ahead, about \($0) each.") }
+                ?? String(localized: "Up to ~6 words ahead.")
+        case .long:
+            return each.map { String(localized: "Up to a sentence ahead, about \($0) each.") }
+                ?? String(localized: "Up to a sentence ahead.")
         }
-        return ConfigProjection.project(store.committedConfig).p50Ms
-            .map { "\(reach), about \(latencyLabel(ms: $0)) each." } ?? "\(reach)."
     }
 }
 
@@ -1136,8 +1144,8 @@ struct PersonalTab: View {
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
                 HStack {
                     Caption(store.isAppleIntelligence
-                        ? "Sets the voice of Apple Intelligence. Stays on this Mac."
-                        : "Shapes replies and Instruct suggestions. Stays on this Mac.")
+                        ? String(localized: "Sets the voice of Apple Intelligence. Stays on this Mac.")
+                        : String(localized: "Shapes replies and Instruct suggestions. Stays on this Mac."))
                     Spacer()
                     Button("Restore Default") { store.resetInstructions() }
                         .controlSize(.small)
@@ -1147,7 +1155,7 @@ struct PersonalTab: View {
 
             Section("Per-app style") {
                 if store.perAppInstructions.isEmpty {
-                    Caption("Add an app to give it its own style on top of your persona.")
+                    Caption(String(localized: "Add an app to give it its own style on top of your persona."))
                 }
                 ForEach(store.perAppInstructions.keys.sorted(), id: \.self) { bundleID in
                     PerAppInstructionRow(bundleID: bundleID, store: store)
@@ -1155,15 +1163,14 @@ struct PersonalTab: View {
                 let suggestions = store.perAppSuggestions
                 HStack(spacing: 10) {
                     if !suggestions.isEmpty {
+                        let names = suggestions.map { resolveApp($0.bundleID).name }.joined(separator: ", ")
                         Button {
                             store.addSuggestedPerAppInstructions()
                         } label: {
                             Label("Fill In Suggested", systemImage: "sparkles")
                         }
                         .controlSize(.small)
-                        .help("Ready-made styles for "
-                            + suggestions.map { resolveApp($0.bundleID).name }.joined(separator: ", ")
-                            + ". Every line stays editable.")
+                        .help("Ready-made styles for \(names). Every line stays editable.")
                     }
                     Button {
                         store.addPerAppInstructionApp()
@@ -1187,9 +1194,11 @@ struct PersonalTab: View {
                 Section("Learning") {
                     Toggle(isOn: $store.personalization) {
                         Text("Learn my words")
-                        Text(store.learnedWords > 0
-                            ? "\(store.learnedWords) words learned from your typing."
-                            : "Boosts words you often type.")
+                        if store.learnedWords > 0 {
+                            Text("\(store.learnedWords) words learned from your typing.")
+                        } else {
+                            Text("Boosts words you often type.")
+                        }
                     }
                     .help("Learned from your suggestion journal, only while on. Clear the journal to forget them.")
                 }
@@ -1212,13 +1221,12 @@ struct PersonalTab: View {
                     Text("Keep suggestion journal")
                     Text("Saves suggestions with nearby text, on this Mac only.")
                 }
-                .help("The raw data for personalization, capped at 50 MB in Application Support. "
-                    + "On-screen text is never written. Turning this off deletes it.")
+                .help("The raw data for personalization, capped at 50 MB in Application Support. On-screen text is never written. Turning this off deletes it.")
                 LabeledContent("Size") {
                     HStack(spacing: 10) {
                         Text(store.journalBytes > 0
                             ? ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)
-                            : "Empty")
+                            : String(localized: "Empty"))
                             .monospacedDigit()
                         Button("Clear…") {
                             clearDisablesJournal = false
@@ -1238,10 +1246,13 @@ struct PersonalTab: View {
                     .disabled(!store.journalEnabled || store.importing)
                 } label: {
                     Text("Learn from your writing")
-                    Text(store.journalEnabled ? "Import .txt or .md files you wrote." : "Turn on the journal first.")
+                    if store.journalEnabled {
+                        Text("Import .txt or .md files you wrote.")
+                    } else {
+                        Text("Turn on the journal first.")
+                    }
                 }
-                .help("Pretype learns your words and reuses your sentences as examples. Files are only read; "
-                    + "Clear forgets imported text too.")
+                .help("Pretype learns your words and reuses your sentences as examples. Files are only read; Clear forgets imported text too.")
                 if let status = store.importStatus {
                     Caption(status)
                 }
@@ -1264,9 +1275,9 @@ struct PersonalTab: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text(store.learnedWords > 0
-                 ? "This also forgets the \(store.learnedWords) words Pretype learned from you. It can't be undone."
-                 : "This can't be undone.")
+            store.learnedWords > 0
+                ? Text("This also forgets the \(store.learnedWords) words Pretype learned from you. It can't be undone.")
+                : Text("This can't be undone.")
         }
     }
 }

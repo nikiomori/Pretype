@@ -155,7 +155,7 @@ struct OnboardingCardView: View {
     let card: OnboardingCard
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let readySubtitle = "Type in any app — Pretype lives in the menu bar"
+    private static let readySubtitle = String(localized: "Type in any app — Pretype lives in the menu bar")
     private static let width: CGFloat = 340
 
     private var failure: String? {
@@ -164,20 +164,23 @@ struct OnboardingCardView: View {
     }
 
     private var title: String {
-        if card.celebrating { return "That's it" }
+        if card.celebrating { return String(localized: "That's it") }
         switch card.engine {
-        case .preparing: return "Setting up Pretype"
-        case .failed: return "Pretype hit a problem"
-        case .ready: return "Pretype is Ready"
+        case .preparing: return String(localized: "Setting up Pretype")
+        case .failed: return String(localized: "Pretype hit a problem")
+        case .ready: return String(localized: "Pretype is Ready")
         }
     }
 
     private var subtitle: String {
-        if card.celebrating { return "Pretype keeps suggesting as you type, in any app" }
+        if card.celebrating { return String(localized: "Pretype keeps suggesting as you type, in any app") }
         switch card.engine {
         // Only a fetch is "one-time"; a model already on disk is loading.
-        case .preparing(let detail): return detail.hasPrefix("downloading") ? "One-time model download" : "Loading the model"
-        case .failed: return "The completion engine couldn't start"
+        // Only the download line carries a percentage — a test that holds
+        // in every language, unlike its "downloading" prefix.
+        case .preparing(let detail):
+            return detail.contains("%") ? String(localized: "One-time model download") : String(localized: "Loading the model")
+        case .failed: return String(localized: "The completion engine couldn't start")
         case .ready: return Self.readySubtitle
         }
     }
@@ -185,17 +188,17 @@ struct OnboardingCardView: View {
     private var status: (text: String, color: Color) {
         let hotkey = Settings.hotkeyStyle
         if card.celebrating {
-            return ("✓ Accepted — \(hotkey.shiftLabel) takes a whole suggestion next time.", .green)
+            return (String(localized: "✓ Accepted — \(hotkey.shiftLabel) takes a whole suggestion next time."), .green)
         }
         if card.suggestionActive {
             // Not the accent colour: with Graphite it is grey, and this is
             // the one line on the card that has to jump out.
-            return ("See the grey text? Press \(hotkey.label) to take a word.", .primary)
+            return (String(localized: "See the grey text? Press \(hotkey.label) to take a word."), .primary)
         }
         switch card.engine {
         case .preparing(let detail): return (detail, .secondary)
         case .failed(let detail): return (detail, .red)
-        case .ready: return ("Type a few words and pause — grey text appears after your cursor.", .secondary)
+        case .ready: return (String(localized: "Type a few words and pause — grey text appears after your cursor."), .secondary)
         }
     }
 
@@ -221,12 +224,12 @@ struct OnboardingCardView: View {
             Divider()
                 .frame(width: Self.width)
             MenuHintsView(hints: [
-                MenuHintsView.Hint(keys: [hotkey.label], action: "Accept next word"),
-                MenuHintsView.Hint(keys: [hotkey.shiftLabel], action: "Accept entire suggestion"),
-                MenuHintsView.Hint(keys: [hotkey.correctionLabel], action: "Fix last word / selection"),
+                MenuHintsView.Hint(keys: [hotkey.label], action: String(localized: "Accept next word")),
+                MenuHintsView.Hint(keys: [hotkey.shiftLabel], action: String(localized: "Accept entire suggestion")),
+                MenuHintsView.Hint(keys: [hotkey.correctionLabel], action: String(localized: "Fix last word / selection")),
                 // Without this a new user's only way to make a ghost go away is to
                 // type over it — not knowing that is what makes it feel pushy.
-                MenuHintsView.Hint(keys: ["esc"], action: "Dismiss a suggestion"),
+                MenuHintsView.Hint(keys: ["esc"], action: String(localized: "Dismiss a suggestion")),
             ], font: .body, width: Self.width)
             // Two lines, not one truncated one: a failure reason or the waiting
             // instruction is exactly the sentence that must be read in full.

@@ -62,9 +62,9 @@ final class AudioCapture {
 
         var errorDescription: String? {
             switch self {
-            case .noInputDevice: return "no microphone found"
-            case .unusableFormat: return "the microphone format can't be converted"
-            case .deviceChanged: return "the microphone went away"
+            case .noInputDevice: return String(localized: "no microphone found")
+            case .unusableFormat: return String(localized: "the microphone format can't be converted")
+            case .deviceChanged: return String(localized: "the microphone went away")
             case .sessionFailed(let why): return why
             }
         }
@@ -211,7 +211,7 @@ final class AudioCapture {
                     if opening.isRunning {
                         cont.resume()
                     } else {
-                        cont.resume(throwing: Failure.sessionFailed("the capture session refused to start"))
+                        cont.resume(throwing: Failure.sessionFailed(String(localized: "the capture session refused to start")))
                     }
                 }
             }
@@ -227,7 +227,7 @@ final class AudioCapture {
         // its queued `stopRunning` will close this session in order, and the
         // caller's own generation check is about to drop the capture anyway.
         guard self.session === session else {
-            throw Failure.sessionFailed("the capture was stopped while starting")
+            throw Failure.sessionFailed(String(localized: "the capture was stopped while starting"))
         }
     }
 

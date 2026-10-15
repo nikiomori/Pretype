@@ -12,6 +12,13 @@ import ServiceManagement
 enum CompletionStyle: String, CaseIterable {
     case base
     case instruct
+
+    var label: String {
+        switch self {
+        case .base: return String(localized: "Base")
+        case .instruct: return String(localized: "Instruct")
+        }
+    }
 }
 
 /// Caps how much the engine generates per keystroke. Shorter = faster, less
@@ -20,6 +27,14 @@ enum CompletionLength: String, CaseIterable {
     case short
     case medium
     case long
+
+    var label: String {
+        switch self {
+        case .short: return String(localized: "Short")
+        case .medium: return String(localized: "Medium")
+        case .long: return String(localized: "Long")
+        }
+    }
 
     /// Token budget handed to the sampler (the Cyrillic widener stretches it
     /// for Russian).
@@ -82,11 +97,11 @@ enum ReplyGesture: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .option: return "Double ⌥"
-        case .shift: return "Double ⇧"
-        case .control: return "Double ⌃"
-        case .command: return "Double ⌘"
-        case .off: return "Off"
+        case .option: return String(localized: "Double ⌥")
+        case .shift: return String(localized: "Double ⇧")
+        case .control: return String(localized: "Double ⌃")
+        case .command: return String(localized: "Double ⌘")
+        case .off: return String(localized: "Off")
         }
     }
 
@@ -129,10 +144,10 @@ enum DictationGesture: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .option: return "Hold ⌥"
-        case .command: return "Hold ⌘"
-        case .control: return "Hold ⌃"
-        case .off: return "Off"
+        case .option: return String(localized: "Hold ⌥")
+        case .command: return String(localized: "Hold ⌘")
+        case .control: return String(localized: "Hold ⌃")
+        case .off: return String(localized: "Off")
         }
     }
 
@@ -179,7 +194,7 @@ enum DictationLatch: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .off: return "Off"
+        case .off: return String(localized: "Off")
         case .controlOptionD: return "⌃⌥D"
         case .controlOptionV: return "⌃⌥V"
         }
@@ -766,11 +781,10 @@ enum LoginItem {
     /// Extra line under the toggle when the plain caption isn't the whole story.
     static func note(_ status: SMAppService.Status) -> String? {
         guard isSupported else {
-            return "Available in the built app only — this binary is running outside a .app bundle, "
-                + "and macOS registers login items by bundle."
+            return String(localized: "Available in the built app only — this binary is running outside a .app bundle, and macOS registers login items by bundle.")
         }
         return status == .requiresApproval
-            ? "macOS is holding this one: allow Pretype in System Settings → General → Login Items."
+            ? String(localized: "macOS is holding this one: allow Pretype in System Settings → General → Login Items.")
             : nil
     }
 
