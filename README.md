@@ -30,7 +30,7 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 
 <br/><br/>
 
-<img src="docs/demo.gif" alt="A user types in a text field. Gray ghost text shows at the caret. Tab accepts it one word at a time." width="720" />
+<img src="docs/demo.gif" alt="A user types an email reply. A floating panel above the line shows the suggestion. Tab accepts one word at a time, and Shift-Tab accepts the rest." width="720" />
 
 <sub>*You type. The local model makes a suggestion. <kbd>Tab</kbd> accepts one word. <kbd>⇧Tab</kbd> accepts all of it.*</sub>
 
@@ -83,7 +83,7 @@ Pretype is free and has the MIT license. It is an alternative to [Cotypist](http
 
 <br/>
 
-<img src="docs/demo-fix.gif" alt="The user selects a messy line. Option-Tab sends it to the local model. The rewrite replaces the line in place." width="720" />
+<img src="docs/demo-fix.gif" alt="The user selects a line with typos. After Option-Tab, a panel shows the fix as a word diff. Return replaces the line." width="720" />
 <p><sub><i><b>Rewrite (<kbd>⌥Tab</kbd>).</b> <kbd>⏎</kbd> accepts the rewrite. <kbd>Esc</kbd> keeps your original text.</i></sub></p>
 
 <br/>

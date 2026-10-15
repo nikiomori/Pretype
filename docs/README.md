@@ -31,55 +31,54 @@ Each type has a different update procedure.
 > new asset, write this in the pull request. Only the diagram script
 > (`docs/diagrams/render.sh`) is in the repository.
 
-## Rendered art — `demo*.gif`, `hero.png`, `shot-modes.png`
+## Rendered art — `hero.png`
 
-The `PretypeHeroArt` generator (maintainer only) draws these files with code.
+The `PretypeHeroArt` generator (maintainer only) draws this file with code.
 It uses only Core Graphics and no app code. Its output is deterministic at 2×.
-Thus each run makes byte-identical files. To make all files again:
+Thus each run makes a byte-identical file:
 
 ```sh
 cd dev-tools/HeroArt
-swift run PretypeHeroArt --all ../../docs
-```
-
-To make one file (`--gif` takes a storyboard name: `demo`, `typo` or `fix`):
-
-```sh
 swift run PretypeHeroArt --hero ../../docs/hero.png
-swift run PretypeHeroArt --shot-modes ../../docs/shot-modes.png
-swift run PretypeHeroArt --gif typo ../../docs/demo-typo.gif   # needs `magick`
-swift run PretypeHeroArt --gif-frames fix /tmp/frames          # PNG storyboard only
 ```
 
 | File | Content |
 |---|---|
-| `demo.gif` | Typing → the model answers → `Tab` for each word, `⇧Tab` for the remaining text |
-| `demo-typo.gif` | Inline typo fix: the diff pill appears, and `Tab` applies it |
-| `demo-fix.gif` | Fix selection: `⌥Tab` → decode → rewrite → `⏎` |
-| `shot-modes.png` | Inline ghost text and the floating panel, side by side |
 | `hero.png` | One completion line. It is the GitHub **Social preview**. The README does not use it |
 | `pretype-logo.png`, `pretype-logo-dark.png` | The mark in the README header. A person drew it. The generator does not make it |
 
-ImageMagick assembles the GIFs. It uses one 128-colour palette without
-dithering, and a 3% tolerance for frame differences. Do not use dithering. On
-a flat dark UI, dithering adds noise that stops the frame diff, and makes the
-file approximately 5× larger. It gives no visible improvement.
+## Real captures — `shot-*.png`, `demo*.gif`
 
-## Real captures — `shot-settings.png`, `shot-models.png`, `shot-personal.png`
-
-These files are real captures of the Settings window of the app. Capture them
-again each time the Settings UI changes. If not, the README shows an app that
-does not exist anymore.
+These files are real captures of the app. Capture them again each time the
+Settings UI or the suggestion overlay changes. If not, the README shows an app
+that does not exist anymore.
 
 The script `dev-tools/ui-shots/make-shots.sh` (git-ignored) does all steps:
 
 1. It builds HEAD with a small hook.
-2. It opens the Settings window without an engine, with its own defaults
-   domain and a fictional persona.
-3. The app captures its own window. This needs no Screen Recording permission.
+2. It opens the windows without an engine, with its own defaults domain and a
+   fictional persona:
+   * `make-shots.sh` opens the Settings window.
+   * `make-shots.sh demos` opens a text window. Then it shows the real
+     suggestion overlay over the text, one step at a time.
+3. The app captures its own windows. This needs no Screen Recording
+   permission.
 
 A window shows on the screen for approximately 15 seconds while the script
 runs.
+
+| File | Content |
+|---|---|
+| `shot-settings.png`, `shot-models.png`, `shot-personal.png` | Panes of the Settings window |
+| `demo.gif` | Typing → the panel shows the suggestion → `Tab` for each word, `⇧Tab` for the remaining text |
+| `demo-typo.gif` | Inline typo fix: the fix pill shows above the word, and `Tab` applies it |
+| `demo-fix.gif` | Fix selection: `⌥Tab` → the model runs → the word diff → `⏎` |
+| `shot-modes.png` | Inline ghost text and the floating panel, side by side |
+
+ImageMagick assembles the GIFs. It uses one palette without dithering, and a
+2% tolerance for frame differences. Do not use dithering. On a flat dark UI,
+dithering adds noise that stops the frame diff, and makes the file
+approximately 5× larger. It gives no visible improvement.
 
 The suggestion overlay is a borderless agent window (`LSUIElement`). Thus
 `⌘⇧4` and most capture apps do not capture it. The system tool with an explicit
