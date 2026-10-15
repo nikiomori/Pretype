@@ -21,8 +21,6 @@ All users of that app can then add your style with one click.
 
 ## Development setup
 
-The requirements are the same as for *Build from source* in the README.
-
 | Item | Requirement | Reason |
 |---|---|---|
 | Mac | Apple Silicon | MLX does not operate on Intel Macs. |

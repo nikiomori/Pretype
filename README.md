@@ -13,7 +13,7 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 [![Latest release](https://img.shields.io/github/v/release/nikiomori/Pretype?label=release&color=brightgreen)](https://github.com/nikiomori/Pretype/releases/latest)
 [![CI](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml/badge.svg)](https://github.com/nikiomori/Pretype/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform: macOS 26+](https://img.shields.io/badge/platform-macOS%2026%2B%20·%20Apple%20Silicon-lightgrey.svg)](#requirements)
+[![Platform: macOS 26+](https://img.shields.io/badge/platform-macOS%2026%2B%20·%20Apple%20Silicon-lightgrey.svg)](#quick-start)
 [![Website](https://img.shields.io/badge/pretype.app-6E56CF.svg)](https://pretype.app)
 
 <p>
@@ -38,218 +38,111 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 
 ---
 
-> [!IMPORTANT]
-> **What Pretype must have, and what goes off your Mac.**
-> Pretype must have the **Accessibility** permission. A keylogger asks for the same permission. Pretype uses it for three tasks: to read the focused text field, to catch the accept key, and to type the suggestion.
->
-> By default, Pretype does not upload the text that you type. A local model makes all suggestions. The app uses the network only for the downloads and the version check in the diagram below. An API provider is optional and off by default. If you turn one on in **Settings → API**, your text or audio goes to that provider.
-
-<div align="center">
-<img src="docs/diagram-privacy.svg" width="720" alt="Data-flow diagram. On your Mac: the text field sends the text at the caret to Pretype, and Pretype sends the suggestion back. Pretype exchanges data with the local model (MLX or Apple Intelligence) and writes to a local journal file. With optional dictation, the microphone sends audio, in memory only, to the on-device speech model, which sends the transcript to Pretype. From the internet, only downloads come in: model weights from Hugging Face, the speech model from Apple servers, and the latest version number from the GitHub Releases API. By default, your text is not sent to the internet. A dashed arrow goes to an API provider: text or audio goes there only if you turn it on in Settings → API." />
-</div>
-
-| Connection | What Pretype gets | When |
-|---|---|---|
-| Hugging Face | Model weights | At the first launch. On some models, also an instruct sibling at the first fix chord. One time, in the background, after an update changes your model: a new build, or a new default for your Mac. |
-| Apple servers | The on-device speech model | When you enable dictation |
-| Hugging Face | The Parakeet speech model | Only if you select Parakeet |
-| GitHub Releases API | The latest version number. Pretype sends no data about you. | One time each day. You can disable it in **Settings → General**. Also when you click **Download Refrain** in the menu: then Pretype gets the download link, and your browser downloads the app. |
-| The API provider that you select *(optional)* | Suggestions, fixes and replies, or transcripts. Pretype sends your text or your audio. | Only if you turn it on in **Settings → API**. Off by default. |
-
-Do not trust these statements without proof. Three files contain all of the input path. Read them:
-
-| File | Job |
-|---|---|
-| [`AXText.swift`](Sources/Pretype/AXText.swift) | Reads the text field |
-| [`KeyTap.swift`](Sources/Pretype/KeyTap.swift) | Catches the accept key |
-| [`TextInjector.swift`](Sources/Pretype/TextInjector.swift) | Types the suggestion into the field |
-
-[Privacy & permissions](docs/privacy.md) gives the full list of connections. It also lists all data that the app keeps on disk, and it tells you how to remove all of it.
-
 ## Why Pretype?
 
-Most autocomplete tools operate in one editor only, and they send your text to a server. Pretype operates in all macOS text fields, for example Mail, Slack, Notes, Safari, and VS Code. Your text stays on your Mac. You do not need an account, a subscription, or an API key. If you prefer a hosted model, you can connect one. This is optional.
+Most autocomplete tools operate in one editor, and they send your text to a server. Pretype operates in all text fields on your Mac, and a local model makes the suggestions. You do not need an account, a subscription, or an API key. Pretype is a free and independent alternative to [Cotypist](https://cotypist.app).
 
-Pretype is free and has the MIT license. It is an alternative to [Cotypist](https://cotypist.app). We wrote Pretype from the start with the same idea. Pretype has no connection with Cotypist.
-
----
-
-## In Action
+## Features
 
 <div align="center">
 
 <img src="docs/demo-typo.gif" alt="A misspelled word gets a correction pill above it. Tab applies the fix in place." width="720" />
-<p><sub><i><b>Inline typo fix.</b> <kbd>Tab</kbd> applies the fix. <kbd>Esc</kbd> removes it.</i></sub></p>
-
-<br/>
+<p><sub><i><b>Typo fix.</b> <kbd>Tab</kbd> applies the fix. <kbd>Esc</kbd> removes it.</i></sub></p>
 
 <img src="docs/demo-fix.gif" alt="The user selects a line with typos. After Option-Tab, a panel shows the fix as a word diff. Return replaces the line." width="720" />
-<p><sub><i><b>Rewrite (<kbd>⌥Tab</kbd>).</b> <kbd>⏎</kbd> accepts the rewrite. <kbd>Esc</kbd> keeps your original text.</i></sub></p>
-
-<br/>
-
-<img src="docs/shot-modes.png" alt="Two presentation modes, side by side: inline ghost text on the line, and a floating panel above the line" width="720" />
-<p><sub><i><b>Two presentation modes.</b> The panel is the default. Inline ghost text is unstable: it can leave drawing errors on the screen.</i></sub></p>
-
-<br/>
+<p><sub><i><b>Rewrite.</b> <kbd>⏎</kbd> accepts it. <kbd>Esc</kbd> keeps your original text.</i></sub></p>
 
 <img src="docs/shot-settings.png" alt="Settings window with a glass sidebar and a Live Impact inspector. The inspector shows the measured accuracy, speed, memory, and compute." width="720" />
-<p><sub><i><b>Settings show their cost.</b> Hover over an option. The meters for accuracy, speed, memory, and compute show the change before you apply it.</i></sub></p>
-
-<br/>
+<p><sub><i><b>Settings show their cost.</b> Hover over an option to see its effect on accuracy, speed, and memory.</i></sub></p>
 
 <img src="docs/shot-personal.png" alt="Personalization tab with a persona field and style instructions for Mail, Messages, and Notes" width="720" />
-<p><sub><i><b>Your style, for each app.</b> Formal text in Mail, short replies in Messages.</i></sub></p>
+<p><sub><i><b>A style for each app.</b></i></sub></p>
 
 </div>
 
----
-
-## Features
-
 ### Keys
 
-| Key | Action | Note |
-|---|---|---|
-| <kbd>Tab</kbd> | Accept the next word of the suggestion. | The part that one <kbd>Tab</kbd> accepts shows brighter. With no suggestion on the screen, <kbd>Tab</kbd> operates as usual. You can change the accept key to <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd>, or <kbd>⌃Space</kbd> in Settings. |
-| <kbd>⇧Tab</kbd> | Accept all of the suggestion. | |
-| *(continue to type)* | Reject the suggestion. | |
-| <kbd>Tab</kbd> on a pill | Apply a typo fix, an emoji, or an arithmetic result. | |
-| <kbd>⌥Tab</kbd> | Fix the selected text. With no selection, fix the last word that you typed. | You see a preview first. |
-| <kbd>⌥⇧Tab</kbd>, or a double-tap on a modifier | Write a draft of your next message from the conversation on the screen. | |
-| <kbd>⏎</kbd> | Accept the rewrite in the preview. | |
-| <kbd>Esc</kbd> | Remove a typo fix. Keep your original text instead of a rewrite. | <kbd>Esc</kbd> also discards a hands-free dictation. |
-| Hold <kbd>⌥</kbd> | Dictate while you hold the key. | macOS 26 or later. Off by default. |
-| <kbd>⌃⌥D</kbd> | Start hands-free dictation. Push the chord again to stop. | macOS 26 or later. Off by default. |
+| Key | Action |
+|---|---|
+| <kbd>Tab</kbd> | Accept the next word. With no suggestion on the screen, <kbd>Tab</kbd> operates as usual. |
+| <kbd>⇧Tab</kbd> | Accept all of the suggestion. |
+| <kbd>⌥Tab</kbd> | Fix the selected text. With no selection, fix the last word. You see a preview first. |
+| <kbd>⌥⇧Tab</kbd> | Write a draft of your next message from the conversation on the screen. |
+| <kbd>⏎</kbd> / <kbd>Esc</kbd> | Accept or reject a rewrite or a typo fix. |
+| Hold <kbd>⌥</kbd> | Dictate while you hold the key. |
+| <kbd>⌃⌥D</kbd> | Start or stop hands-free dictation. |
+
+To reject a suggestion, continue to type. You can change the accept key to <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd>, or <kbd>⌃Space</kbd> in Settings.
 
 ### What Pretype does
 
 | Feature | What it does |
 |---|---|
-| **All text fields** | Operates in native AppKit and SwiftUI apps, in Electron apps (VS Code, Slack, Claude Desktop), and in web views. |
-| **Panel at the caret** | Shows the suggestion in a floating panel at the caret. The panel does not cover your text. You can read it on all backgrounds. Inline ghost text is an unstable option: it uses the baseline and the font of the field. |
-| **Typo fixes** | Shows a correction pill above a misspelled word. The macOS spell checker finds the error, in the language that it detects in the text near the word. |
-| **Emoji shortcodes** | Type `:shrug:`, and the pill shows 🤷. Pretype knows some Gemoji names and all Unicode character names that macOS knows, for example `:rocket:` and `:thinking_face:`. It does not ship its own table. Key names give Mac key symbols: `:cmd:` shows ⌘, `:opt:` shows ⌥, `:shift:` shows ⇧. |
-| **Arithmetic** | Type a sum that ends with `=`, for example `12*7=` or `(1+2)*3 =`. The pill shows the result. |
-| **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing in place. It keeps your tone. |
-| **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes a draft of your next message from the conversation on the screen. |
-| **Speed** | Warm suggestions take 17–81 ms on the local models. Pretype calculates only the new tokens and uses the KV cache again. |
-| **Your style** | You can set one persona and a style instruction for each app. Pretype learns from a local journal. You can clear the journal or disable it at any time. |
-| **API models** *(optional, off)* | Use a hosted model for text, for dictation, or for both. Presets for OpenAI, Anthropic, Google Gemini, Groq, Mistral, OpenRouter and DeepSeek. Local servers (Ollama, LM Studio) and any OpenAI-compatible server. Keys stay in your keychain. See [Hosted models](docs/models.md#hosted-models-api). |
-| **Shared app styles** | The community shares styles for each app. One click adds the styles for the apps on your Mac. To share your style, add [one text file](AppStyles/README.md) or use the share button in Settings. |
+| **All text fields** | Native apps, Electron apps (VS Code, Slack, Claude Desktop), and web pages. In Terminal, iTerm2, and the VS Code terminal, only the prompts that you type to an AI agent, for example Claude Code. |
+| **Typo fixes** | A pill shows above a misspelled word. The macOS spell checker finds the error in the language of the text. |
+| **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing. It keeps your tone. The best model fixes 69% of noisy lines exactly. |
+| **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes your next message from the conversation on the screen. The best model writes a usable reply 96% of the time. |
+| **Emoji and symbols** | `:shrug:` gives 🤷, `:rocket:` gives 🚀, `:cmd:` gives ⌘. |
+| **Arithmetic** | `12*7=` gives 84. |
+| **Speed** | A suggestion takes 17–81 ms on the local models. |
+| **Your style** | A persona, and a style for each app and each website. Pretype also learns from a local journal. You can clear the journal or disable it. |
+| **Shared app styles** | Styles from the community. One click adds the styles for the apps on your Mac. To share your style, add [one text file](AppStyles/README.md). |
+| **Hosted models** *(optional, off)* | OpenAI, Anthropic, Google Gemini, Groq, Mistral, OpenRouter, DeepSeek, or a local server such as Ollama or LM Studio. Keys stay in your keychain. See [Hosted models](docs/models.md#hosted-models-api). |
+| **17 interface languages** | The interface uses the language of macOS. You can change it in **Settings → General**. |
 
-Rewrites and reply drafts have measurements for each model. The best model fixes 69% of noisy lines exactly, and it writes a usable reply 96% of the time. [Choosing a model](docs/models.md#fixing-and-replying) has the table.
+[Choosing a model](docs/models.md) has the measurements for each model.
 
-> [!NOTE]
-> On some models, rewrites and reply drafts use a separate *instruct sibling*. Pretype downloads it one time, at the first use. The size is ≈1.6 GB on Qwen3.5 and MiniCPM5 (they share it), up to ≈5 GB on a Gemma in Base style. During the download, the menu bar shows *preparing…*.
+### Where Pretype stops
 
-### Where Pretype operates
-
-* Pretype changes its style for each app and each website. For example, Gmail and Slack in the same browser can have different styles.
 * You can disable Pretype for one app or one website from the menu.
-* Pretype does not operate in password managers or in the shell.
-* In a terminal, Pretype completes and dictates only the prompts that you type to an AI agent, for example Claude Code. This applies to Terminal, iTerm2, and the VS Code terminal.
-* Pretype stops all reading while macOS reports secure input.
-* **Pause on Battery** in the menu stops suggestions while the Mac is not connected to power.
-* If you almost never accept the suggestions in an app, Pretype stops in that app. The menu shows the numbers and a **Resume** item.
-* Optional on-screen OCR adds the text near the field as context.
-* The interface is in English and Russian. Pretype uses the language of macOS. To select a different language, use **Settings → General → Language**.
+* Pretype does not operate in password managers, in the shell, or while macOS reports secure input.
+* **Pause on Battery** stops suggestions while the Mac is not connected to power.
+* If you almost never accept the suggestions in an app, Pretype stops in that app. The menu shows a **Resume** item.
 
-### Dictation *(macOS 26 or later, off by default)*
+### Dictation *(off by default)*
 
-Pretype types what you say into the current text field.
+* Hold <kbd>⌥</kbd>, say a sentence, and release the key. For longer text, push <kbd>⌃⌥D</kbd> to start and push it again to stop.
+* The speech models of macOS transcribe on your Mac. Audio does not go to the disk.
+* A tidy-up pass adds the punctuation and the capital letters.
+* Dictation uses the language of your keyboard layout.
+* **Voice commands.** Select text and dictate an instruction, for example *"make it shorter"* or *"translate to English"*. Enable this in **Settings → General → Dictation**.
+* **Send.** Pretype can push <kbd>Return</kbd> after a dictation, for example in a chat. To enable this for an app, select **Press Return after Dictation** in the menu.
+* If the focus changes during a capture, Pretype puts the transcript on the clipboard.
 
-* Hold <kbd>⌥</kbd> and say a sentence. Then release the key.
-* For longer text, use the hands-free chord <kbd>⌃⌥D</kbd>. Push it one time to start and one time to stop. You can scroll and click during the capture.
-* The chord starts the recording at the keypress, not half a second later. No other function on the system uses this chord.
-* If a hands-free capture gets no speech for a few seconds, it types the text that it has and stops. Thus a capture that you forget does not keep the microphone open.
-* The speech models of macOS do the transcription on your Mac. Pretype does not download them from its own servers. Audio does not go to the disk. It goes to the network only if you select an API provider for dictation.
-
-| Language | Speech model | Punctuation |
-|---|---|---|
-| 30 locales: English, German, Spanish, French, Italian, Japanese, Korean, Portuguese, Cantonese, Chinese | Apple `SpeechTranscriber` (the newer model) | Yes |
-| All other languages, **Russian included** | Apple `DictationTranscriber`: the model of the macOS dictation key. It is older and less accurate. | No |
-| Opt-in, all languages | **API provider**: OpenAI `gpt-transcribe`, Groq Whisper, Mistral Voxtral, or an OpenAI-compatible server. Set it in **Settings → API**. | Depends on the model |
-| Opt-in, for the languages in the "All other languages" row | **Parakeet**: the open 0.6B speech model from NVIDIA, with the Ultra post-training from moondream. It runs on the Neural Engine. One download of ~610 MB. | Yes. On Russian, it makes less than half the word errors of the system model: 5.4% WER against 12.6% on FLEURS. |
-
-* **Tidy-up.** The transcript goes through the same minimal-edit fix that <kbd>⌥Tab</kbd> uses. This pass adds the punctuation and the capital letters that speech does not give.
-* On models that use an instruct sibling, the tidy-up needs the same one-time download as <kbd>⌥Tab</kbd>. Dictation does not wait for it. Pretype types the text as it heard it, and downloads the sibling in the background on an unmetered network. The tidy-up starts when the download is complete.
-* **Language.** Dictation uses the language of your keyboard layout. When you change the layout, the dictation language changes too.
-* **Hints.** Pretype gives the names and the terms in the field to the recognizer. Thus the recognizer spells them as the page does.
-* **Voice commands.** Enable them in **Settings → General → Dictation**. Then, if you dictate while text is selected, Pretype uses your words as an instruction. Examples: *"make it shorter"*, *"more formal"*, *"translate to English"*. You see a preview, as for a <kbd>⌥Tab</kbd> fix.
-* **Send.** Pretype can push <kbd>Return</kbd> after it types a dictation, for example in a chat or in the prompt of an AI agent. To enable this for an app or a website, open the menu bar menu while you are in it, and select **Press Return after Dictation**. **Settings → General → Dictation** shows the list.
-* **Focus change.** If the focus changes during a capture, Pretype puts the transcript on the clipboard. You do not lose it.
-* **Time-out.** If the transcription of a long take does not complete in time, Pretype puts the last live preview on the clipboard. A hosted API provider shows no live preview, so this does not apply to it.
+| Languages | Speech model |
+|---|---|
+| English, German, Spanish, French, Italian, Japanese, Korean, Portuguese, Chinese | Apple `SpeechTranscriber`. It gives punctuation. |
+| All other languages, **Russian included** | Apple `DictationTranscriber`. It is older and gives no punctuation. You can select **Parakeet** (one download of ~610 MB) instead. On Russian, Parakeet makes less than half the word errors: 5.4% WER against 12.6% on FLEURS. |
+| All languages | A hosted speech model, if you select an API provider in **Settings → API**. |
 
 [Architecture → Dictation](docs/ARCHITECTURE.md#dictation) gives the details.
 
----
+## Privacy
+
+Pretype must have the **Accessibility** permission. It uses it to read the focused text field, to catch the accept key, and to type the suggestion.
+
+By default, your text stays on your Mac. Pretype uses the network only for model downloads and one version check each day. If you turn on an API provider in **Settings → API**, your text goes to that provider.
+
+Do not trust these statements without proof. Three files contain all of the input path: [`AXText.swift`](Sources/Pretype/AXText.swift), [`KeyTap.swift`](Sources/Pretype/KeyTap.swift), and [`TextInjector.swift`](Sources/Pretype/TextInjector.swift). [Privacy & permissions](docs/privacy.md) lists each connection and all data on disk.
 
 ## Quick Start
 
-Pretype operates only on Apple Silicon (M1 or newer). MLX does not operate on Intel Macs.
-
-### Install with Homebrew *(recommended)*
+You must have macOS 26 or later and a Mac with Apple Silicon (M1 or newer). 8 GB of memory is sufficient.
 
 ```bash
 brew install nikiomori/tap/pretype
 ```
 
-Then do the steps in [First launch](#first-launch).
+Or download [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip), unzip it, and move `Pretype.app` to `/Applications`. Apple notarizes all releases.
 
-### Install from the download
-
-1. Download [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip) from [Releases](https://github.com/nikiomori/Pretype/releases).
-2. Unzip the file.
-3. Move `Pretype.app` to `/Applications`.
-
-Releases have a Developer ID signature, and Apple notarizes them. Thus macOS opens Pretype as it opens all other downloaded apps.
-
-> [!NOTE]
-> If you update from 2.4.0 or earlier, macOS asks for the Accessibility permission one more time. Those versions had an ad-hoc signature, and the signature is now different. Later updates keep the permission.
-
-### First launch
-
-1. Open Pretype.
-2. Grant the **Accessibility** permission when macOS asks for it. If you grant it after the launch, restart Pretype.
+1. Open Pretype. It has no Dock icon. It operates from the menu bar.
+2. Grant the **Accessibility** permission. If you grant it after the launch, restart Pretype.
 3. Wait for the model download to complete. The menu-bar icon shows the progress.
-4. Click the Pretype icon in the menu bar. The menu shows the status, **Diagnostics**, and **Settings…** (<kbd>⌘,</kbd>).
+4. Type in a text field.
 
-At the first launch, Pretype downloads one model from Hugging Face: **≈1–5.7 GB**. The size depends on the memory of your Mac. Pretype selects the strongest model that uses about a quarter of the memory.
+The model download is ≈1–5.7 GB. Pretype selects the strongest model that uses about a quarter of the memory of your Mac. To use a different model, go to **Settings → Model**. [Choosing a model](docs/models.md) compares the models.
 
-To use a different model, select it in **Settings → Model**. [Choosing a model](docs/models.md) gives the eval numbers for the default.
-
-Pretype has no Dock icon and no main window. It operates from the **menu bar** only.
-
-### Build from source
-
-> [!NOTE]
-> You must have **full Xcode 26.4 or newer**. Command Line Tools alone are not sufficient. The prebuilt app does not need these tools.
-> * The MLX packages need Swift 6.3.
-> * The Apple Intelligence engine imports the `FoundationModels` framework. Xcode 16.x does not have this framework.
-> * The MLX engine needs the Metal compiler.
-
-1. Install the Metal toolchain. Do this one time only.
-   ```bash
-   xcodebuild -downloadComponent MetalToolchain
-   ```
-2. Clone the repository.
-   ```bash
-   git clone https://github.com/nikiomori/Pretype.git
-   cd Pretype
-   ```
-3. Build the app. The script writes `build/Pretype.app`.
-   ```bash
-   ./Scripts/make-app.sh
-   ```
-4. Open the app.
-   ```bash
-   open build/Pretype.app
-   ```
-
-The [Contributing Guide](CONTRIBUTING.md#development-setup) gives the development loop, the diagnostic flags, and the limits of SwiftPM with Metal.
-
----
+To build from source, see [Development setup](CONTRIBUTING.md#development-setup).
 
 ## How It Works
 
@@ -273,25 +166,7 @@ sequenceDiagram
     Inj->>App: Synthetic key events
 ```
 
-1. **FocusTracker** follows the focused text element with `AXObserver`. At each keystroke, it reads the text near the caret.
-2. **SuggestionController** waits 60 ms after the last keystroke. Then it sends the text to the **CompletionEngine**: a local MLX model or Apple Intelligence. The output gates check the result. The engine gives a short continuation, or no suggestion. A new keystroke cancels the request that is in progress.
-3. **SuggestionWindow** shows the suggestion in a panel at the caret. Inline ghost text is an unstable option.
-4. A **CGEventTap** in `KeyTap` catches the accept key. When you accept the suggestion, **TextInjector** types it into the app with synthetic key events.
-
-### Terms
-
-| Term | Meaning |
-|---|---|
-| Suggestion | The text that Pretype offers at the caret. |
-| Panel | The floating box that shows the suggestion. This is the default presentation. |
-| Inline ghost text | The unstable presentation: gray text on the line, in the font of the field. |
-| Accept key | The key that accepts a suggestion. The default is <kbd>Tab</kbd>. |
-| Pill | The small box above a word that shows a typo fix, an emoji, or an arithmetic result. |
-| Fix chord, reply chord | <kbd>⌥Tab</kbd> and <kbd>⌥⇧Tab</kbd>. |
-| Instruct sibling | A second, instruction-tuned build of your model. Some models use it for fixes, replies, and the dictation tidy-up. |
-| Journal | The local record of the suggestions that you saw and what you did with them. Pretype uses it for personalization. |
-
----
+[Architecture](docs/ARCHITECTURE.md) gives the details.
 
 ## Documentation
 
@@ -299,29 +174,14 @@ You can read the documentation at **[pretype.app/docs](https://pretype.app/docs)
 
 | Page | Contents |
 |---|---|
-| [**Architecture**](docs/ARCHITECTURE.md) | The engines (local and API), the model catalog, the quantization tiers, the KV cache, and how the app decides to show no suggestion |
-| [**Choosing a model**](docs/models.md) | The eval for the defaults, the RAM and latency of each tier, how to select a model for your languages, and the hosted-model presets |
-| [**Privacy & permissions**](docs/privacy.md) | Each permission and why Pretype needs it, what an API provider gets, the data on disk, and how to remove all of it |
+| [**Choosing a model**](docs/models.md) | The eval for the defaults, the RAM and latency of each tier, and the hosted-model presets |
+| [**Privacy & permissions**](docs/privacy.md) | Each permission, each connection, the data on disk, and how to remove all of it |
 | [**Troubleshooting & FAQ**](docs/troubleshooting.md) | How to read Diagnostics, the usual problems, and the frequent questions |
-
----
-
-## Requirements
-
-| Item | Requirement |
-|---|---|
-| **OS** | macOS 26 or later. |
-| **Hardware** | Apple Silicon (M1 or newer). Intel Macs cannot run MLX. |
-| **Memory** | 8 GB is sufficient. The default model uses about a quarter of the memory of your Mac. It is ≈1.5 GB resident on 8 GB Macs, up to ≈5 GB from 32 GB. The catalog goes down to ≈1 GB. On Macs with much memory, you can select Gemma 4 E4B 8-bit (a ≈6 GB download). |
-| **Storage** | ≈1–5.7 GB for the default model (the size depends on your Mac). ≈1–6 GB for the other models. |
-| **Storage for <kbd>⌥Tab</kbd>** | Some models add a one-time instruct sibling: ≈1.6 GB on Qwen3.5 and MiniCPM5 (they share it), up to ≈5.6 GB on a Gemma in Base style. Qwen3.5 and MiniCPM5 complete on their Base builds, and they fix and reply on the post-trained Qwen3.5 build. There is no sibling on Bonsai, because it fixes with itself. There is no new sibling on Gemma E4B if it used Instruct style before 2026-10-15. |
-| **To build** | Full Xcode 26.4 or newer (Swift 6.3, the macOS 26 SDK, and the Metal toolchain). The prebuilt app does not need it. |
-
----
+| [**Architecture**](docs/ARCHITECTURE.md) | The engines, the model catalog, the KV cache, and how the app decides to show no suggestion |
 
 ## Contributing
 
-Pretype is a new project, and it changes quickly. We accept bug reports, ideas, and pull requests.
+We accept bug reports, ideas, and pull requests.
 
 * [Open an issue](https://github.com/nikiomori/Pretype/issues) for bugs and feature requests.
 * Read the [Contributing Guide](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).

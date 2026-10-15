@@ -23,6 +23,7 @@ Do the checks from left to right. Each check reads one line of **Diagnostics**.
 | `Last: engine returned`<br>`no suggestion` | The context is too short, or<br>the output gates rejected<br>the result of the model. | Type more text. |
 | No suggestions in all apps.<br>The MLX engine is missing. | A source build without<br>compiled Metal shaders. | Build with `./Scripts/make-app.sh`. Do not use plain `swift build`. |
 | `open build/Pretype.app` fails<br>with `-600`, or Finder shows<br>"the application is not open<br>anymore" (source builds) | An old instance was running<br>when you replaced its bundle.<br>LaunchServices activates the<br>old process, not the new build. | Quit Pretype from the menu bar before you rebuild. Or start the build with `open -n build/Pretype.app`. On a current checkout, `make-app.sh` quits the running instance of that build first. It does not quit a copy in `/Applications`, so you can use that copy while you rebuild. |
+| macOS asks for Accessibility<br>again after an update | Releases up to 2.4.0 have<br>an ad-hoc signature. Later<br>releases have a different one. | Grant the permission one more time. Later updates keep it. |
 | Gatekeeper blocks<br>the first launch | Releases up to 2.4.0 have<br>an ad-hoc signature. | Releases 2.5.0 and later are notarized and open normally. For an older release, remove the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`. Or click **System Settings → Privacy & Security → Open Anyway**. |
 
 ### API providers
