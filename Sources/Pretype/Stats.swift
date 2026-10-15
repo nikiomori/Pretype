@@ -16,7 +16,18 @@ enum Stats {
         return formatter
     }()
 
-    private static var today: String { dayFormatter.string(from: Date()) }
+    /// Today's key, formatted once a day: every booked event asks — the
+    /// latency one on the first token of every suggestion — and formatting
+    /// it was most of a millisecond's bookkeeping.
+    private static var todayCache: (key: String, until: Date)?
+    private static var today: String {
+        let now = Date()
+        if let cache = todayCache, now < cache.until { return cache.key }
+        let key = dayFormatter.string(from: now)
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+        todayCache = (key, Calendar.current.startOfDay(for: tomorrow))
+        return key
+    }
 
     /// Net keystrokes per finished day, so the menu can draw a week instead of a
     /// single number. ponytail: one day→count dictionary in UserDefaults, written
@@ -150,9 +161,23 @@ enum Stats {
 
     static var dictatedTotal: Int { defaults.integer(forKey: "stats.lifetimeDictatedChars") }
 
+    /// Latency samples not yet written: one lands on the first token of
+    /// every suggestion, and two preference writes apiece were most of what
+    /// booking it cost. Written every 20, and before anything reads them.
+    private static var pendingLatency = (sumMs: 0, samples: 0)
+
     static func recordLatency(_ seconds: TimeInterval) {
-        bump("stats.latencySumMs", by: Int(seconds * 1000))
-        bump("stats.latencyCount")
+        pendingLatency.sumMs += Int(seconds * 1000)
+        pendingLatency.samples += 1
+        if pendingLatency.samples >= 20 { flushLatency() }
+    }
+
+    private static func flushLatency() {
+        guard pendingLatency.samples > 0 else { return }
+        let pending = pendingLatency
+        pendingLatency = (0, 0)
+        bump("stats.latencySumMs", by: pending.sumMs)
+        bump("stats.latencyCount", by: pending.samples)
     }
 
     // MARK: - What the user got out of it
@@ -238,6 +263,7 @@ enum Stats {
         rollDayIfNeeded()
         let shown = defaults.integer(forKey: "stats.shown")
         let accepted = defaults.integer(forKey: "stats.accepted")
+        flushLatency()
         let latencyCount = defaults.integer(forKey: "stats.latencyCount")
 
         let rate = shown > 0 ? " (\(accepted * 100 / shown)%)" : ""

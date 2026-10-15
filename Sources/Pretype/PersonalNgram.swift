@@ -66,7 +66,10 @@ final class PersonalNgram: @unchecked Sendable {
     /// present, the "prev2 prev1" trigram key — the ONE place the context
     /// convention lives, so the three read paths below can never drift apart.
     private static func lookupContext(_ text: String) -> (last: String, triKey: String?)? {
-        let context = words(text).suffix(2).map(fold)
+        // The tail, not all ~1,200 chars into ~200 Strings per keystroke; with
+        // three words in it, the one the cut may split isn't among the two.
+        let tail = words(String(text.suffix(200)))
+        let context = (tail.count >= 3 ? tail : words(text)).suffix(2).map(fold)
         guard let last = context.last else { return nil }
         return (last, context.count == 2 ? context.joined(separator: " ") : nil)
     }

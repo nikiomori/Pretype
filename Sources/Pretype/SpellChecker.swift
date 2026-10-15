@@ -15,6 +15,15 @@ enum SpellChecker {
     /// the main thread (correction preview) and background (eval harness).
     private static let recognizerLock = NSLock()
     private static let languageRecognizer = NLLanguageRecognizer()
+    /// The last sample and its verdict (guarded by `recognizerLock`). One
+    /// keystroke asks about the same text 3–5 times — the request, the
+    /// n-gram fast path, the spell-fix, the gates — at ~0.8 ms a recognizer
+    /// run, and `TypedLanguage` counted that one keystroke as many.
+    private static var lastSample = ""
+    private static var lastLanguageCode: String?
+    /// Installed spell-check dictionaries: read once — a list walked per
+    /// call, and one added mid-session is picked up after a relaunch.
+    private static let availableLanguages = NSSpellChecker.shared.availableLanguages
 
     /// The best correction for `word` if it is a misspelling, else nil. Returns
     /// only a *close* fix (the shared divergence guard rejects a different word),
@@ -161,7 +170,7 @@ enum SpellChecker {
     private static func scriptLanguage(_ word: String) -> String {
         let cyrillic = word.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
         let want = cyrillic ? "ru" : "en"
-        return checker.availableLanguages.first { $0.lowercased().hasPrefix(want) } ?? want
+        return availableLanguages.first { $0.lowercased().hasPrefix(want) } ?? want
     }
 
     /// Pick a concrete available spell-check language by the word's script and surrounding context:
@@ -170,22 +179,25 @@ enum SpellChecker {
     private static func language(for word: String, context: String) -> String {
         // 1. Try to recognize language from the context using NLLanguageRecognizer
         if !context.isEmpty {
-            let langCode: String? = {
+            let (langCode, fresh): (String?, Bool) = {
                 recognizerLock.lock()
                 defer { recognizerLock.unlock() }
                 let sample = String(context.suffix(150))
+                if sample == lastSample { return (lastLanguageCode, false) }
                 languageRecognizer.reset()
                 languageRecognizer.processString(sample)
-                return languageRecognizer.dominantLanguage?.rawValue
+                lastSample = sample
+                lastLanguageCode = languageRecognizer.dominantLanguage?.rawValue
+                return (lastLanguageCode, true)
             }()
             if let langCode {
                 // The one place the app already knows what language is being
                 // typed. Recorded here rather than re-detected elsewhere: this
                 // runs on the typing path anyway, and a second recognizer would
                 // be a second Core ML model for an answer we already have.
-                TypedLanguage.observe(langCode)
+                if fresh { TypedLanguage.observe(langCode) }
                 // Find if the spellchecker supports this language
-                if let matched = checker.availableLanguages.first(where: {
+                if let matched = availableLanguages.first(where: {
                     $0.lowercased().hasPrefix(langCode.lowercased())
                 }) {
                     return matched

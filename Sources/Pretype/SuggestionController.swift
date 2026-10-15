@@ -152,7 +152,9 @@ final class SuggestionController: NSObject {
         return context
     }
     private var trackedContext = TypingContext()
-    private(set) var lastPromptDescription: String?
+    /// The last request sent — formatted only when Diagnostics asks, not per query.
+    private var lastPromptRequest: CompletionRequest?
+    var lastPromptDescription: String? { lastPromptRequest?.completionPrompt(maxChars: 1000) }
     private(set) var lastResultDescription: String?
     var lastEvent = "waiting for typing"
     private var onboardingWindow: OnboardingWindow?
@@ -396,10 +398,18 @@ final class SuggestionController: NSObject {
         if rebuild { keyTap.stop() }
         keyTap.start()
         if rebuild { updateScrollMonitoring() }   // `stop` dropped the scroll monitor too
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            self?.ensureKeyTap()
+        guard keyTapWatch == nil else { return }
+        // A timer with slack, not a chain of exact 3 s wakeups: macOS folds
+        // it into wakeups it runs anyway.
+        let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.ensureKeyTap() }
         }
+        timer.tolerance = 1.5
+        RunLoop.main.add(timer, forMode: .common)
+        keyTapWatch = timer
     }
+
+    private var keyTapWatch: Timer?
 
     /// The field the pipeline reads and types into — nil while keyboard focus
     /// sits in another process. Launchers (Spotlight, Raycast, Alfred) take
@@ -852,7 +862,7 @@ final class SuggestionController: NSObject {
             }
             guard let self, !Task.isCancelled else { return }
             if self.refreshSeq == refreshID { self.refreshTask = nil }
-            self.lastPromptDescription = request.completionPrompt(maxChars: 1000)
+            self.lastPromptRequest = request
             if shown {
                 self.lastResultDescription = self.active?.text
             } else if self.activeIsInstant, self.active != nil {
@@ -1052,8 +1062,11 @@ final class SuggestionController: NSObject {
     /// completion is a few words, a composed reply a few sentences.
     private func sanitize(_ raw: String, maxChars: Int) -> String {
         let line = String(raw.replacingOccurrences(of: "\t", with: " ").prefix { !$0.isNewline })
-        // Runs collapsed first, so at most one space can trail the cut.
-        let out = line.replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression).prefix(maxChars)
+        // Runs collapsed first, so at most one space can trail the cut. The
+        // regex only when there is a run: this runs on every streamed partial.
+        let collapsed = line.contains("  ")
+            ? line.replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression) : line
+        let out = collapsed.prefix(maxChars)
         return String(out.hasSuffix(" ") ? out.dropLast() : out)
     }
 

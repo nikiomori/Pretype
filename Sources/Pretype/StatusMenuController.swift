@@ -42,12 +42,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // Live status light: the icon reflects engine state at a glance even
         // when the menu is closed, so "no suggestion" is never a silent mystery.
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            // Fires on the main run loop: no Task to allocate per tick.
+            MainActor.assumeIsolated {
                 guard let self else { return }
                 self.updateStatusIcon()
                 if self.menuIsOpen { self.refreshHeader() }
             }
         }
+        // Lets macOS fold this wakeup into others instead of firing it alone,
+        // every second, for the app's whole life.
+        timer.tolerance = 0.5
         // .common, not the default mode: menu tracking runs the event loop in
         // its own mode, and a default-mode timer stops for exactly as long as
         // the user is looking at the menu.
@@ -92,10 +96,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // MiniCPM ready", "Pretype — downloading 42%"). The last pipeline event
         // explains per-app silence on hover, so it stays in the tooltip only.
         let status = "Pretype — \(Self.status(of: suggestionController).text)"
-        button.image?.accessibilityDescription = status
+        // Assigned on change only: even a same-value set is AppKit work, and
+        // this runs once a second for the app's whole life.
+        if button.image?.accessibilityDescription != status { button.image?.accessibilityDescription = status }
         var tip = status
         if let last = suggestionController?.lastEvent { tip += "\nLast: \(last)" }
-        button.toolTip = tip
+        if button.toolTip != tip { button.toolTip = tip }
     }
 
     func bind(to controller: SuggestionController) {
