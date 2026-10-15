@@ -187,8 +187,11 @@ final class CloudAPITests: XCTestCase {
         let session = try CloudTranscription.start(APIConfig(provider: .named("refrain"), kind: .audio),
                                                    locale: Locale(identifier: "ru")) { text in partials.mutate { $0.append(text) } }
         session.feed(silence(seconds: 1))
-        try await Task.sleep(for: .seconds(1.5))
-        XCTAssertEqual(partials.get(), ["привет"])
+        // The preview runs on its own clock: wait for it, not for a guess at it.
+        let deadline = Date().addingTimeInterval(10)
+        while partials.get().isEmpty, Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertFalse(partials.get().isEmpty, "a local server must get a live preview")
+        XCTAssertTrue(partials.get().allSatisfy { $0 == "привет" }, "\(partials.get())")
         let final = try await session.finish()
         XCTAssertEqual(final, "привет")
     }

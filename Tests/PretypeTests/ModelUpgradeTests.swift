@@ -114,4 +114,34 @@ final class ModelUpgradeTests: XCTestCase {
         ModelStorage.noteLoad(repo: id, succeeded: false)
         XCTAssertFalse(ModelStorage.loadFailed(repo: id))
     }
+
+    /// The Gemma tiers' move to base (E2B 2026-10-14, E4B -15) must not turn
+    /// an update into a forced download: an install holding only the instruct
+    /// weights keeps Instruct until the base build is fetched in the background.
+    func testGemmaInstallKeepsInstructUntilBaseIsHere() {
+        let e2b = "mlx-community/gemma-4-e2b-4bit"
+        let have = { (repos: [String]) in { (id: String) in repos.contains(id) } }
+        XCTAssertTrue(Settings.keepsLegacyInstruct(model: e2b, isFetched: have(["mlx-community/gemma-4-e2b-it-4bit"])))
+        XCTAssertFalse(Settings.keepsLegacyInstruct(model: e2b, isFetched: have([])))           // fresh install
+        XCTAssertFalse(Settings.keepsLegacyInstruct(model: e2b, isFetched: have([e2b, "mlx-community/gemma-4-e2b-it-4bit"])))
+        XCTAssertTrue(Settings.keepsLegacyInstruct(model: "mlx-community/gemma-4-e4b-6bit",
+                                                   isFetched: have(["mlx-community/gemma-4-e4b-it-6bit"])))
+        XCTAssertFalse(Settings.keepsLegacyInstruct(model: "nikimori/Qwen3.5-2B-Base-6bit",
+                                                    isFetched: have(["mlx-community/Qwen3.5-2B-4bit"])))
+        XCTAssertEqual(ModelCatalog.recommended(for: e2b).style, .base)
+    }
+
+    /// A pick of an earlier build lands on its entry's current build, not on
+    /// a cleared (unknown) id.
+    func testOldBuildPicksMigrate() {
+        let saved = Settings.mlxModelID
+        defer { Settings.mlxModelID = saved }
+        for (old, new) in [("mlx-community/Qwen3.5-2B-4bit", "nikimori/Qwen3.5-2B-Base-6bit"),
+                           ("nikimori/Qwen3.5-2B-Base-4bit", "nikimori/Qwen3.5-2B-Base-6bit"),
+                           ("openbmb/MiniCPM5-1B-Base", "nikimori/MiniCPM5-1B-Base-8bit")] {
+            Settings.mlxModelID = old
+            Settings.migrate()
+            XCTAssertEqual(Settings.mlxModelID, new, old)
+        }
+    }
 }

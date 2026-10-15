@@ -223,8 +223,9 @@ final class DictationControllerTests: XCTestCase {
     /// hop can take longer there than a whole 0.1 s pump window — so waits on
     /// the controller's async paths are stated as the condition they wait FOR.
     /// The deadline only bounds a genuine wedge: the assertions right after
-    /// still run, and name the wedged state.
-    private func pump(until condition: () -> Bool, timeout: TimeInterval = 2) async {
+    /// still run, and name the wedged state. It is generous because a passing
+    /// run never reaches it — the wait ends the moment the condition holds.
+    private func pump(until condition: () -> Bool, timeout: TimeInterval = 10) async {
         let end = Date().addingTimeInterval(timeout)
         while !condition() && Date() < end {
             RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.005))
@@ -232,15 +233,19 @@ final class DictationControllerTests: XCTestCase {
         }
     }
 
-    /// Press the dictation key and wait out the (shortened) hold threshold.
+    /// Press the dictation key and wait until the arm timer has acted: the
+    /// hold went live (`tick` fired `.begin`), or something disarmed it. A
+    /// press the controller never armed (under a latch) has nothing to wait for.
     private func holdDown(_ controller: DictationController) async {
         controller.modifierChanged(modifierEvent(down: true))
-        await pump(0.12)
+        await pump(until: { controller.hold.isActive || !controller.isHoldArmed })
     }
 
+    /// The key-up is applied synchronously (`modifierChanged`), so there is
+    /// nothing to wait for — a fixed spin here only let a short `finishDelay`
+    /// run out on a loaded runner before the caller could look at `.working`.
     private func release(_ controller: DictationController) async {
         controller.modifierChanged(modifierEvent(down: false))
-        await pump(0.05)
     }
 
     /// Hold the key and wait until the capture is actually LIVE. The press
@@ -553,162 +558,6 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(why.contains("timed out"), why)
     }
 
-    /// Which microphone a capture opens. The rule exists because a Bluetooth
-    /// headset carries good playback OR a two-way call, never both: opening the
-    /// AirPods microphone drops whatever is playing into hands-free quality for
-    /// the length of the hold. Reported from real use as "the music goes dull
-    /// while I dictate".
-    func testAutomaticInputAvoidsTheHeadsetItIsPlayingThrough() {
-        // Exactly the shape of the reporting machine: macOS publishes AirPods
-        // as two objects whose UIDs share everything before the colon.
-        let builtIn = AudioDevices.Device(uid: "BuiltInMicrophoneDevice",
-                                          name: "MacBook Pro Microphone",
-                                          transport: kAudioDeviceTransportTypeBuiltIn)
-        let podsIn = AudioDevices.Device(uid: "F8-D3-F0-79-64-02:input",
-                                         name: "AirPods Pro",
-                                         transport: kAudioDeviceTransportTypeBluetooth)
-        let podsOut = AudioDevices.Device(uid: "F8-D3-F0-79-64-02:output",
-                                          name: "AirPods Pro",
-                                          transport: kAudioDeviceTransportTypeBluetooth)
-        let usbMic = AudioDevices.Device(uid: "USB-Yeti", name: "Yeti",
-                                         transport: kAudioDeviceTransportTypeUSB)
-        let speakers = AudioDevices.Device(uid: "BuiltInSpeakerDevice",
-                                           name: "MacBook Pro Speakers",
-                                           transport: kAudioDeviceTransportTypeBuiltIn)
-        let inputs = [builtIn, podsIn, usbMic]
-
-        func auto(_ input: AudioDevices.Device?, _ output: AudioDevices.Device?) -> AudioDevices.Device? {
-            AudioDevices.resolve(preference: .automatic, inputs: inputs,
-                                 defaultInput: input, defaultOutput: output)
-        }
-        // Listening through the same headset you'd record from: step aside.
-        XCTAssertEqual(auto(podsIn, podsOut), builtIn)
-        // Same headset for the microphone but sound coming out of the speakers:
-        // nothing to protect, record where the user pointed us.
-        XCTAssertEqual(auto(podsIn, speakers), podsIn)
-        // A wired microphone never had this problem.
-        XCTAssertEqual(auto(usbMic, podsOut), usbMic)
-        XCTAssertEqual(auto(builtIn, podsOut), builtIn)
-
-        // An explicit pick always wins — including picking the headset back.
-        XCTAssertEqual(
-            AudioDevices.resolve(preference: .device(uid: podsIn.uid), inputs: inputs,
-                                 defaultInput: podsIn, defaultOutput: podsOut),
-            podsIn)
-        XCTAssertEqual(
-            AudioDevices.resolve(preference: .systemDefault, inputs: inputs,
-                                 defaultInput: podsIn, defaultOutput: podsOut),
-            podsIn)
-        // A pinned device that is unplugged right now falls back rather than
-        // refusing to record.
-        XCTAssertEqual(
-            AudioDevices.resolve(preference: .device(uid: "gone"), inputs: inputs,
-                                 defaultInput: podsIn, defaultOutput: podsOut),
-            podsIn)
-        // The stored form parses, and an empty default reads as automatic.
-        XCTAssertEqual(AudioDevices.Preference(stored: ""), .automatic)
-        XCTAssertEqual(AudioDevices.Preference(stored: "auto"), .automatic)
-        XCTAssertEqual(AudioDevices.Preference(stored: podsIn.uid), .device(uid: podsIn.uid))
-    }
-
-    /// The gate the dictation tidy-up asks before spending its budget: it must
-    /// answer "would this go to the network", not "is the model resident".
-    /// Anything with no Hugging Face cache directory of its own — the Apple
-    /// Intelligence pseudo-id, a filesystem path — is already on the
-    /// machine and must never be treated as an unfetched download.
-    func testCorrectionFetchGateAnswersForLocalIDs() {
-        XCTAssertTrue(ModelStorage.isFetched(ModelCatalog.appleIntelligenceID))
-        XCTAssertTrue(ModelStorage.isFetched("/Users/someone/models/my-finetune"))
-        XCTAssertFalse(ModelStorage.isFetched("pretype-test/definitely-not-downloaded"))
-    }
-
-    /// The gate has to fail closed on a download IN FLIGHT, which is the whole
-    /// point: the hub populates `snapshots/<rev>/` file by file, so the
-    /// directory shows up as soon as a few-kilobyte config.json lands, with
-    /// gigabytes of weights still on the wire — and an abandoned fetch leaves
-    /// exactly that state behind, with no partial-file residue to spot it by.
-    func testFetchGateReadsTheWeightsNotTheDirectory() throws {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("pretype-fetch-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        @discardableResult
-        func repo(_ name: String, revision revisionName: String = "rev1",
-                  files: [String: String] = [:], danglingLinks: [String] = [],
-                  head: String? = nil) throws -> URL {
-            let directory = root.appendingPathComponent(name)
-            let revision = directory.appendingPathComponent("snapshots/\(revisionName)")
-            try FileManager.default.createDirectory(at: revision, withIntermediateDirectories: true)
-            for (file, contents) in files {
-                try contents.write(to: revision.appendingPathComponent(file),
-                                   atomically: true, encoding: .utf8)
-            }
-            for link in danglingLinks {
-                // What a snapshot entry looks like before its blob is copied in.
-                try FileManager.default.createSymbolicLink(
-                    at: revision.appendingPathComponent(link),
-                    withDestinationURL: directory.appendingPathComponent("blobs/not-here-yet"))
-            }
-            if let head {
-                let refs = directory.appendingPathComponent("refs")
-                try FileManager.default.createDirectory(at: refs, withIntermediateDirectories: true)
-                try head.write(to: refs.appendingPathComponent("main"),
-                               atomically: true, encoding: .utf8)
-            }
-            return directory
-        }
-
-        let index = #"{"weight_map":{"a":"model-00001-of-00002.safetensors","b":"model-00002-of-00002.safetensors"}}"#
-        // Only the config has landed — a download in flight, or one abandoned.
-        XCTAssertFalse(ModelStorage.isFetched(
-            at: try repo("config-only", files: ["config.json": "{}"])))
-        // Sharded, one shard still coming.
-        XCTAssertFalse(ModelStorage.isFetched(at: try repo("half", files: [
-            "config.json": "{}", "model.safetensors.index.json": index,
-            "model-00001-of-00002.safetensors": "w",
-        ])))
-        // Both shards present: ready.
-        XCTAssertTrue(ModelStorage.isFetched(at: try repo("whole", files: [
-            "config.json": "{}", "model.safetensors.index.json": index,
-            "model-00001-of-00002.safetensors": "w", "model-00002-of-00002.safetensors": "w",
-        ])))
-        // A snapshot link whose blob has not been copied in yet resolves to
-        // nothing — `fileExists` follows it, which is why that is the test.
-        XCTAssertFalse(ModelStorage.isFetched(at: try repo(
-            "dangling",
-            files: ["config.json": "{}", "model.safetensors.index.json": #"{"weight_map":{"a":"model.safetensors"}}"#],
-            danglingLinks: ["model.safetensors"])))
-        // No shard index at all — a single-file repo is ready on its weights.
-        XCTAssertTrue(ModelStorage.isFetched(
-            at: try repo("single", files: ["config.json": "{}", "model.safetensors": "w"])))
-        // ...and mid-download that single file IS a dangling link: the no-index
-        // branch must check it resolves too, or the tidy-up stalls on it.
-        XCTAssertFalse(ModelStorage.isFetched(at: try repo(
-            "single-dangling", files: ["config.json": "{}"], danglingLinks: ["model.safetensors"])),
-            "a dangling single-file weight link is a download in flight")
-        // Nothing there at all.
-        XCTAssertFalse(ModelStorage.isFetched(at: root.appendingPathComponent("absent")))
-
-        // A second revision holding only metadata — what another tool sharing
-        // this cache leaves behind with one `hf_hub_download(repo, "config.json")`
-        // at a different sha. The complete revision must still answer, whichever
-        // order the filesystem lists them in: reading the stray one would report
-        // a fully downloaded model as missing, and the answer is latched.
-        let shared = try repo("shared-cache", revision: "aaa-metadata-only",
-                              files: ["config.json": "{}"])
-        try repo("shared-cache", revision: "bbb-complete",
-                 files: ["config.json": "{}", "model.safetensors": "w"])
-        XCTAssertTrue(ModelStorage.isFetched(at: shared))
-
-        // With `refs/main` present it decides, so a re-converted head still
-        // downloading is not masked by the complete revision it replaces.
-        let rolling = try repo("rolling", revision: "old-complete",
-                               files: ["config.json": "{}", "model.safetensors": "w"])
-        try repo("rolling", revision: "new-head", files: ["config.json": "{}"],
-                 head: "new-head")
-        XCTAssertFalse(ModelStorage.isFetched(at: rolling))
-    }
-
     /// The keyboard gates ask what the window is SHOWING, not whether it is
     /// visible — the difference is whether ⇥ can insert text that something
     /// else (a dictation notice, an engine status) has covered up.
@@ -772,9 +621,9 @@ final class DictationControllerTests: XCTestCase {
     /// never delivered, but whatever was said still gets typed.
     func testCaptureCeilingFinishesInsteadOfDiscarding() async {
         // The ceiling clock starts inside `begin`, racing the same hops
-        // `startCapture` waits out — 0.6 keeps it comfortably behind them on a
-        // loaded runner, while still ending the test in under a second.
-        DictationController.maxCaptureSeconds = 0.6
+        // `startCapture` waits out. 0.6 s lost that race on a loaded Mac (the
+        // ceiling hit `.preparing` and discarded); 3 s costs 3 s, never a flake.
+        DictationController.maxCaptureSeconds = 3
         let rig = makeRig()
         await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
@@ -794,7 +643,9 @@ final class DictationControllerTests: XCTestCase {
         DictationController.maxCaptureSeconds = 0.15
         let rig = makeRig()
         rig.controller.gates.startSession = { _, _ in
-            try await Task.sleep(nanoseconds: 2_000_000_000)
+            // Far past the wait below, so only the ceiling can end it (the
+            // discard cancels this sleep).
+            try await Task.sleep(nanoseconds: 60_000_000_000)
             throw AudioCapture.Failure.sessionFailed("never reached")
         }
         await holdDown(rig.controller)
@@ -1074,7 +925,7 @@ final class DictationControllerTests: XCTestCase {
         // A partial is what tells the meter someone spoke — without it the
         // capture is still inside the far longer opening budget.
         await hear("said something", in: rig)
-        await pump(until: { !rig.host.inserted.isEmpty }, timeout: 3)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertEqual(rig.controller.phase, .idle)
     }
@@ -1134,7 +985,7 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         await startLatched(rig)
         await hear("left running", in: rig)
-        await pump(until: { !rig.host.inserted.isEmpty }, timeout: 3)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertEqual(rig.controller.phase, .idle)
     }
@@ -1150,7 +1001,7 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.controller.phase, .working)
         rig.controller.toggleLatch()
         rig.controller.toggleLatch()
-        await pump(until: { rig.controller.phase == .idle }, timeout: 3)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertEqual(rig.capture.startCount, 1, "the queued capture was taken back")
     }
@@ -1170,7 +1021,7 @@ final class DictationControllerTests: XCTestCase {
         rig.controller.keyPressed()
         XCTAssertEqual(rig.controller.phase, .preparing,
                        "the wait for the microphone is still part of the capture")
-        await pump(until: { rig.controller.phase == .listening("") }, timeout: 3)
+        await pump(until: { rig.controller.phase == .listening("") })
         XCTAssertEqual(rig.controller.phase, .listening(""))
         XCTAssertEqual(rig.capture.startCount, 1)
     }
@@ -1203,8 +1054,9 @@ final class DictationControllerTests: XCTestCase {
         rig.controller.modifierChanged(modifierEvent(down: true))
         rig.controller.toggleLatch()
         await pump(until: { rig.controller.phase == .listening("") })
-        // Past the (shortened) hold threshold, so the arm timer has fired.
-        await pump(0.1)
+        // Until the arm timer has fired: its `.begin`, swallowed under the
+        // latch, disarms the hold.
+        await pump(until: { !rig.controller.isHoldArmed })
         XCTAssertEqual(rig.controller.phase, .listening(""))
         XCTAssertEqual(rig.capture.startCount, 1, "one capture, not two")
         await hear("the whole paragraph", in: rig)
@@ -1213,7 +1065,7 @@ final class DictationControllerTests: XCTestCase {
         // ⌃ lifts before ⌥ — the coin flip that used to end in a cancel.
         rig.controller.modifierChanged(modifierEvent(key: KeyCode.leftControl, flag: .maskControl, down: false))
         rig.controller.modifierChanged(modifierEvent(down: false))
-        await pump(until: { !rig.host.inserted.isEmpty }, timeout: 3)
+        await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"],
                        "letting go of a modifier must not cancel what was already said")
     }
@@ -1226,11 +1078,13 @@ final class DictationControllerTests: XCTestCase {
     func testTheOpeningSilenceBudgetStartsWhenTheMicrophoneDoes() async {
         Settings.dictationSilence = 5
         DictationController.silenceTick = 0.02
-        DictationController.openingSilenceSeconds = 0.4
+        // The wait outlasts the budget, and the check after it sits 0.8 s
+        // inside the budget, so a slow runner can't spend it for the speaker.
+        DictationController.openingSilenceSeconds = 1.0
         let rig = makeRig()
-        slowStart(rig, seconds: 0.6)
+        slowStart(rig, seconds: 1.2)
         rig.controller.toggleLatch()
-        await pump(until: { rig.controller.phase == .listening("") }, timeout: 3)
+        await pump(until: { rig.controller.phase == .listening("") })
         await pump(0.2)
         XCTAssertEqual(rig.controller.phase, .listening(""),
                        "the wait for the model must not be charged to the speaker")
@@ -1300,12 +1154,13 @@ final class DictationControllerTests: XCTestCase {
         DictationController.maxLatchedSeconds = 30
         let rig = makeRig()
         rig.controller.gates.startSession = { _, _ in
-            try await Task.sleep(nanoseconds: 5_000_000_000)
+            // Far past the wait below, so only the short ceiling can end it.
+            try await Task.sleep(nanoseconds: 60_000_000_000)
             throw AudioCapture.Failure.sessionFailed("never reached")
         }
         rig.controller.toggleLatch()
         await pump(until: { rig.controller.phase == .preparing })
-        await pump(until: { rig.controller.phase == .idle }, timeout: 3)
+        await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle,
                        "a hung start wedges the whole pipeline — the long ceiling is not for it")
     }

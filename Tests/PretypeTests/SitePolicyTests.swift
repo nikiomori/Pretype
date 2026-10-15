@@ -61,4 +61,57 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertEqual(Settings.perAppInstructions(for: "com.google.Chrome", site: "github.com"), "browser voice")
         XCTAssertEqual(Settings.perAppInstructions(for: "com.google.Chrome", site: nil), "browser voice")
     }
+
+    func testAppPolicyBlacklist() {
+        // Save current blacklist
+        let originalBlacklist = Settings.userBlacklist
+        defer { Settings.userBlacklist = originalBlacklist }
+
+        // Test terminal is blacklisted by default
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.apple.Terminal"))
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.googlecode.iterm2"))
+
+        // Test normal app is NOT blacklisted by default
+        XCTAssertFalse(AppPolicy.isBlacklisted("com.apple.mail"))
+
+        // Add to blacklist
+        Settings.userBlacklist = ["mail", "slack"]
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.apple.mail"))
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.tinyspeck.slackmacgap"))
+        
+        // Allows screen context should be false for blacklisted apps
+        XCTAssertFalse(AppPolicy.allowsScreenContext(TypingContext(bundleID: "com.apple.mail")))
+    }
+
+    // The user blacklist holds lowercased *substring markers*, not exact bundle
+    // IDs, so "enable here again" has to remove whichever entry matched — an
+    // exact-ID remove would leave the menu item visibly stuck on "Enable in …".
+    func testToggleUserBlacklist() {
+        let original = Settings.userBlacklist   // shared with the developer's real app
+        defer { Settings.userBlacklist = original }
+
+        // Off → on stores the exact ID, lowercased.
+        Settings.userBlacklist = []
+        AppPolicy.toggleUserBlacklist("com.apple.Mail")
+        XCTAssertEqual(Settings.userBlacklist, ["com.apple.mail"])
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.apple.Mail"))
+
+        // On → off removes it again.
+        AppPolicy.toggleUserBlacklist("com.apple.Mail")
+        XCTAssertEqual(Settings.userBlacklist, [])
+        XCTAssertFalse(AppPolicy.isBlacklisted("com.apple.Mail"))
+
+        // A hand-typed fragment must be removed by the toggle, not shadowed by
+        // an exact ID appended beside it (which would leave the app silenced).
+        Settings.userBlacklist = ["mail", "slack"]
+        XCTAssertEqual(AppPolicy.userBlacklistEntries(for: "com.apple.Mail"), ["mail"])
+        AppPolicy.toggleUserBlacklist("com.apple.Mail")
+        XCTAssertEqual(Settings.userBlacklist, ["slack"])
+        XCTAssertFalse(AppPolicy.isBlacklisted("com.apple.Mail"))
+
+        // Built-in blocks are not user entries: nothing to toggle, still blocked.
+        Settings.userBlacklist = []
+        XCTAssertTrue(AppPolicy.userBlacklistEntries(for: "com.apple.Terminal").isEmpty)
+        XCTAssertTrue(AppPolicy.isBlacklisted("com.apple.Terminal"))
+    }
 }

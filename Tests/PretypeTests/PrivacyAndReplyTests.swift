@@ -30,4 +30,35 @@ final class PrivacyAndReplyTests: XCTestCase {
         XCTAssertTrue(CompletionRequest.isEcho("好的小王你明天下午来开会吗我会去", of: chat))
         XCTAssertFalse(CompletionRequest.isEcho("好的，我明天下午一定到", of: chat))
     }
+
+    // The reply chord must never be mistaken for the fix chord (which would
+    // rewrite the user's word instead of composing a message), and a reply that
+    // parrots the draft back must not double it in the field.
+    func testReplyChordAndDraftEcho() {
+        for style in HotkeyStyle.allCases {
+            let key = style.keyCode
+            let fix: CGEventFlags = {
+                switch style {
+                case .tab: return [.maskAlternate]
+                case .cmdSpace, .optSpace: return [.maskCommand, .maskAlternate]
+                case .ctrlSpace: return [.maskControl, .maskAlternate]
+                }
+            }()
+            XCTAssertTrue(style.matchesReply(keyCode: key, flags: fix.union(.maskShift)))
+            XCTAssertFalse(style.matchesReply(keyCode: key, flags: fix))
+            XCTAssertFalse(style.matchesCorrection(keyCode: key, flags: fix.union(.maskShift)))
+            XCTAssertFalse(style.matchesAcceptAll(keyCode: key, flags: fix.union(.maskShift)))
+        }
+
+        // Draft echoed back: only the continuation is offered, re-joined with a
+        // space (apply() drops it when the draft already ends in one).
+        let drafted = CompletionRequest(textBeforeCaret: "Привет, ")
+        XCTAssertEqual(drafted.cleanReply("Привет, как дела?"), " как дела?")
+        // No draft, quoted answer: unwrapped, first line only.
+        let empty = CompletionRequest(textBeforeCaret: "")
+        XCTAssertEqual(empty.cleanReply("\"Sure, tomorrow works.\"\nExplanation: …"),
+                       "Sure, tomorrow works.")
+        // An answer that IS just the draft leaves nothing to show.
+        XCTAssertNil(drafted.cleanReply("привет,"))
+    }
 }
