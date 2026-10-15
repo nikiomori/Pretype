@@ -470,6 +470,28 @@ final class PretypeTests: XCTestCase {
     // Terminal.app's AX text around the caret, as read from a live Claude
     // Code session (v2.1): the input box is the only place a terminal gets
     // completions, and its soft wraps must rejoin into the typed prompt.
+    /// The xterm reader fetches only the rows over the caret `AgentPrompt`
+    /// reads: the verdict must match the whole 20-row window it used to read.
+    func testAgentBoxRowsMatchTheFullWindow() {
+        let rule = String(repeating: "─", count: 40)
+        let screens: [[String]] = [
+            ["$ make", "ok", rule, "❯ fix the", rule],
+            ["⏺ Done.", rule, "❯ first line that", "  wraps here", rule],
+            ["~ % ls", "README.md", "❯ git sta", rule],
+            [rule, "❯\u{a0}[⧉ In README.md] explain", rule],
+            ["output"] + Array(repeating: "  more", count: 18) + ["  tail", rule],
+            [rule, "❯ a"] + Array(repeating: "  b", count: 16) + ["  c", rule],
+        ]
+        for screen in screens {
+            let cursorRow = screen.count - 2
+            let typed = screen[cursorRow]
+            let full = screen[max(0, cursorRow - 20)..<cursorRow] + [typed]
+            let lazy = AXText.agentBoxRows(above: cursorRow, typed: typed) { screen[$0] } + [typed]
+            XCTAssertEqual(AgentPrompt.input(before: lazy.joined(separator: "\n"), after: "\n" + rule),
+                           AgentPrompt.input(before: full.joined(separator: "\n"), after: "\n" + rule), "\(screen)")
+        }
+    }
+
     func testAgentPromptInTerminal() {
         let rule = String(repeating: "─", count: 80)
         let screen = "nikimori@mac ~ % claude\n▗ ▗   ▖ ▖  Claude Code v2.1.296\n\(rule)\n"

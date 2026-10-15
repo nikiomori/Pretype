@@ -11,9 +11,9 @@ import AppKit
 /// here, so it stays out too.
 enum AgentPrompt {
     /// Prompt glyphs; Claude Code follows its `❯` with a no-break space.
-    private static let markers: Set<Character> = ["❯", ">", "›"]
+    static let markers: Set<Character> = ["❯", ">", "›"]
     /// Longest prompt followed back up the screen, in wrapped lines.
-    private static let maxLines = 16
+    static let maxLines = 16
 
     /// What's typed in the box, soft wraps rejoined — nil unless the caret
     /// sits at the end of an agent's input box.
@@ -60,7 +60,7 @@ enum AgentPrompt {
     }
 
     /// A horizontal rule's width in columns — nil for any other line.
-    private static func ruleWidth(_ line: Substring) -> Int? {
+    static func ruleWidth(_ line: Substring) -> Int? {
         let body = line.trimmingCharacters(in: .whitespaces)
         guard body.count >= 10, body.allSatisfy({ $0 == "─" }) else { return nil }
         return line.count

@@ -4,7 +4,8 @@ import ApplicationServices
 @MainActor
 protocol FocusTrackerDelegate: AnyObject {
     func focusTrackerDidChangeFocus(_ tracker: FocusTracker)
-    func focusTrackerTextDidChange(_ tracker: FocusTracker)
+    /// `valueChanged`: the text itself changed, not just the selection.
+    func focusTrackerTextDidChange(_ tracker: FocusTracker, valueChanged: Bool)
     /// The app being typed in just stopped being frontmost. Fires even when the
     /// next app reports no AX focus change (same-process window switch, Spaces,
     /// Electron without notifications) — so a left-behind overlay can be dropped.
@@ -166,8 +167,9 @@ final class FocusTracker {
             refreshFocusedElement()
         case kAXValueChangedNotification, kAXSelectedTextChangedNotification:
             if let focused = focusedTextElement, CFEqual(element, focused) {
+                let valueChanged = name == kAXValueChangedNotification
                 Task { @MainActor in
-                    delegate?.focusTrackerTextDidChange(self)
+                    delegate?.focusTrackerTextDidChange(self, valueChanged: valueChanged)
                 }
             }
         case kAXWindowMovedNotification, kAXWindowResizedNotification:
@@ -190,9 +192,11 @@ final class FocusTracker {
         focusedTextElement = nil
         elementNotificationsAdded = false
 
+        var fieldLabel: String?
         if let element = AXText.element(appEl, kAXFocusedUIElementAttribute) {
             AXUIElementSetMessagingTimeout(element, Self.axMessagingTimeout)
-            if AXText.isEditableTextElement(element) {
+            if let label = AXText.editableTextLabel(element) {
+                fieldLabel = label
                 focusedTextElement = element
                 AXObserverAddNotification(obs, element, kAXValueChangedNotification as CFString, refcon)
                 AXObserverAddNotification(obs, element, kAXSelectedTextChangedNotification as CFString, refcon)
@@ -205,7 +209,7 @@ final class FocusTracker {
             appName: observedApp?.localizedName,
             bundleID: observedApp?.bundleIdentifier,
             windowTitle: window.flatMap { AXText.attribute($0, kAXTitleAttribute) },
-            fieldLabel: focusedTextElement.flatMap { AXText.fieldLabel(for: $0) },
+            fieldLabel: fieldLabel,
             site: focusedTextElement.flatMap { AXText.pageHost(for: $0) }
         )
         Task { @MainActor in

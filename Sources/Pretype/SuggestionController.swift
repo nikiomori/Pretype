@@ -81,6 +81,14 @@ final class SuggestionController: NSObject {
     private var replyTap = ModifierDoubleTap()
 
     private var keyRefreshScheduled = false
+    private var keyRefreshIsFallback = false
+    /// AX notifications on the focused field since the last keystroke, and
+    /// whether a read ran after both (see `scheduleKeystrokeRefresh`).
+    private var axSeenSinceKey = (value: false, selection: false)
+    private var axReadSinceKey = false
+    private var axRefreshScheduled = false
+    /// Successful field reads, so a notification-driven pass can tell one ran.
+    private var contextReads = 0
     private var lastAcceptedChunk: String?
     /// Whether that chunk was SPOKEN rather than suggested. The undo path books
     /// its chunk into the debug log, the Diagnostics line and the journal —
@@ -382,7 +390,7 @@ final class SuggestionController: NSObject {
     func currentTextElement() -> AXUIElement? {
         guard !keyboardFocusIsElsewhere else { return nil }
         if let element = focusTracker.focusedTextElement { return element }
-        guard let element = AXText.systemFocusedTextElement() else { return nil }
+        guard let element = AXText.systemFocusedTextElement(knownEditable: fallbackSiteElement) else { return nil }
         // The tracker missed this field, so its site was never read and a
         // site switched off would fall through to the app check. Once per field.
         if fallbackSiteElement.map({ !CFEqual($0, element) }) ?? true {
@@ -626,6 +634,7 @@ final class SuggestionController: NSObject {
             injectionSettleDeadline = nil
         }
         latestTextBeforeCaret = text
+        contextReads &+= 1
         lastCaretRect = ctx.caretRect
         lastHostStyle = ctx.host
         refreshScreenContextIfNeeded(typed: text)
@@ -1341,7 +1350,9 @@ final class SuggestionController: NSObject {
 
         // AX change notifications are unreliable in some apps (notably
         // Electron), so every keystroke also schedules a context re-read.
-        scheduleKeystrokeRefresh()
+        axSeenSinceKey = (false, false)
+        axReadSinceKey = false
+        scheduleKeystrokeRefresh(keystrokeFallback: true)
         lastAcceptedChunk = nil
         return false
     }
@@ -1453,12 +1464,22 @@ final class SuggestionController: NSObject {
         return String(utf16CodeUnits: chars, count: min(length, 8))
     }
 
-    func scheduleKeystrokeRefresh(after delay: TimeInterval = 0.06) {
-        guard !keyRefreshScheduled else { return }
+    /// `keystrokeFallback`: only the keystroke's own re-read, for apps whose
+    /// AX notifications don't come. It stands down when they did — both of
+    /// the edit's notifications landed and a read ran after them, so it would
+    /// repeat that read (each one a round of IPC the typed-in app's main
+    /// thread answers). A retry riding on the same timer keeps it.
+    func scheduleKeystrokeRefresh(after delay: TimeInterval = 0.06, keystrokeFallback: Bool = false) {
+        guard !keyRefreshScheduled else {
+            if !keystrokeFallback { keyRefreshIsFallback = false }
+            return
+        }
         keyRefreshScheduled = true
+        keyRefreshIsFallback = keystrokeFallback
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
             self.keyRefreshScheduled = false
+            if self.keyRefreshIsFallback, self.axReadSinceKey { return }
             self.textDidChange()
         }
     }
@@ -1886,8 +1907,23 @@ extension SuggestionController: FocusTrackerDelegate {
         }
     }
 
-    func focusTrackerTextDidChange(_ tracker: FocusTracker) {
-        textDidChange()
+    /// One edit posts two notifications ~0.1 ms apart (selection, then
+    /// value) and the main queue drains between them: one short wait answers
+    /// both with a single read instead of two identical ones.
+    func focusTrackerTextDidChange(_ tracker: FocusTracker, valueChanged: Bool) {
+        if valueChanged { axSeenSinceKey.value = true } else { axSeenSinceKey.selection = true }
+        guard !axRefreshScheduled else { return }
+        axRefreshScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.004) { [weak self] in
+            guard let self else { return }
+            axRefreshScheduled = false
+            let bothSeen = axSeenSinceKey.value && axSeenSinceKey.selection
+            let reads = contextReads
+            textDidChange()
+            // Only a read that got the field stands in for the fallback: a
+            // timed-out one (Electron) still wants its second chance.
+            if bothSeen, contextReads != reads { axReadSinceKey = true }
+        }
     }
 
     func focusTrackerDidResignActiveApp(_ tracker: FocusTracker) {

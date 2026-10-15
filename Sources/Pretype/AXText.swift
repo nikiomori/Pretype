@@ -56,10 +56,14 @@ enum AXText {
 
     /// Fallback for apps whose focus notifications never fire (some Electron
     /// builds): ask the system-wide element who has focus right now.
-    static func systemFocusedTextElement() -> AXUIElement? {
+    /// `knownEditable`: an element already found editable — focus still on
+    /// it skips the re-check (role, range, subrole, label: up to seven round
+    /// trips), which the fallback path otherwise paid on every keystroke.
+    static func systemFocusedTextElement(knownEditable known: AXUIElement? = nil) -> AXUIElement? {
         let systemWide = AXUIElementCreateSystemWide()
         AXUIElementSetMessagingTimeout(systemWide, FocusTracker.axMessagingTimeout)
         guard let element = Self.element(systemWide, kAXFocusedUIElementAttribute) else { return nil }
+        if let known, CFEqual(known, element) { return known }
         AXUIElementSetMessagingTimeout(element, FocusTracker.axMessagingTimeout)
         return isEditableTextElement(element) ? element : nil
     }
@@ -166,8 +170,8 @@ enum AXText {
     private static let passwordLabelMarkers =
         ["password", "passcode", "passphrase", "пароль", "passwort", "contraseña", "mot de passe"]
 
-    private static func looksLikePasswordField(_ element: AXUIElement) -> Bool {
-        guard let label = fieldLabel(for: element)?.lowercased() else { return false }
+    private static func looksLikePasswordField(label: String?) -> Bool {
+        guard let label = label?.lowercased() else { return false }
         return passwordLabelMarkers.contains { label.contains($0) }
     }
 
@@ -178,17 +182,25 @@ enum AXText {
     }
 
     static func isEditableTextElement(_ element: AXUIElement) -> Bool {
+        editableTextLabel(element) != nil
+    }
+
+    /// An editable text element's label (see `fieldLabel`) — `.some(nil)` for
+    /// one without — or nil when it isn't one. The check reads the label
+    /// anyway, so a caller wanting both asks once.
+    static func editableTextLabel(_ element: AXUIElement) -> String?? {
         guard let role: String = attribute(element, kAXRoleAttribute),
-              editableRoles.contains(role) else { return false }
-        guard selectedRange(of: element) != nil else { return false }
+              editableRoles.contains(role) else { return nil }
+        guard selectedRange(of: element) != nil else { return nil }
         // macOS refuses to expose secure-field contents anyway; don't even attach.
         if let subrole: String = attribute(element, kAXSubroleAttribute), subrole == "AXSecureTextField" {
-            return false
+            return nil
         }
         // Web/Electron password inputs don't carry the secure subrole; their
         // label/placeholder is the only tell.
-        if looksLikePasswordField(element) { return false }
-        return true
+        let label = fieldLabel(for: element)
+        if looksLikePasswordField(label: label) { return nil }
+        return .some(label)
     }
 
     /// Non-empty selection in the element, if any.
@@ -267,17 +279,64 @@ enum AXText {
         // An xterm.js panel sits in an editor, not a terminal app: outside an
         // agent box it reads as before (an empty field — dictation still
         // types there; completions find nothing).
-        if (attribute(element, "AXDOMClassList") as [String]?)?.contains("xterm-helper-textarea") == true {
+        switch kind(of: element) {
+        case .xterm:
             return xtermContext(element).flatMap(AgentPrompt.context)
                 ?? fieldContext(for: element, maxChars: maxChars, allowEmpty: allowEmpty)
-        }
-        var pid: pid_t = 0
-        if AXUIElementGetPid(element, &pid) == .success,
-           AppPolicy.isTerminal(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier) {
+        case .terminal:
+            // An agent's box has its closing rule on the line under the caret.
+            // Checked first, from the short after-caret read: at a shell
+            // prompt — most terminal typing — the full read below fetched
+            // 4,000 characters a keystroke only for `AgentPrompt` to refuse.
+            guard ruleUnderCaret(element) else { return nil }
             return fieldContext(for: element, maxChars: max(maxChars, 4000), allowEmpty: allowEmpty)
                 .flatMap(AgentPrompt.context)
+        case .plain:
+            return fieldContext(for: element, maxChars: maxChars, allowEmpty: allowEmpty)
         }
-        return fieldContext(for: element, maxChars: maxChars, allowEmpty: allowEmpty)
+    }
+
+    private enum FieldKind { case xterm, terminal, plain }
+
+    /// The line after the caret's is a horizontal rule — what `AgentPrompt`
+    /// demands first — read the way `fieldContext` reads the after-text (192
+    /// characters from a collapsed caret), so both agree. Unreadable counts as
+    /// yes: the full read then decides, as before.
+    private static func ruleUnderCaret(_ element: AXUIElement) -> Bool {
+        guard let selection = selectedRange(of: element) else { return true }
+        guard selection.length == 0 else { return false }   // `fieldContext` refuses a selection too
+        guard let total: Int = attribute(element, kAXNumberOfCharactersAttribute) else { return true }
+        let length = min(192, total - selection.location)
+        guard length > 0 else { return false }
+        guard let after = string(forRange: CFRange(location: selection.location, length: length), in: element)
+        else { return true }
+        let lines = after.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
+        return lines.count > 1 && AgentPrompt.ruleWidth(lines[1]) != nil
+    }
+
+    /// The focused field's kind, remembered: it can't change while the element
+    /// lives, and asking took an AX round trip plus a LaunchServices lookup on
+    /// every read — several reads a keystroke (~15% of one on a native field,
+    /// far more where each round trip costs milliseconds).
+    private static let lastKind = LockedValue<(element: AXUIElement, kind: FieldKind)?>(nil)
+
+    private static func kind(of element: AXUIElement) -> FieldKind {
+        if let hit = lastKind.get(), CFEqual(hit.element, element) { return hit.kind }
+        var ref: CFTypeRef?
+        let read = AXUIElementCopyAttributeValue(element, "AXDOMClassList" as CFString, &ref)
+        let kind: FieldKind
+        if (ref as? [String])?.contains("xterm-helper-textarea") == true {
+            kind = .xterm
+        } else {
+            var pid: pid_t = 0
+            let terminal = AXUIElementGetPid(element, &pid) == .success
+                && AppPolicy.isTerminal(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier)
+            kind = terminal ? .terminal : .plain
+        }
+        // Only a definite answer is kept: a timeout or a just-woken Chromium
+        // tree's failure would pin the wrong kind for the element's life.
+        if read == .success || read == .attributeUnsupported { lastKind.set((element, kind)) }
+        return kind
     }
 
     private static func fieldContext(for element: AXUIElement, maxChars: Int,
@@ -463,33 +522,71 @@ enum AXText {
     /// Rebuilds the text around the cursor from the rows near it — enough for
     /// `AgentPrompt` to find an input box — at two AX reads a row.
     private static func xtermContext(_ helper: AXUIElement) -> TextContext? {
-        guard let screen = element(helper, kAXParentAttribute).flatMap({ element($0, kAXParentAttribute) }),
-              let root = element(screen, kAXParentAttribute),
-              let cursor = elementFrame(helper), let screenFrame = elementFrame(screen), cursor.height >= 4,
-              let a11y = (attribute(root, kAXChildrenAttribute) as [AXUIElement]?)?
-                .first(where: { domClasses($0).contains("xterm-accessibility") }),
-              let tree = (attribute(a11y, kAXChildrenAttribute) as [AXUIElement]?)?.first,
-              let rows: [AXUIElement] = attribute(tree, kAXChildrenAttribute) else { return nil }
+        guard let cursor = elementFrame(helper), cursor.height >= 4 else { return nil }
+        var nodes = xtermNodes.get().flatMap { CFEqual($0.helper, helper) ? $0 : nil }
+        var rows = nodes.flatMap { attribute($0.tree, kAXChildrenAttribute) as [AXUIElement]? }
+        if rows == nil {
+            nodes = findXtermNodes(helper)
+            rows = nodes.flatMap { attribute($0.tree, kAXChildrenAttribute) as [AXUIElement]? }
+            xtermNodes.set(rows == nil ? nil : nodes)
+        }
+        guard let nodes, let rows, let screenFrame = elementFrame(nodes.screen) else { return nil }
         let cursorRow = Int(((cursor.minY - screenFrame.minY) / cursor.height).rounded())
-        guard rows.indices.contains(cursorRow) else { return nil }
-        let window = max(0, cursorRow - 20) ... min(rows.count - 1, cursorRow + 2)
-        let text = window.map { i in
+        // Read lazily, in the order `AgentPrompt.input` needs the rows: the
+        // closing rule under the caret first (anything else and there is no
+        // box — the common case, a shell, ends here), then upward only to the
+        // prompt-glyph line and the rule over it. All 23 rows around the
+        // caret, every keystroke, was ~7 ms of main thread in VS Code.
+        func rowText(_ i: Int) -> String {
             (attribute(rows[i], kAXChildrenAttribute) as [AXUIElement]?)?.first
                 .flatMap { attribute($0, kAXValueAttribute) as String? } ?? ""
         }
-        // Rows are right-trimmed, so the full-width ones (an agent box's
-        // rules) give the column count; no full row, no box to find anyway.
-        guard let columns = text.map(\.count).max(), columns > 0 else { return nil }
+        guard rows.indices.contains(cursorRow), rows.indices.contains(cursorRow + 1) else { return nil }
+        let below = rowText(cursorRow + 1)
+        // Rows are right-trimmed, so the full-width rule gives the column count.
+        guard let rule = AgentPrompt.ruleWidth(Substring(below)) else { return nil }
+        let line = Array(rowText(cursorRow))
+        let columns = max(rule, line.count)
         let column = max(0, Int(((cursor.minX - screenFrame.minX) / (screenFrame.width / CGFloat(columns))).rounded()))
         // ponytail: one cell per character — a wide (CJK, emoji) cell before
         // the cursor shifts the split; fine for the box's end-of-input caret.
-        let row = cursorRow - window.lowerBound, line = Array(text[row])
         let typed = String(line.prefix(column)) + String(repeating: " ", count: max(0, column - line.count))
+        let above = agentBoxRows(above: cursorRow, typed: typed, read: rowText)
         guard let caret = onScreen(flipped(CGRect(x: cursor.minX, y: cursor.minY, width: 1, height: cursor.height)))
         else { return nil }
-        return TextContext(textBeforeCaret: (text[..<row] + [typed]).joined(separator: "\n"),
-                           textAfterCaret: ([String(line.dropFirst(column))] + text[(row + 1)...]).joined(separator: "\n"),
+        return TextContext(textBeforeCaret: (above + [typed]).joined(separator: "\n"),
+                           textAfterCaret: String(line.dropFirst(column)) + "\n" + below,
                            caretRect: caret, host: HostTextStyle(fieldRect: cocoaFieldRect(screenFrame)))
+    }
+
+    /// The rows over the caret line `AgentPrompt.input` reads, oldest first —
+    /// up to the prompt-glyph line and the rule over it, or the first line
+    /// that rules a box out — fetched through `read` only as far as that.
+    nonisolated static func agentBoxRows(above cursorRow: Int, typed: String, read: (Int) -> String) -> [String] {
+        var rows: [String] = []
+        var current = typed
+        for i in stride(from: cursorRow - 1, through: max(0, cursorRow - AgentPrompt.maxLines), by: -1) {
+            let isPrompt = current.first.map(AgentPrompt.markers.contains) == true
+            guard isPrompt || current.hasPrefix("  ") else { break }
+            current = read(i)
+            rows.insert(current, at: 0)
+            if isPrompt { break }
+        }
+        return rows
+    }
+
+    /// The screen element and row container of an xterm.js terminal around
+    /// its helper textarea — a walk up and across the tree (a class read per
+    /// sibling), kept for the helper while its rows still answer.
+    private static let xtermNodes = LockedValue<(helper: AXUIElement, screen: AXUIElement, tree: AXUIElement)?>(nil)
+
+    private static func findXtermNodes(_ helper: AXUIElement) -> (helper: AXUIElement, screen: AXUIElement, tree: AXUIElement)? {
+        guard let screen = element(helper, kAXParentAttribute).flatMap({ element($0, kAXParentAttribute) }),
+              let root = element(screen, kAXParentAttribute),
+              let a11y = (attribute(root, kAXChildrenAttribute) as [AXUIElement]?)?
+                .first(where: { domClasses($0).contains("xterm-accessibility") }),
+              let tree = (attribute(a11y, kAXChildrenAttribute) as [AXUIElement]?)?.first else { return nil }
+        return (helper, screen, tree)
     }
 
     private static func domClasses(_ element: AXUIElement) -> [String] {
