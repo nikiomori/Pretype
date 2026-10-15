@@ -33,7 +33,10 @@ def extract():
     # Recompile the app module from scratch every run (its own scratch path,
     # so the dev build is untouched): incremental builds only re-extract the
     # files they recompile, which would hide the rest of the keys.
-    for d in glob.glob(os.path.join(SCRATCH, "**", "Pretype.build"), recursive=True):
+    # realpath: `**` follows the debug -> <triple>/debug symlink, so one tree
+    # can match twice, and the second rmtree would find it gone.
+    for d in {os.path.realpath(p) for p in
+              glob.glob(os.path.join(SCRATCH, "**", "Pretype.build"), recursive=True)}:
         shutil.rmtree(d)
     build = subprocess.run(["swift", "build", "--scratch-path", SCRATCH,
                             "-Xswiftc", "-emit-localized-strings",
