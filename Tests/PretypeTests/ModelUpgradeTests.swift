@@ -42,6 +42,62 @@ final class ModelUpgradeTests: XCTestCase {
         XCTAssertNotNil(ModelCatalog.pinnedRevisions[id])
     }
 
+    // The memory ladder moving on (a re-tier, or a Mac with more memory) must
+    // not swap the model before the new default is here.
+    func testMovedDefaultKeepsTheOldOneServingUntilFetched() {
+        withLadderKeys {
+            let ladder = ModelCatalog.defaultID
+            let old = ModelCatalog.options.map(\.id).first { $0 != ladder }!
+            let defaults = UserDefaults.standard
+            // First launch with the ladder: seeded with today's default.
+            Settings.migrate(isFetched: { _ in true })
+            XCTAssertEqual(Settings.autoModelID, ladder)
+            XCTAssertNil(Settings.pendingDefault)
+
+            // An install the ladder put on `old`: kept, in old's own style.
+            Settings.autoModelID = old
+            Settings.migrate(isFetched: { _ in true })
+            XCTAssertEqual(defaults.string(forKey: "mlxModelID"), old)
+            XCTAssertEqual(Settings.completionStyle, ModelCatalog.recommended(for: old).style)
+            XCTAssertEqual(Settings.pendingDefault, ladder)
+            // The switch (`AppDelegate`) moves the ladder pick along.
+            Settings.autoModelID = ladder
+            XCTAssertNil(Settings.pendingDefault)
+
+            // Nothing of old's on disk: take the new default now.
+            for key in ["mlxModelID", "completionStyle"] { defaults.removeObject(forKey: key) }
+            Settings.autoModelID = old
+            Settings.migrate(isFetched: { _ in false })
+            XCTAssertNil(defaults.string(forKey: "mlxModelID"))
+            XCTAssertEqual(Settings.autoModelID, ladder)
+
+            // A pick of the user's own stops following.
+            Settings.autoModelID = old
+            Settings.mlxModelID = ModelCatalog.options.map(\.id).first { $0 != ladder && $0 != old }!
+            XCTAssertNil(Settings.pendingDefault)
+            Settings.migrate(isFetched: { _ in true })
+            XCTAssertEqual(Settings.autoModelID, ladder)
+            XCTAssertNil(Settings.pendingDefault)
+
+            // A ladder pick whose build changed follows the build first.
+            defaults.removeObject(forKey: "mlxModelID")
+            Settings.autoModelID = "openbmb/MiniCPM5-1B-Base"
+            Settings.migrate(isFetched: { _ in true })
+            XCTAssertEqual(Settings.autoModelID, "nikimori/MiniCPM5-1B-Base-8bit")
+            XCTAssertEqual(defaults.string(forKey: "mlxModelID"), "nikimori/MiniCPM5-1B-Base-8bit")
+        }
+    }
+
+    /// Runs `body` with the ladder's keys cleared, restoring them after.
+    private func withLadderKeys(_ body: () -> Void) {
+        let defaults = UserDefaults.standard
+        let keys = ["mlxModelID", "autoModelID", "completionStyle"]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer { for (key, value) in zip(keys, saved) { defaults.set(value, forKey: key) } }
+        keys.forEach(defaults.removeObject(forKey:))
+        body()
+    }
+
     // A replacement that fails to load counts as absent for the rest of the
     // launch, so the engine's retry resolves the original still on disk.
     func testFailedReplacementFallsBackToTheOriginal() {

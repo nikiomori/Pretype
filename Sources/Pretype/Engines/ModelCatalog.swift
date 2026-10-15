@@ -163,10 +163,11 @@ enum ModelCatalog {
     /// each tier's resident size as booked on 2026-07-25 (6.8 / 5.0 / 3.5 GB);
     /// the slim re-packs and the E2B tiers' move to base style (2026-10-14)
     /// only made every tier lighter (5.6 / 3.4 / 2.5), so the quarter rule
-    /// still holds. The registered default is live — moving
-    /// a threshold moves every auto-default install of that size onto another
-    /// model, a multi-GB download nobody asked for. Re-tier on purpose (24 GB
-    /// now fits E4B 6-bit) and with a migration that keeps installed defaults.
+    /// still holds. Moving a threshold moves every install that follows the
+    /// ladder (`Settings.autoModelID`) onto another model — fetched quietly
+    /// while the old one keeps serving, so a re-tier costs a background
+    /// download, not a dead engine. Re-tier on purpose (24 GB now fits E4B
+    /// 6-bit) and on the evals.
     static func defaultID(forRamGB ram: Double) -> String {
         switch ram {
         case 27.2...: return "mlx-community/gemma-4-e4b-6bit"

@@ -29,7 +29,7 @@ final class EngineCoordinator {
 
     /// The persisted configuration as a pure value — what every setter
     /// cascades from.
-    private var current: ProjectionConfig {
+    var current: ProjectionConfig {
         ProjectionConfig(modelID: Settings.mlxModelID,
                          style: Settings.completionStyle,
                          length: Settings.completionLength,

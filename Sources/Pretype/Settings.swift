@@ -454,22 +454,43 @@ enum Settings {
     }
 
     /// One-shot rewrites of stored values. Runs first thing in main.
-    static func migrate() {
+    static func migrate(isFetched: (String) -> Bool = ModelStorage.isFetched) {
         // `object(forKey:)`, not `completionStyle`: the property answers an
         // unset key with its default.
-        if defaults.object(forKey: "completionStyle") == nil, keepsLegacyInstruct(model: mlxModelID) {
+        if defaults.object(forKey: "completionStyle") == nil, keepsLegacyInstruct(model: mlxModelID, isFetched: isFetched) {
             completionStyle = .instruct
         }
         // A pick whose build changed (Qwen3.5 → Base 6-bit, MiniCPM5 → 8-bit)
         // follows it; the old build keeps serving until the new one is here
         // (`ModelCatalog.repo(for:)`).
-        if let stored = defaults.string(forKey: "mlxModelID"),
-           let new = ModelCatalog.previousBuilds.first(where: { $0.value.contains(stored) })?.key {
+        let newer = { (id: String) in ModelCatalog.previousBuilds.first { $0.value.contains(id) }?.key }
+        if let stored = defaults.string(forKey: "mlxModelID"), let new = newer(stored) {
             defaults.set(new, forKey: "mlxModelID")
         }
+        if let new = newer(autoModelID) { autoModelID = new }
         // The catalog changes over time; clear stale model picks every launch.
         if let stored = defaults.string(forKey: "mlxModelID"), ModelCatalog.option(for: stored) == nil {
             defaults.removeObject(forKey: "mlxModelID")
+        }
+        // The memory ladder: seeded with today's default, and dropped by a
+        // pick of the user's own. When an update moves the default, a pick
+        // still on the old one is stored, so the registered default can't
+        // swap it before the new one is here (`pendingDefault`).
+        let ladder = ModelCatalog.defaultID
+        if let stored = defaults.string(forKey: "mlxModelID"), stored != autoModelID { autoModelID = ladder }
+        if ModelCatalog.option(for: autoModelID) == nil { autoModelID = ladder }
+        if autoModelID != ladder, (defaults.string(forKey: "mlxModelID") ?? autoModelID) == autoModelID {
+            let style = defaults.object(forKey: "completionStyle") == nil
+                ? ModelCatalog.recommended(for: autoModelID).style : completionStyle
+            if isFetched(ModelStorage.weights(for: autoModelID, style: style)) {
+                completionStyle = style
+                mlxModelID = autoModelID
+            } else {
+                // Nothing here to keep serving: the new default downloads
+                // like any first pick.
+                defaults.removeObject(forKey: "mlxModelID")
+                autoModelID = ladder
+            }
         }
     }
 
@@ -533,6 +554,21 @@ enum Settings {
     }
 
     @Pref("mlxModelID", ModelCatalog.defaultID) static var mlxModelID: String
+
+    /// The model the memory ladder (`ModelCatalog.defaultID`) last gave this
+    /// install. A pick equal to it follows the ladder: when an update moves
+    /// the default (a re-tier, or a move to a Mac with more memory), it keeps
+    /// serving until the new default's weights are here — never a forced
+    /// download. "" until the first launch that has it.
+    @Pref("autoModelID", "") static var autoModelID: String
+
+    /// The new default a pick following the ladder waits for; nil when none.
+    /// The maintenance pass (`AppDelegate`) fetches its weights quietly, then
+    /// switches.
+    static var pendingDefault: String? {
+        let next = ModelCatalog.defaultID
+        return autoModelID != next && mlxModelID == autoModelID ? next : nil
+    }
 
     /// Wait after a keystroke before querying. Replayed typing (lognormal
     /// gaps, median 190 ms): 120 → 60 ms cut pause→ghost p50 by 55–76 ms

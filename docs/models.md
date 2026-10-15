@@ -103,6 +103,16 @@ Two models stay as manual selections:
 * MiniCPM5 1B, for the lowest latency (34 ms).
 * Gemma 4 E4B 8-bit, for the best quality. It ties 6-bit (p=0.052) and uses ≈1 GB more.
 
+### When the default changes
+
+An update can change the default for your Mac. A move to a Mac with more memory can also change it. If Pretype selected your model, it moves you to the new default:
+
+1. Your current model continues to serve.
+2. Pretype downloads the new default in the background, on an unmetered network only. The menu bar status shows the progress.
+3. When the download is complete, Pretype changes to the new default and its recommended settings.
+
+The old model stays on disk. To delete it, go to **Settings → Model**. If you selected a different model yourself, Pretype keeps it.
+
 Your keyboard languages continue to set the persona and the per-language menu suggestion. To change the model, use **Settings → Model**. Each entry has its own recommended settings from the eval. The catalog ranks the models again for each of the 19 evaluated languages.
 
 <div align="center">

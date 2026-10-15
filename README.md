@@ -50,7 +50,7 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 
 | Connection | What Pretype gets | When |
 |---|---|---|
-| Hugging Face | Model weights | At the first launch. On some models, also an instruct sibling at the first fix chord. One time, in the background, the current build of a model that an older install downloaded. |
+| Hugging Face | Model weights | At the first launch. On some models, also an instruct sibling at the first fix chord. One time, in the background, after an update changes your model: a new build, or a new default for your Mac. |
 | Apple servers | The on-device speech model | When you enable dictation |
 | Hugging Face | The Parakeet speech model | Only if you select Parakeet |
 | GitHub Releases API | The latest version number. Pretype sends no data about you. | One time each day. You can disable it in **Settings → General**. |

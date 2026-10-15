@@ -112,8 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The model upkeep an update can owe this install, in background fetches
     /// that leave the current model serving: new builds of the pick
-    /// (`ModelStorage.upgradeToSlim`) and the weights its recommended style
-    /// runs on.
+    /// (`ModelStorage.upgradeToSlim`), the weights its recommended style runs
+    /// on, and a default the memory ladder moved (`Settings.pendingDefault`).
     /// None while an API model writes the text: the local one isn't in use.
     nonisolated private static func maintainModels(_ controller: SuggestionController) async {
         guard !Settings.apiText.enabled else { return }
@@ -126,6 +126,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       Settings.completionStyle != ModelCatalog.recommended(for: selected).style else { return }
                 controller.engineCoordinator.apply(.useRecommended(true))
             }
+        }
+        guard let next = Settings.pendingDefault else { return }
+        let style = await MainActor.run { controller.engineCoordinator.current.applying(.model(next)).style }
+        guard await ModelStorage.fetchWeights(for: next, style: style) else { return }
+        await MainActor.run {
+            guard Settings.pendingDefault == next else { return }
+            Settings.autoModelID = next
+            controller.engineCoordinator.apply(.model(next))
         }
     }
 }
