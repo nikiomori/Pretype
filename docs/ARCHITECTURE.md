@@ -123,10 +123,10 @@ per-language nudge in the menu. You select all other models manually in
 | Model | Download | Why you select it |
 |---|---|---|
 | Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality. It holds up across all 19 eval languages. It is never the default, because it ties 6-bit. |
-| **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB.* It ties E4B 8-bit (p=0.052) and the download is smaller. |
-| **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB.* About 1 pp behind E4B, at approximately two times the speed. |
+| **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB.* It ties E4B 8-bit (p=0.28) and the download is smaller. Its fix sibling is the best in the catalog. |
+| **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB.* Statistically level with E4B on completions, with less memory and ~40% less time per suggestion. |
 | **Gemma 4 E2B 4-bit** | ≈2.5 GB | *Default at 16–18 GB.* The smallest 4-bit cost in the field. |
-| MiniCPM5 1B | ≈1.1 GB | The fastest model in the catalog, at 34 ms. Strong on English, weaker in other languages. |
+| MiniCPM5 1B | ≈1.1 GB | One of the two fastest models in the catalog, at 18 ms. Strong on English, weaker in other languages. |
 | Ternary Bonsai 4B | ≈1.1 GB | A 4B model in about one gigabyte. |
 | **Qwen3.5 2B (Base)** | ≈1.5 GB | *Default on 8 GB.* The best model below 2 GB for many languages (p<0.001). |
 | Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
@@ -174,7 +174,7 @@ The eval harness and the datasets are not in the public repo. Refer to
 
 | Mechanism | What it does | Effect |
 |---|---|---|
-| KV-cache reuse | Each key press prefills only the new tokens. The engine reuses the cache of the prompt. Some caches cannot rewind: the recurrent layers of Qwen3.5, and a Gemma sliding window that is shorter than the prompt. For these, the engine reuses a checkpoint from a few tokens before the end of the prompt. | Warm suggestions in 49–145 ms (`ModelMetrics.p50Ms`). Apple Intelligence is the outlier at 430 ms. |
+| KV-cache reuse | Each key press prefills only the new tokens. The engine reuses the cache of the prompt. Some caches cannot rewind: the recurrent layers of Qwen3.5, and a Gemma sliding window that is shorter than the prompt. For these, the engine reuses a checkpoint from a few tokens before the end of the prompt. | Warm suggestions in 17–81 ms (`ModelMetrics.p50Ms`). Apple Intelligence is the outlier at 480 ms. |
 | Stable context window | Past the context window, the prompt starts at a sentence boundary. Its first tokens do not change while you type. | The cache stays valid. |
 | Early stop | Decoding stops at the cut of the confidence trim. A gated suggestion stops when its first word fails the gate. It streams after its first word passes. | No decode time for text that nobody sees. |
 | Background warm-up | The screen, clipboard and retrieved-example blocks are at the start of the prompt. A change to one of them makes the cache invalid. The engine prefills the new prompt when the change arrives, not at the next key press. | The next key press does not wait for a full prefill. |

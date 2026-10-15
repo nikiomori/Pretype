@@ -133,12 +133,12 @@ Pretype is free and has the MIT license. It is an alternative to [Cotypist](http
 | **Arithmetic** | Type a sum that ends with `=`, for example `12*7=` or `(1+2)*3 =`. The pill shows the result. |
 | **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing in place. It keeps your tone. |
 | **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes a draft of your next message from the conversation on the screen. |
-| **Speed** | Warm suggestions take 49–145 ms on the local models. Pretype calculates only the new tokens and uses the KV cache again. |
+| **Speed** | Warm suggestions take 17–81 ms on the local models. Pretype calculates only the new tokens and uses the KV cache again. |
 | **Your style** | You can set one persona and a style instruction for each app. Pretype learns from a local journal. You can clear the journal or disable it at any time. |
 | **API models** *(optional, off)* | Use a hosted model for text, for dictation, or for both. Presets for OpenAI, Anthropic, Google Gemini, Groq, Mistral, OpenRouter and DeepSeek. Local servers (Ollama, LM Studio) and any OpenAI-compatible server. Keys stay in your keychain. See [Hosted models](docs/models.md#hosted-models-api). |
 | **Shared app styles** | The community shares styles for each app. One click adds the styles for the apps on your Mac. To share your style, add [one text file](AppStyles/README.md) or use the share button in Settings. |
 
-Rewrites and reply drafts have measurements for each model. The best model fixes 69% of noisy lines exactly, and it writes a usable reply 97% of the time. [Choosing a model](docs/models.md#fixing-and-replying) has the table.
+Rewrites and reply drafts have measurements for each model. The best model fixes 69% of noisy lines exactly, and it writes a usable reply 96% of the time. [Choosing a model](docs/models.md#fixing-and-replying) has the table.
 
 > [!NOTE]
 > On some models, rewrites and reply drafts use a separate *instruct sibling*. Pretype downloads it one time, at the first use. The size is ≈1.6 GB on Qwen3.5 and MiniCPM5 (they share it), up to ≈5 GB on a Gemma in Base style. During the download, the menu bar shows *preparing…*.
