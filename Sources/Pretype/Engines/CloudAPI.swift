@@ -213,11 +213,14 @@ enum APIClient {
                                   extras: extras, timeout: timeout)
         } catch APIError.http(status: 400, _) where !extras.isEmpty {
             // The preset's switches fit the preset's model; one the user typed
-            // in may not have them. Plain from now on — for this launch.
+            // in may not have them. Plain from now on — for this launch — but
+            // only once plain is accepted: a 400 for the text itself (a content
+            // filter) would fail plain too, and must not cost the switches.
+            let text = try await chat(endpoint, system: system, user: user, maxTokens: maxTokens,
+                                      extras: [:], timeout: timeout)
             plain.mutate { _ = $0.insert(key) }
             DebugLog.shared.log("API", "\(endpoint.model) refused the preset's speed settings — sending without them")
-            return try await chat(endpoint, system: system, user: user, maxTokens: maxTokens,
-                                  extras: [:], timeout: timeout)
+            return text
         }
     }
 

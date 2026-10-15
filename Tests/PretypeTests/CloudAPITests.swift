@@ -128,6 +128,25 @@ final class CloudAPITests: XCTestCase {
         XCTAssertEqual(refused, "")
     }
 
+    /// A 400 that plain fails too was about the text (a content filter), not
+    /// the preset's switches: they stay on for the next request.
+    func testA400ForTheTextKeepsTheSpeedSettings() async throws {
+        StubProtocol.responses = [
+            (400, Data(#"{"error":{"message":"Invalid prompt: flagged"}}"#.utf8)),
+            (400, Data(#"{"error":{"message":"Invalid prompt: flagged"}}"#.utf8)),
+            (200, Data(#"{"choices":[{"message":{"content":"ok"}}]}"#.utf8)),
+        ]
+        StubProtocol.bodies = []
+        let ep = endpoint("openai", model: "filtered-\(UUID().uuidString)")
+        do {
+            _ = try await APIClient.chat(ep, system: "", user: "u", maxTokens: 8, timeout: 5)
+            XCTFail("both attempts were refused")
+        } catch {}
+        XCTAssertEqual(StubProtocol.bodies.count, 2)
+        _ = try await APIClient.chat(ep, system: "", user: "u", maxTokens: 8, timeout: 5)
+        XCTAssertEqual(sentJSON["reasoning_effort"] as? String, "none", "not latched to plain")
+    }
+
     /// The finish watchdog grows with the take: a whole-take pass is
     /// proportional to its audio, and a ten-minute latch must not time out
     /// where a one-minute take would not.

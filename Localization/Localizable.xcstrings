@@ -2213,6 +2213,16 @@
         }
       }
     },
+    "Hold a key and speak. Transcribed by your API provider." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживайте клавишу и говорите. Распознаётся у вашего API-провайдера."
+          }
+        }
+      }
+    },
     "Hold a key and speak. Transcribed on this Mac." : {
       "localizations" : {
         "ru" : {

@@ -104,7 +104,26 @@ final class SettingsStore {
         didSet { guard !syncing, oldValue != apiText else { return }
             Settings.apiText = apiText
             apiTextTest = nil
-            if apiText.enabled || oldValue.enabled { controller?.engineCoordinator.rebuild() } }
+            if apiText.enabled != oldValue.enabled {
+                apiRebuild?.cancel()
+                controller?.engineCoordinator.rebuild()
+            } else if apiText.enabled {
+                rebuildAfterTyping()
+            } }
+    }
+    /// The URL, model and key fields write on every character: rebuild the
+    /// engine once the typing rests, not once per keystroke.
+    @ObservationIgnored private var apiRebuild: Task<Void, Never>?
+    /// The controller, not the store: closing Settings inside the pause drops
+    /// the store, and the engine would keep the old key or model.
+    private func rebuildAfterTyping() {
+        apiRebuild?.cancel()
+        let controller = controller
+        apiRebuild = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            controller?.engineCoordinator.rebuild()
+        }
     }
     var apiAudio = APIConfig(provider: APIProvider.all[0], kind: .audio) {
         didSet { guard !syncing, oldValue != apiAudio else { return }
@@ -126,7 +145,7 @@ final class SettingsStore {
         apiKeyRevision += 1
         if apiText.provider == provider {
             apiTextTest = nil
-            if apiText.enabled { controller?.engineCoordinator.rebuild() }
+            if apiText.enabled { rebuildAfterTyping() }
         }
         if apiAudio.provider == provider { apiAudioTest = nil }
     }

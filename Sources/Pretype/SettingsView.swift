@@ -485,7 +485,11 @@ struct GeneralTab: View {
                 } else {
                     Toggle(isOn: $store.dictation) {
                         Text("Talk instead of typing")
-                        Text("Hold a key and speak. Transcribed on this Mac.")
+                        if store.apiAudio.enabled, !store.apiAudio.isLocal {
+                            Text("Hold a key and speak. Transcribed by your API provider.")
+                        } else {
+                            Text("Hold a key and speak. Transcribed on this Mac.")
+                        }
                     }
                     .help("Hold a key for a sentence, or press a chord for a paragraph — either way it is typed into the field you're in. No audio is written to disk, and nothing records unless you ask.")
                     if store.dictation {
