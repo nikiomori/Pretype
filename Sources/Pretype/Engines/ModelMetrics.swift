@@ -5,20 +5,20 @@ import Foundation
 /// latency come from eval runs (a derived p50 says so where it's booked),
 /// `ramGB` is the weights a model loads — the size of what it downloads.
 ///
-/// Protocol: `Eval/eval-real.jsonl` (5649 rows / 17 languages), base · greedy ·
-/// short, personalization off, confidence-trim pinned off, warm model,
-/// Apple-silicon dev machine. The FULL catalog ran on 2026-07-16/17
-/// (`Eval/runs-2026-07-16/`, run-all.sh + run-remaining.sh); the headline axis
-/// is the **EN+RU core** (n=1449) so rows compare on the languages the app is
-/// tuned for — 17-language verdicts (coverage cliffs, McNemar) live in `note`.
-/// Booking derivation: `book-enru-core.py` in the runs dir.
-/// Arabic and Hebrew were added 2026-07-25 from `Eval/eval-rtl.jsonl` (560 rows,
-/// same three registers, same axis) — a separate file so eval-real and every
-/// verdict booked on it stay byte-identical; see `Eval/runs-2026-07-25/`. Only
-/// `perLangOfAll` grew; the headline EN+RU figures below are untouched by it.
-/// p50 provenance: MLX models from the clean 2026-07-15 solo runs (the 07-16
-/// pass ran with `PRETYPE_EVAL_LOGPROB=1`, which inflates wall-clock); Apple
-/// Intelligence from the 07-16 solo run (no logP pass there), EN/RU-weighted.
+/// Protocol: `Eval/eval-real.jsonl` (5649 rows / 17 languages) plus
+/// `Eval/eval-rtl.jsonl` (560 rows, Arabic and Hebrew, same three registers),
+/// base · greedy · short, personalization off, confidence-trim and gates
+/// pinned off, warm model, Apple-silicon dev machine (M4 Max). The whole
+/// catalog was re-run on 2026-10-15 (`Eval/runs-2026-10-15-rebook/`,
+/// run-quality.sh, booked by book.py) on one release build of the shipping
+/// engine — own decode loop, slim re-packs, KV reuse, entropy stop. Accuracy
+/// held through all of it: every model pairs with its July run
+/// (runs-2026-07-16 / -25) at p ≥ 0.08. The headline axis is the **EN+RU
+/// core** (n=1449) so rows compare on the languages the app is tuned for —
+/// 17-language verdicts (coverage cliffs, McNemar: verdicts.py) live in
+/// `note`. p50: run-latency.sh, without the logP pass (it inflates
+/// wall-clock) — the faster of two interleaved rounds over the core, since
+/// the machine is shared; Apple Intelligence from one round there.
 struct ModelMetrics {
     let id: String
     /// Short name for chart annotations ("E4B 8-bit").
@@ -40,62 +40,89 @@ struct ModelMetrics {
     let note: String?
 
     /// Umbrella citation for surfaces that describe the whole catalog.
-    static let evalSource = "eval-real, English+Russian pooled, n=1449, 2026-07-16"
+    static let evalSource = "eval-real, English+Russian pooled, n=1449, 2026-10-15"
 
     static let all: [ModelMetrics] = [
         ModelMetrics(id: "mlx-community/gemma-4-e4b-8bit", shortName: "E4B 8-bit",
-                     firstWordPct: 31, ci: 28...33, coveragePct: 84,
-                     logProbPerChar: -0.853, p50Ms: 145, ramGB: 5.98,
-                     note: "Best quality: holds up across all 17 eval languages, and measurably ahead of E2B 8-bit (p=0.001, n=5649)."),
+                     firstWordPct: 31, ci: 29...34, coveragePct: 83,
+                     logProbPerChar: -0.855, p50Ms: 78, ramGB: 5.98,
+                     note: "Top of the 17-language set and steady across all of them — but only a trend ahead of E2B 8-bit (p=0.013, n=5649) and tied with E4B 6-bit (p=0.28), for the most memory in the catalog."),
         ModelMetrics(id: "mlx-community/gemma-4-e4b-6bit", shortName: "E4B 6-bit",
-                     firstWordPct: 30, ci: 28...33, coveragePct: 82,
-                     logProbPerChar: -0.865, p50Ms: 129, ramGB: 5.03,
-                     note: "Ties E4B 8-bit on the 17-language set (p=0.052) at ~1 GB less."),
+                     firstWordPct: 32, ci: 29...34, coveragePct: 82,
+                     logProbPerChar: -0.865, p50Ms: 81, ramGB: 5.03,
+                     note: "Ties E4B 8-bit on the 17-language set (p=0.28) at ~1 GB less — and E2B 8-bit too (p=0.11)."),
         ModelMetrics(id: "mlx-community/gemma-4-e2b-8bit", shortName: "E2B 8-bit",
-                     firstWordPct: 29, ci: 27...32, coveragePct: 84,
-                     logProbPerChar: -0.878, p50Ms: 75, ramGB: 3.41,
-                     note: "~1 pp behind E4B (now significant, p=0.001) at ~2× the speed; robust across all 17 eval languages."),
+                     firstWordPct: 31, ci: 28...34, coveragePct: 83,
+                     logProbPerChar: -0.886, p50Ms: 46, ramGB: 3.41,
+                     note: "Statistically level with both E4B builds on the 17-language set (p=0.013 vs 8-bit, p=0.11 vs 6-bit) in less memory and ~40% less time per suggestion; robust across all 17 eval languages."),
         // E4B-4bit and LFM2.5 delisted 2026-07-17: each strictly dominated by a
         // catalog neighbor on every axis (E2B-4bit and MiniCPM5 respectively).
         ModelMetrics(id: "mlx-community/gemma-4-e2b-4bit", shortName: "E2B 4-bit",
-                     firstWordPct: 29, ci: 27...32, coveragePct: 85,
-                     logProbPerChar: -0.925, p50Ms: 127, ramGB: 2.51,
-                     note: "Mildest 4-bit cost in the field: ties E2B 8-bit on English (27 vs 26) and on Russian (22 vs 23) alike, measurably behind it on 17 languages (p<0.001) yet still ahead of every smaller model — at 0.9 GB less, though slower."),
-        // The 8-bit build (2026-10-15) ties the bf16 one this row was booked
-        // on — both book 29 [26–32] off the same binary, so the 07-16 figures
-        // and per-language cells stand; logP/char is the 8-bit build's own
-        // (bf16 −1.041). p50 scaled from bf16's 49 ms by the interleaved
-        // same-binary ratio 28/40 ms (Eval/runs-2026-10-14-small).
+                     firstWordPct: 30, ci: 28...33, coveragePct: 84,
+                     logProbPerChar: -0.925, p50Ms: 34, ramGB: 2.51,
+                     note: "Mildest 4-bit cost in the field: level with E2B 8-bit on English (28 vs 26) and on Russian (22 vs 25) — neither gap significant — but behind it on 17 languages (p<0.001), and still ahead of every smaller model there (Qwen3.5 2B p<0.001), at 0.9 GB less and a little faster."),
+        // Our 8-bit build since 2026-10-15; it ties the hub's bf16 (paired,
+        // Eval/runs-2026-10-14-small), and this row is the 8-bit build's own.
         ModelMetrics(id: "nikimori/MiniCPM5-1B-Base-8bit", shortName: "MiniCPM5 1B",
-                     firstWordPct: 28, ci: 26...31, coveragePct: 81,
-                     logProbPerChar: -1.042, p50Ms: 34, ramGB: 1.1,
-                     note: "Fastest in the catalog and an English specialist — on English it ties E2B 8-bit outright (27% vs 26%, p=0.35). Russian is a different story: 17% against E2B 8-bit's 23% (p<0.001), still the best of the small models there but not parity. Wider multilingual coverage collapses (uk/ro/tr/cs 53–69% vs the Gemmas' ≥78%), and Hebrew is its floor at 1% — effectively blind."),
+                     firstWordPct: 29, ci: 26...32, coveragePct: 82,
+                     logProbPerChar: -1.042, p50Ms: 18, ramGB: 1.1,
+                     note: "An English specialist and, with Qwen 0.5B, the fastest model in the catalog — on English it ties E2B 8-bit outright (28% vs 26%, p=0.12). Russian is a different story: 17% against E2B 8-bit's 25% (p<0.001). Wider multilingual coverage collapses (uk/ro/tr/cs 56–62% vs the Gemmas' ≥74%), and Hebrew is its floor at 3% — effectively blind."),
         ModelMetrics(id: "mlx-community/Qwen2.5-0.5B-bf16", shortName: "Qwen2.5 0.5B",
-                     firstWordPct: 26, ci: 23...28, coveragePct: 84,
-                     logProbPerChar: -1.051, p50Ms: 79, ramGB: 1.0,
-                     note: "Smallest footprint; ties MiniCPM5 on 17 languages (p=0.084), though its bigger sibling Qwen3.5 2B measures clearly better (p<0.001)."),
-        // The Base build at 6-bit, booked 2026-10-14 with book-qwen35base.py's
-        // rules (they reproduce the 10-11 4-bit row exactly); p50 scaled from
-        // the 4-bit build's 86 ms by the interleaved same-binary ratio 30/22 ms
-        // (Eval/runs-2026-10-14-small).
+                     firstWordPct: 27, ci: 25...30, coveragePct: 82,
+                     logProbPerChar: -1.051, p50Ms: 17, ramGB: 1.0,
+                     note: "Smallest footprint; a trend behind MiniCPM5 on 17 languages (p=0.028), and clearly behind its bigger sibling Qwen3.5 2B (p<0.001)."),
+        // The Base build at 6-bit; the 10-15 run reproduces its 10-14 booking
+        // output for output (Eval/runs-2026-10-14-small).
         ModelMetrics(id: "nikimori/Qwen3.5-2B-Base-6bit", shortName: "Qwen3.5 2B",
                      firstWordPct: 30, ci: 27...33, coveragePct: 81,
-                     logProbPerChar: -0.942, p50Ms: 116, ramGB: 1.5,
-                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; matches MiniCPM5 on English (28 vs 27) and passes it on Russian (21 vs 17). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there."),
+                     logProbPerChar: -0.942, p50Ms: 32, ramGB: 1.5,
+                     note: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; ties MiniCPM5 on English (28 vs 28), leads it on Russian (21 vs 17, a trend: p=0.018), and on Russian is level with the lightest Gemma (21 vs 22, p=0.19). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there."),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
-                     firstWordPct: 27, ci: 25...30, coveragePct: 81,
-                     logProbPerChar: -1.073, p50Ms: 102, ramGB: 1.1,
-                     note: "Ternary 4B in 1.1 GB; ties MiniCPM5 on the 17-language set (p=0.14) with the same coverage sag outside English and Western Europe (uk 61%, cs 62%)."),
+                     firstWordPct: 27, ci: 24...29, coveragePct: 82,
+                     logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1,
+                     note: "Ternary 4B in 1.1 GB; measurably behind MiniCPM5 on the 17-language set (p=0.004), with the same coverage sag outside English and Western Europe (uk 62%, cs 63%)."),
         // Apple Intelligence exposes no logprobs, so the /char scoring can't run.
         ModelMetrics(id: "system.apple-intelligence", shortName: "Apple Intelligence",
-                     firstWordPct: 18, ci: 16...20, coveragePct: 90,
-                     logProbPerChar: nil, p50Ms: 430, ramGB: 0,
-                     note: "System model on the Neural Engine — no download, no app memory. Russian is its weak spot (10% first-word vs 24% English), and pl/ro/cs sit outside its supported languages (9–12% coverage). Arabic and Hebrew are the opposite trap: it answers on 86% of them — more than any downloadable model — and is right 4–6% of the time."),
+                     firstWordPct: 17, ci: 15...19, coveragePct: 97,
+                     logProbPerChar: nil, p50Ms: 480, ramGB: 0,
+                     note: "System model on the Neural Engine — no download, no app memory. The macOS 27 model answers almost every prompt (97% on English and Russian) and now covers Polish, Romanian and Czech too, but it is right less often than any downloadable model: 10% of Russian rows against 22% of English, and next to none in Japanese or Chinese. On Arabic and Hebrew it answers 84–87% and is right 6% of the time."),
     ]
 
     static func metrics(for id: String) -> ModelMetrics? {
         all.first { $0.id == id }
     }
+
+    /// Completion in Instruct style, the E4B tiers' recommended config: the
+    /// it-6bit sibling with an English+Russian default persona, on the
+    /// headline's rows and pins (runs-2026-10-15-rebook, e4b-it6-instruct).
+    /// It answers nearly every prompt and is right less often — 20% of shown
+    /// on the core against 32% for E4B 6-bit in Base style (paired p≈1e-9),
+    /// 15% vs 23% of all rows on the 17-language set. Its case is text you
+    /// author, with a persona and fill-in-the-middle (eval-v2, 85%), which
+    /// real text doesn't test.
+    static let instructCompletion = ModelMetrics(
+        id: "mlx-community/gemma-4-e4b-it-6bit", shortName: "E4B-it 6-bit",
+        firstWordPct: 20, ci: 18...22, coveragePct: 99,
+        logProbPerChar: nil, p50Ms: 91, ramGB: 5.56, note: nil)
+
+    /// The precision gate as it ships — the live first-word logprob against
+    /// the model's own τ (`ModelCatalog.recommended(for:).logprobGateTau`) —
+    /// on the headline's EN+RU core rows: % of prompts that still get a
+    /// suggestion, and first-word accuracy of those (Wilson 95%). Measured per
+    /// model on 2026-10-15; it replaces a projection scaled from one model's
+    /// offline calibration that promised ~30% shown. τ is calibrated on the
+    /// offline re-forward, and the live recorder spreads wider (r≈0.6), so the
+    /// gate passes about half of what the calibration says.
+    static let gated: [String: (shownPct: Int, firstWordPct: Int, ci: ClosedRange<Int>)] = [
+        "mlx-community/gemma-4-e4b-8bit": (12, 66, 59...72),
+        "mlx-community/gemma-4-e4b-6bit": (13, 64, 57...70),
+        "mlx-community/gemma-4-e2b-8bit": (16, 58, 52...64),
+        "mlx-community/gemma-4-e2b-4bit": (15, 59, 52...65),
+        "nikimori/MiniCPM5-1B-Base-8bit": (13, 55, 48...62),
+        "mlx-community/Qwen2.5-0.5B-bf16": (17, 48, 42...54),
+        "nikimori/Qwen3.5-2B-Base-6bit": (16, 54, 48...61),
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (17, 53, 47...59),
+    ]
 
     // MARK: - Per-language breakdown
 
@@ -115,23 +142,23 @@ struct ModelMetrics {
     /// the default axis compare two different means (guarded by a unit test).
     static let perLangOfAll: [String: [String: Int]] = [
         "mlx-community/gemma-4-e4b-8bit":
-            ["ar": 15, "cs": 23, "de": 28, "en": 27, "es": 28, "fr": 28, "he": 16, "it": 26, "ja": 6, "ko": 12, "nl": 26, "pl": 28, "pt": 24, "ro": 30, "ru": 24, "sv": 23, "tr": 18, "uk": 24, "zh": 13],
+            ["ar": 13, "cs": 23, "de": 29, "en": 28, "es": 31, "fr": 26, "he": 17, "it": 25, "ja": 5, "ko": 12, "nl": 28, "pl": 28, "pt": 23, "ro": 31, "ru": 23, "sv": 26, "tr": 16, "uk": 24, "zh": 14],
         "mlx-community/gemma-4-e4b-6bit":
-            ["ar": 13, "cs": 22, "de": 28, "en": 27, "es": 29, "fr": 26, "he": 17, "it": 26, "ja": 5, "ko": 10, "nl": 26, "pl": 26, "pt": 24, "ro": 30, "ru": 22, "sv": 25, "tr": 16, "uk": 24, "zh": 13],
+            ["ar": 11, "cs": 21, "de": 28, "en": 29, "es": 29, "fr": 26, "he": 16, "it": 26, "ja": 5, "ko": 10, "nl": 28, "pl": 26, "pt": 25, "ro": 29, "ru": 22, "sv": 24, "tr": 17, "uk": 25, "zh": 14],
         "mlx-community/gemma-4-e2b-8bit":
-            ["ar": 11, "cs": 21, "de": 25, "en": 26, "es": 29, "fr": 25, "he": 18, "it": 26, "ja": 5, "ko": 11, "nl": 24, "pl": 28, "pt": 21, "ro": 31, "ru": 23, "sv": 22, "tr": 17, "uk": 19, "zh": 14],
+            ["ar": 10, "cs": 20, "de": 27, "en": 26, "es": 30, "fr": 27, "he": 18, "it": 26, "ja": 4, "ko": 11, "nl": 24, "pl": 28, "pt": 25, "ro": 28, "ru": 25, "sv": 23, "tr": 16, "uk": 20, "zh": 12],
         "mlx-community/gemma-4-e2b-4bit":
-            ["ar": 8, "cs": 17, "de": 21, "en": 27, "es": 28, "fr": 26, "he": 16, "it": 24, "ja": 3, "ko": 9, "nl": 22, "pl": 24, "pt": 23, "ro": 27, "ru": 22, "sv": 20, "tr": 13, "uk": 18, "zh": 11],
+            ["ar": 8, "cs": 17, "de": 22, "en": 28, "es": 27, "fr": 25, "he": 16, "it": 24, "ja": 3, "ko": 9, "nl": 22, "pl": 24, "pt": 22, "ro": 27, "ru": 22, "sv": 20, "tr": 13, "uk": 18, "zh": 11],
         "nikimori/MiniCPM5-1B-Base-8bit":
-            ["ar": 5, "cs": 6, "de": 16, "en": 27, "es": 25, "fr": 20, "he": 1, "it": 17, "ja": 6, "ko": 7, "nl": 13, "pl": 10, "pt": 16, "ro": 6, "ru": 17, "sv": 9, "tr": 5, "uk": 5, "zh": 9],
+            ["ar": 6, "cs": 6, "de": 16, "en": 28, "es": 25, "fr": 20, "he": 3, "it": 18, "ja": 6, "ko": 6, "nl": 14, "pl": 9, "pt": 16, "ro": 8, "ru": 17, "sv": 10, "tr": 5, "uk": 6, "zh": 9],
         "mlx-community/Qwen2.5-0.5B-bf16":
-            ["ar": 6, "cs": 6, "de": 15, "en": 26, "es": 21, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 5, "nl": 14, "pl": 13, "pt": 16, "ro": 9, "ru": 16, "sv": 6, "tr": 6, "uk": 6, "zh": 10],
+            ["ar": 6, "cs": 6, "de": 14, "en": 27, "es": 23, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 6, "nl": 12, "pl": 12, "pt": 18, "ro": 10, "ru": 16, "sv": 5, "tr": 6, "uk": 6, "zh": 10],
         "nikimori/Qwen3.5-2B-Base-6bit":
             ["ar": 8, "cs": 11, "de": 20, "en": 28, "es": 28, "fr": 26, "he": 13, "it": 21, "ja": 3, "ko": 7, "nl": 21, "pl": 19, "pt": 24, "ro": 23, "ru": 21, "sv": 19, "tr": 9, "uk": 17, "zh": 9],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
-            ["ar": 4, "cs": 5, "de": 16, "en": 28, "es": 21, "fr": 21, "he": 7, "it": 12, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 13, "ru": 15, "sv": 9, "tr": 6, "uk": 9, "zh": 5],
+            ["ar": 4, "cs": 5, "de": 16, "en": 27, "es": 23, "fr": 21, "he": 8, "it": 14, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 12, "ru": 16, "sv": 9, "tr": 5, "uk": 8, "zh": 5],
         "system.apple-intelligence":
-            ["ar": 4, "cs": 0, "de": 11, "en": 24, "es": 26, "fr": 19, "he": 6, "it": 12, "ja": 2, "ko": 2, "nl": 15, "pl": 1, "pt": 10, "ro": 0, "ru": 7, "sv": 14, "tr": 6, "uk": 5, "zh": 6],
+            ["ar": 6, "cs": 3, "de": 10, "en": 22, "es": 14, "fr": 16, "he": 6, "it": 9, "ja": 0, "ko": 2, "nl": 13, "pl": 12, "pt": 9, "ro": 7, "ru": 10, "sv": 10, "tr": 3, "uk": 9, "zh": 1],
     ]
 
     /// How often the model offers anything at all, per language, same matched
@@ -142,23 +169,23 @@ struct ModelMetrics {
     /// time" was wrong on every axis but the one it was measured on.
     static let perLangCoverage: [String: [String: Int]] = [
         "mlx-community/gemma-4-e4b-8bit":
-            ["ar": 75, "cs": 85, "de": 94, "en": 86, "es": 89, "fr": 85, "he": 83, "it": 85, "ja": 71, "ko": 62, "nl": 88, "pl": 84, "pt": 91, "ro": 83, "ru": 83, "sv": 91, "tr": 83, "uk": 79, "zh": 55],
+            ["ar": 73, "cs": 84, "de": 94, "en": 85, "es": 91, "fr": 84, "he": 83, "it": 86, "ja": 72, "ko": 61, "nl": 88, "pl": 86, "pt": 90, "ro": 80, "ru": 83, "sv": 92, "tr": 80, "uk": 76, "zh": 54],
         "mlx-community/gemma-4-e4b-6bit":
-            ["ar": 72, "cs": 86, "de": 93, "en": 84, "es": 89, "fr": 84, "he": 82, "it": 84, "ja": 69, "ko": 59, "nl": 87, "pl": 83, "pt": 88, "ro": 81, "ru": 82, "sv": 89, "tr": 81, "uk": 78, "zh": 54],
+            ["ar": 70, "cs": 85, "de": 92, "en": 85, "es": 90, "fr": 84, "he": 83, "it": 85, "ja": 70, "ko": 59, "nl": 86, "pl": 84, "pt": 89, "ro": 81, "ru": 82, "sv": 89, "tr": 80, "uk": 76, "zh": 55],
         "mlx-community/gemma-4-e2b-8bit":
-            ["ar": 71, "cs": 87, "de": 93, "en": 85, "es": 89, "fr": 86, "he": 81, "it": 85, "ja": 71, "ko": 60, "nl": 88, "pl": 82, "pt": 90, "ro": 82, "ru": 84, "sv": 90, "tr": 84, "uk": 78, "zh": 55],
+            ["ar": 69, "cs": 83, "de": 93, "en": 84, "es": 89, "fr": 88, "he": 81, "it": 87, "ja": 70, "ko": 60, "nl": 89, "pl": 82, "pt": 91, "ro": 80, "ru": 83, "sv": 91, "tr": 83, "uk": 78, "zh": 55],
         "mlx-community/gemma-4-e2b-4bit":
-            ["ar": 72, "cs": 81, "de": 92, "en": 86, "es": 89, "fr": 88, "he": 82, "it": 86, "ja": 68, "ko": 60, "nl": 89, "pl": 80, "pt": 93, "ro": 81, "ru": 84, "sv": 90, "tr": 82, "uk": 73, "zh": 55],
+            ["ar": 72, "cs": 82, "de": 91, "en": 85, "es": 89, "fr": 88, "he": 82, "it": 87, "ja": 68, "ko": 61, "nl": 90, "pl": 81, "pt": 91, "ro": 82, "ru": 83, "sv": 92, "tr": 82, "uk": 74, "zh": 55],
         "nikimori/MiniCPM5-1B-Base-8bit":
-            ["ar": 59, "cs": 60, "de": 89, "en": 86, "es": 88, "fr": 83, "he": 58, "it": 83, "ja": 70, "ko": 55, "nl": 74, "pl": 69, "pt": 88, "ro": 57, "ru": 76, "sv": 78, "tr": 57, "uk": 53, "zh": 51],
+            ["ar": 60, "cs": 62, "de": 88, "en": 86, "es": 90, "fr": 84, "he": 65, "it": 84, "ja": 71, "ko": 55, "nl": 75, "pl": 69, "pt": 89, "ro": 62, "ru": 76, "sv": 79, "tr": 56, "uk": 59, "zh": 53],
         "mlx-community/Qwen2.5-0.5B-bf16":
-            ["ar": 68, "cs": 65, "de": 88, "en": 88, "es": 90, "fr": 83, "he": 71, "it": 80, "ja": 72, "ko": 50, "nl": 79, "pl": 73, "pt": 90, "ro": 67, "ru": 80, "sv": 66, "tr": 64, "uk": 67, "zh": 55],
+            ["ar": 69, "cs": 64, "de": 88, "en": 88, "es": 91, "fr": 82, "he": 70, "it": 81, "ja": 72, "ko": 51, "nl": 79, "pl": 73, "pt": 89, "ro": 65, "ru": 76, "sv": 72, "tr": 63, "uk": 60, "zh": 55],
         "nikimori/Qwen3.5-2B-Base-6bit":
             ["ar": 71, "cs": 79, "de": 89, "en": 87, "es": 87, "fr": 85, "he": 75, "it": 85, "ja": 72, "ko": 58, "nl": 85, "pl": 80, "pt": 90, "ro": 79, "ru": 78, "sv": 89, "tr": 76, "uk": 75, "zh": 53],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
-            ["ar": 60, "cs": 62, "de": 86, "en": 87, "es": 83, "fr": 80, "he": 66, "it": 80, "ja": 73, "ko": 49, "nl": 76, "pl": 69, "pt": 81, "ro": 71, "ru": 76, "sv": 75, "tr": 66, "uk": 61, "zh": 55],
+            ["ar": 59, "cs": 63, "de": 85, "en": 87, "es": 85, "fr": 82, "he": 65, "it": 82, "ja": 73, "ko": 49, "nl": 76, "pl": 68, "pt": 83, "ro": 71, "ru": 76, "sv": 75, "tr": 63, "uk": 62, "zh": 55],
         "system.apple-intelligence":
-            ["ar": 86, "cs": 11, "de": 90, "en": 98, "es": 95, "fr": 94, "he": 86, "it": 92, "ja": 89, "ko": 88, "nl": 94, "pl": 9, "pt": 90, "ro": 12, "ru": 80, "sv": 93, "tr": 85, "uk": 66, "zh": 84],
+            ["ar": 84, "cs": 83, "de": 96, "en": 99, "es": 89, "fr": 91, "he": 87, "it": 85, "ja": 82, "ko": 78, "nl": 88, "pl": 87, "pt": 85, "ro": 84, "ru": 95, "sv": 88, "tr": 66, "uk": 79, "zh": 74],
     ]
 
     /// Rows behind each language's cell — the denominator both per-language
@@ -236,10 +263,10 @@ struct ModelMetrics {
     /// pairing and would make the nudge noise. A single-language cell carries
     /// ±5 pp, so an absolute gap alone proves nothing; the ratio is what
     /// separates a worthwhile upgrade from the wrong tool. Calibrated against
-    /// the booked table: MiniCPM5 on Hebrew (1 vs 18) and on Turkish (5 vs 18)
-    /// fire; MiniCPM5 on Russian (17 vs 24) does NOT — there a Gemma is better
-    /// but the small model is still the best of its weight class, which is a
-    /// memory trade-off the user already made, not a mistake to correct.
+    /// the booked table: MiniCPM5 on Hebrew (3 vs 18) and on Turkish (5 vs 17)
+    /// fire; MiniCPM5 on Russian (17 vs 25) does NOT — there a Gemma is better
+    /// but the small model is still a usable tool in its weight class, which
+    /// is a memory trade-off the user already made, not a mistake to correct.
     static func materiallyBetter(than currentID: String,
                                  on language: String) -> (id: String, current: Int, best: Int)? {
         // Apple Intelligence is excluded on purpose. It trails on nearly every
@@ -308,20 +335,24 @@ struct ModelMetrics {
     /// slice: a draft hands the model its language, so pooling them inflated
     /// every model that got the language wrong on its own (EVAL_REVIEW
     /// 2026-07-29 §2).
-    /// Booked from `Eval/runs-2026-10-11/` (book-tasks.py), see `taskSource`.
+    /// Booked from `Eval/runs-2026-10-15-rebook/` (run-tasks.sh's dumps, same
+    /// harness and sets as `Eval/runs-2026-10-11/`), see `taskSource`.
     /// The 07-25 booking is superseded wholesale: its echo check normalized
     /// only one side (MiniCPM5's "best replier" verdict was its echoes), it
     /// ran with the developer's own persona (which turned every Gemma reply
     /// English), on a debug build, and before Gemma 4 stopped at `<turn|>`.
     /// Verdicts at the p<0.01 rule, paired over the shared rows: the fix
     /// column is a clean ladder — every adjacent gap (69 > 65 > 50 > 33 > 19
-    /// > 11 > 4) significant at p<0.001, E4B-it 6-bit ahead of its 4-bit
-    /// build (p=9e-4). On replies the three Gemma siblings tie (95–97%,
-    /// p≥0.45), then Qwen3.5 > Qwen0.5B-it > Bonsai (p<0.001 each), Bonsai
-    /// tying MiniCPM5 (p=0.27) — the small models' drafts mostly restate the
-    /// screen, which `cleanReply` now drops. MiniCPM5's own row (fix 4% /
-    /// reply 35%) left the table on 2026-10-15 with its chords, which now
-    /// ride Qwen3.5's sibling — no pick runs it at recommended settings.
+    /// > 11) significant at p<0.001, E4B-it 6-bit ahead of its 4-bit build
+    /// (p=9e-4). On replies the three Gemma siblings tie (95–96%, p≥0.3),
+    /// then Qwen3.5 > Qwen0.5B-it > Bonsai (p<0.001 each) — the small models'
+    /// drafts mostly restate the screen, which `cleanReply` drops. The 10-15
+    /// re-run reproduced every fix output (97–100% identical); replies moved
+    /// only on the small models (Bonsai 39 → 36%, p=0.001: `cleanReply`'s
+    /// later echo filter now drops 14 of its drafts). MiniCPM5's own row
+    /// (fix 4% / reply 35%) left the table on 2026-10-15 with its chords,
+    /// which now ride Qwen3.5's sibling — no pick runs it at recommended
+    /// settings.
     struct TaskMetrics {
         /// % of typo rows restored exactly (n=510; Wilson 95% CI in `fixCI`).
         let fixPct: Int
@@ -338,36 +369,32 @@ struct ModelMetrics {
         let replyP50Ms: Int
     }
 
-    /// eval-correct / eval-reply, 2026-10-11 (`Eval/runs-2026-10-11`): release
-    /// build, persona pinned empty, Gemma 4 stopping on `<turn|>`, the reply
-    /// prompt naming the conversation's language, echoes dropped by
-    /// `cleanReply`, draft rows out of the reply denominator. Fix p50 since
-    /// re-booked for prompt-lookup drafting (`Eval/runs-2026-10-11-lookup`):
-    /// the lookup-off/on ratio of same-session release pairs, applied to the
-    /// figures above — the machine was shared that evening, so its absolute
-    /// timings ran high. Qwen3.5 (recurrent cache, no lookup) and E4B-it-6bit
-    /// (a tie) keep theirs.
-    static let taskSource = "eval-correct/eval-reply, 2026-10-11"
+    /// eval-correct / eval-reply, re-run 2026-10-15 on the shipping engine
+    /// (`Eval/runs-2026-10-15-rebook`, run-tasks.sh): release build, persona
+    /// pinned empty, MTP drafters and prompt-lookup on as shipped, slim
+    /// re-packs, draft rows out of the reply denominator. p50s are this
+    /// run's own, measured straight — no ratio scaling.
+    static let taskSource = "eval-correct/eval-reply, 2026-10-15"
 
     static let tasks: [String: TaskMetrics] = [
         "mlx-community/gemma-4-e4b-it-6bit": TaskMetrics(
-            fixPct: 69, fixCI: 65...73, falseFixPct: 18, fixP50Ms: 257,
-            replyPct: 97, replyCI: 94...98, replyP50Ms: 331),
+            fixPct: 69, fixCI: 65...73, falseFixPct: 18, fixP50Ms: 168,
+            replyPct: 96, replyCI: 94...98, replyP50Ms: 409),
         "mlx-community/gemma-4-e4b-it-4bit": TaskMetrics(
-            fixPct: 65, fixCI: 61...69, falseFixPct: 21, fixP50Ms: 208,
-            replyPct: 95, replyCI: 92...97, replyP50Ms: 249),
+            fixPct: 65, fixCI: 61...69, falseFixPct: 20, fixP50Ms: 243,
+            replyPct: 95, replyCI: 92...97, replyP50Ms: 243),
         "mlx-community/gemma-4-e2b-it-4bit": TaskMetrics(
-            fixPct: 50, fixCI: 45...54, falseFixPct: 29, fixP50Ms: 81,
-            replyPct: 96, replyCI: 93...97, replyP50Ms: 89),
+            fixPct: 50, fixCI: 46...54, falseFixPct: 30, fixP50Ms: 96,
+            replyPct: 96, replyCI: 94...98, replyP50Ms: 88),
         "mlx-community/Qwen3.5-2B-4bit": TaskMetrics(
-            fixPct: 33, fixCI: 29...37, falseFixPct: 28, fixP50Ms: 137,
-            replyPct: 76, replyCI: 72...80, replyP50Ms: 152),
+            fixPct: 33, fixCI: 29...37, falseFixPct: 28, fixP50Ms: 134,
+            replyPct: 72, replyCI: 68...77, replyP50Ms: 137),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
-            fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 34,
-            replyPct: 52, replyCI: 47...57, replyP50Ms: 73),
+            fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 33,
+            replyPct: 49, replyCI: 44...54, replyP50Ms: 78),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": TaskMetrics(
-            fixPct: 19, fixCI: 16...23, falseFixPct: 12, fixP50Ms: 205,
-            replyPct: 39, replyCI: 34...44, replyP50Ms: 210),
+            fixPct: 19, fixCI: 16...23, falseFixPct: 12, fixP50Ms: 203,
+            replyPct: 36, replyCI: 32...41, replyP50Ms: 205),
     ]
 
     /// Display names for the measured siblings — they are not catalog

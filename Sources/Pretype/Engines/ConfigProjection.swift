@@ -73,7 +73,7 @@ struct ProjectionConfig: Equatable {
             c.modelID = id
             // Land on the measured protocol the card's figures come from —
             // NOT the recommendation, which for Gemma is Instruct and measures
-            // very differently (22% real text) than what the card promises.
+            // very differently (20% on real text) than what the card promises.
             c.style = .base
             c.length = .short
             let rec = ModelCatalog.recommended(for: id)
@@ -191,20 +191,18 @@ struct ConfigProjection {
 
     // MARK: Projection
 
-    /// Measured length factors from the sweep (short 157 / medium 291 / long
-    /// 550 ms p50, eval-real 2026-07-13).
-    static func latencyFactor(_ length: CompletionLength) -> Double {
+    /// Measured length factors (EN+RU core, 2026-10-15). Base has none: the
+    /// entropy stop ends a base suggestion near its second word, inside even
+    /// Short's budget, so all three lengths decode the same text (E2B 4-bit
+    /// and Qwen3.5 2B: identical outputs, 35/35/34 and 33/33/33 ms). Instruct
+    /// follows the directive's word hint: 98 / 127 / 163 ms on E4B-it.
+    static func latencyFactor(_ length: CompletionLength, style: CompletionStyle) -> Double {
+        guard style == .instruct else { return 1.0 }
         switch length {
         case .short: return 1.0
-        case .medium: return 1.85
-        case .long: return 3.5
+        case .medium: return 1.3
+        case .long: return 1.7
         }
-    }
-
-    /// Decode-token factor, derived from the sampler's actual per-length
-    /// budgets so a retune there can't leave a stale mirror here.
-    private static func tokenFactor(_ length: CompletionLength) -> Double {
-        Double(length.maxTokens) / Double(CompletionLength.short.maxTokens)
     }
 
     /// Reference for the compute estimate: MiniCPM5 1B, base, short = 1×.
@@ -223,7 +221,7 @@ struct ConfigProjection {
         }
         let rec = ModelCatalog.recommended(for: c.modelID)
         let isAI = c.modelID == ModelCatalog.appleIntelligenceID
-        let lf = latencyFactor(c.length)
+        let lf = latencyFactor(c.length, style: c.style)
 
         if isAI {
             return ConfigProjection(
@@ -245,52 +243,34 @@ struct ConfigProjection {
                     accuracySub: "broken combination — this model answers the text instead of continuing it",
                     coveragePct: 99,
                     p50Ms: m.p50Ms, latencyIsApprox: true, latencySub: "base-model figure — instruct unmeasured here",
-                    gb: gb, memorySub: "instruct sibling weights (hub size)", length: c.length)
+                    gb: gb, memorySub: "instruct sibling weights (hub size)", lengthFactor: lf)
             }
-            // Only the it-6bit instruct sibling went through the harness — the
-            // measured 129 ms applies exactly to models that RUN that sibling
-            // (the E2B tiers run 4-bit siblings, unmeasured). Elsewhere the base
-            // figure stands in, marked ≈ and labeled as an estimate.
-            let measuredMs: Int? = ModelCatalog.option(for: c.modelID)?.instructModelID
-                == "mlx-community/gemma-4-e4b-it-6bit" ? 129 : nil
+            // Instruct is recommended only where it runs the measured it-6bit
+            // sibling (the E4B tiers); anything else falls back to the base
+            // figure, marked ≈.
+            let it = ModelMetrics.instructCompletion
+            let measured = ModelCatalog.option(for: c.modelID)?.instructModelID == it.id
+            let ms = Int((Double(measured ? it.p50Ms : m.p50Ms) * lf).rounded())
             return ConfigProjection(
-                accuracyPct: 22, accuracyText: "22%",
-                accuracySub: "real text · 85% on text you author (eval-v2, with persona)",
-                coveragePct: 99,
-                p50Ms: measuredMs ?? m.p50Ms, latencyIsApprox: measuredMs == nil,
-                latencySub: measuredMs != nil ? "instruct sibling, measured (it-6bit)"
-                                              : "base-model figure — the instruct sibling on this tier is unmeasured",
-                gb: gb, memorySub: "instruct sibling weights (hub size)", length: c.length)
+                accuracyPct: it.firstWordPct, accuracyText: "\(it.firstWordPct)%",
+                accuracySub: "offers \(it.coveragePct)% of the time on real text, where Base measures \(m.firstWordPct)% · 85% on text you author (eval-v2, with persona)",
+                coveragePct: it.coveragePct,
+                p50Ms: ms, latencyIsApprox: !measured || lf > 1,
+                latencySub: !measured ? "base-model figure — the instruct sibling on this tier is unmeasured"
+                    : lf > 1 ? "instruct sibling, scaled by the measured length factor" : "instruct sibling, measured (it-6bit)",
+                gb: gb, memorySub: "instruct sibling weights (hub size)", lengthFactor: lf)
         }
 
         // Base style — the only path the gate applies to.
-        if c.logprobGate {
-            let ms = Int((Double(m.p50Ms) * lf).rounded())
-            // The calibration (62–67% shown at ~30% offered) was measured on
-            // MiniCPM5 only (split-half, eval-real n=870, 2026-07-15; its bf16
-            // build, which the 8-bit one ties) — pinned to that id, NOT to
-            // `ModelCatalog.defaultID`. Other models get
-            // the same measured TRADE scaled from their own base figures — the
-            // ratios read the calibration model's eval row, so a re-run can't
-            // leave a stale divisor here — capped and labeled as scaled, never
-            // as measured.
-            let calibrationID = "nikimori/MiniCPM5-1B-Base-8bit"
-            let calibrated = c.modelID == calibrationID
-            let ref = ModelMetrics.metrics(for: calibrationID)
-            let accLift = 64.0 / Double(ref?.firstWordPct ?? 30)
-            let covFactor = 30.0 / Double(ref?.coveragePct ?? 83)
-            let acc = calibrated ? 64 : min(72, Int((Double(m.firstWordPct) * accLift).rounded()))
-            let cov = calibrated ? 30 : Int((Double(m.coveragePct) * covFactor).rounded())
-            return ConfigProjection(
-                accuracyPct: acc, accuracyText: calibrated ? "62–67%" : "≈\(acc)%",
-                accuracySub: calibrated
-                    ? "offers ~30% of the time — split-half calibration (eval-real, n=870, 2026-07-15)"
-                    : "offers ~\(cov)% of the time — scaled from the default-model calibration (62–67% measured there), not measured on this model",
-                coveragePct: cov,
-                p50Ms: ms, latencyIsApprox: lf > 1, latencySub: "no added latency over plain Base",
-                gb: m.ramGB, length: c.length)
-        }
         let ms = Int((Double(m.p50Ms) * lf).rounded())
+        if c.logprobGate, let g = ModelMetrics.gated[c.modelID] {
+            return ConfigProjection(
+                accuracyPct: g.firstWordPct, accuracyText: "\(g.firstWordPct)%",
+                accuracySub: "offers \(g.shownPct)% of the time at this model's own threshold · \(ModelMetrics.evalSource)",
+                coveragePct: g.shownPct,
+                p50Ms: ms, latencyIsApprox: lf > 1, latencySub: "no added latency over plain Base",
+                gb: m.ramGB, lengthFactor: lf)
+        }
         return ConfigProjection(
             accuracyPct: m.firstWordPct,
             accuracyText: "\(m.firstWordPct)%",
@@ -298,20 +278,21 @@ struct ConfigProjection {
             coveragePct: m.coveragePct,
             p50Ms: ms, latencyIsApprox: lf > 1,
             latencySub: lf > 1 ? "scaled by the measured length factor" : "median per suggestion, measured",
-            gb: m.ramGB, length: c.length)
+            gb: m.ramGB, lengthFactor: lf)
     }
 
     // MARK: Meter fractions (0…1, longer bar = better)
 
     /// Shared axis bounds so bars and the model map agree. Accuracy tops out
     /// just above the best gated projection; speed/compute are log-scaled like
-    /// the map. msMax hugs the reachable envelope (base ×3.5 length, the
-    /// system model) — exotic manual combos clamp at the edge
-    /// rather than squeezing every model into the right third of the chart.
+    /// the map. The ms range hugs the reachable envelope — the fastest small
+    /// model (17 ms) up to the system model — so exotic manual combos clamp
+    /// at the edge rather than squeezing every model into one third of the
+    /// chart.
     enum Scale {
         static let accMin = 15.0
         static let accMax = 72.0
-        static let msRange = 45.0...800.0
+        static let msRange = 15.0...800.0
         static let computeRange = 0.4...24.0
         static let gbMax = 8.6
 
@@ -404,15 +385,15 @@ struct ConfigProjection {
 
 extension ConfigProjection {
     /// A config that runs `gb` of MLX weights: the memory figure and the
-    /// compute estimate (that much weight read per decoded token, over the
-    /// length's token budget) both follow from them.
+    /// compute estimate (that much weight read per decoded token, times the
+    /// measured length factor) both follow from them.
     init(accuracyPct: Int, accuracyText: String, accuracySub: String, coveragePct: Int,
          p50Ms: Int, latencyIsApprox: Bool, latencySub: String,
-         gb: Double, memorySub: String = "resident model weights", length: CompletionLength) {
+         gb: Double, memorySub: String = "resident model weights", lengthFactor: Double) {
         self.init(accuracyPct: accuracyPct, accuracyText: accuracyText, accuracySub: accuracySub,
                   coveragePct: coveragePct, p50Ms: p50Ms, latencyIsApprox: latencyIsApprox,
                   latencySub: latencySub, ramGB: gb, memorySub: memorySub,
-                  computeRel: gb * Self.tokenFactor(length) / Self.computeReferenceGB,
+                  computeRel: gb * lengthFactor / Self.computeReferenceGB,
                   computeSub: "chip load per keystroke vs default (est.)")
     }
 }

@@ -781,10 +781,10 @@ struct ModelMapView: View {
             : "Task map — how well each instruct sibling handles the \(lens == .fix ? "fix" : "reply") chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model.")
     }
 
-    /// Latency span of the chord lenses: fixes and replies run 185–1801 ms
-    /// warm across the measured siblings — the completion scale tops out at
-    /// 800 and would pile three bubbles onto the left edge.
-    private static let chordMsRange = 150.0...2100.0
+    /// Latency span of the chord lenses: fixes and replies run 33–409 ms warm
+    /// across the measured siblings (2026-10-15) — on the completion scale
+    /// they would bunch into its slow half.
+    private static let chordMsRange = 25.0...600.0
 
     /// Chart coordinates: x = log-speed (faster → right), y = accuracy on the
     /// axis-dependent span.

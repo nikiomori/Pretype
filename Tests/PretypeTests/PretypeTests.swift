@@ -1177,41 +1177,44 @@ final class PretypeTests: XCTestCase {
 
         // Plain base = the model's own eval row.
         let base = cfg(mini, .base)
-        XCTAssertEqual(base.accuracyPct, 28)
-        XCTAssertEqual(base.p50Ms, 34)
+        XCTAssertEqual(base.accuracyPct, 29)
+        XCTAssertEqual(base.p50Ms, 18)
         XCTAssertEqual(base.ramGB, 1.1)
 
         // Instruct on a base-only model is truthfully broken, not hidden.
         let broken = cfg(mini, .instruct)
         XCTAssertEqual(broken.accuracyPct, 0)
 
-        // Instruct on E4B: measured sibling figures, second-model memory.
+        // Instruct on E4B: the measured it-6bit sibling, second-model memory.
         let instruct = cfg(e4b6, .instruct)
-        XCTAssertEqual(instruct.accuracyPct, 22)
-        XCTAssertEqual(instruct.p50Ms, 129)
+        XCTAssertEqual(instruct.accuracyPct, 20)
+        XCTAssertEqual(instruct.p50Ms, 91)
 
-        // Instruct on a tier with an unmeasured sibling: base figure stands in,
+        // Instruct on a Base-recommended tier: the base figure stands in,
         // marked as an estimate — never a blank speed meter.
         let instructE2B = cfg("mlx-community/gemma-4-e2b-8bit", .instruct)
-        XCTAssertEqual(instructE2B.p50Ms, 75)
+        XCTAssertEqual(instructE2B.p50Ms, 46)
         XCTAssertTrue(instructE2B.latencyText.hasPrefix("≈"))
 
-        // Logprob gate on the calibration (default) model: the measured band.
+        // Logprob gate: each model's own measured trade, no scaling.
         let gated = cfg(mini, .base, logprob: true)
-        XCTAssertEqual(gated.accuracyText, "62–67%")
-        XCTAssertEqual(gated.p50Ms, 34)
-
-        // On any other model the gate figure is SCALED from that model's own
-        // base accuracy (and says so) — different models project differently.
+        XCTAssertEqual(gated.accuracyText, "55%")
+        XCTAssertEqual(gated.coveragePct, 13)
+        XCTAssertEqual(gated.p50Ms, 18)
         let gatedE4B = cfg(e4b6, .base, logprob: true)
-        XCTAssertEqual(gatedE4B.accuracyPct, Int((30.0 * 64.0 / 28.0).rounded()))
-        XCTAssertTrue(gatedE4B.accuracyText.hasPrefix("≈"))
-        XCTAssertTrue(gatedE4B.accuracySub.contains("not measured on this model"))
+        XCTAssertEqual(gatedE4B.accuracyPct, 64)
+        XCTAssertFalse(gatedE4B.accuracyText.hasPrefix("≈"))
         let gatedQwen05 = cfg("mlx-community/Qwen2.5-0.5B-bf16", .base, logprob: true)
         XCTAssertNotEqual(gatedE4B.accuracyPct, gatedQwen05.accuracyPct)
+        // Every downloadable model carries its own gate figure.
+        for m in ModelMetrics.all where m.ramGB > 0 {
+            XCTAssertNotNil(ModelMetrics.gated[m.id], "\(m.id) has no measured gate trade")
+        }
 
-        // Length scales latency by the measured sweep factor.
-        XCTAssertEqual(cfg(mini, .base, .long).p50Ms, Int((34 * 3.5).rounded()))
+        // Length: Base is length-inert (the entropy stop ends suggestions
+        // inside Short's budget); Instruct scales by its measured factor.
+        XCTAssertEqual(cfg(mini, .base, .long).p50Ms, 18)
+        XCTAssertEqual(cfg(e4b6, .instruct, .long).p50Ms, Int((91 * 1.7).rounded()))
 
         // System model: no app memory, compute is the Neural Engine.
         let ai = cfg(ModelCatalog.appleIntelligenceID, .instruct)
@@ -1256,16 +1259,17 @@ final class PretypeTests: XCTestCase {
     // flips them is noticed.
     func testModelPriorityPicks() {
         XCTAssertEqual(ModelPriority.lightest.pick(axis: "core"), "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
-        XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-8bit")    // 31%; logP/char beats E2B-4bit's stale-sample tie
-        XCTAssertEqual(ModelPriority.quick.pick(axis: "core"), "mlx-community/gemma-4-e2b-8bit")       // ≥29% at 75 ms
+        XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-6bit")    // 32% vs E4B 8-bit's 31
+        XCTAssertEqual(ModelPriority.quick.pick(axis: "core"), "nikimori/Qwen3.5-2B-Base-6bit")        // ≥30% at 32 ms
         XCTAssertEqual(ModelPriority.balanced.pick(axis: "core"), ModelCatalog.defaultID)
 
-        // Axis-dependence is the feature: on the all-languages average the
-        // answers hold, but on Romanian E2B 8-bit measures BEST outright
-        // (31 vs E4B's 30) — the cards must re-resolve per language.
+        // Axis-dependence is the feature: on the all-languages average E4B
+        // 8-bit wins the 22% tie on logP/char, but on Russian E2B 8-bit
+        // measures BEST outright (25 vs E4B's 23) — the cards must re-resolve
+        // per language.
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "*"), "mlx-community/gemma-4-e4b-8bit")
         XCTAssertEqual(ModelPriority.quick.pick(axis: "*"), "mlx-community/gemma-4-e2b-8bit")
-        XCTAssertEqual(ModelPriority.accurate.pick(axis: "ro"), "mlx-community/gemma-4-e2b-8bit")
+        XCTAssertEqual(ModelPriority.accurate.pick(axis: "ru"), "mlx-community/gemma-4-e2b-8bit")
         // Balanced is the fresh-install rule — sized to THIS Mac's memory,
         // not to the axis (language dropped out of the default on 2026-07-25;
         // no per-language gap between the small models survives p<0.01).
@@ -1306,15 +1310,15 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "*"), 22)
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "cs"), 23)
         XCTAssertNil(ModelMetrics.axisAccuracy(for: "no-such-model", axis: "*"))
-        XCTAssertEqual(ModelMetrics.axisBest("uk"), 24)  // Gemma E4B 8-bit
+        XCTAssertEqual(ModelMetrics.axisBest("uk"), 25)  // Gemma E4B 6-bit
         // RTL: the small models tie each other, so the axis best is a Gemma.
         XCTAssertEqual(ModelMetrics.axisBest("he"), 18)  // Gemma E2B 8-bit
-        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "nikimori/MiniCPM5-1B-Base-8bit", axis: "he"), 1)
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "nikimori/MiniCPM5-1B-Base-8bit", axis: "he"), 3)
         XCTAssertEqual(ModelMetrics.evalLanguages.count, 19)
 
         // A preset lands on the measured protocol its card advertises
         // (Base · Short — NOT the Gemma recommendation, which is Instruct and
-        // measures 22% on real text), and preserves compatible gates.
+        // measures 20% on real text), and preserves compatible gates.
         let custom = ProjectionConfig(modelID: ModelCatalog.defaultID, style: .instruct,
                                       length: .long, logprobGate: true, useRecommended: false)
         let landed = custom.applying(.preset(ModelPriority.accurate.pick(axis: "core")))
@@ -1380,16 +1384,16 @@ final class PretypeTests: XCTestCase {
     /// against the booked table rather than described in a comment.
     func testMateriallyBetterModelForLanguage() {
         let minicpm = "nikimori/MiniCPM5-1B-Base-8bit"
-        // Fires where the model is the wrong tool: Hebrew 1% and Turkish 5%.
+        // Fires where the model is the wrong tool: Hebrew 3% and Turkish 5%.
         let he = ModelMetrics.materiallyBetter(than: minicpm, on: "he")
         XCTAssertEqual(he?.id, "mlx-community/gemma-4-e2b-8bit")
-        XCTAssertEqual(he?.current, 1)
+        XCTAssertEqual(he?.current, 3)
         XCTAssertEqual(he?.best, 18)
         XCTAssertEqual(ModelMetrics.materiallyBetter(than: minicpm, on: "tr")?.id,
-                       "mlx-community/gemma-4-e4b-8bit")
-        // Silent where a better model exists but the current one is still the
-        // best of its weight class — Russian 17 vs 24 is a memory trade-off the
-        // user already made, not a mistake worth a menu line.
+                       "mlx-community/gemma-4-e4b-6bit")
+        // Silent where a better model exists but the current one is still a
+        // usable tool in its weight class — Russian 17 vs 25 is a memory
+        // trade-off the user already made, not a mistake worth a menu line.
         XCTAssertNil(ModelMetrics.materiallyBetter(than: minicpm, on: "ru"))
         XCTAssertNil(ModelMetrics.materiallyBetter(than: minicpm, on: "en"))
         // Never suggests a model against itself, or on an unmeasured language.
@@ -1492,7 +1496,7 @@ final class PretypeTests: XCTestCase {
         // Bonsai corrects with itself, through its own chat template.
         let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .base)
         XCTAssertEqual(bonsai?.m.fixPct, 19)
-        XCTAssertEqual(bonsai?.m.replyPct, 39)
+        XCTAssertEqual(bonsai?.m.replyPct, 36)
         // Not measured: only the system model.
         XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
     }

@@ -1257,16 +1257,16 @@ struct SuggestionsTab: View {
         if store.style == .base {
             return [
                 EffectBadge(icon: "checkmark.seal", text: "more accurate on real text", tone: .quality,
-                            source: "First-word 33% vs 22% of shown suggestions (Base vs Instruct+persona, same E4B-6bit family), McNemar p≈0.0005 — eval-real, n=870, 2026-07-15."),
+                            source: "First-word 32% vs 20% of shown suggestions (Base vs Instruct+persona, same E4B-6bit family), McNemar p≈1e-9 — eval-real EN+RU core, n=1449, 2026-10-15."),
                 EffectBadge(icon: "memorychip", text: "no second model", tone: .memory,
                             source: "Instruct loads a separate instruct-tuned sibling (up to ~5.6 GB on E4B); Base runs only the selected model."),
                 EffectBadge(icon: "hand.raised", text: "can abstain", tone: .neutral,
-                            source: "Base offers nothing on ~17% of keystrokes instead of forcing a guess (coverage 83% vs 99% for Instruct) — fewer wrong flashes."),
+                            source: "Base offers nothing on ~18% of keystrokes instead of forcing a guess (coverage 82% vs 99% for Instruct) — fewer wrong flashes."),
             ]
         }
         var badges = [
             EffectBadge(icon: "text.quote", text: "85% first-word on authored text", tone: .quality,
-                        source: "eval-v2 (40 hand-authored samples) with the auto-persona: 85% first-word (EN 88 / RU 81). On real held-out text Base measures better (33% vs 22%) — pick by what you type."),
+                        source: "eval-v2 (40 hand-authored samples) with the auto-persona: 85% first-word (EN 88 / RU 81). On real held-out text Base measures better (32% vs 20%) — pick by what you type."),
             EffectBadge(icon: "person.text.rectangle", text: "persona steering", tone: .neutral,
                         source: "Follows your persona text; the persona lifts Instruct from 66% to 85–88% first-word on eval-v2."),
             EffectBadge(icon: "memorychip", text: "loads an instruct sibling", tone: .memory,
@@ -1280,55 +1280,46 @@ struct SuggestionsTab: View {
     }
 
     private var lengthBadges: [EffectBadge] {
-        // Length sweep (eval-real, 2026-07-13): p50 157 / 291 / 550 ms on the
-        // sweep model; first-word length-independent, word-F1 drops. Figures
-        // shown are the sweep's ratios (`latencyFactor`) applied to the SELECTED
-        // model's measured base latency — quoting the sweep model's absolute
-        // milliseconds next to a rail that shows this model's contradicts it.
-        // The reach badge states what longer BUYS — without it the control
-        // reads as pure degradation on the measured axes.
-        let baseMs = ModelMetrics.metrics(for: store.modelID)?.p50Ms
-        func ms(_ length: CompletionLength) -> String {
-            guard let baseMs else { return "" }
-            let v = Int((Double(baseMs) * ConfigProjection.latencyFactor(length)).rounded())
-            return latencyLabel(ms: v)
+        // Measured on the EN+RU core, 2026-10-15 (`latencyFactor`). In Base
+        // style the entropy stop ends a suggestion near its second word,
+        // inside even Short's budget, so length changes nothing; Instruct
+        // follows the directive's word hint. Latency per length comes from
+        // the projection the rail reads, so badge and rail always agree.
+        func ms(_ length: CompletionLength) -> String? {
+            var config = store.committedConfig
+            config.length = length
+            return ConfigProjection.project(config).p50Ms.map { latencyLabel(ms: $0) }
         }
-        // The ratios come from the projection's own table, so a re-measured
-        // sweep can't leave these strings quoting the old one.
-        func ratio(_ length: CompletionLength) -> String {
-            String(format: "%g", (ConfigProjection.latencyFactor(length) * 10).rounded() / 10)
+        let source = "Length run on the EN+RU core (n=1449, 2026-10-15): Base gave identical suggestions and latency at all three lengths (E2B 4-bit 35/35/34 ms, Qwen3.5 2B 33/33/33); Instruct on E4B-it 98 / 127 / 163 ms."
+        if store.style == .base {
+            return [
+                EffectBadge(icon: "text.word.spacing", text: "about 2 words at any length", tone: .neutral,
+                            source: "Base suggestions end at the first uncertain word — almost always inside Short's budget — so Medium and Long change nothing here. Length matters in Instruct style."),
+                EffectBadge(icon: "bolt", text: ms(.short).map { "p50 ~\($0) at any length" } ?? "same speed at any length",
+                            tone: .speed, source: source),
+            ]
         }
-        let sweepSource = "Measured length sweep (eval-real, 2026-07-13): 157 · 291 · 550 ms p50 on the sweep model — "
-            + (baseMs != nil
-                ? "the ×\(ratio(.medium))/×\(ratio(.long)) ratios here are applied to \(store.selectedModelName)'s measured base latency."
-                : "no measured base latency for this model, so only the ratios are shown.")
+        let ratio = ConfigProjection.latencyFactor(store.length, style: .instruct)
         let reach: EffectBadge
-        let speed: EffectBadge
         switch store.length {
         case .short:
             reach = EffectBadge(icon: "text.word.spacing", text: "runs 2–3 words ahead", tone: .neutral,
-                                source: "How far one suggestion runs. Short is the sweep's best net-value point for inline ghost text — same accuracy as longer settings at a fraction of the wait.")
-            speed = EffectBadge(icon: "bolt",
-                                text: baseMs != nil ? "fastest — p50 ~\(ms(.short))" : "fastest",
-                                tone: .speed, source: sweepSource)
+                                source: "How far one suggestion runs. Short is the fastest point for inline ghost text, at the same first-word accuracy as longer settings.")
         case .medium:
             reach = EffectBadge(icon: "text.word.spacing", text: "runs up to ~6 words ahead", tone: .neutral,
-                                source: "What longer buys: more words per suggestion (+1–2 pp completeness in the sweep). Per-word accuracy does not improve — you pay only in wait time.")
-            speed = EffectBadge(icon: "bolt",
-                                text: baseMs != nil ? "p50 ~\(ms(.medium)) (≈\(ratio(.medium))× short)" : "≈\(ratio(.medium))× slower than short",
-                                tone: .caution, source: sweepSource)
+                                source: "What longer buys: more of the phrase per suggestion (completeness 0.75 → 0.92 in the run). First-word accuracy does not improve — you pay in wait time.")
         case .long:
             reach = EffectBadge(icon: "text.word.spacing", text: "runs up to a sentence ahead", tone: .neutral,
-                                source: "What longer buys: more words per suggestion (+1–2 pp completeness in the sweep). Per-word accuracy does not improve, and weak tails are trimmed automatically.")
-            speed = EffectBadge(icon: "tortoise",
-                                text: baseMs != nil ? "p50 ~\(ms(.long)) (≈\(ratio(.long))× short)" : "≈\(ratio(.long))× slower than short",
-                                tone: .caution, source: sweepSource)
+                                source: "What longer buys: more of the phrase per suggestion (completeness 0.75 → 0.93 in the run). First-word accuracy does not improve, and weak tails are trimmed automatically.")
         }
+        let speedText = ms(store.length).map { ratio > 1 ? "p50 ~\($0) (≈\(String(format: "%g", ratio))× short)" : "fastest — p50 ~\($0)" }
+            ?? (ratio > 1 ? "≈\(String(format: "%g", ratio))× slower than short" : "fastest")
         return [
             reach,
-            speed,
+            EffectBadge(icon: ratio > 1.5 ? "tortoise" : "bolt", text: speedText,
+                        tone: ratio > 1 ? .caution : .speed, source: source),
             EffectBadge(icon: "scope", text: "accuracy unchanged", tone: .quality,
-                        source: "First-word accuracy is length-independent in the sweep; longer buys ~1–2 pp completeness but loses word-F1 — speed is the real trade-off."),
+                        source: "First-word accuracy is length-independent: 19 · 18 · 19% of all rows for Short, Medium, Long in the run — speed is the real trade-off."),
         ]
     }
 
