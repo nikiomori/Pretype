@@ -19,16 +19,21 @@ enum CloudTranscription {
         // on-device analyzer gets.
         let hints = Transcription.contextualWords.get()
         // An upload is not a local finalization: a long take over a slow link
-        // legitimately takes longer than the controller's ten seconds.
-        return RecordedTranscription(preview: config.isLocal, finishDeadline: 60,
+        // legitimately takes longer than the controller's ten seconds. The WAV
+        // is 32 KB per audio second, ~0.26 s each over a 1 Mbit/s uplink.
+        return RecordedTranscription(preview: config.isLocal, finishDeadline: 60, perAudioSecond: uploadPerSecond,
                                      onPartial: onPartial) { audio, final in
             // Under a tenth of a second is a key tap, not speech — and most
             // servers refuse a clip that short.
             guard audio.count >= 1_600 else { return "" }
+            // The request gives up a little before the watchdog does.
+            let timeout = final ? 55 + uploadPerSecond * Double(audio.count) / 16_000 : 10
             return try await APIClient.transcribe(endpoint, wav: wav(audio), language: language,
-                                                  hints: hints, timeout: final ? 55 : 10)
+                                                  hints: hints, timeout: timeout)
         }
     }
+
+    private static let uploadPerSecond: TimeInterval = 0.3
 
     /// 16 kHz 16-bit PCM WAV, mono — the one format every transcription API takes.
     static func wav(_ samples: [Float]) -> Data {

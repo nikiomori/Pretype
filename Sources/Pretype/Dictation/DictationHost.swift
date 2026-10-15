@@ -18,6 +18,12 @@ struct DictationAnchor {
     var selectedText: String = ""
 }
 
+/// Why a transcript went to the clipboard instead of the field.
+enum DictationRescue {
+    case focusMoved
+    case timedOut
+}
+
 /// What `DictationController` needs from the app around it — a protocol, not
 /// `SuggestionController` itself, so the capture state machine can be driven in
 /// a test with no microphone, no AX focus and no frontmost app. Every member is
@@ -69,8 +75,9 @@ protocol DictationHost: AnyObject {
     func insertDictated(_ text: String)
     /// A finished transcript that can no longer be typed — the focus moved
     /// while it was being captured or written down. Put it on the clipboard and
-    /// say so: a latched capture can be minutes of speech.
-    func rescueDictated(_ text: String)
+    /// say so: a latched capture can be minutes of speech. Also the last live
+    /// preview of a take whose transcription outran its watchdog.
+    func rescueDictated(_ text: String, because reason: DictationRescue)
     /// Voice command mode: rewrite `selection` as the spoken `instruction`
     /// asks, previewed like a ⌥⇥ fix (⏎/⇥ applies, ⎋ keeps the original).
     func applyVoiceCommand(_ instruction: String, to selection: String)

@@ -333,16 +333,25 @@ private final class SystemTranscription<Module: SpeechModule>: TranscriptionSess
 final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
     let audioFormat: AVAudioFormat? = AVAudioFormat(
         commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)
-    let finishDeadline: TimeInterval?
+    /// The finish watchdog: `deadline` plus `perAudioSecond` for each second
+    /// recorded — a whole-take pass (and the preview pass it waits out) grows
+    /// with the take, and a ten-minute latch must not time out where a
+    /// one-minute take would not.
+    var finishDeadline: TimeInterval? {
+        deadline.map { $0 + perAudioSecond * Double(samples.get().count) / 16_000 }
+    }
 
+    private let deadline: TimeInterval?
+    private let perAudioSecond: TimeInterval
     private let transcribe: @Sendable (_ audio: [Float], _ final: Bool) async throws -> String
     private let samples = LockedValue<[Float]>([])
     private let previewTask = LockedValue<Task<Void, Never>?>(nil)
 
-    init(preview: Bool, finishDeadline: TimeInterval? = nil,
+    init(preview: Bool, finishDeadline: TimeInterval? = nil, perAudioSecond: TimeInterval = 0,
          onPartial: @escaping @Sendable (String) -> Void,
          transcribe: @escaping @Sendable (_ audio: [Float], _ final: Bool) async throws -> String) {
-        self.finishDeadline = finishDeadline
+        self.deadline = finishDeadline
+        self.perAudioSecond = perAudioSecond
         self.transcribe = transcribe
         guard preview else { return }
         previewTask.set(Task { [samples] in

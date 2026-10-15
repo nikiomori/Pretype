@@ -938,7 +938,7 @@ final class DictationController {
                 : String(localized: "too quick — the microphone was still opening")))
             return
         }
-        guard case .listening = phase, let session else { return }
+        guard case .listening(let heard) = phase, let session else { return }
         capture.stop()
         limitTimer?.invalidate()
         limitTimer = nil
@@ -959,7 +959,8 @@ final class DictationController {
                 // forever, with every keystroke silently discarding. Ten
                 // seconds is far past any real finalization of a two-minute
                 // ceiling's audio — this is a watchdog, not a budget. A
-                // session that uploads asks for longer (`finishDeadline`).
+                // session that re-transcribes or uploads the whole take asks
+                // for longer, growing with the take (`finishDeadline`).
                 let raw = try await Self.withDeadline(
                     seconds: session.finishDeadline ?? Self.finalizeSeconds) {
                     try await session.finish()
@@ -1007,11 +1008,25 @@ final class DictationController {
                     owner.insertDictated(text)
                 } else {
                     Self.note("rescued \(text.count) chars to the clipboard — focus changed")
-                    owner.rescueDictated(text)
+                    owner.rescueDictated(text, because: .focusMoved)
                 }
                 self.resumePendingHold(noticeIfMissed: true)
             } catch {
                 guard let self, self.generation == gen else { return }
+                // A watchdog that fired on a take with a live preview still has
+                // that preview — on Parakeet and a local server, nearly the
+                // whole take. Minutes of speech go to the clipboard, not away.
+                // A voice command's preview is an instruction, not text: it fails.
+                let preview = Self.clean(heard)
+                if case TranscriptionError.timedOut = error, !preview.isEmpty, self.commandSelection == nil {
+                    Self.note("finish timed out — rescued the \(preview.count)-char preview to the clipboard")
+                    // A hold queued behind this take resumes inside `discard`;
+                    // its pill replaces the notice once its microphone opens.
+                    // The words are on the clipboard either way.
+                    self.discard(notice: nil)
+                    owner.rescueDictated(preview, because: .timedOut)
+                    return
+                }
                 self.fail(error)
             }
         }

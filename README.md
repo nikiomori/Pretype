@@ -179,6 +179,7 @@ Pretype types what you say into the current text field.
 * **Voice commands.** Enable them in **Settings → General → Dictation**. Then, if you dictate while text is selected, Pretype uses your words as an instruction. Examples: *"make it shorter"*, *"more formal"*, *"translate to English"*. You see a preview, as for a <kbd>⌥Tab</kbd> fix.
 * **Send.** Pretype can push <kbd>Return</kbd> after it types a dictation, for example in a chat or in the prompt of an AI agent. To enable this for an app or a website, open the menu bar menu while you are in it, and select **Press Return after Dictation**. **Settings → General → Dictation** shows the list.
 * **Focus change.** If the focus changes during a capture, Pretype puts the transcript on the clipboard. You do not lose it.
+* **Time-out.** If the transcription of a long take does not complete in time, Pretype puts the last live preview on the clipboard. A hosted API provider shows no live preview, so this does not apply to it.
 
 [Architecture → Dictation](docs/ARCHITECTURE.md#dictation) gives the details.
 

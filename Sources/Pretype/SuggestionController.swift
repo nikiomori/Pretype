@@ -2087,8 +2087,15 @@ extension SuggestionController: DictationHost {
 
     func hideOverlay() { window.hide() }
 
-    func rescueDictated(_ text: String) {
-        parkDictation(text, why: "the focus moved", notice: String(localized: "focus moved — dictation copied, ⌘V to paste"))
+    func rescueDictated(_ text: String, because reason: DictationRescue) {
+        switch reason {
+        case .focusMoved:
+            parkDictation(text, why: "the focus moved",
+                          notice: String(localized: "focus moved — dictation copied, ⌘V to paste"))
+        case .timedOut:
+            parkDictation(text, why: "transcription timed out",
+                          notice: String(localized: "transcription timed out — the preview is copied, ⌘V to paste"))
+        }
     }
 
     func applyVoiceCommand(_ instruction: String, to selection: String) {

@@ -128,6 +128,19 @@ final class CloudAPITests: XCTestCase {
         XCTAssertEqual(refused, "")
     }
 
+    /// The finish watchdog grows with the take: a whole-take pass is
+    /// proportional to its audio, and a ten-minute latch must not time out
+    /// where a one-minute take would not.
+    func testFinishDeadlineGrowsWithTheTake() {
+        let session = RecordedTranscription(preview: false, finishDeadline: 10, perAudioSecond: 0.05,
+                                            onPartial: { _ in }, transcribe: { _, _ in "" })
+        XCTAssertEqual(session.finishDeadline, 10)
+        for _ in 0 ..< 60 { session.feed(silence(seconds: 1)) }
+        XCTAssertEqual(session.finishDeadline ?? 0, 13, accuracy: 0.001)
+        let fixed = RecordedTranscription(preview: false, onPartial: { _ in }, transcribe: { _, _ in "" })
+        XCTAssertNil(fixed.finishDeadline, "no base → the controller's own watchdog")
+    }
+
     func testHTTPErrorCarriesProviderMessage() async {
         StubProtocol.response = (401, Data(#"{"error":{"message":"Incorrect API key"}}"#.utf8))
         do {

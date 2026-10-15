@@ -6182,6 +6182,16 @@
         }
       }
     },
+    "transcription timed out — the preview is copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "время распознавания истекло — услышанное скопировано, вставьте ⌘V"
+          }
+        }
+      }
+    },
     "turn on Apple Intelligence in System Settings" : {
       "localizations" : {
         "ru" : {

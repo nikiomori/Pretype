@@ -44,7 +44,11 @@ enum Parakeet {
         // ponytail: the live preview re-transcribes the whole take, ~6 ms per
         // audio second on the ANE — a ten-minute latch costs ~4 s a refresh;
         // FluidAudio's SlidingWindowAsrManager if long takes ever matter.
-        return RecordedTranscription(preview: true, onPartial: onPartial) { audio, _ in
+        // The watchdog grows with the take: a finish waits out the preview pass
+        // in flight, then runs its own — two whole-take passes, ~12 ms per
+        // audio second on the dev Mac; 0.05 leaves a slower ANE 4× room.
+        return RecordedTranscription(preview: true, finishDeadline: 10, perAudioSecond: 0.05,
+                                     onPartial: onPartial) { audio, _ in
             // The model refuses a clip under its minimum; a one-word "да" padded
             // with silence transcribes fine.
             var audio = audio

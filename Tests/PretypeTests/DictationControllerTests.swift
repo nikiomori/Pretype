@@ -102,7 +102,7 @@ private final class MockDictationHost: DictationHost {
     }
     func hideOverlay() { hideCount += 1 }
     func insertDictated(_ text: String) { inserted.append(text) }
-    func rescueDictated(_ text: String) { rescued.append(text) }
+    func rescueDictated(_ text: String, because reason: DictationRescue) { rescued.append(text) }
     private(set) var commands: [(instruction: String, selection: String)] = []
     func applyVoiceCommand(_ instruction: String, to selection: String) {
         commands.append((instruction, selection))
@@ -552,6 +552,18 @@ final class DictationControllerTests: XCTestCase {
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle, "a hung finalize must not wedge the pill")
         XCTAssertTrue(rig.host.inserted.isEmpty)
+        // What the pill last showed is all that's left of the take: kept.
+        XCTAssertEqual(rig.host.rescued, ["x"], "a timed-out take must leave its preview on the clipboard")
+    }
+
+    func testHungFinalizeWithNothingHeardSurfacesTheTimeout() async {
+        DictationController.finalizeSeconds = 0.1
+        let rig = makeRig { $0.finishDelay = 5 }
+        await startCapture(rig)
+        await release(rig.controller)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+        XCTAssertTrue(rig.host.rescued.isEmpty)
         guard case .error(let why)? = rig.host.transientNotices.last else {
             return XCTFail("the watchdog should surface an error")
         }
@@ -591,10 +603,7 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.controller.phase, .idle,
                        "an uncancellable hang must still trip the watchdog")
         XCTAssertTrue(rig.host.inserted.isEmpty)
-        guard case .error(let why)? = rig.host.transientNotices.last else {
-            return XCTFail("the watchdog should surface an error")
-        }
-        XCTAssertTrue(why.contains("timed out"), why)
+        XCTAssertEqual(rig.host.rescued, ["x"])
     }
 
     /// Invariant 1, enforced by a test instead of convention: the transcript
