@@ -1160,7 +1160,7 @@ final class PretypeTests: XCTestCase {
                                     logprobGate: true,
                                     useRecommended: true)
         auto = auto.applying(.model(e4b6))
-        XCTAssertEqual(auto.style, .instruct)  // E4B's measured best
+        XCTAssertEqual(auto.style, .base)  // E4B's measured best since 2026-10-15
         XCTAssertEqual(auto.length, .short)
         XCTAssertFalse(auto.logprobGate)
     }
@@ -1190,9 +1190,10 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(instruct.accuracyPct, 20)
         XCTAssertEqual(instruct.p50Ms, 91)
 
-        // Instruct on a Base-recommended tier: the base figure stands in,
-        // marked as an estimate — never a blank speed meter.
+        // Instruct on E2B is broken like on the smalls; the base speed stands
+        // in, marked as an estimate — never a blank speed meter.
         let instructE2B = cfg("mlx-community/gemma-4-e2b-8bit", .instruct)
+        XCTAssertEqual(instructE2B.accuracyPct, 0)
         XCTAssertEqual(instructE2B.p50Ms, 46)
         XCTAssertTrue(instructE2B.latencyText.hasPrefix("≈"))
 
@@ -1317,8 +1318,7 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(ModelMetrics.evalLanguages.count, 19)
 
         // A preset lands on the measured protocol its card advertises
-        // (Base · Short — NOT the Gemma recommendation, which is Instruct and
-        // measures 20% on real text), and preserves compatible gates.
+        // (Base · Short) and preserves compatible gates.
         let custom = ProjectionConfig(modelID: ModelCatalog.defaultID, style: .instruct,
                                       length: .long, logprobGate: true, useRecommended: false)
         let landed = custom.applying(.preset(ModelPriority.accurate.pick(axis: "core")))
@@ -1326,15 +1326,20 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(landed.style, .base)
         XCTAssertEqual(landed.length, .short)
         XCTAssertTrue(landed.logprobGate)        // user's gate survives
-        XCTAssertFalse(landed.useRecommended)    // recommendation (Instruct) ≠ landing
-        // Where the recommendation IS Base · Short, auto mode stays on.
-        // (Explicit Qwen3.5, not the Balanced pick: Balanced is RAM-sized now
-        // and lands on an instruct-recommended Gemma tier on big machines.)
+        // Every MLX model recommends Base · Short since 2026-10-15, so auto
+        // mode stays on.
+        XCTAssertTrue(landed.useRecommended)
         XCTAssertTrue(custom.applying(.preset("nikimori/Qwen3.5-2B-Base-6bit")).useRecommended)
-        // So does every E2B tier since 2026-10-14; E4B keeps Instruct (fill-in).
         XCTAssertTrue(custom.applying(.preset("mlx-community/gemma-4-e2b-4bit")).useRecommended)
-        XCTAssertTrue(custom.applying(.preset("mlx-community/gemma-4-e2b-8bit")).useRecommended)
-        XCTAssertEqual(ModelCatalog.recommended(for: "mlx-community/gemma-4-e4b-6bit").style, .instruct)
+        XCTAssertEqual(ModelCatalog.recommended(for: "mlx-community/gemma-4-e4b-6bit").style, .base)
+        // Instruct stays a working manual pick on E4B only; a switch to any
+        // other model leaves it.
+        XCTAssertTrue(ModelCatalog.instructCompletes("mlx-community/gemma-4-e4b-6bit"))
+        XCTAssertFalse(ModelCatalog.instructCompletes("mlx-community/gemma-4-e2b-8bit"))
+        let manualInstruct = ProjectionConfig(modelID: "mlx-community/gemma-4-e4b-8bit", style: .instruct,
+                                              length: .short, logprobGate: false, useRecommended: false)
+        XCTAssertEqual(manualInstruct.applying(.model("mlx-community/gemma-4-e4b-6bit")).style, .instruct)
+        XCTAssertEqual(manualInstruct.applying(.model("nikimori/Qwen3.5-2B-Base-6bit")).style, .base)
 
         // A map settings-dot jumps to its exact configuration, verbatim.
         let dot = ProjectionConfig(modelID: custom.modelID, style: .base, length: .medium,
@@ -1485,9 +1490,10 @@ final class PretypeTests: XCTestCase {
         let e4b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .instruct)
         XCTAssertEqual(e4b?.m.fixPct, 69)
         XCTAssertEqual(e4b?.measuredID, "mlx-community/gemma-4-e4b-it-6bit")
-        // Base style routes to the lazy correction sibling instead.
+        // Base style routes to the lazy correction sibling instead — on E4B
+        // the same it-6bit (2026-10-15: old Instruct installs already hold it).
         let e4bBase = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .base)
-        XCTAssertEqual(e4bBase?.measuredID, "mlx-community/gemma-4-e4b-it-4bit")
+        XCTAssertEqual(e4bBase?.measuredID, "mlx-community/gemma-4-e4b-it-6bit")
         // MiniCPM5's own RL build fixed 4% and replied 35%, so its chords
         // borrow Qwen3.5's sibling.
         let minicpm = ModelMetrics.taskMetrics(for: "nikimori/MiniCPM5-1B-Base-8bit", style: .base)
@@ -1501,17 +1507,19 @@ final class PretypeTests: XCTestCase {
         XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
     }
 
-    /// The E2B tiers' move to base (2026-10-14) must not turn an update into a
-    /// forced download: an install holding only the instruct weights keeps
-    /// Instruct until the base build is fetched in the background.
-    func testE2BInstallKeepsInstructUntilBaseIsHere() {
+    /// The Gemma tiers' move to base (E2B 2026-10-14, E4B -15) must not turn
+    /// an update into a forced download: an install holding only the instruct
+    /// weights keeps Instruct until the base build is fetched in the background.
+    func testGemmaInstallKeepsInstructUntilBaseIsHere() {
         let e2b = "mlx-community/gemma-4-e2b-4bit"
         let have = { (repos: [String]) in { (id: String) in repos.contains(id) } }
         XCTAssertTrue(Settings.keepsLegacyInstruct(model: e2b, isFetched: have(["mlx-community/gemma-4-e2b-it-4bit"])))
         XCTAssertFalse(Settings.keepsLegacyInstruct(model: e2b, isFetched: have([])))           // fresh install
         XCTAssertFalse(Settings.keepsLegacyInstruct(model: e2b, isFetched: have([e2b, "mlx-community/gemma-4-e2b-it-4bit"])))
-        XCTAssertFalse(Settings.keepsLegacyInstruct(model: "mlx-community/gemma-4-e4b-6bit",
-                                                    isFetched: have(["mlx-community/gemma-4-e4b-it-6bit"])))
+        XCTAssertTrue(Settings.keepsLegacyInstruct(model: "mlx-community/gemma-4-e4b-6bit",
+                                                   isFetched: have(["mlx-community/gemma-4-e4b-it-6bit"])))
+        XCTAssertFalse(Settings.keepsLegacyInstruct(model: "nikimori/Qwen3.5-2B-Base-6bit",
+                                                    isFetched: have(["mlx-community/Qwen3.5-2B-4bit"])))
         XCTAssertEqual(ModelCatalog.recommended(for: e2b).style, .base)
     }
 

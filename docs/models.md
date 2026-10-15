@@ -70,9 +70,11 @@ The fix and reply chords of MiniCPM5 now run on the post-trained Qwen3.5 2B buil
 
 If your install has the bf16 build, Pretype downloads the 8-bit build in the background. When the 8-bit build has loaded, Pretype deletes the bf16 build.
 
-### The E2B tiers use Base style
+### The Gemma tiers use Base style
 
-Since 2026-10-14, the recommended style of Gemma E2B 4-bit and E2B 8-bit is Base. Before, it was Instruct.
+Since 2026-10-14, the recommended style of Gemma E2B 4-bit and E2B 8-bit is Base. Since 2026-10-15, the recommended style of Gemma E4B 6-bit and E4B 8-bit is also Base. Before, it was Instruct.
+
+E2B:
 
 * On real text, E2B 4-bit in Instruct style with the default persona gets the first word on 5% of all rows. In Base style, it gets 21% (paired: 988 against 87 discordant rows).
 * English: 14% against 28%. Russian: 9% against 23%.
@@ -80,7 +82,15 @@ Since 2026-10-14, the recommended style of Gemma E2B 4-bit and E2B 8-bit is Base
 * The fix and reply chords run on the instruct sibling. It loads on the first chord.
 * If you use the recommended settings, Pretype downloads the Base build in the background. When the download is complete, Pretype changes the style.
 
-Gemma E4B keeps Instruct style, because only E4B fills in text in the middle of a line.
+E4B:
+
+* On real text in 17 languages, E4B-it 6-bit in Instruct style with the default persona gets the first word on 15% of all rows. E4B 6-bit in Base style gets 23% (p=5e-53).
+* English: 21% against 29%. Russian: 16% against 24%.
+* Instruct style offers a suggestion on 99% of prompts, and Base style on 82%. But the Instruct suggestions are wrong more often.
+* The fix and reply chords run on E4B-it 6-bit, the same build that Instruct style used. Thus an install that used Instruct style downloads no new sibling.
+* The update works as for E2B: Pretype downloads the Base build in the background, and then changes the style.
+
+Instruct style stays available on E4B as a manual choice. It is the only tier where Instruct style continues the text and fills in text in the middle of a line.
 
 ## The default follows the memory of your Mac
 
@@ -91,7 +101,7 @@ Since 2026-07-25, Pretype selects the default from the memory of your Mac. Befor
 | 8 GB | Qwen3.5 2B (Base) | ≈1.5 GB |
 | 16–18 GB | Gemma E2B 4-bit | ≈2.5 GB |
 | 24 GB | Gemma E2B 8-bit | ≈3.4 GB |
-| 32 GB and up | Gemma E4B 6-bit | ≈5.6 GB |
+| 32 GB and up | Gemma E4B 6-bit | ≈5 GB |
 
 The rule does not use language, for two reasons:
 
@@ -175,7 +185,7 @@ Disk use and memory use increase together.
 
 | Cost | Range |
 |---|---|
-| Memory of the default model, while you type | ≈1.1–5.6 GB. This is about a quarter of the memory of the Mac (see the ladder above). |
+| Memory of the default model, while you type | ≈1.5–5 GB. This is about a quarter of the memory of the Mac (see the ladder above). |
 | Smallest model in the catalog | ≈1 GB |
 | Largest download | Gemma 4 E4B 8-bit, ≈6 GB |
 | Warm completion time, local models | 17–81 ms |
@@ -218,9 +228,9 @@ On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one ti
 |---|---|
 | MiniCPM5 | ≈1.6 GB (the post-trained Qwen3.5 build) |
 | Qwen3.5 | ≈1.6 GB (its post-trained build) |
-| A Gemma tier in Base style | up to ≈5 GB |
+| A Gemma tier in Base style | up to ≈5.6 GB (E4B-it 6-bit on the E4B tiers) |
 | Bonsai | None. Bonsai corrects with itself. |
-| Gemma E4B in its recommended Instruct style | None. The loaded model is already the instruct build. |
+| Gemma E4B, if it used Instruct style before 2026-10-15 | None. The fix sibling is the instruct build that the install already has. |
 
 ## Hosted models (API)
 

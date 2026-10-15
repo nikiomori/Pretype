@@ -1179,7 +1179,7 @@ struct SuggestionsTab: View {
                 } footer: {
                     Text(store.style == .instruct
                         ? (store.instructUnusable
-                            ? "Instruct only works on models with a usable instruct sibling (the Gemma tiers) — pick one in the Model pane, or use Base here."
+                            ? "Instruct only works on models with a usable instruct sibling (the Gemma E4B tiers) — pick one in the Model pane, or use Base here."
                             : "Steers an instruct-tuned model with your persona — tone- and length-aware. Strongest on text you compose (email, chat replies).")
                         : "Plain next-word continuation of the selected model — no persona, but it can abstain instead of forcing a guess, and it unlocks the high-precision gates below.")
                 }

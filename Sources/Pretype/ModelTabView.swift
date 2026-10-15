@@ -854,7 +854,6 @@ struct ModelMapView: View {
     /// trade-off with its own badges instead.
     private func reachableConfigs(for id: String) -> [ReachableConfig] {
         guard ModelMetrics.metrics(for: id) != nil else { return [] }
-        let rec = ModelCatalog.recommended(for: id)
         func cfg(_ style: CompletionStyle, _ length: CompletionLength,
                  logprob: Bool = false) -> ProjectionConfig {
             ProjectionConfig(modelID: id, style: style, length: length,
@@ -866,7 +865,7 @@ struct ModelMapView: View {
         }
         var out = [ReachableConfig(label: "Short", config: cfg(.base, .short)),
                    ReachableConfig(label: "Confident-only", config: cfg(.base, .short, logprob: true))]
-        if rec.style == .instruct {
+        if ModelCatalog.instructCompletes(id) {
             out.append(ReachableConfig(label: "Instruct", config: cfg(.instruct, .short)))
         }
         return out

@@ -310,9 +310,9 @@ You can read the documentation at **[pretype.app/docs](https://pretype.app/docs)
 |---|---|
 | **OS** | macOS 26 or later. |
 | **Hardware** | Apple Silicon (M1 or newer). Intel Macs cannot run MLX. |
-| **Memory** | 8 GB is sufficient. The default model uses about a quarter of the memory of your Mac. It is ≈1.5 GB resident on 8 GB Macs, up to ≈5.6 GB from 32 GB. The catalog goes down to ≈1 GB. On Macs with much memory, you can select Gemma 4 E4B 8-bit (a ≈6 GB download). |
+| **Memory** | 8 GB is sufficient. The default model uses about a quarter of the memory of your Mac. It is ≈1.5 GB resident on 8 GB Macs, up to ≈5 GB from 32 GB. The catalog goes down to ≈1 GB. On Macs with much memory, you can select Gemma 4 E4B 8-bit (a ≈6 GB download). |
 | **Storage** | ≈1–5.7 GB for the default model (the size depends on your Mac). ≈1–6 GB for the other models. |
-| **Storage for <kbd>⌥Tab</kbd>** | Some models add a one-time instruct sibling: ≈1.6 GB on Qwen3.5 and MiniCPM5 (they share it), up to ≈5 GB on a Gemma in Base style. Qwen3.5 and MiniCPM5 complete on their Base builds, and they fix and reply on the post-trained Qwen3.5 build. There is no sibling on Bonsai, because it fixes with itself. There is no sibling on Gemma E4B in its recommended Instruct style. |
+| **Storage for <kbd>⌥Tab</kbd>** | Some models add a one-time instruct sibling: ≈1.6 GB on Qwen3.5 and MiniCPM5 (they share it), up to ≈5.6 GB on a Gemma in Base style. Qwen3.5 and MiniCPM5 complete on their Base builds, and they fix and reply on the post-trained Qwen3.5 build. There is no sibling on Bonsai, because it fixes with itself. There is no new sibling on Gemma E4B if it used Instruct style before 2026-10-15. |
 | **To build** | Full Xcode 26.4 or newer (Swift 6.3, the macOS 26 SDK, and the Metal toolchain). The prebuilt app does not need it. |
 
 ---

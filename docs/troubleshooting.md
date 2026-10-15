@@ -93,7 +93,7 @@ If dictation still does not operate:
 
 ### What does it cost in battery and memory?
 
-The model stays in memory while you type. This makes suggestions fast. The default model uses approximately 1.1–5.6 GB, which is approximately one quarter of the memory of your Mac.
+The model stays in memory while you type. This makes suggestions fast. The default model uses approximately 1.5–5 GB, which is approximately one quarter of the memory of your Mac.
 
 * After five minutes without typing, the model unloads and releases its memory. On Macs with 32 GB or more, this time is fifteen minutes. The model loads again at your next keystroke.
 * If macOS reports memory pressure, the model unloads earlier.

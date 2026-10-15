@@ -388,7 +388,7 @@ final class SettingsStore {
     var logprobGateUsable: Bool { style == .base }
     /// Models whose recommended style is base run instruct as "answer the text"
     /// (~0% first-word measured) — warn if the user forces it.
-    var instructUnusable: Bool { recommendation.style == .base }
+    var instructUnusable: Bool { !ModelCatalog.instructCompletes(modelID) }
     var isAppleIntelligence: Bool { modelID == ModelCatalog.appleIntelligenceID }
     var selectedModelName: String {
         ModelCatalog.option(for: modelID)?.title ?? (modelID as NSString).lastPathComponent

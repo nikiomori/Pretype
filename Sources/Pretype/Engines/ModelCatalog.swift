@@ -8,7 +8,6 @@ struct ModelOption {
     /// Instruct sibling used for fix-selection: corrections need instruction
     /// following (the base model paraphrases), while completion needs a base
     /// model (the instruct one echoes the prompt). Loaded lazily on first use.
-    /// Kept at 4-bit — correction is easy and the model loads lazily.
     /// Base style runs BOTH chords (fix and reply) on it.
     let correctionModelID: String
     /// Instruct sibling that becomes the *primary* model in instruct
@@ -30,13 +29,16 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e4b-8bit",
             title: "Gemma 4 E4B 8-bit — best quality",
-            correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
+            correctionModelID: "mlx-community/gemma-4-e4b-it-6bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e4b-6bit",
             title: "Gemma 4 E4B 6-bit — lighter, near-best",
-            correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
+            // it-6bit, not 4-bit: it fixes 69% of noisy lines against 65%
+            // (p<0.001), and the installs that ran it as their Instruct
+            // primary before 2026-10-15 already hold it.
+            correctionModelID: "mlx-community/gemma-4-e4b-it-6bit",
             instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
         ModelOption(
@@ -149,8 +151,8 @@ enum ModelCatalog {
 
     /// The rule behind `defaultID`, memory injected so tests stay
     /// machine-independent: the best Gemma tier whose RECOMMENDED-config
-    /// resident model (what the pick actually keeps loaded: E4B's instruct
-    /// primary, the E2B tiers' base build) stays within about a QUARTER of
+    /// resident model (what the pick actually keeps loaded: the base build)
+    /// stays within about a QUARTER of
     /// physical memory. Quality order on the 17-language catalog run
     /// (2026-10-15): E4B 6-bit ≥ E2B 8-bit > E2B 4-bit — the first step a
     /// tie on completions (p=0.11), carried by E4B's fix sibling (69 vs 65%,
@@ -163,8 +165,8 @@ enum ModelCatalog {
     ///
     /// A fixed table, not derived from the size tables: the thresholds are 4×
     /// each tier's resident size as booked on 2026-07-25 (6.8 / 5.0 / 3.5 GB);
-    /// the slim re-packs and the E2B tiers' move to base style (2026-10-14)
-    /// only made every tier lighter (5.6 / 3.4 / 2.5), so the quarter rule
+    /// the slim re-packs and the Gemma tiers' move to base style (2026-10-14
+    /// and -15) only made every tier lighter (5.0 / 3.4 / 2.5), so the quarter rule
     /// still holds. Moving a threshold moves every install that follows the
     /// ladder (`Settings.autoModelID`) onto another model — fetched quietly
     /// while the old one keeps serving, so a re-tier costs a background
@@ -190,7 +192,7 @@ enum ModelCatalog {
     static var defaultRationale: String {
         switch defaultID {
         case "mlx-community/gemma-4-e4b-6bit":
-            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5.6 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory."
+            return "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory."
         case "mlx-community/gemma-4-e2b-8bit":
             return "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less."
         case "mlx-community/gemma-4-e2b-4bit":
@@ -354,18 +356,27 @@ enum ModelCatalog {
             let tau = id.contains("Qwen2.5-0.5B") ? -1.12 : id.contains("Ternary-Bonsai") ? -0.95 : -1.00
             return Recommendation(style: .base, length: .short, logprobGateTau: tau)
         }
-        // Gemma E-series, short. E4B: instruct + persona, the authored-text
-        // winner (~85% first-word). E2B: base
-        // since 2026-10-14 — on real text its instruct sibling + the default
-        // persona gets the first word on 5% of all rows against base's 21%
-        // (eval-real 17 langs, paired 988 vs 87 discordant; en 14 vs 28, ru 9
-        // vs 23), and it never abstains (Eval/runs-2026-10-14-small).
+        // Gemma E-series: base, short. Instruct + persona wins on text you
+        // author (~85% first-word, eval-v2) but loses on real text: E2B since
+        // 2026-10-14 (5% vs 21% of all rows, runs-2026-10-14-small), E4B since
+        // 2026-10-15 (it-6bit 15% vs 23% of all rows on 17 languages, p=5e-53;
+        // en 21 vs 29, ru 16 vs 24 — runs-2026-10-15-rebook).
         let isE4B = id.contains("e4b")
         let is4bit = id.contains("4bit")
         let tau: Double = isE4B
             ? (is4bit ? -1.00 : id.contains("6bit") ? -0.79 : -0.75)
             : (is4bit ? -0.94 : -0.88)
-        return Recommendation(style: isE4B ? .instruct : .base, length: .short, logprobGateTau: tau)
+        return Recommendation(style: .base, length: .short, logprobGateTau: tau)
+    }
+
+    /// Whether Instruct style continues the text on `id`. Elsewhere the
+    /// instruct build answers the text instead (first-word ~0%), so the UI
+    /// marks the combination broken and a model switch leaves it. The E4B
+    /// tiers' it-6bit sibling completes (20% on the core, 99% offered —
+    /// `ModelMetrics.instructCompletion`), just below Base.
+    static func instructCompletes(_ id: String) -> Bool {
+        id == appleIntelligenceID
+            || option(for: id)?.instructModelID == ModelMetrics.instructCompletion.id
     }
 }
 

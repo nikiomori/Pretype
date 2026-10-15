@@ -442,13 +442,14 @@ enum Settings {
         return formatter.string(from: names) ?? ""
     }
 
-    /// Gemma E2B registered Instruct until 2026-10-14. An install that never
-    /// stored a style and holds only the instruct weights keeps running them
-    /// until `ModelStorage.fetchRecommendedWeights` has the base build here —
-    /// the registered default alone would make the update a forced download.
+    /// Gemma registered Instruct until 2026-10-14 (E2B) and -15 (E4B). An
+    /// install that never stored a style and holds only the instruct weights
+    /// keeps running them until `ModelStorage.fetchRecommendedWeights` has the
+    /// base build here — the registered default alone would make the update a
+    /// forced download.
     static func keepsLegacyInstruct(model: String,
                                     isFetched: (String) -> Bool = ModelStorage.isFetched) -> Bool {
-        guard model.contains("gemma-4-e2b"),
+        guard model.contains("gemma-4-e"),
               let instruct = ModelCatalog.option(for: model)?.instructModelID else { return false }
         return !isFetched(model) && isFetched(instruct)
     }

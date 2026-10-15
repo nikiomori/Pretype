@@ -50,7 +50,7 @@ struct ProjectionConfig: Equatable {
             // A switch to a base-only model never keeps the measured-broken
             // Instruct style; and if the landing style is still Instruct
             // (stale persisted state), the Base-only gate cannot survive.
-            if rec.style == .base, c.style == .instruct { c.style = .base }
+            if !ModelCatalog.instructCompletes(id), c.style == .instruct { c.style = .base }
             if c.style != .base { c.logprobGate = false }
         case .style(let s):
             c.style = s
@@ -71,14 +71,12 @@ struct ProjectionConfig: Equatable {
             }
         case .preset(let id):
             c.modelID = id
-            // Land on the measured protocol the card's figures come from —
-            // NOT the recommendation, which for Gemma is Instruct and measures
-            // very differently (20% on real text) than what the card promises.
+            // Land on the measured protocol the card's figures come from;
+            // auto mode stays only where the recommendation IS this landing
+            // state (every MLX model since 2026-10-15).
             c.style = .base
             c.length = .short
             let rec = ModelCatalog.recommended(for: id)
-            // Auto mode stays only where the recommendation IS this landing
-            // state; otherwise it would immediately re-snap style to Instruct.
             c.useRecommended = rec.style == .base && rec.length == .short
         case .config(let target):
             c = target
@@ -219,7 +217,6 @@ struct ConfigProjection {
                 ramGB: nil, memorySub: "not measured",
                 computeRel: nil, computeSub: "not measured")
         }
-        let rec = ModelCatalog.recommended(for: c.modelID)
         let isAI = c.modelID == ModelCatalog.appleIntelligenceID
         let lf = latencyFactor(c.length, style: c.style)
 
@@ -235,7 +232,7 @@ struct ConfigProjection {
         }
 
         if c.style == .instruct {
-            let usable = rec.style == .instruct
+            let usable = ModelCatalog.instructCompletes(c.modelID)
             let gb = ModelMetrics.instructRamGB(for: c.modelID) ?? m.ramGB
             if !usable {
                 return ConfigProjection(
@@ -245,19 +242,15 @@ struct ConfigProjection {
                     p50Ms: m.p50Ms, latencyIsApprox: true, latencySub: "base-model figure — instruct unmeasured here",
                     gb: gb, memorySub: "instruct sibling weights (hub size)", lengthFactor: lf)
             }
-            // Instruct is recommended only where it runs the measured it-6bit
-            // sibling (the E4B tiers); anything else falls back to the base
-            // figure, marked ≈.
+            // Usable means the measured it-6bit sibling (the E4B tiers).
             let it = ModelMetrics.instructCompletion
-            let measured = ModelCatalog.option(for: c.modelID)?.instructModelID == it.id
-            let ms = Int((Double(measured ? it.p50Ms : m.p50Ms) * lf).rounded())
+            let ms = Int((Double(it.p50Ms) * lf).rounded())
             return ConfigProjection(
                 accuracyPct: it.firstWordPct, accuracyText: "\(it.firstWordPct)%",
                 accuracySub: "offers \(it.coveragePct)% of the time on real text, where Base measures \(m.firstWordPct)% · 85% on text you author (eval-v2, with persona)",
                 coveragePct: it.coveragePct,
-                p50Ms: ms, latencyIsApprox: !measured || lf > 1,
-                latencySub: !measured ? "base-model figure — the instruct sibling on this tier is unmeasured"
-                    : lf > 1 ? "instruct sibling, scaled by the measured length factor" : "instruct sibling, measured (it-6bit)",
+                p50Ms: ms, latencyIsApprox: lf > 1,
+                latencySub: lf > 1 ? "instruct sibling, scaled by the measured length factor" : "instruct sibling, measured (it-6bit)",
                 gb: gb, memorySub: "instruct sibling weights (hub size)", lengthFactor: lf)
         }
 

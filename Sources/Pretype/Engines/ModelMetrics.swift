@@ -92,12 +92,13 @@ struct ModelMetrics {
         all.first { $0.id == id }
     }
 
-    /// Completion in Instruct style, the E4B tiers' recommended config: the
-    /// it-6bit sibling with an English+Russian default persona, on the
-    /// headline's rows and pins (runs-2026-10-15-rebook, e4b-it6-instruct).
-    /// It answers nearly every prompt and is right less often — 20% of shown
-    /// on the core against 32% for E4B 6-bit in Base style (paired p≈1e-9),
-    /// 15% vs 23% of all rows on the 17-language set. Its case is text you
+    /// Completion in Instruct style on the E4B tiers, the only ones where it
+    /// completes: the it-6bit sibling with an English+Russian default persona,
+    /// on the headline's rows and pins (runs-2026-10-15-rebook,
+    /// e4b-it6-instruct). It answers nearly every prompt and is right less
+    /// often — 20% of shown on the core against 32% for E4B 6-bit in Base
+    /// style (paired p≈1e-9), 15% vs 23% of all rows on the 17-language set,
+    /// so the E4B tiers left it for Base on 2026-10-15. Its case is text you
     /// author, with a persona and fill-in-the-middle (eval-v2, 85%), which
     /// real text doesn't test.
     static let instructCompletion = ModelMetrics(
