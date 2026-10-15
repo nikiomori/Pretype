@@ -2024,6 +2024,11 @@ extension SuggestionController: DictationHost {
         correctionController.runVoiceCommand(instruction, selection: selection)
     }
 
+    func prewarmTidy() {
+        // Fetched only: a download is the tidy-up's own call (see below).
+        if engine.isCorrectionReady { engine.prewarmCorrection() }
+    }
+
     func tidyDictation(_ text: String, before context: String) async -> String? {
         // A fix model that still has to be fetched cannot help THIS sentence:
         // the tidy-up budget is three seconds and the download is gigabytes.

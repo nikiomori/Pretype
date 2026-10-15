@@ -621,6 +621,7 @@ final class DictationController {
         generation += 1
         let gen = generation
         phase = .preparing
+        if Settings.dictationPolish || commandSelection != nil { owner.prewarmTidy() }
         render()
         owner.lastEvent = "listening…"
         Self.note("listening (\(requested == .latch ? Settings.dictationLatch.label + ", hands-free" : Settings.dictationGesture.label))")

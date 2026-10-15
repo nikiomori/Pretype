@@ -87,6 +87,8 @@ private final class MockDictationHost: DictationHost {
     func hasFocusedTextField() -> Bool { hasField }
     func isComposingInFocusedField() -> Bool { composing }
     func cancelPendingFix() { cancelledFixes += 1 }
+    private(set) var prewarms = 0
+    func prewarmTidy() { prewarms += 1 }
     func dictationAnchor() -> DictationAnchor? { anchor }
     func clearActiveCompletion() {}
     func stopProgressIndicator() {}
@@ -275,6 +277,7 @@ final class DictationControllerTests: XCTestCase {
         await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
         XCTAssertEqual(rig.capture.startCount, 1)
+        XCTAssertEqual(rig.host.prewarms, 0, "polish off: nothing to load")
         await hear("say someth", in: rig)
         XCTAssertEqual(rig.controller.phase, .listening("say someth"))
         await release(rig.controller)
@@ -497,6 +500,7 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         rig.host.tidy = { _ in "Hello, world." }
         await startCapture(rig)
+        XCTAssertEqual(rig.host.prewarms, 1, "the tidy-up model loads while the user speaks")
         await hear("x", in: rig)
         await release(rig.controller)
         await pump(until: { !rig.host.inserted.isEmpty })

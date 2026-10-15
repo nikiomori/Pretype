@@ -92,6 +92,11 @@ final class MLXEngine: CompletionEngine {
     private var inFlightCount = 0
     /// Last time the model was used — drives the idle-unload timer.
     private var lastActivity = Date()
+    /// The base style's fix sibling idles on its own clock: timed off
+    /// `lastActivity`, every keystroke kept gigabytes of a model last used for
+    /// one ⌥⇥ hours ago resident (E4B-it: ~4 GB). Both guarded by modelLock.
+    private var lastSiblingUse = Date()
+    private var siblingInFlight = 0
     /// After a load failure, back off before retrying so a genuinely unavailable
     /// model (offline, bad repo id) isn't re-attempted on every keystroke — each
     /// retry otherwise re-hits the Hub and flips state preparing↔failed per press.
@@ -534,12 +539,14 @@ final class MLXEngine: CompletionEngine {
     /// `beginRequest` for work that runs on the fix sibling only (base style's
     /// fix and reply): holds off the idle unload without reloading — or, in its
     /// failure cooldown, refusing on behalf of — the completion model, which
-    /// this request never touches. Pair with `endRequest()`.
+    /// this request never touches. Pair with `endSiblingRequest()`.
     private func beginSiblingRequest() -> Bool {
         modelLock.withLock {
             guard didInitLoad else { return false }
             inFlightCount += 1
+            siblingInFlight += 1
             lastActivity = Date()
+            lastSiblingUse = lastActivity
             return true
         }
     }
@@ -548,6 +555,15 @@ final class MLXEngine: CompletionEngine {
         modelLock.withLock {
             inFlightCount = max(0, inFlightCount - 1)
             lastActivity = Date()
+        }
+    }
+
+    private func endSiblingRequest() {
+        modelLock.withLock {
+            inFlightCount = max(0, inFlightCount - 1)
+            siblingInFlight = max(0, siblingInFlight - 1)
+            lastActivity = Date()
+            lastSiblingUse = lastActivity
         }
     }
 
@@ -629,6 +645,25 @@ final class MLXEngine: CompletionEngine {
         DebugLog.shared.log("MLX", "unloaded model (\(reason)) — freed ~\(amount)")
     }
 
+    /// Frees the base style's fix sibling alone once it has sat unused for
+    /// `limit` while completions keep the primary busy. Not mid-load, not
+    /// mid-request; the next fix, reply or dictation reloads it.
+    private func unloadSibling(idleFor limit: TimeInterval) {
+        let idle: TimeInterval? = modelLock.withLock {
+            let idle = Date().timeIntervalSince(lastSiblingUse)
+            guard style == .base, correctionLoadTask != nil, siblingInFlight == 0,
+                  correctionStatus.get() == nil, idle >= limit else { return nil }
+            keepBlueprint(correctionLoadTask, repo: ModelCatalog.repo(for: correctionModelID),
+                          vlm: correctionDrafter.get() != nil)
+            correctionLoadTask?.cancel(); correctionLoadTask = nil
+            correctionDrafter.set(nil)
+            return idle
+        }
+        guard let idle else { return }
+        Memory.clearCache()
+        DebugLog.shared.log("MLX", "unloaded fix model (idle \(Int(idle))s)")
+    }
+
     /// Idle-unload timer + memory-pressure source: both free the model when it
     /// is unused or the system needs RAM; the next use reloads it.
     private func startIdleMaintenance() {
@@ -654,6 +689,8 @@ final class MLXEngine: CompletionEngine {
             }
             if !busy, idle >= TimeInterval(minutes) * 60 {
                 self.unload(reason: "idle \(Int(idle))s")
+            } else {
+                self.unloadSibling(idleFor: TimeInterval(minutes) * 60)
             }
         }
         timer.resume()
@@ -1101,7 +1138,7 @@ final class MLXEngine: CompletionEngine {
             guard beginSiblingRequest() else { throw EngineNotReady() }
             primary = nil
         }
-        defer { endRequest() }
+        defer { if primary == nil { endSiblingRequest() } else { endRequest() } }
         let container: ModelContainer
         if let primary {
             container = try await primary.value
@@ -1204,6 +1241,9 @@ final class MLXEngine: CompletionEngine {
 
     private func correctionLoadTaskOrCreate() -> Task<ModelContainer, Error> {
         modelLock.withLock {
+            // A prewarm counts as use: the timer must not free the model a
+            // dictation just asked to have ready.
+            lastSiblingUse = Date()
             if let correctionLoadTask { return correctionLoadTask }
             let id = correctionModelID
             let status = self.correctionStatus
