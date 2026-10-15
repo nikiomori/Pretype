@@ -39,6 +39,9 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(UpdateChecker.isNewer("1.0.1", than: "1.0"))
         // A pre-release never outranks the final tag of the same version.
         XCTAssertFalse(UpdateChecker.isNewer("0.2.0-beta", than: "0.2.0"))
+        // …including one with a dotted suffix, which once read as 0.2.0.1.
+        XCTAssertFalse(UpdateChecker.isNewer("0.2.0-beta.1", than: "0.2.0"))
+        XCTAssertTrue(UpdateChecker.isNewer("0.3.0-beta.1", than: "0.2.0"))
         // Garbage must not read as newer.
         XCTAssertFalse(UpdateChecker.isNewer("", than: "0.1.0"))
         XCTAssertFalse(UpdateChecker.isNewer("nightly", than: "0.1.0"))
@@ -56,4 +59,11 @@ final class SettingsTests: XCTestCase {
         XCTAssertNotNil(LoginItem.note(.requiresApproval))
     }
 
+    // Finder hides ".app" or not; only that suffix is ours to drop.
+    func testAppNamesKeepTheirOwnDots() {
+        XCTAssertEqual(InstalledApps.droppingAppSuffix("Safari.app"), "Safari")
+        XCTAssertEqual(InstalledApps.droppingAppSuffix("Safari"), "Safari")
+        XCTAssertEqual(InstalledApps.droppingAppSuffix("Battle.net"), "Battle.net")
+        XCTAssertEqual(InstalledApps.droppingAppSuffix("draw.io.app"), "draw.io")
+    }
 }

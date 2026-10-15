@@ -97,12 +97,17 @@ enum InstalledApps {
     static func lookup(_ bundleID: String) -> (name: String, icon: NSImage)? {
         if let hit = cache[bundleID] { return hit }
         let found = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map {
-            // displayName keeps ".app" when Finder shows all extensions.
-            (name: (FileManager.default.displayName(atPath: $0.path) as NSString).deletingPathExtension,
+            // displayName keeps ".app" when Finder shows all extensions — strip
+            // only that: "Battle.net" and "draw.io" end in a dot of their own.
+            (name: Self.droppingAppSuffix(FileManager.default.displayName(atPath: $0.path)),
              icon: NSWorkspace.shared.icon(forFile: $0.path))
         }
         cache[bundleID] = found
         return found
+    }
+
+    nonisolated static func droppingAppSuffix(_ name: String) -> String {
+        name.hasSuffix(".app") ? String(name.dropLast(4)) : name
     }
 }
 

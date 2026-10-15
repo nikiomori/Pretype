@@ -128,7 +128,9 @@ enum UpdateChecker {
     /// never outranks the final tag of the same version.
     static func isNewer(_ candidate: String, than current: String) -> Bool {
         func parts(_ v: String) -> [Int] {
-            v.split(separator: ".").map { Int($0.prefix(while: \.isNumber)) ?? 0 }
+            // The suffix goes first: "2.6.0-beta.1" split on dots alone is 2.6.0.1.
+            let release = v.split(separator: "-", maxSplits: 1).first ?? ""
+            return release.split(separator: ".").map { Int($0.prefix(while: \.isNumber)) ?? 0 }
         }
         let new = parts(candidate), old = parts(current)
         for i in 0 ..< max(new.count, old.count) {
