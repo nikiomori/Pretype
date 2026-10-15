@@ -335,6 +335,8 @@ struct GeneralTab: View {
     @AppStorage("dictationCommands") private var dictationCommands = Settings.dictationCommands
     @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = Settings.automaticUpdateCheck
     @AppStorage("clipboardContext") private var clipboardContext = Settings.clipboardContextEnabled
+    /// The interface-language override; "" follows the system.
+    @State private var language = AppLanguage.override ?? ""
 
     /// Floored like `Settings.ghostOpacity`: a value stored under the old 0.1
     /// floor must not preview fainter than the ghost actually draws.
@@ -658,6 +660,28 @@ struct GeneralTab: View {
                             store.addBlacklistEntry(blacklistDraft)
                             blacklistDraft = ""
                         }
+                }
+            }
+
+            Section {
+                Picker("Language", selection: $language) {
+                    Text("System (\(AppLanguage.nativeName(AppLanguage.systemChoice)))").tag("")
+                    Divider()
+                    ForEach(AppLanguage.available, id: \.self) { code in
+                        Text(verbatim: AppLanguage.nativeName(code)).tag(code)
+                    }
+                }
+                .onChange(of: language) { AppLanguage.override = language.isEmpty ? nil : language }
+                if (language.isEmpty ? AppLanguage.systemChoice : language) != AppLanguage.running {
+                    if AppLanguage.canRelaunch {
+                        LabeledContent {
+                            Button("Relaunch") { AppLanguage.relaunch() }
+                        } label: {
+                            Text("Relaunch Pretype to switch the language.")
+                        }
+                    } else {
+                        Caption(String(localized: "Restart Pretype to switch the language."))
+                    }
                 }
             }
 

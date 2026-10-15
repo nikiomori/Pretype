@@ -206,3 +206,65 @@ enum SettingsUI {
         panel.beginSheetModal(for: window) { if $0 == .OK { picked(panel.urls) } }
     }
 }
+
+/// The interface language. macOS reads a per-app override from the app's own
+/// defaults domain at launch — `AppleLanguages`, the key System Settings →
+/// General → Language & Region → Applications writes — so both places show
+/// the same choice, and a change applies on the next start.
+enum AppLanguage {
+    private static let key = "AppleLanguages"
+
+    /// The translated languages (lproj codes), English first.
+    static var available: [String] {
+        let codes = Bundle.main.localizations.filter { $0 != "Base" }
+        return codes.isEmpty ? ["en"] : codes.sorted { $0 == "en" || ($1 != "en" && $0 < $1) }
+    }
+
+    /// The app's own override, or nil while it follows the system. Read from
+    /// the app domain alone: `UserDefaults.standard` would fall through to the
+    /// global list and report the system's choice as an override.
+    static var override: String? {
+        get {
+            let domain = Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName
+            return (UserDefaults.standard.persistentDomain(forName: domain)?[key] as? [String])?.first
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set([newValue], forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+    }
+
+    /// What the system's preferred languages resolve to for this app.
+    static var systemChoice: String {
+        let preferred = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?[key] as? [String]
+        return Bundle.preferredLocalizations(from: available, forPreferences: preferred ?? []).first ?? "en"
+    }
+
+    /// The language this process is drawing in.
+    static var running: String { Bundle.main.preferredLocalizations.first ?? "en" }
+
+    /// "English", "Русский" — each language in its own words, as language
+    /// lists show them.
+    static func nativeName(_ code: String) -> String {
+        let locale = Locale(identifier: code)
+        return locale.localizedString(forLanguageCode: code)?.capitalized(with: locale) ?? code
+    }
+
+    /// Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
+    static var canRelaunch: Bool { Bundle.main.bundleURL.pathExtension == "app" }
+
+    /// Quits and opens the app again — the one way a running process picks up
+    /// a new language. A shell waits for this process to exit, then reopens
+    /// the bundle (opening it any earlier would just activate the old one).
+    @MainActor static func relaunch() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.1; done; /usr/bin/open \"$0\"",
+                          Bundle.main.bundlePath, "\(ProcessInfo.processInfo.processIdentifier)"]
+        try? task.run()
+        NSApp.terminate(nil)
+    }
+}
