@@ -73,6 +73,13 @@ extension MLXEngine {
             if entries.count > maxEntries { entries.removeFirst() }
         }
 
+        /// All but the newest entry — the field typed in last — go: after a
+        /// pause a focus change re-warms its own prompt anyway, and each
+        /// entry is ~30 MB of KV state (E4B).
+        func keepNewest() {
+            if entries.count > 1 { entries.removeFirst(entries.count - 1) }
+        }
+
         func clear() {
             entries.removeAll()
             encoder = PromptEncoder()

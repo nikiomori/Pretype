@@ -633,8 +633,10 @@ final class MLXEngine: CompletionEngine {
         // drafter and paint "idle" over its "loading…".
         drafter.set(nil)
         correctionDrafter.set(nil)
-        Memory.clearCache()
         promptCache.clear()
+        // After the KV snapshots go, not before: freeing them refills the
+        // buffer pool, and it then sat at its 64 MB cap for the whole idle.
+        Memory.clearCache()
         if reason == "memory pressure" { tokenizers.clear() }
         // A failure stays on screen until a retry replaces it.
         if case .failed = primary {} else { stateBox.set(.preparing("idle — model unloaded")) }
@@ -664,6 +666,18 @@ final class MLXEngine: CompletionEngine {
         DebugLog.shared.log("MLX", "unloaded fix model (idle \(Int(idle))s)")
     }
 
+    /// A minute without typing: keep the newest KV snapshot only, and hand the
+    /// buffer pool back — ~100 MB of other fields' snapshots plus up to 64 MB
+    /// (and tens of thousands of tiny Metal buffers) pooled for a keystroke
+    /// that isn't coming. Not mid-request; the next one refills what it needs.
+    private func trimWhileIdle() {
+        modelLock.withLock {
+            guard inFlightCount == 0, loadTask != nil else { return }
+            promptCache.keepNewest()
+            Memory.clearCache()
+        }
+    }
+
     /// Idle-unload timer + memory-pressure source: both free the model when it
     /// is unused or the system needs RAM; the next use reloads it.
     private func startIdleMaintenance() {
@@ -691,6 +705,7 @@ final class MLXEngine: CompletionEngine {
                 self.unload(reason: "idle \(Int(idle))s")
             } else {
                 self.unloadSibling(idleFor: TimeInterval(minutes) * 60)
+                if !busy, idle >= 60 { self.trimWhileIdle() }
             }
         }
         timer.resume()
