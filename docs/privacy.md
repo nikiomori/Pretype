@@ -45,6 +45,7 @@ None of these requests contains your text. The optional API providers are differ
 | Speech model for your dictation language | Apple servers | When you turn on dictation, or select a new language. | This is the same system download that the built-in keyboard dictation uses. |
 | Parakeet dictation model, ~610 MB (CoreML) | Hugging Face (`FluidInference/parakeet-ultra-coreml`) | One time, only if you opt in (**Settings → General → Dictation**). | Stored in `~/Library/Application Support/FluidAudio`. An install that opted in before this model replaces its earlier `parakeet-tdt-0.6b-v3-coreml` one time, in the background, on an unmetered network. |
 | Share a per-app style | GitHub, in your browser | Only when you click the share button. | GitHub's new-file page opens with that one style. The style text is in the URL of the page. Thus GitHub and your browser history see it when the page opens. GitHub gets nothing more until you submit the page. |
+| Refrain download link | GitHub Releases API | Only when you click **Download Refrain** in the menu bar menu. | Pretype asks `api.github.com/repos/nikiomori/Refrain/releases/latest` for the file list of the latest Refrain release. Then your browser opens the zip file of the release and downloads it. The request contains no text and no data about you. Pretype does not install Refrain. You move it to Applications yourself. |
 
 ### Websites
 

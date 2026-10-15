@@ -17,6 +17,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var dictationSendItem: NSMenuItem!
     private var languageHintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
+    private var refrainItem: NSMenuItem!
     private var settingsItem: NSMenuItem!
     private var retryItem: NSMenuItem!
     /// While the menu is open the header redraws on every status tick, so a
@@ -159,6 +160,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // One item, two states: an offer to download when a newer release is
         // known, a manual check otherwise (title refreshed in menuNeedsUpdate).
         updateItem = item(String(localized: "Check for Updates…"), #selector(checkForUpdates))
+        // Only while dictation runs on Apple's engine and Refrain isn't
+        // installed (menuNeedsUpdate): to anyone else — Refrain users, and
+        // whoever already picked Parakeet or an API — it's a line of noise.
+        refrainItem = item(String(localized: "Download Refrain"), #selector(downloadRefrain), symbol: "waveform")
+        refrainItem.toolTip =
+            String(localized: "An on-device speech engine for every app on this Mac. Pretype can dictate through it: Settings → API.")
 
         diagnosticsMenu = NSMenu()
         item(String(localized: "Diagnostics"), nil, symbol: "waveform.path.ecg").submenu = diagnosticsMenu
@@ -274,6 +281,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let newer = UpdateChecker.availableVersion
         updateItem.title = newer.map { String(localized: "Update to \($0)…") } ?? String(localized: "Check for Updates…")
         updateItem.image = symbol(newer != nil ? "arrow.down.circle.fill" : "arrow.down.circle")
+        refrainItem.isHidden = !Settings.dictationEnabled || Settings.dictationParakeet
+            || Settings.apiAudio.enabled || UpdateChecker.isRefrainInstalled
         hintsHost.rootView = MenuHintsView(hints: shortcutHints())
         resize(hintsHost)
     }
@@ -665,6 +674,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         } else {
             UpdateChecker.openReleasePage()
         }
+    }
+
+    @objc private func downloadRefrain() {
+        Task { await UpdateChecker.downloadRefrain() }
     }
 
     @objc private func openDebugConsole() {

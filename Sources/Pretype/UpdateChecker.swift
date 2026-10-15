@@ -13,7 +13,6 @@ import Security
 /// link or the one-line Homebrew command, depending on how this copy arrived.
 @MainActor
 enum UpdateChecker {
-    private static let api = URL(string: "https://api.github.com/repos/nikiomori/Pretype/releases/latest")!
     private static let page = URL(string: "https://github.com/nikiomori/Pretype/releases/latest")!
     private static let defaults = UserDefaults.standard
 
@@ -74,16 +73,54 @@ enum UpdateChecker {
     }
 
     private static func fetchLatestVersion() async -> String? {
-        var request = URLRequest(url: api)
+        guard let tag = await latestRelease(of: "Pretype")?["tag_name"] as? String else { return nil }
+        return tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+    }
+
+    /// The latest release of one of our repos, as GitHub's JSON; nil on any failure.
+    private static func latestRelease(of repo: String) async -> [String: Any]? {
+        guard let url = URL(string: "https://api.github.com/repos/nikiomori/\(repo)/releases/latest") else { return nil }
+        var request = URLRequest(url: url)
         request.timeoutInterval = 10
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = json["tag_name"] as? String
+              (response as? HTTPURLResponse)?.statusCode == 200
         else { return nil }
-        return tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
+
+    // MARK: - Refrain
+
+    /// Refrain (github.com/nikiomori/Refrain), the on-device speech engine
+    /// Settings → API can dictate through. The status menu offers it until
+    /// it's installed.
+    static var isRefrainInstalled: Bool {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: "dev.nikiomori.refrain") != nil
+    }
+
+    /// Opens the latest release's zip, so the browser downloads it in one
+    /// click; the release page when GitHub can't name the file.
+    ///
+    /// ponytail: the browser downloads and the user drags it to Applications.
+    /// Installing it ourselves would skip the quarantine flag, and with it
+    /// Gatekeeper's check of the download.
+    static func downloadRefrain() async {
+        // The lookup can take its full ten seconds with nothing on screen; a
+        // second click meanwhile must not start a second download.
+        guard !fetchingRefrain else { return }
+        fetchingRefrain = true
+        defer { fetchingRefrain = false }
+        let assets = await latestRelease(of: "Refrain")?["assets"] as? [[String: Any]] ?? []
+        // The app's own zip ("Refrain-<version>.zip"), not a dSYM or source zip.
+        let zip = assets.lazy
+            .filter { ($0["name"] as? String)?.hasPrefix("Refrain") == true }
+            .compactMap { $0["browser_download_url"] as? String }
+            .first { $0.hasPrefix("https://github.com/") && $0.hasSuffix(".zip") }
+        let fallback = URL(string: "https://github.com/nikiomori/Refrain/releases/latest")!
+        NSWorkspace.shared.open(zip.flatMap(URL.init(string:)) ?? fallback)
+    }
+
+    private static var fetchingRefrain = false
 
     /// Component-wise numeric compare: a plain string compare would call 0.9.1
     /// newer than 0.10.0 and pester everyone into a downgrade. Non-numeric

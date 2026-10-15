@@ -853,6 +853,16 @@
         }
       }
     },
+    "An on-device speech engine for every app on this Mac. Pretype can dictate through it: Settings → API." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Движок распознавания речи на самом Mac, общий для всех приложений. Pretype может диктовать через него: Настройки → API."
+          }
+        }
+      }
+    },
     "App: %@" : {
       "localizations" : {
         "ru" : {
@@ -1609,6 +1619,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Загрузить %@?"
+          }
+        }
+      }
+    },
+    "Download Refrain" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать Refrain"
           }
         }
       }
