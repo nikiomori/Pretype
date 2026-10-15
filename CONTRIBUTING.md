@@ -103,6 +103,16 @@ The eval is a tool for **comparison**. The absolute first-word accuracy is lower
 * Comments tell *why*, not *what*. The codebase uses short comments with much information. For examples, see the output-gate comments in `Engines/CompletionGates.swift` and `Engines/CorrectionGates.swift`.
 * Do not add dependencies before you discuss them in an issue.
 
+## Translations
+
+The interface is in English and Russian. The strings are in `Localization/Localizable.xcstrings`, a String Catalog. The English text in the code is the key.
+
+* Write each string that the user sees as a SwiftUI literal (`Text("…")`, `.help("…")`) or as `String(localized: "…")`. Keep a full sentence in one string. Do not join parts of a sentence with `+`.
+* Do not localize prompts, log lines, identifiers, or defaults keys.
+* After you add or change strings, run `Scripts/sync-strings.py`. The script adds the new keys to the catalog, marks removed keys as stale, and shows the untranslated keys.
+* To translate, open the catalog in Xcode, or edit the JSON.
+* To add a language, add its translations to the catalog. `Scripts/make-app.sh` compiles each language into the app, and **Settings → General → Language** shows it.
+
 ## Add an engine
 
 1. Make the engine conform to the `CompletionEngine` protocol (`Sources/Pretype/Engines/CompletionEngine.swift`).

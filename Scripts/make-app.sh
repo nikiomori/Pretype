@@ -83,6 +83,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleExecutable</key><string>Pretype</string>
     <key>CFBundleIdentifier</key><string>app.pretype.Pretype</string>
     <key>CFBundleName</key><string>Pretype</string>
@@ -114,6 +115,14 @@ cp Assets/Pretype.icns "$APP/Contents/Resources/Pretype.icns"
 # Community per-app styles (PerAppPresets.community reads them from here).
 cp -R AppStyles "$APP/Contents/Resources/AppStyles"
 rm -f "$APP/Contents/Resources/AppStyles/README.md"
+
+# UI translations: each String Catalog compiles into <lang>.lproj, where
+# Bundle.main — SwiftUI Text, String(localized:), Info.plist strings — finds
+# them. macOS picks the language from the user's preferred list, or from the
+# app's own override (Settings → General → Language).
+for catalog in Localization/*.xcstrings; do
+    xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
+done
 
 # The binary statically links MIT/Apache-2.0/BSD code whose licenses require
 # their notices to travel with every copy — the app, not just the repo.

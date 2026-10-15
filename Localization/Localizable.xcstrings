@@ -1,0 +1,6417 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+      "shouldTranslate" : false
+    },
+    " %@" : {
+      "shouldTranslate" : false
+    },
+    " to Anna" : {
+      "comment" : "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 3, the rest of the suggestion up to its end. Keep the leading space.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " Анне"
+          }
+        }
+      }
+    },
+    " · " : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · "
+          }
+        }
+      }
+    },
+    "%@ GB" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ГБ"
+          }
+        }
+      }
+    },
+    "%@ all time · %lld keystrokes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ за всё время · нажатий: %lld"
+          }
+        }
+      }
+    },
+    "%@ failed — %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: ошибка — %@"
+          }
+        }
+      }
+    },
+    "%@ faster" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ быстрее"
+          }
+        }
+      }
+    },
+    "%@ heavier" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ тяжелее"
+          }
+        }
+      }
+    },
+    "%@ lighter" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ легче"
+          }
+        }
+      }
+    },
+    "%@ measures %lld%% on %@ — this one %lld%%." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ набирает %lld%% на языке «%@», текущая модель — %lld%%."
+          }
+        }
+      }
+    },
+    "%@ on disk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ на диске"
+          }
+        }
+      }
+    },
+    "%@ ready" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ готова"
+          }
+        }
+      }
+    },
+    "%@ ready · idle" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ готова · в простое"
+          }
+        }
+      }
+    },
+    "%@ s" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ с"
+          }
+        }
+      }
+    },
+    "%@ slower" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ медленнее"
+          }
+        }
+      }
+    },
+    "%@ takes a word, %@ all of it. Tap the chosen modifier twice, or press %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ принимает слово, %@ — весь ответ. Дважды нажмите выбранный модификатор или %@."
+          }
+        }
+      }
+    },
+    "%@ — click to switch this model's settings here" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — нажмите, чтобы перенести сюда настройки этой модели"
+          }
+        }
+      }
+    },
+    "%@ — no catalog pick routes its chords here." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — ни один выбор из каталога не использует эту модель для сочетаний."
+          }
+        }
+      }
+    },
+    "%@%@" : {
+      "shouldTranslate" : false
+    },
+    "%@%@ GB" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@%@ ГБ"
+          }
+        }
+      }
+    },
+    "%@%@%@" : {
+      "shouldTranslate" : false
+    },
+    "%@%@%@%@%@" : {
+      "shouldTranslate" : false
+    },
+    "%@, %lld samples, ±%lld pp." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, примеров: %lld, ±%lld п. п."
+          }
+        }
+      }
+    },
+    "%@. Press %@ on a suggestion to start saving typing time." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Принимайте подсказки клавишей %@, чтобы экономить время на наборе."
+          }
+        }
+      }
+    },
+    "%@. Saved %@ of typing today, %@ all time." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Сэкономлено на наборе сегодня: %@, за всё время: %@."
+          }
+        }
+      }
+    },
+    "%@: failed — %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: ошибка — %@"
+          }
+        }
+      }
+    },
+    "%@: ready" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: готова"
+          }
+        }
+      }
+    },
+    "%lld ms" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld мс"
+          }
+        }
+      }
+    },
+    "%lld percent" : {
+      "localizations" : {
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld процента"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld процентов"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld процент"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld процента"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld words learned from your typing." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld word learned from your typing."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld words learned from your typing."
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запомнено %lld слова из ваших текстов."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запомнено %lld слов из ваших текстов."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запомнено %lld слово из ваших текстов."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запомнено %lld слова из ваших текстов."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld%%" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%%"
+          }
+        }
+      }
+    },
+    "%lld%% exact" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% точно"
+          }
+        }
+      }
+    },
+    "%lld%% of the time" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в %lld%% случаев"
+          }
+        }
+      }
+    },
+    "%lld%% usable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% годных"
+          }
+        }
+      }
+    },
+    "%lld/%lld" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld"
+          }
+        }
+      }
+    },
+    "+%lld pp" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld п. п."
+          }
+        }
+      }
+    },
+    "0 GB" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 ГБ"
+          }
+        }
+      }
+    },
+    "10 seconds" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 секунд"
+          }
+        }
+      }
+    },
+    "2–3 words ahead, about %@ each." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2–3 слова вперёд, около %@ на подсказку."
+          }
+        }
+      }
+    },
+    "2–3 words ahead." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2–3 слова вперёд."
+          }
+        }
+      }
+    },
+    "3 seconds" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 секунды"
+          }
+        }
+      }
+    },
+    "5 seconds" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 секунд"
+          }
+        }
+      }
+    },
+    "A fragment like “slack” covers Slack everywhere. ⏎ adds it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фрагмент вроде «slack» охватывает Slack везде. ⏎ добавляет его."
+          }
+        }
+      }
+    },
+    "A headset carries either good playback or a two-way call, never both. When your default input and output are the same headset, dictation records from the built-in microphone instead, so your audio never changes." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Гарнитура даёт либо качественное воспроизведение, либо двусторонний звонок, но не то и другое сразу. Если ввод и вывод по умолчанию — одна и та же гарнитура, диктовка записывает со встроенного микрофона, и звук не меняется."
+          }
+        }
+      }
+    },
+    "A hold, not a tap, so it never collides with “%@” for a reply. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удержание, а не нажатие, поэтому не конфликтует с «%@» для ответа. Запись начинается примерно через полсекунды удержания; любая другая клавиша, щелчок или прокрутка до этого момента её отменяют."
+          }
+        }
+      }
+    },
+    "A hold, not a tap. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удержание, а не нажатие. Запись начинается примерно через полсекунды удержания; любая другая клавиша, щелчок или прокрутка до этого момента её отменяют."
+          }
+        }
+      }
+    },
+    "A small box above the line. It never covers your text." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Небольшое окошко над строкой. Никогда не закрывает текст."
+          }
+        }
+      }
+    },
+    "ACC" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ТОЧН."
+          }
+        }
+      }
+    },
+    "API" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API"
+          }
+        }
+      }
+    },
+    "API isn't set up — see Settings → API" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API не настроен — см. Настройки → API"
+          }
+        }
+      }
+    },
+    "API key" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ключ API"
+          }
+        }
+      }
+    },
+    "API · %@ · %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API · %@ · %@"
+          }
+        }
+      }
+    },
+    "About %@ GB. Suggestions pause until it's ready." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Около %@ ГБ. Подсказки приостановятся, пока модель не будет готова."
+          }
+        }
+      }
+    },
+    "About Pretype" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "О программе Pretype"
+          }
+        }
+      }
+    },
+    "Accept entire suggestion" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Принять всю подсказку"
+          }
+        }
+      }
+    },
+    "Accept hotkey" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клавиша принятия"
+          }
+        }
+      }
+    },
+    "Accept next word" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Принять следующее слово"
+          }
+        }
+      }
+    },
+    "Accessibility" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Универсальный доступ"
+          }
+        }
+      }
+    },
+    "Accessibility is how Pretype reads the text field you're typing in, catches the %@ key, and types accepted suggestions back.\n\nmacOS will ask you to grant it next, under Privacy & Security → %@. Everything you type stays on this Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Через Универсальный доступ Pretype читает поле, в котором вы печатаете, перехватывает клавишу %@ и вводит принятые подсказки.\n\nДалее macOS попросит разрешить его в разделе «Конфиденциальность и безопасность» → «%@». Всё, что вы вводите, остаётся на этом Mac."
+          }
+        }
+      }
+    },
+    "Accessibility permission required" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужен Универсальный доступ"
+          }
+        }
+      }
+    },
+    "Accuracy" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Точность"
+          }
+        }
+      }
+    },
+    "Accuracy in" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Точность по языку"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить"
+          }
+        }
+      }
+    },
+    "Add App…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить приложение…"
+          }
+        }
+      }
+    },
+    "Add Instructions" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить инструкции"
+          }
+        }
+      }
+    },
+    "Add Website…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить сайт…"
+          }
+        }
+      }
+    },
+    "Add a Website" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить сайт"
+          }
+        }
+      }
+    },
+    "Add a website from the menu bar while you're on it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сайт можно добавить из строки меню, когда он открыт."
+          }
+        }
+      }
+    },
+    "Add an app to give it its own style on top of your persona." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавьте приложение, чтобы задать для него собственный стиль поверх персоны."
+          }
+        }
+      }
+    },
+    "After 1 minute" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Через 1 минуту"
+          }
+        }
+      }
+    },
+    "After 15 minutes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Через 15 минут"
+          }
+        }
+      }
+    },
+    "After 30 minutes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Через 30 минут"
+          }
+        }
+      }
+    },
+    "After 5 minutes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Через 5 минут"
+          }
+        }
+      }
+    },
+    "All languages" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все языки"
+          }
+        }
+      }
+    },
+    "All models" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все модели"
+          }
+        }
+      }
+    },
+    "Allow Pretype in this app again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снова разрешить Pretype в этом приложении"
+          }
+        }
+      }
+    },
+    "Also in System Settings → General → Login Items." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Также в Системных настройках → Основные → Объекты входа."
+          }
+        }
+      }
+    },
+    "Always listens for this language, whatever the keyboard is set to." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всегда распознаёт этот язык, независимо от раскладки клавиатуры."
+          }
+        }
+      }
+    },
+    "Always off in %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всегда выключено в «%@»"
+          }
+        }
+      }
+    },
+    "Always off in password managers." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В менеджерах паролей всегда выключено."
+          }
+        }
+      }
+    },
+    "An English specialist and, with Qwen 0.5B, the fastest model in the catalog — on English it ties E2B 8-bit outright (28% vs 26%, p=0.12). Russian is a different story: 17% against E2B 8-bit's 25% (p<0.001). Wider multilingual coverage collapses (uk/ro/tr/cs 56–62% vs the Gemmas' ≥74%), and Hebrew is its floor at 3% — effectively blind." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Специалист по английскому и, вместе с Qwen 0.5B, самая быстрая модель в каталоге — на английском полностью наравне с E2B 8-bit (28% против 26%, p=0.12). С русским иначе: 17% против 25% у E2B 8-bit (p<0.001). На других языках охват резко падает (uk/ro/tr/cs 56–62% против ≥74% у Gemma), а на иврите — минимум в 3%: модель практически слепа."
+          }
+        }
+      }
+    },
+    "App: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложение: %@"
+          }
+        }
+      }
+    },
+    "Apple Intelligence is still downloading — retry in a few minutes" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence ещё загружается — повторите через несколько минут"
+          }
+        }
+      }
+    },
+    "Apple Intelligence is unavailable (%@)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence не работает (%@)"
+          }
+        }
+      }
+    },
+    "Apple Intelligence isn't available — see the menu" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence не работает — см. меню"
+          }
+        }
+      }
+    },
+    "Apple Intelligence — system model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence — системная модель"
+          }
+        }
+      }
+    },
+    "Apple Intelligence: ready (system model)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence: готово (системная модель)"
+          }
+        }
+      }
+    },
+    "Apple's newer speech model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новая речевая модель Apple"
+          }
+        }
+      }
+    },
+    "Apple's newer speech model doesn't cover %@, so this uses the one macOS's own dictation key uses — a little rougher, which “Tidy up” helps with." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новая речевая модель Apple не поддерживает этот язык (%@), поэтому используется модель системной диктовки macOS — она чуть менее точна, и тут помогает «Приводить в порядок»."
+          }
+        }
+      }
+    },
+    "Asks GitHub once a day. Sends nothing about you." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Раз в день обращается к GitHub. Ничего о вас не отправляет."
+          }
+        }
+      }
+    },
+    "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана автоматически по памяти этого Mac (~2.5 ГБ в памяти, освобождается в простое): самый лёгкий вариант Gemma — опережает все малые модели на 17 языках (p<0.001), заметно лучше MiniCPM5 на русском (p=0.001), а её модель исправлений, загружаемая при первом использовании, точно восстанавливает половину строк с ошибками, тогда как малые модели — 11–33%."
+          }
+        }
+      }
+    },
+    "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 19 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана автоматически по памяти этого Mac (~3.4 ГБ в памяти, освобождается в простое): стабильна на всех 19 проверенных языках и заметно опережает все малые модели; сочетания исправления и ответа работают на E4B-it, которая загружается при первом использовании (65% точных исправлений, 95% пригодных черновиков ответа). E4B — шаг вверх для Mac с большей памятью; малые модели расходуют меньше."
+          }
+        }
+      }
+    },
+    "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана автоматически по памяти этого Mac: лучший по качеству вариант, занимающий не больше примерно четверти памяти (~5 ГБ, освобождается в простое). Опережает E2B 4-bit на проверенных языках (p<0.001), наравне с E2B 8-bit и E4B 8-bit в дополнениях, а её модель исправлений точно восстанавливает 69% строк с ошибками — больше всех в каталоге. Варианты поменьше — в один щелчок, если хотите тратить меньше памяти."
+          }
+        }
+      }
+    },
+    "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 72%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана автоматически по памяти этого Mac: самая сильная модель, которая свободно помещается, — 1.5 ГБ. Наравне с самыми быстрыми малыми моделями в дополнениях на английском и русском, опережает все остальные модели до 2 ГБ на расширенном наборе языков (p<0.001) и поддерживает сочетания исправления и ответа (33% / 72%) через дообученную версию — разовая загрузка 1.6 ГБ при первом использовании. На Mac с большей памятью точнее вариант Gemma."
+          }
+        }
+      }
+    },
+    "Auto-picked for this Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана автоматически для этого Mac."
+          }
+        }
+      }
+    },
+    "Automatic" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматически"
+          }
+        }
+      }
+    },
+    "Autoscroll" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автопрокрутка"
+          }
+        }
+      }
+    },
+    "Available in the built app only — this binary is running outside a .app bundle, and macOS grants microphone access by bundle." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступно только в собранном приложении — этот файл запущен вне пакета .app, а macOS выдаёт доступ к микрофону по пакету."
+          }
+        }
+      }
+    },
+    "Available in the built app only — this binary is running outside a .app bundle, and macOS registers login items by bundle." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступно только в собранном приложении — этот файл запущен вне пакета .app, а macOS регистрирует объекты входа по пакету."
+          }
+        }
+      }
+    },
+    "Available once Accessibility is granted." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступно после того, как вы разрешите Универсальный доступ."
+          }
+        }
+      }
+    },
+    "Balanced" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Баланс"
+          }
+        }
+      }
+    },
+    "Base" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Базовый"
+          }
+        }
+      }
+    },
+    "Base URL" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Базовый URL"
+          }
+        }
+      }
+    },
+    "Base stops at about 2 words, so length has no effect." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Базовый стиль даёт около 2 слов, поэтому длина ни на что не влияет."
+          }
+        }
+      }
+    },
+    "Best for this model: %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оптимально для этой модели: %@."
+          }
+        }
+      }
+    },
+    "Best measured accuracy; first-word ties break on reference scoring." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лучшая измеренная точность; при равенстве по первому слову решает оценка по эталону."
+          }
+        }
+      }
+    },
+    "Best settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лучшие настройки"
+          }
+        }
+      }
+    },
+    "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; ties MiniCPM5 on English (28 vs 28), leads it on Russian (21 vs 17, a trend: p=0.018), and on Russian is level with the lightest Gemma (21 vs 22, p=0.19). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лучший многоязычный выбор до 2 ГБ — опережает MiniCPM5, Bonsai и Qwen 0.5B на наборе из 17 языков (все p<0.001) при самом мягком падении охвата; наравне с MiniCPM5 на английском (28 против 28), впереди на русском (21 против 17, тенденция: p=0.018), а на русском — вровень с самой лёгкой Gemma (21 против 22, p=0.19). Базовая сборка в 6-bit: опережает 4-bit (p<0.001) и наравне с 8-bit, при 1.5 ГБ. На арабском и иврите её отрыв от других малых моделей сокращается — там Gemma по-прежнему заметно впереди."
+          }
+        }
+      }
+    },
+    "Better models for %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: есть модели лучше"
+          }
+        }
+      }
+    },
+    "Bold" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ярко"
+          }
+        }
+      }
+    },
+    "Boosts words you often type." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отдаёт предпочтение словам, которые вы часто пишете."
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отменить"
+          }
+        }
+      }
+    },
+    "Check for Updates…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверить обновления…"
+          }
+        }
+      }
+    },
+    "Check for updates automatically" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоматически проверять обновления"
+          }
+        }
+      }
+    },
+    "Choose applications that get their own style instructions." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите приложения, для которых нужны свои инструкции стиля."
+          }
+        }
+      }
+    },
+    "Choose applications where Pretype should stay silent." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите приложения, в которых Pretype будет молчать."
+          }
+        }
+      }
+    },
+    "Choose applications where a dictation ends with Return." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите приложения, в которых диктовка завершается нажатием Return."
+          }
+        }
+      }
+    },
+    "Choose plain-text or Markdown files you wrote — Pretype learns your phrasing from them." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите свои текстовые или Markdown-файлы — Pretype перенимает из них ваши формулировки."
+          }
+        }
+      }
+    },
+    "Clear" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить"
+          }
+        }
+      }
+    },
+    "Clear…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить…"
+          }
+        }
+      }
+    },
+    "Click to apply." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите, чтобы применить."
+          }
+        }
+      }
+    },
+    "Close" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть"
+          }
+        }
+      }
+    },
+    "Completions" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дополнения"
+          }
+        }
+      }
+    },
+    "Compute" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нагрузка"
+          }
+        }
+      }
+    },
+    "Confident-only" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только уверенные"
+          }
+        }
+      }
+    },
+    "Context" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Контекст"
+          }
+        }
+      }
+    },
+    "Continue" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить"
+          }
+        }
+      }
+    },
+    "Continues your text. Most accurate on everyday typing." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжает ваш текст. Самый точный в повседневном наборе."
+          }
+        }
+      }
+    },
+    "Copy" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать"
+          }
+        }
+      }
+    },
+    "Copy Command" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать команду"
+          }
+        }
+      }
+    },
+    "Couldn't check for updates" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить обновления"
+          }
+        }
+      }
+    },
+    "Custom (OpenAI-compatible)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свой (совместимый с OpenAI)"
+          }
+        }
+      }
+    },
+    "Cut" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вырезать"
+          }
+        }
+      }
+    },
+    "Debug Console…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Консоль отладки…"
+          }
+        }
+      }
+    },
+    "Delete" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить"
+          }
+        }
+      }
+    },
+    "Delete downloaded %@ — unavailable while a model loads" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить загруженную модель %@ — недоступно, пока модель загружается"
+          }
+        }
+      }
+    },
+    "Delete downloaded %@, frees %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить загруженную модель %@, освободится %@"
+          }
+        }
+      }
+    },
+    "Delete the downloaded files for this model?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить загруженные файлы этой модели?"
+          }
+        }
+      }
+    },
+    "Delete the downloaded weights (%@, incl. any %@ rewrite sibling) — picking this model again re-downloads them." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить загруженные веса (%@, включая модель для исправления по %@) — при повторном выборе модели они загрузятся заново."
+          }
+        }
+      }
+    },
+    "Delete the suggestion journal?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить журнал подсказок?"
+          }
+        }
+      }
+    },
+    "Details" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подробности"
+          }
+        }
+      }
+    },
+    "Device Control and Data Access" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Управление устройством и доступ к данным"
+          }
+        }
+      }
+    },
+    "Diagnostics" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диагностика"
+          }
+        }
+      }
+    },
+    "Dictated: %lld chars today, %lld in total" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Надиктовано символов: сегодня %lld, всего %lld"
+          }
+        }
+      }
+    },
+    "Dictation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диктовка"
+          }
+        }
+      }
+    },
+    "Dictation transcribes what you say on this Mac and types it into the field you're in. Nothing is recorded to disk and nothing leaves your computer.\n\nAllow Pretype under System Settings → Privacy & Security → Microphone, then switch dictation on again." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диктовка распознаёт вашу речь на этом Mac и вводит текст в поле, где вы находитесь. Ничего не записывается на диск и не покидает ваш компьютер.\n\nРазрешите доступ для Pretype в разделе «Системные настройки» → «Конфиденциальность и безопасность» → «Микрофон», затем снова включите диктовку."
+          }
+        }
+      }
+    },
+    "Disable Pretype Here" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключить Pretype здесь"
+          }
+        }
+      }
+    },
+    "Disable in %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выключить в «%@»"
+          }
+        }
+      }
+    },
+    "Disable on %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выключить на %@"
+          }
+        }
+      }
+    },
+    "Dismiss a suggestion" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть подсказку"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполнено"
+          }
+        }
+      }
+    },
+    "Double ⇧" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Двойное ⇧"
+          }
+        }
+      }
+    },
+    "Double ⌃" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Двойное ⌃"
+          }
+        }
+      }
+    },
+    "Double ⌘" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Двойное ⌘"
+          }
+        }
+      }
+    },
+    "Double ⌥" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Двойное ⌥"
+          }
+        }
+      }
+    },
+    "Download" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузить"
+          }
+        }
+      }
+    },
+    "Download %@?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузить %@?"
+          }
+        }
+      }
+    },
+    "Downloading the Parakeet model (~610 MB)…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка модели Parakeet (~610 МБ)…"
+          }
+        }
+      }
+    },
+    "Download…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузить…"
+          }
+        }
+      }
+    },
+    "Draft a reply (%@)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Черновик ответа (%@)"
+          }
+        }
+      }
+    },
+    "Drafts a reply when you click into an empty message box." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готовит черновик ответа, когда вы щёлкаете в пустом поле сообщения."
+          }
+        }
+      }
+    },
+    "Drafts your next message from the conversation on screen." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готовит следующее сообщение по переписке на экране."
+          }
+        }
+      }
+    },
+    "EXACT FIX" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ТОЧНЫЕ ИСПР."
+          }
+        }
+      }
+    },
+    "Each recording goes to %@ when you stop speaking, with names from the field as spelling hints. Audio is never saved to disk." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждая запись отправляется на %@, когда вы перестаёте говорить, вместе с именами из поля ввода — для верного написания. Аудио никогда не сохраняется на диск."
+          }
+        }
+      }
+    },
+    "Each recording goes to %@ when you stop speaking. Audio is never saved to disk." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждая запись отправляется на %@, когда вы перестаёте говорить. Аудио никогда не сохраняется на диск."
+          }
+        }
+      }
+    },
+    "Edit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правка"
+          }
+        }
+      }
+    },
+    "Empty" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пусто"
+          }
+        }
+      }
+    },
+    "Enable in %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить в «%@»"
+          }
+        }
+      }
+    },
+    "Enable on %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить на %@"
+          }
+        }
+      }
+    },
+    "Engine latency: ~%lld ms" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задержка модели: ~%lld мс"
+          }
+        }
+      }
+    },
+    "English + Russian pooled" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Английский + русский вместе"
+          }
+        }
+      }
+    },
+    "Exactly what the model saw. Nothing leaves your Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ровно то, что увидела модель. Ничего не покидает ваш Mac."
+          }
+        }
+      }
+    },
+    "Export" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать"
+          }
+        }
+      }
+    },
+    "Export debug log?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать журнал отладки?"
+          }
+        }
+      }
+    },
+    "Export…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать…"
+          }
+        }
+      }
+    },
+    "Faint" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бледно"
+          }
+        }
+      }
+    },
+    "Fastest of the models within 2 pp of the best accuracy." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Самая быстрая из моделей, отстающих от лучшей точности не более чем на 2 п. п."
+          }
+        }
+      }
+    },
+    "Fewer errors and real punctuation. A one-time 610 MB download." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Меньше ошибок и настоящая пунктуация. Разовая загрузка 610 МБ."
+          }
+        }
+      }
+    },
+    "Fewer suggestions, more of them right." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Меньше подсказок, но больше верных."
+          }
+        }
+      }
+    },
+    "Field: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поле: %@"
+          }
+        }
+      }
+    },
+    "Fill In Suggested" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить готовые"
+          }
+        }
+      }
+    },
+    "First word right" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верное первое слово"
+          }
+        }
+      }
+    },
+    "First word right, silence counted as a miss" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верное первое слово, молчание считается промахом"
+          }
+        }
+      }
+    },
+    "First word right, staying silent counted as a miss: %lld%% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верное первое слово, молчание считается промахом: %lld%% — ячейки с совпадающим регистром, ≈280 примеров на язык (±5 п. п.), eval-real 2026-07-16. Сравнивайте модели в этом представлении, а не языки между собой."
+          }
+        }
+      }
+    },
+    "First-word accuracy of shown suggestions: %lld%% [%lld–%lld], coverage %lld%% — %@. English and Russian are pooled here; pick either as the axis to see it alone." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Точность первого слова у показанных подсказок: %lld%% [%lld–%lld], подсказывает в %lld%% случаев — %@. Здесь английский и русский объединены; выберите один из них в списке языков, чтобы увидеть его отдельно."
+          }
+        }
+      }
+    },
+    "Fix" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправление"
+          }
+        }
+      }
+    },
+    "Fix a line (%@)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправить строку (%@)"
+          }
+        }
+      }
+    },
+    "Fix and reply" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправление и ответ"
+          }
+        }
+      }
+    },
+    "Fix last word / selection" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправить последнее слово / выделение"
+          }
+        }
+      }
+    },
+    "Fix · Reply" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Испр. · Отв."
+          }
+        }
+      }
+    },
+    "Fixes applied: %lld" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Применено исправлений: %lld"
+          }
+        }
+      }
+    },
+    "Fixes capitalization, punctuation and mishearings." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправляет регистр, пунктуацию и ошибки распознавания."
+          }
+        }
+      }
+    },
+    "Follow keyboard" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По раскладке клавиатуры"
+          }
+        }
+      }
+    },
+    "Follows the keyboard layout that's active when you start — switch layouts to switch dictation language." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использует раскладку, активную в момент начала записи, — смените раскладку, чтобы сменить язык диктовки."
+          }
+        }
+      }
+    },
+    "Follows your persona. Loads a second model." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следует вашей персоне. Загружает вторую модель."
+          }
+        }
+      }
+    },
+    "Free memory when idle" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Освобождать память в простое"
+          }
+        }
+      }
+    },
+    "Frees %@. Picking this model again downloads it over the network." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Освободится %@. Если снова выбрать эту модель, она загрузится из сети."
+          }
+        }
+      }
+    },
+    "Frees about %@ GB while unused." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Освобождает около %@ ГБ в простое."
+          }
+        }
+      }
+    },
+    "Gemma 4 E2B 8-bit — small but precise" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma 4 E2B 8-bit — маленькая, но точная"
+          }
+        }
+      }
+    },
+    "Gemma 4 E2B — for 8–16 GB Macs" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma 4 E2B — для Mac с 8–16 ГБ"
+          }
+        }
+      }
+    },
+    "Gemma 4 E4B 6-bit — lighter, near-best" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma 4 E4B 6-bit — легче, почти лучшая"
+          }
+        }
+      }
+    },
+    "Gemma 4 E4B 8-bit — best quality" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma 4 E4B 8-bit — лучшее качество"
+          }
+        }
+      }
+    },
+    "General" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Основные"
+          }
+        }
+      }
+    },
+    "Get a key" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Получить ключ"
+          }
+        }
+      }
+    },
+    "Ghost text right at the cursor. It can leave drawing glitches in some apps." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Серый текст прямо у курсора. В некоторых приложениях возможны артефакты отрисовки."
+          }
+        }
+      }
+    },
+    "Ghost visibility" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Яркость серого текста"
+          }
+        }
+      }
+    },
+    "GitHub opens in your browser with this style ready to propose to Pretype. Everyone who uses %@ can then add it in one click, so check it says nothing personal. Nothing is sent until you submit it there (a free GitHub account is needed)." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub откроется в браузере с этим стилем, готовым к отправке в Pretype. Затем любой пользователь %@ сможет добавить его в один щелчок, поэтому убедитесь, что в нём нет ничего личного. Ничего не отправится, пока вы не подтвердите отправку там (нужна бесплатная учётная запись GitHub)."
+          }
+        }
+      }
+    },
+    "GitHub was unreachable. Try again later, or open the releases page." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub недоступен. Повторите попытку позже или откройте страницу релизов."
+          }
+        }
+      }
+    },
+    "Got It" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Понятно"
+          }
+        }
+      }
+    },
+    "Grant Accessibility again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешите Универсальный доступ заново"
+          }
+        }
+      }
+    },
+    "Grant Accessibility…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить Универсальный доступ…"
+          }
+        }
+      }
+    },
+    "Hands-free chord" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетание без удержания"
+          }
+        }
+      }
+    },
+    "Heavy for this Mac" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тяжёлая для этого Mac"
+          }
+        }
+      }
+    },
+    "Hide Pretype" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть Pretype"
+          }
+        }
+      }
+    },
+    "Hold %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать %@"
+          }
+        }
+      }
+    },
+    "Hold a key and speak. Transcribed on this Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживайте клавишу и говорите. Распознаётся на этом Mac."
+          }
+        }
+      }
+    },
+    "Hold a key for a sentence, or press a chord for a paragraph — either way it is typed into the field you're in. No audio is written to disk, and nothing records unless you ask." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживайте клавишу для фразы или нажмите сочетание для целого абзаца — текст в любом случае вводится в текущее поле. Аудио не сохраняется на диск, а запись идёт только по вашей команде."
+          }
+        }
+      }
+    },
+    "Hold to record. Esc discards." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживайте для записи. Esc — отмена."
+          }
+        }
+      }
+    },
+    "Hold ⌃" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать ⌃"
+          }
+        }
+      }
+    },
+    "Hold ⌘" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать ⌘"
+          }
+        }
+      }
+    },
+    "Hold ⌥" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать ⌥"
+          }
+        }
+      }
+    },
+    "How strongly the ghost text stands out from your own. 70% measured most readable over real app backgrounds — 45% was near-invisible." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Насколько серый текст выделяется на фоне вашего. По замерам на реальных фонах приложений лучше всего читается 70%, а 45% почти не видно."
+          }
+        }
+      }
+    },
+    "If Pretype already shows as switched on in System Settings → Privacy & Security → %@, that entry belongs to an earlier build. Select it, remove it with −, then choose Grant Accessibility… in the Pretype menu and switch the new entry on. Pretype starts by itself once it's granted." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если Pretype уже включён в Системных настройках → «Конфиденциальность и безопасность» → «%@», эта запись осталась от прежней сборки. Выберите её, удалите кнопкой −, затем выберите «Разрешить Универсальный доступ…» в меню Pretype и включите новую запись. Pretype запустится сам, как только доступ будет разрешён."
+          }
+        }
+      }
+    },
+    "Import" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать"
+          }
+        }
+      }
+    },
+    "Import .txt or .md files you wrote." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импорт написанных вами файлов .txt или .md."
+          }
+        }
+      }
+    },
+    "Import Text…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать текст…"
+          }
+        }
+      }
+    },
+    "Imported %lld passages from %lld file." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировано фрагментов: %lld, из файлов: %lld."
+          }
+        }
+      }
+    },
+    "Imported %lld passages from %lld files." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировано фрагментов: %lld, из файлов: %lld."
+          }
+        }
+      }
+    },
+    "Importing…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импорт…"
+          }
+        }
+      }
+    },
+    "In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything drops the reply. It starts once the reply model is downloaded — the chord's first use downloads it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В Сообщениях, Telegram, WhatsApp, Slack, Discord и других мессенджерах. Любой ввод отменяет ответ. Работает после загрузки модели для ответов — она загружается при первом использовании сочетания."
+          }
+        }
+      }
+    },
+    "Inline" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В строке"
+          }
+        }
+      }
+    },
+    "Installed with Homebrew — upgrade with:\n\n    %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установлено через Homebrew — обновите командой:\n\n    %@"
+          }
+        }
+      }
+    },
+    "Instruct" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Инструктивный"
+          }
+        }
+      }
+    },
+    "Instruct doesn't work on %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Инструктивный стиль не работает с %@"
+          }
+        }
+      }
+    },
+    "Instructions for %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Инструкции для %@"
+          }
+        }
+      }
+    },
+    "It answers the text instead of continuing it. Instruct needs a Gemma E4B model." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель отвечает на текст, а не продолжает его. Для инструктивного стиля нужна модель Gemma E4B."
+          }
+        }
+      }
+    },
+    "Its style lines replace the browser's while you type on it. A domain covers its subdomains — google.com includes mail.google.com." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока вы печатаете на этом сайте, его строки стиля заменяют строки браузера. Домен включает поддомены: google.com охватывает и mail.google.com."
+          }
+        }
+      }
+    },
+    "Journal" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Журнал"
+          }
+        }
+      }
+    },
+    "Keep suggestion journal" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вести журнал подсказок"
+          }
+        }
+      }
+    },
+    "Keeps wireless headphones out of call mode." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не переводит беспроводные наушники в режим звонка."
+          }
+        }
+      }
+    },
+    "Keeps ~%@ GB resident — over a quarter of this Mac's %@ GB, the line the auto-picked model stays under. Everything else you run gets that much less room." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Занимает ~%@ ГБ в памяти — больше четверти из %@ ГБ этого Mac, а автоматически выбранная модель держится ниже этой границы. Всему остальному остаётся настолько же меньше места."
+          }
+        }
+      }
+    },
+    "LM Studio (local)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LM Studio (локально)"
+          }
+        }
+      }
+    },
+    "Language" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Язык"
+          }
+        }
+      }
+    },
+    "Last prompt sent to the engine" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последний запрос к модели"
+          }
+        }
+      }
+    },
+    "Last: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последнее: %@"
+          }
+        }
+      }
+    },
+    "Later" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позже"
+          }
+        }
+      }
+    },
+    "Learn from your writing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Учиться на ваших текстах"
+          }
+        }
+      }
+    },
+    "Learn my words" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запоминать мои слова"
+          }
+        }
+      }
+    },
+    "Learned from your suggestion journal, only while on. Clear the journal to forget them." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слова берутся из журнала подсказок, только пока параметр включён. Чтобы забыть их, очистите журнал."
+          }
+        }
+      }
+    },
+    "Learning" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обучение"
+          }
+        }
+      }
+    },
+    "Length" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Длина"
+          }
+        }
+      }
+    },
+    "Lightest" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Самая лёгкая"
+          }
+        }
+      }
+    },
+    "Listening — dictation is capturing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слушаю — идёт диктовка"
+          }
+        }
+      }
+    },
+    "Listening…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слушаю…"
+          }
+        }
+      }
+    },
+    "Live Impact" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эффект настроек"
+          }
+        }
+      }
+    },
+    "Loading the model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка модели"
+          }
+        }
+      }
+    },
+    "Long" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Длинные"
+          }
+        }
+      }
+    },
+    "MEM" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ПАМ."
+          }
+        }
+      }
+    },
+    "Map task" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задача на карте"
+          }
+        }
+      }
+    },
+    "Measured on English and Russian." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Измерено на английском и русском."
+          }
+        }
+      }
+    },
+    "Median time per suggestion: %lld ms, warm — longer bar = faster." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Медианное время на подсказку после прогрева: %lld мс — чем длиннее полоса, тем быстрее."
+          }
+        }
+      }
+    },
+    "Medium" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Средние"
+          }
+        }
+      }
+    },
+    "Memory" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Память"
+          }
+        }
+      }
+    },
+    "Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет шейдеров Metal — соберите через Scripts/make-app.sh или запустите Scripts/dev.sh"
+          }
+        }
+      }
+    },
+    "Microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Микрофон"
+          }
+        }
+      }
+    },
+    "Microphone access is denied for Pretype, and macOS only ever asks once — allow it under Privacy & Security → Microphone, then come back and switch dictation on." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype запрещён доступ к микрофону, а macOS спрашивает только один раз — разрешите его в разделе «Конфиденциальность и безопасность» → «Микрофон», затем вернитесь и включите диктовку."
+          }
+        }
+      }
+    },
+    "Mildest 4-bit cost in the field: level with E2B 8-bit on English (28 vs 26) and on Russian (22 vs 25) — neither gap significant — but behind it on 17 languages (p<0.001), and still ahead of every smaller model there (Qwen3.5 2B p<0.001), at 0.9 GB less and a little faster." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Самая мягкая цена 4-bit среди всех: наравне с E2B 8-bit на английском (28 против 26) и русском (22 против 25) — оба разрыва незначимы, — но позади неё на 17 языках (p<0.001) и всё ещё впереди всех моделей поменьше (Qwen3.5 2B p<0.001), при этом на 0.9 ГБ легче и немного быстрее."
+          }
+        }
+      }
+    },
+    "MiniCPM5 1B — fastest, English & Russian" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MiniCPM5 1B — самая быстрая, английский и русский"
+          }
+        }
+      }
+    },
+    "Minimize" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свернуть"
+          }
+        }
+      }
+    },
+    "Missing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не выполнено"
+          }
+        }
+      }
+    },
+    "Model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель"
+          }
+        }
+      }
+    },
+    "Model map" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта моделей"
+          }
+        }
+      }
+    },
+    "Model map — accuracy, speed and memory of every model. Use the ranked list below to choose a model, and the Suggestions tab for the style, length and confidence settings the map previews." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта моделей — точность, скорость и память каждой модели. Чтобы выбрать модель, используйте список ниже, а для стиля, длины и уверенности, которые показывает карта, — вкладку «Подсказки»."
+          }
+        }
+      }
+    },
+    "Most accurate" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Самая точная"
+          }
+        }
+      }
+    },
+    "NVIDIA's open speech model, run locally. On Russian it makes under half the word errors of the system model, punctuates (F1 0.87 against 0.02) and runs three times faster." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открытая речевая модель NVIDIA, работает локально. На русском делает более чем вдвое меньше ошибок в словах, чем системная модель, расставляет пунктуацию (F1 0,87 против 0,02) и работает втрое быстрее."
+          }
+        }
+      }
+    },
+    "Needs Base style" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужен базовый стиль"
+          }
+        }
+      }
+    },
+    "Neural Engine — low, efficient" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neural Engine — низкая, экономичная"
+          }
+        }
+      }
+    },
+    "Never" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Никогда"
+          }
+        }
+      }
+    },
+    "New versions are announced in the menu bar; nothing is downloaded automatically." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "О новых версиях сообщается в строке меню; ничего не загружается автоматически."
+          }
+        }
+      }
+    },
+    "No eval figures — run it through the harness to compare." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет замеров — прогоните модель через стенд оценки, чтобы сравнить."
+          }
+        }
+      }
+    },
+    "No prompt has been sent yet." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запросов пока не было."
+          }
+        }
+      }
+    },
+    "Not available on this Mac: dictation uses the system's own on-device speech models, and macOS reports none here." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недоступно на этом Mac: диктовка использует системные модели распознавания речи на устройстве, а macOS сообщает, что их здесь нет."
+          }
+        }
+      }
+    },
+    "Not downloaded, %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не загружена, %@"
+          }
+        }
+      }
+    },
+    "Not measured" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не измерено"
+          }
+        }
+      }
+    },
+    "Not measured yet." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё не измерено."
+          }
+        }
+      }
+    },
+    "Not on this Mac yet — picking it downloads about %@ first, and suggestions pause until it's ready." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модели ещё нет на этом Mac — при выборе сначала загрузится около %@, а подсказки будут приостановлены до готовности."
+          }
+        }
+      }
+    },
+    "Nothing to hold, so you can scroll, click and think mid-sentence. Recording starts on the keypress itself. ⎋ throws the capture away, and moving to another field ends it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ничего не нужно удерживать, поэтому можно прокручивать, щёлкать и задумываться посреди фразы. Запись начинается сразу при нажатии. ⎋ отменяет запись, а переход в другое поле завершает её."
+          }
+        }
+      }
+    },
+    "Nothing to import — the files were empty, or not UTF-8 text." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нечего импортировать — файлы пустые или не в кодировке UTF-8."
+          }
+        }
+      }
+    },
+    "Now %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сейчас: %@"
+          }
+        }
+      }
+    },
+    "Now %@. Changing Style or Length turns this off." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сейчас: %@. Изменение стиля или длины выключит этот параметр."
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ОК"
+          }
+        }
+      }
+    },
+    "Of 380 on-screen conversations in 19 languages, %@ drafted something in the conversation's language without parroting the screen %lld%% [%lld–%lld] of the time — a floor on usability, not a quality score. Warm median %lld ms. %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Из 380 переписок на экране на 19 языках %@ пишет черновик на языке переписки, не повторяя текст с экрана, в %lld%% [%lld–%lld] случаев — это нижняя граница пригодности, а не оценка качества. Медиана после прогрева — %lld мс. %@."
+          }
+        }
+      }
+    },
+    "Of 510 single-typo sentences in 17 languages, %@ — the model this pick loads for the chord — restored %lld%% [%lld–%lld] to the exact original; on 170 already-clean lines it still proposed a change %lld%% of the time. Warm median %lld ms. %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Из 510 предложений с одной опечаткой на 17 языках %@ — модель, которую этот выбор загружает для сочетания, — точно восстанавливает %lld%% [%lld–%lld]; на 170 строках без ошибок всё равно предлагает правку в %lld%% случаев. Медиана после прогрева — %lld мс. %@."
+          }
+        }
+      }
+    },
+    "Off" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выкл."
+          }
+        }
+      }
+    },
+    "Off pauses suggestions, fix, reply and dictation — same as Pause Pretype in the menu bar" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выключение приостанавливает подсказки, исправление, ответы и диктовку — как «Приостановить Pretype» в строке меню"
+          }
+        }
+      }
+    },
+    "Offer replies in chats" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предлагать ответы в чатах"
+          }
+        }
+      }
+    },
+    "Ollama (local)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ollama (локально)"
+          }
+        }
+      }
+    },
+    "On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It never leaves the Mac and is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Локальное распознавание текста (OCR) в активном окне — переписка над полем чата, письмо, на которое вы отвечаете. Текст не покидает Mac и не записывается в журнал. С разрешением «Запись экрана» окно подсказки также подстраивается под фон у курсора."
+          }
+        }
+      }
+    },
+    "One-time model download" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Однократная загрузка модели"
+          }
+        }
+      }
+    },
+    "Open API Settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть настройки API"
+          }
+        }
+      }
+    },
+    "Open GitHub" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть GitHub"
+          }
+        }
+      }
+    },
+    "Open Microphone Settings…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть настройки микрофона…"
+          }
+        }
+      }
+    },
+    "Open Releases…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть релизы…"
+          }
+        }
+      }
+    },
+    "Open System Settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть Системные настройки"
+          }
+        }
+      }
+    },
+    "Open System Settings…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть Системные настройки…"
+          }
+        }
+      }
+    },
+    "Open TextEdit" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть TextEdit"
+          }
+        }
+      }
+    },
+    "Open at login" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открывать при входе"
+          }
+        }
+      }
+    },
+    "Panel" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Панель"
+          }
+        }
+      }
+    },
+    "Paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вставить"
+          }
+        }
+      }
+    },
+    "Pause" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приостановить"
+          }
+        }
+      }
+    },
+    "Pause Pretype" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приостановить Pretype"
+          }
+        }
+      }
+    },
+    "Pause on Battery" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза при работе от аккумулятора"
+          }
+        }
+      }
+    },
+    "Paused" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приостановлено"
+          }
+        }
+      }
+    },
+    "Paused by secure input — a password field or Secure Keyboard Entry is on" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза: безопасный ввод — активно поле пароля или «Защищенный ввод с клавиатуры»"
+          }
+        }
+      }
+    },
+    "Paused on battery" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза: работа от аккумулятора"
+          }
+        }
+      }
+    },
+    "Per-app style" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стиль для приложений"
+          }
+        }
+      }
+    },
+    "Persona" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Персона"
+          }
+        }
+      }
+    },
+    "Personalization" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Персонализация"
+          }
+        }
+      }
+    },
+    "Pipeline" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Конвейер"
+          }
+        }
+      }
+    },
+    "Pipeline not started yet" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Конвейер ещё не запущен"
+          }
+        }
+      }
+    },
+    "Plots this model's other settings on the map. They were measured on English and Russian together, so the whole tab switches to that sample." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывает на карте другие настройки этой модели. Их измеряли на английском и русском вместе, поэтому вся вкладка переключается на эту выборку."
+          }
+        }
+      }
+    },
+    "Precision" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уверенность"
+          }
+        }
+      }
+    },
+    "Press %@ on a suggestion to start saving typing time." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Принимайте подсказки клавишей %@, чтобы экономить время на наборе."
+          }
+        }
+      }
+    },
+    "Press Return Here" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажимать Return здесь"
+          }
+        }
+      }
+    },
+    "Press Return after Dictation in %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажимать Return после диктовки в «%@»"
+          }
+        }
+      }
+    },
+    "Press Return after Dictation on %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажимать Return после диктовки на %@"
+          }
+        }
+      }
+    },
+    "Press Return after dictation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажимать Return после диктовки"
+          }
+        }
+      }
+    },
+    "Press once to start, again to stop." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите один раз для начала, ещё раз — для остановки."
+          }
+        }
+      }
+    },
+    "Pretype" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype"
+          }
+        }
+      }
+    },
+    "Pretype %@ is available" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступна версия Pretype %@"
+          }
+        }
+      }
+    },
+    "Pretype %@ is the latest version" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype %@ — последняя версия"
+          }
+        }
+      }
+    },
+    "Pretype Debug Console" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Консоль отладки Pretype"
+          }
+        }
+      }
+    },
+    "Pretype Settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки Pretype"
+          }
+        }
+      }
+    },
+    "Pretype doesn't update itself — download it and replace the copy in Applications." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype не обновляется сам — загрузите новую версию и замените копию в папке «Программы»."
+          }
+        }
+      }
+    },
+    "Pretype hit a problem" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В Pretype возникла проблема"
+          }
+        }
+      }
+    },
+    "Pretype is Ready" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype готов"
+          }
+        }
+      }
+    },
+    "Pretype keeps suggesting as you type, in any app" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype подсказывает по мере ввода в любом приложении"
+          }
+        }
+      }
+    },
+    "Pretype learns your words and reuses your sentences as examples. Files are only read; Clear forgets imported text too." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype запоминает ваши слова и использует ваши фразы как примеры. Файлы только читаются; «Очистить» удаляет и импортированный текст."
+          }
+        }
+      }
+    },
+    "Pretype needs Accessibility access" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype нужен Универсальный доступ"
+          }
+        }
+      }
+    },
+    "Pretype needs Accessibility permission to read the field you're typing in." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype нужен Универсальный доступ, чтобы читать поле, в котором вы печатаете."
+          }
+        }
+      }
+    },
+    "Pretype needs the microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype нужен доступ к микрофону"
+          }
+        }
+      }
+    },
+    "Pretype was updated, so macOS needs to grant Accessibility again.\n\n%@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype обновился, поэтому Универсальный доступ нужно разрешить заново.\n\n%@"
+          }
+        }
+      }
+    },
+    "Pretype went quiet here: %lld%% of %lld suggestions taken." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype здесь притих: принято %lld%% подсказок, показано: %lld."
+          }
+        }
+      }
+    },
+    "Pretype — %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype — %@"
+          }
+        }
+      }
+    },
+    "Pretype's window took focus — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "фокус у окна Pretype — текст скопирован, вставьте ⌘V"
+          }
+        }
+      }
+    },
+    "Preview: grey suggestion text continues the line after the cursor" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пример: серый текст подсказки продолжает строку после курсора"
+          }
+        }
+      }
+    },
+    "Preview: the suggestion floats in a small box above the line" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пример: подсказка в небольшом окошке над строкой"
+          }
+        }
+      }
+    },
+    "Provider" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Провайдер"
+          }
+        }
+      }
+    },
+    "Push-to-talk key" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клавиша записи"
+          }
+        }
+      }
+    },
+    "Quick & accurate" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Быстрая и точная"
+          }
+        }
+      }
+    },
+    "Quit Pretype" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить Pretype"
+          }
+        }
+      }
+    },
+    "Qwen2.5 0.5B — smallest footprint" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen2.5 0.5B — самая компактная"
+          }
+        }
+      }
+    },
+    "Qwen3.5 2B — best small multilingual" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B — лучшая малая многоязычная"
+          }
+        }
+      }
+    },
+    "Reads the focused window on this Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читает активное окно на этом Mac."
+          }
+        }
+      }
+    },
+    "Ready-made styles for %@. Every line stays editable." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готовые стили для %@. Каждую строку можно отредактировать."
+          }
+        }
+      }
+    },
+    "Rebuild it from your account name and keyboard languages" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пересоздать по имени учётной записи и языкам клавиатуры"
+          }
+        }
+      }
+    },
+    "Recommended" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рекомендуется"
+          }
+        }
+      }
+    },
+    "Recording from a wireless headset switches it into call mode for the capture, which makes anything playing sound flat and quiet." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись с беспроводной гарнитуры переводит её в режим звонка, и всё воспроизводимое звучит глухо и тихо."
+          }
+        }
+      }
+    },
+    "Redo" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
+          }
+        }
+      }
+    },
+    "Refrain (this Mac)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refrain (этот Mac)"
+          }
+        }
+      }
+    },
+    "Relaunch" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перезапустить"
+          }
+        }
+      }
+    },
+    "Relaunch Pretype to switch the language." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перезапустите Pretype, чтобы сменить язык."
+          }
+        }
+      }
+    },
+    "Remove instructions for %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить инструкции для %@"
+          }
+        }
+      }
+    },
+    "Remove this app's instructions" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить инструкции для этого приложения"
+          }
+        }
+      }
+    },
+    "Reply" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответ"
+          }
+        }
+      }
+    },
+    "Resident weights: %@ GB — longer bar = lighter." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Веса в памяти: %@ ГБ — чем длиннее полоса, тем легче."
+          }
+        }
+      }
+    },
+    "Restart Pretype to switch the language." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перезапустите Pretype, чтобы сменить язык."
+          }
+        }
+      }
+    },
+    "Restore Default" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить"
+          }
+        }
+      }
+    },
+    "Resume" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возобновить"
+          }
+        }
+      }
+    },
+    "Resume Pretype" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возобновить Pretype"
+          }
+        }
+      }
+    },
+    "Resume in %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возобновить в «%@»"
+          }
+        }
+      }
+    },
+    "Retry" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
+          }
+        }
+      }
+    },
+    "Retry Loading the Model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить загрузку модели"
+          }
+        }
+      }
+    },
+    "Runs the chords for %@. Click to switch to %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обрабатывает сочетания для %@. Нажмите, чтобы переключиться на %@."
+          }
+        }
+      }
+    },
+    "Runs until you press the chord again, or for ten minutes." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Работает, пока вы снова не нажмёте сочетание, но не дольше десяти минут."
+          }
+        }
+      }
+    },
+    "Runtime" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Работа модели"
+          }
+        }
+      }
+    },
+    "SPEED" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "СКОР."
+          }
+        }
+      }
+    },
+    "Saves suggestions with nearby text, on this Mac only." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохраняет подсказки с окружающим текстом, только на этом Mac."
+          }
+        }
+      }
+    },
+    "Say an edit like “make this shorter” over a selection." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правка голосом, например «сделай короче», для выделенного текста."
+          }
+        }
+      }
+    },
+    "Screen Recording allowed (then relaunch Pretype)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешена «Запись экрана» (затем перезапустите Pretype)"
+          }
+        }
+      }
+    },
+    "Screen Recording permission" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешение на запись экрана"
+          }
+        }
+      }
+    },
+    "Screen context on" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Контекст экрана включён"
+          }
+        }
+      }
+    },
+    "Screen context reads the window you're typing in, on this Mac, and macOS asks for Screen Recording permission for that. Enable Pretype in System Settings → Privacy & Security → Screen Recording, then quit and relaunch Pretype — macOS applies this permission only at app launch." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Контекст экрана считывает окно, в котором вы печатаете, локально на этом Mac, и для этого macOS запрашивает разрешение «Запись экрана». Включите Pretype в разделе «Системные настройки» → «Конфиденциальность и безопасность» → «Запись экрана», затем завершите и снова откройте Pretype — macOS применяет это разрешение только при запуске приложения."
+          }
+        }
+      }
+    },
+    "Screen: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экран: %@"
+          }
+        }
+      }
+    },
+    "Search…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск…"
+          }
+        }
+      }
+    },
+    "See the grey text? Press %@ to take a word." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видите серый текст? Нажмите %@, чтобы принять слово."
+          }
+        }
+      }
+    },
+    "Select All" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать все"
+          }
+        }
+      }
+    },
+    "Selected: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана: %@"
+          }
+        }
+      }
+    },
+    "Sends the message in these apps." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправляет сообщение в этих приложениях."
+          }
+        }
+      }
+    },
+    "Sets the voice of Apple Intelligence. Stays on this Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задаёт тон Apple Intelligence. Остаётся на этом Mac."
+          }
+        }
+      }
+    },
+    "Setting up Pretype" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройка Pretype"
+          }
+        }
+      }
+    },
+    "Settings…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки…"
+          }
+        }
+      }
+    },
+    "Shapes replies and Instruct suggestions. Stays on this Mac." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Влияет на ответы и подсказки инструктивного стиля. Остаётся на этом Mac."
+          }
+        }
+      }
+    },
+    "Share Your Style for %@?" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поделиться стилем для %@?"
+          }
+        }
+      }
+    },
+    "Share the style for %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поделиться стилем для %@"
+          }
+        }
+      }
+    },
+    "Share this style with other Pretype users" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поделиться этим стилем с другими пользователями Pretype"
+          }
+        }
+      }
+    },
+    "Short" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Короткие"
+          }
+        }
+      }
+    },
+    "Show Last Prompt…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать последний запрос…"
+          }
+        }
+      }
+    },
+    "Show only %@ events (with any others picked)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только события %@ (и других выбранных категорий)"
+          }
+        }
+      }
+    },
+    "Show only confident suggestions" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать только уверенные подсказки"
+          }
+        }
+      }
+    },
+    "Show settings on the map" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать настройки на карте"
+          }
+        }
+      }
+    },
+    "Size" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер"
+          }
+        }
+      }
+    },
+    "Smallest footprint — for Macs with little free memory." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Самая компактная — для Mac, где мало свободной памяти."
+          }
+        }
+      }
+    },
+    "Smallest footprint; a trend behind MiniCPM5 on 17 languages (p=0.028), and clearly behind its bigger sibling Qwen3.5 2B (p<0.001)." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Самая компактная; на 17 языках тенденция к отставанию от MiniCPM5 (p=0.028) и явное отставание от старшей Qwen3.5 2B (p<0.001)."
+          }
+        }
+      }
+    },
+    "Speed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скорость"
+          }
+        }
+      }
+    },
+    "Starting…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запуск…"
+          }
+        }
+      }
+    },
+    "Startup" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запуск"
+          }
+        }
+      }
+    },
+    "Statistically level with both E4B builds on the 17-language set (p=0.013 vs 8-bit, p=0.11 vs 6-bit) in less memory and ~40% less time per suggestion; robust across all 17 eval languages." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Статистически наравне с обеими сборками E4B на наборе из 17 языков (p=0.013 против 8-bit, p=0.11 против 6-bit) при меньшей памяти и на ~40% меньшем времени на подсказку; стабильна на всех 17 языках оценки."
+          }
+        }
+      }
+    },
+    "Stays silent the rest of the time rather than guess." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В остальных случаях молчит, а не гадает."
+          }
+        }
+      }
+    },
+    "Stop after silence" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Останавливать после тишины"
+          }
+        }
+      }
+    },
+    "Stop excluding %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не исключать %@"
+          }
+        }
+      }
+    },
+    "Stop pressing Return in %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не нажимать Return в %@"
+          }
+        }
+      }
+    },
+    "Style" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стиль"
+          }
+        }
+      }
+    },
+    "Style and precision don't apply to Apple Intelligence." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стиль и точность не применяются к Apple Intelligence."
+          }
+        }
+      }
+    },
+    "Suggestion display" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отображение подсказок"
+          }
+        }
+      }
+    },
+    "Suggestions" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказки"
+          }
+        }
+      }
+    },
+    "Suggestions pause until it's ready." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказки приостановятся, пока модель не будет готова."
+          }
+        }
+      }
+    },
+    "Suggestions, fix, reply and voice commands use this model." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эту модель используют подсказки, исправление, ответы и голосовые команды."
+          }
+        }
+      }
+    },
+    "Suggestions: %lld accepted of %lld shown" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказки: принято %lld из %lld"
+          }
+        }
+      }
+    },
+    "Suggestions: %lld accepted of %lld shown (%lld%%)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказки: принято %lld из %lld (%lld%%)"
+          }
+        }
+      }
+    },
+    "Suggests" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказывает"
+          }
+        }
+      }
+    },
+    "Suggests %lld%% of the time; %@ of those are right." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказывает в %lld%% случаев; из них верны %@."
+          }
+        }
+      }
+    },
+    "Switch to Base" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перейти на базовый"
+          }
+        }
+      }
+    },
+    "System (%@)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как в системе (%@)"
+          }
+        }
+      }
+    },
+    "System default" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системный по умолчанию"
+          }
+        }
+      }
+    },
+    "System dictation model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель системной диктовки"
+          }
+        }
+      }
+    },
+    "System model on the Neural Engine — no download, no app memory. The macOS 27 model answers almost every prompt (97% on English and Russian) and now covers Polish, Romanian and Czech too, but it is right less often than any downloadable model: 10% of Russian rows against 22% of English, and next to none in Japanese or Chinese. On Arabic and Hebrew it answers 84–87% and is right 6% of the time." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системная модель на Neural Engine — без загрузки и без памяти приложения. Модель macOS 27 отвечает почти на каждый запрос (97% на английском и русском) и теперь знает польский, румынский и чешский, но угадывает реже любой загружаемой модели: 10% строк на русском против 22% на английском и почти ноль на японском и китайском. На арабском и иврите отвечает в 84–87% случаев и угадывает в 6%."
+          }
+        }
+      }
+    },
+    "System model — no download, no app memory." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системная модель — без загрузки и без памяти приложения."
+          }
+        }
+      }
+    },
+    "Talk instead of typing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Говорить вместо набора"
+          }
+        }
+      }
+    },
+    "Task map — how well each instruct sibling handles the fix chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта задач — как каждая инструктивная модель справляется с исправлением, а также её скорость и память. Показатели «Исправление» и «Ответ» в списке ниже — те же цифры для каждой модели."
+          }
+        }
+      }
+    },
+    "Task map — how well each instruct sibling handles the reply chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта задач — как каждая инструктивная модель справляется с черновиком ответа, а также её скорость и память. Показатели «Исправление» и «Ответ» в списке ниже — те же цифры для каждой модели."
+          }
+        }
+      }
+    },
+    "Terminals get suggestions only in an AI agent's prompt." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В терминалах подсказки появляются только в поле ввода ИИ-агента."
+          }
+        }
+      }
+    },
+    "Ternary 4B in 1.1 GB; measurably behind MiniCPM5 on the 17-language set (p=0.004), with the same coverage sag outside English and Western Europe (uk 62%, cs 63%)." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тернарная 4B в 1.1 ГБ; заметно отстаёт от MiniCPM5 на наборе из 17 языков (p=0.004), с тем же падением охвата за пределами английского и Западной Европы (uk 62%, cs 63%)."
+          }
+        }
+      }
+    },
+    "Ternary Bonsai 4B — 1 GB base" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ternary Bonsai 4B — базовая, 1 ГБ"
+          }
+        }
+      }
+    },
+    "Test connection" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверить подключение"
+          }
+        }
+      }
+    },
+    "Testing…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверка…"
+          }
+        }
+      }
+    },
+    "Text" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст"
+          }
+        }
+      }
+    },
+    "Text runs on %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст обрабатывается через %@"
+          }
+        }
+      }
+    },
+    "Text runs on %@. Pretype hasn't measured it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст обрабатывается через %@. Pretype не измерял эту модель."
+          }
+        }
+      }
+    },
+    "That's it" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вот и всё"
+          }
+        }
+      }
+    },
+    "The chords run on the system model, which the task eval doesn't cover yet." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетания выполняются на системной модели, которую оценка задач пока не охватывает."
+          }
+        }
+      }
+    },
+    "The completion engine couldn't start" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось запустить механизм дополнений"
+          }
+        }
+      }
+    },
+    "The exported file contains text you typed this session — suggestions, accepted words, and corrections. Only share it with people you trust." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл содержит текст, который вы ввели за этот сеанс: подсказки, принятые слова и исправления. Делитесь им только с теми, кому доверяете."
+          }
+        }
+      }
+    },
+    "The fix and reply chords for this model aren't measured by the task eval yet." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетания исправления и ответа для этой модели ещё не измерены в оценке задач."
+          }
+        }
+      }
+    },
+    "The fix and reply chords run on %@: %lld%% of noisy lines restored exactly [%lld–%lld] and %lld%% usable reply drafts [%lld–%lld] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сочетания исправления и ответа выполняются на %@: %lld%% строк с ошибками восстановлены точно [%lld–%lld] и %lld%% черновиков ответа пригодны [%lld–%lld] — итог по 17/19 языкам при рекомендуемых настройках этой модели; выбор языка на них не влияет. %@."
+          }
+        }
+      }
+    },
+    "The model below runs again when the API is off." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда API выключен, снова работает модель ниже."
+          }
+        }
+      }
+    },
+    "The model is loading — deleting is available once it finishes." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель загружается — удалить её можно будет после завершения."
+          }
+        }
+      }
+    },
+    "The next keystroke reloads the model from disk; switching to a text field pre-warms it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующее нажатие клавиши снова загрузит модель с диска; переход в текстовое поле прогревает её заранее."
+          }
+        }
+      }
+    },
+    "The out-of-the-box pick: the best tier that stays within about a quarter of this Mac's memory, working fix/reply chords included." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбор по умолчанию: лучший вариант в пределах примерно четверти памяти этого Mac, с рабочими сочетаниями исправления и ответа."
+          }
+        }
+      }
+    },
+    "The raw data for personalization, capped at 50 MB in Application Support. On-screen text is never written. Turning this off deletes it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исходные данные для персонализации, не более 50 МБ в Application Support. Текст с экрана никогда не записывается. Выключение удаляет журнал."
+          }
+        }
+      }
+    },
+    "The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. Off, dictating over a selection replaces it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правка показывается как исправление: ⏎ применяет её, ⎋ оставляет оригинал. Если выключено, диктовка заменяет выделенный текст."
+          }
+        }
+      }
+    },
+    "The same minimal-edit fix %@ uses; a result that rephrases is rejected. Costs one short generation before the text lands. Where the fix needs a separate model, its first use downloads it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "То же минимальное исправление, что и у %@; перефразированный результат отклоняется. Перед вставкой текста — одна короткая генерация. Если для исправления нужна отдельная модель, она загрузится при первом использовании."
+          }
+        }
+      }
+    },
+    "This also forgets the %lld words Pretype learned from you. It can't be undone." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This also forgets the %lld word Pretype learned from you. It can't be undone."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This also forgets the %lld words Pretype learned from you. It can't be undone."
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pretype также забудет %lld выученных слова. Это действие нельзя отменить."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pretype также забудет %lld выученных слов. Это действие нельзя отменить."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pretype также забудет %lld выученное слово. Это действие нельзя отменить."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Pretype также забудет %lld выученного слова. Это действие нельзя отменить."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "This can't be undone." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это действие нельзя отменить."
+          }
+        }
+      }
+    },
+    "This server runs on your Mac, so nothing leaves it." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот сервер работает на вашем Mac, поэтому данные его не покидают."
+          }
+        }
+      }
+    },
+    "Tidy up with the model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приводить в порядок с помощью модели"
+          }
+        }
+      }
+    },
+    "Ties E4B 8-bit on the 17-language set (p=0.28) at ~1 GB less — and E2B 8-bit too (p=0.11)." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наравне с E4B 8-bit на наборе из 17 языков (p=0.28) при ~1 ГБ меньше — и с E2B 8-bit тоже (p=0.11)."
+          }
+        }
+      }
+    },
+    "Today" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сегодня"
+          }
+        }
+      }
+    },
+    "Top of the 17-language set and steady across all of them — but only a trend ahead of E2B 8-bit (p=0.013, n=5649) and tied with E4B 6-bit (p=0.28), for the most memory in the catalog." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лидер набора из 17 языков, стабильна на каждом — но впереди E2B 8-bit лишь на уровне тенденции (p=0.013, n=5649) и наравне с E4B 6-bit (p=0.28), при наибольшем расходе памяти в каталоге."
+          }
+        }
+      }
+    },
+    "Transcribes dictation with this model." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Распознаёт диктовку с помощью этой модели."
+          }
+        }
+      }
+    },
+    "Turn On" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить"
+          }
+        }
+      }
+    },
+    "Turn on the journal first." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сначала включите журнал."
+          }
+        }
+      }
+    },
+    "Turned off in these apps" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выключено в этих приложениях"
+          }
+        }
+      }
+    },
+    "Type a few words and pause — grey text appears after your cursor." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наберите несколько слов и остановитесь — после курсора появится серый текст."
+          }
+        }
+      }
+    },
+    "Type dictations here without sending them" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вводить диктовку здесь без отправки"
+          }
+        }
+      }
+    },
+    "Type in any app — Pretype lives in the menu bar" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Печатайте в любом приложении — Pretype находится в строке меню"
+          }
+        }
+      }
+    },
+    "Types what it has and stops, so a forgotten chord isn't an open microphone. The clock starts after your first word." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вводит распознанное и останавливается, чтобы забытое сочетание не оставило микрофон включённым. Отсчёт начинается после первого слова."
+          }
+        }
+      }
+    },
+    "USABLE REPLY" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ГОДНЫЕ ОТВЕТЫ"
+          }
+        }
+      }
+    },
+    "Undo" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отменить"
+          }
+        }
+      }
+    },
+    "Undone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отменено"
+          }
+        }
+      }
+    },
+    "Unload Model from Memory" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выгрузить модель из памяти"
+          }
+        }
+      }
+    },
+    "Unplugged microphone" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключённый микрофон"
+          }
+        }
+      }
+    },
+    "Unstable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нестабильно"
+          }
+        }
+      }
+    },
+    "Up to 600 characters, read only when the clipboard changes. Copies from password managers are never read, and nothing is written to the journal or debug log." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "До 600 символов, читается только при изменении буфера обмена. Скопированное из менеджеров паролей не читается, и ничего не записывается в журнал подсказок или отладочный лог."
+          }
+        }
+      }
+    },
+    "Up to a sentence ahead, about %@ each." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "До целого предложения, около %@ на подсказку."
+          }
+        }
+      }
+    },
+    "Up to a sentence ahead." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "До целого предложения."
+          }
+        }
+      }
+    },
+    "Up to ~6 words ahead, about %@ each." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "До ~6 слов вперёд, около %@ на подсказку."
+          }
+        }
+      }
+    },
+    "Up to ~6 words ahead." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "До ~6 слов вперёд."
+          }
+        }
+      }
+    },
+    "Update to %@…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить до %@…"
+          }
+        }
+      }
+    },
+    "Updates" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновления"
+          }
+        }
+      }
+    },
+    "Use Parakeet for %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать Parakeet (%@)"
+          }
+        }
+      }
+    },
+    "Use an API model for dictation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать модель API для диктовки"
+          }
+        }
+      }
+    },
+    "Use an API model for text" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать модель API для текста"
+          }
+        }
+      }
+    },
+    "Use clipboard context" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать контекст буфера обмена"
+          }
+        }
+      }
+    },
+    "Use recommended settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать рекомендуемые настройки"
+          }
+        }
+      }
+    },
+    "Use screen context" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать контекст экрана"
+          }
+        }
+      }
+    },
+    "Uses text you just copied." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Учитывает только что скопированный текст."
+          }
+        }
+      }
+    },
+    "Using %@, so %@ keeps playing in full quality." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используется %@, чтобы звук на %@ не терял качества."
+          }
+        }
+      }
+    },
+    "Voice commands on selected text" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голосовые команды для выделенного текста"
+          }
+        }
+      }
+    },
+    "Website" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сайт"
+          }
+        }
+      }
+    },
+    "What matters most" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что важнее всего"
+          }
+        }
+      }
+    },
+    "What you type goes to %@ with each suggestion, plus screen and clipboard context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Набираемый текст отправляется на %@ с каждой подсказкой, а также контекст экрана и буфера обмена и надиктованный текст для «Приводить в порядок», если эти функции включены. Из полей паролей и выключенных приложений ничего не отправляется. Провайдер может взимать плату за каждый запрос."
+          }
+        }
+      }
+    },
+    "Window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окно"
+          }
+        }
+      }
+    },
+    "Window: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окно: %@"
+          }
+        }
+      }
+    },
+    "Wireless headsets switch to call mode while recording." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Беспроводные гарнитуры переходят в режим звонка во время записи."
+          }
+        }
+      }
+    },
+    "Write " : {
+      "comment" : "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 1, the text typed before the caret. Keep the trailing space.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Написать "
+          }
+        }
+      }
+    },
+    "Write a reply" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Написать ответ"
+          }
+        }
+      }
+    },
+    "You're on %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установлена версия %@."
+          }
+        }
+      }
+    },
+    "You're up to date." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновление не требуется."
+          }
+        }
+      }
+    },
+    "a composition is open — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ввод слова не завершён — текст скопирован, вставьте ⌘V"
+          }
+        }
+      }
+    },
+    "a password field took focus — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "фокус в поле пароля — текст скопирован, вставьте ⌘V"
+          }
+        }
+      }
+    },
+    "a reply" : {
+      "comment" : "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 2, the suggestion's first chunk right after the caret.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ответ"
+          }
+        }
+      }
+    },
+    "accept" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "принять"
+          }
+        }
+      }
+    },
+    "accept a word — %@ for all" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "принять слово — %@ целиком"
+          }
+        }
+      }
+    },
+    "add an API key in Settings → API" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "добавьте ключ API: Настройки → API"
+          }
+        }
+      }
+    },
+    "all" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "всё"
+          }
+        }
+      }
+    },
+    "all %lld languages" : {
+      "localizations" : {
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "все %lld языка"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "все %lld языков"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "все %lld язык"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "все %lld языка"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "allow the microphone in Settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "разрешите микрофон в настройках"
+          }
+        }
+      }
+    },
+    "allow the microphone, then hold to talk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "разрешите микрофон, затем зажмите и говорите"
+          }
+        }
+      }
+    },
+    "allow the microphone, then press %@ again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "разрешите микрофон и снова нажмите %@"
+          }
+        }
+      }
+    },
+    "apply" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "применить"
+          }
+        }
+      }
+    },
+    "apply the fix — esc keeps yours" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "применить — esc оставит как есть"
+          }
+        }
+      }
+    },
+    "base-model figure — instruct unmeasured here" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "данные базовой модели — инструктивная здесь не измерена"
+          }
+        }
+      }
+    },
+    "broken combination — this model answers the text instead of continuing it" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "неудачное сочетание — модель отвечает на текст, а не продолжает его"
+          }
+        }
+      }
+    },
+    "cancel" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "отмена"
+          }
+        }
+      }
+    },
+    "chip load per keystroke vs default (est.)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "нагрузка на чип за нажатие относительно стандартной (оценка)"
+          }
+        }
+      }
+    },
+    "click into a text field, then hold to talk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "выберите поле ввода, затем зажмите и говорите"
+          }
+        }
+      }
+    },
+    "click into a text field, then press %@ again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "выберите поле ввода и снова нажмите %@"
+          }
+        }
+      }
+    },
+    "dictation cancelled" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диктовка отменена"
+          }
+        }
+      }
+    },
+    "dictation couldn't start — try again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диктовка не запустилась — попробуйте снова"
+          }
+        }
+      }
+    },
+    "dictation dropped — the caret moved" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диктовка сброшена — курсор сдвинулся"
+          }
+        }
+      }
+    },
+    "dictation dropped — you kept typing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диктовка сброшена — вы продолжили печатать"
+          }
+        }
+      }
+    },
+    "dictation needs the built app — run make-app.sh" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "для диктовки нужна сборка — запустите make-app.sh"
+          }
+        }
+      }
+    },
+    "dictation stays out of password fields" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диктовка не работает в полях паролей"
+          }
+        }
+      }
+    },
+    "dictation stopped — the focus moved" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диктовка остановлена — фокус сменился"
+          }
+        }
+      }
+    },
+    "downloading %@ / %@ (%lld%%)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "загрузка %@ / %@ (%lld%%)"
+          }
+        }
+      }
+    },
+    "downloading %lld%%" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "загрузка %lld%%"
+          }
+        }
+      }
+    },
+    "e.g. formal tone, no emoji" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "например, деловой тон, без эмодзи"
+          }
+        }
+      }
+    },
+    "engine error" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ошибка модели"
+          }
+        }
+      }
+    },
+    "engine not working" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "модель не работает"
+          }
+        }
+      }
+    },
+    "enter a model name" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "введите название модели"
+          }
+        }
+      }
+    },
+    "enter the server's base URL" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "введите базовый URL сервера"
+          }
+        }
+      }
+    },
+    "eval-real, English+Russian pooled, n=1449, 2026-10-15" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "eval-real, английский+русский вместе, n=1449, 2026-10-15"
+          }
+        }
+      }
+    },
+    "faster ▶" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "быстрее ▶"
+          }
+        }
+      }
+    },
+    "finish composing that word, then hold to talk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "завершите ввод слова, затем зажмите и говорите"
+          }
+        }
+      }
+    },
+    "finish composing that word, then press %@ again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "завершите ввод слова и снова нажмите %@"
+          }
+        }
+      }
+    },
+    "fix" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "исправить"
+          }
+        }
+      }
+    },
+    "fix failed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "не удалось исправить"
+          }
+        }
+      }
+    },
+    "fix model %@ / %@ (%lld%%)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "модель исправлений %@ / %@ (%lld%%)"
+          }
+        }
+      }
+    },
+    "fix model %lld%%" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "модель исправлений %lld%%"
+          }
+        }
+      }
+    },
+    "fix the word or selection" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "исправить слово или выделение"
+          }
+        }
+      }
+    },
+    "focus moved — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "фокус сменился — текст скопирован, вставьте ⌘V"
+          }
+        }
+      }
+    },
+    "getting the dictation model ready…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подготовка модели диктовки…"
+          }
+        }
+      }
+    },
+    "h" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ч"
+          }
+        }
+      }
+    },
+    "hands-free — again to stop" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "без удержания — ещё раз для остановки"
+          }
+        }
+      }
+    },
+    "idle — model unloaded" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "простой — модель выгружена"
+          }
+        }
+      }
+    },
+    "instruct sibling weights (hub size)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "веса инструктивной версии (размер на хабе)"
+          }
+        }
+      }
+    },
+    "instruct sibling, measured (it-6bit)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "инструктивная версия, измерено (it-6bit)"
+          }
+        }
+      }
+    },
+    "instruct sibling, scaled by the measured length factor" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "инструктивная версия с поправкой на измеренный коэффициент длины"
+          }
+        }
+      }
+    },
+    "last 7 days" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "за 7 дней"
+          }
+        }
+      }
+    },
+    "loading fix model…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "загрузка модели исправлений…"
+          }
+        }
+      }
+    },
+    "loading…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "загрузка…"
+          }
+        }
+      }
+    },
+    "macOS can't dictate %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS не поддерживает диктовку: %@"
+          }
+        }
+      }
+    },
+    "macOS is holding this one: allow Pretype in System Settings → General → Login Items." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS ждёт вашего разрешения: включите Pretype в разделе «Системные настройки» → «Основные» → «Объекты входа»."
+          }
+        }
+      }
+    },
+    "macOS will ask you to grant Accessibility again afterwards." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "После этого macOS снова попросит разрешить Универсальный доступ."
+          }
+        }
+      }
+    },
+    "median on the Neural Engine — an upper bound" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "медиана на Neural Engine — верхняя граница"
+          }
+        }
+      }
+    },
+    "median per suggestion, measured" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "медиана на подсказку, измерено"
+          }
+        }
+      }
+    },
+    "min" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "мин"
+          }
+        }
+      }
+    },
+    "model isn't loaded — see the menu" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "модель не загружена — см. меню"
+          }
+        }
+      }
+    },
+    "model name" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "название модели"
+          }
+        }
+      }
+    },
+    "no added latency over plain Base" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "без лишней задержки относительно «Базового»"
+          }
+        }
+      }
+    },
+    "no answer from the model" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "модель не ответила"
+          }
+        }
+      }
+    },
+    "no change" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "без изменений"
+          }
+        }
+      }
+    },
+    "no microphone found" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "микрофон не найден"
+          }
+        }
+      }
+    },
+    "no text field in focus — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "нет поля ввода в фокусе — текст скопирован, вставьте ⌘V"
+          }
+        }
+      }
+    },
+    "not measured" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "не измерено"
+          }
+        }
+      }
+    },
+    "nothing heard" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ничего не слышно"
+          }
+        }
+      }
+    },
+    "nothing to reply to" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "не на что отвечать"
+          }
+        }
+      }
+    },
+    "offers %lld%% of the time at this model's own threshold · %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подсказывает в %lld%% случаев при собственном пороге модели · %@"
+          }
+        }
+      }
+    },
+    "offers %lld%% of the time on real text, where Base measures %lld%% · 85%% on text you author (eval-v2, with persona)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подсказывает в %lld%% случаев на реальном тексте, где у «Базового» %lld%% · 85%% на вашем собственном тексте (eval-v2, с персоной)"
+          }
+        }
+      }
+    },
+    "offers %lld%% of the time · %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подсказывает в %lld%% случаев · %@"
+          }
+        }
+      }
+    },
+    "optional" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "необязательно"
+          }
+        }
+      }
+    },
+    "or type part of a bundle ID" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "или введите часть идентификатора пакета"
+          }
+        }
+      }
+    },
+    "paused — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "пауза — текст скопирован, вставьте ⌘V"
+          }
+        }
+      }
+    },
+    "reachable with settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "диапазон настроек"
+          }
+        }
+      }
+    },
+    "reply" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ответить"
+          }
+        }
+      }
+    },
+    "reply doesn't read the screen in %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ответ не читает экран в %@"
+          }
+        }
+      }
+    },
+    "reply doesn't read the screen in this app" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ответ не читает экран в этом приложении"
+          }
+        }
+      }
+    },
+    "reply failed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "не удалось ответить"
+          }
+        }
+      }
+    },
+    "reply needs Screen Recording — allow Pretype in System Settings, then relaunch" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ответу нужна «Запись экрана» — разрешите Pretype в Системных настройках и перезапустите"
+          }
+        }
+      }
+    },
+    "reply reads the screen — turn on “Use screen context” in Settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ответ читает экран — включите «Использовать контекст экрана» в настройках"
+          }
+        }
+      }
+    },
+    "reply to what's on screen" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ответить на то, что на экране"
+          }
+        }
+      }
+    },
+    "required" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "обязательно"
+          }
+        }
+      }
+    },
+    "resident model weights" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "веса модели в памяти"
+          }
+        }
+      }
+    },
+    "runs the chords for %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "обрабатывает сочетания для %@"
+          }
+        }
+      }
+    },
+    "saved today" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сэкономлено сегодня"
+          }
+        }
+      }
+    },
+    "scaled by the measured length factor" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "с поправкой на измеренный коэффициент длины"
+          }
+        }
+      }
+    },
+    "starting dictation…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "запуск диктовки…"
+          }
+        }
+      }
+    },
+    "starting…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "запуск…"
+          }
+        }
+      }
+    },
+    "suggests %lld%% of the time" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подсказывает в %lld%% случаев"
+          }
+        }
+      }
+    },
+    "suggests %lld%% → %lld%% of the time" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подсказывает в %lld%% → %lld%% случаев"
+          }
+        }
+      }
+    },
+    "system model — no app memory" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "системная модель — без памяти приложения"
+          }
+        }
+      }
+    },
+    "talk" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "говорить"
+          }
+        }
+      }
+    },
+    "talk instead of typing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "говорить вместо набора"
+          }
+        }
+      }
+    },
+    "the API key was rejected (%lld)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ключ API отклонён (%lld)"
+          }
+        }
+      }
+    },
+    "the capture session refused to start" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сеанс записи не запустился"
+          }
+        }
+      }
+    },
+    "the capture was stopped while starting" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "запись остановлена при запуске"
+          }
+        }
+      }
+    },
+    "the microphone format can't be converted" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "формат микрофона не поддерживается"
+          }
+        }
+      }
+    },
+    "the microphone went away" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "микрофон отключился"
+          }
+        }
+      }
+    },
+    "the server" : {
+      "comment" : "Stands in for the host name in the API privacy note.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сервер"
+          }
+        }
+      }
+    },
+    "this Mac can't dictate" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "этот Mac не поддерживает диктовку"
+          }
+        }
+      }
+    },
+    "this Mac doesn't support Apple Intelligence" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "этот Mac не поддерживает Apple Intelligence"
+          }
+        }
+      }
+    },
+    "too quick — the microphone was still opening" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "слишком быстро — микрофон ещё включался"
+          }
+        }
+      }
+    },
+    "touches %lld%% of clean lines" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "правит %lld%% чистых строк"
+          }
+        }
+      }
+    },
+    "transcription timed out" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "истекло время распознавания"
+          }
+        }
+      }
+    },
+    "turn on Apple Intelligence in System Settings" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "включите Apple Intelligence в Системных настройках"
+          }
+        }
+      }
+    },
+    "under a minute" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "меньше минуты"
+          }
+        }
+      }
+    },
+    "updating the model %lld%%" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "обновление модели %lld%%"
+          }
+        }
+      }
+    },
+    "v%@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@"
+          }
+        }
+      }
+    },
+    "warming up…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "прогрев…"
+          }
+        }
+      }
+    },
+    "wasn't listening yet — hold and say that again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "запись ещё не шла — зажмите и повторите"
+          }
+        }
+      }
+    },
+    "word" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "слово"
+          }
+        }
+      }
+    },
+    "writing it down…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "распознавание…"
+          }
+        }
+      }
+    },
+    "—" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
+          }
+        }
+      }
+    },
+    "↑ accuracy · bubble = memory" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑ точность · круг = память"
+          }
+        }
+      }
+    },
+    "↑ exact fixes, all languages · bubble = memory" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑ точные исправления, все языки · круг = память"
+          }
+        }
+      }
+    },
+    "↑ usable replies, all languages · bubble = memory" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑ годные ответы, все языки · круг = память"
+          }
+        }
+      }
+    },
+    "→ " : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "→ "
+          }
+        }
+      }
+    },
+    "↓ %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↓ %@"
+          }
+        }
+      }
+    },
+    "−%lld pp" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%lld п. п."
+          }
+        }
+      }
+    },
+    "◀ slower" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "◀ медленнее"
+          }
+        }
+      }
+    },
+    "⚠︎ %@ is also the fix chord, and the fix wins. Pick the other chord." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⚠︎ %@ — это ещё и сочетание исправления, и оно имеет приоритет. Выберите другое сочетание."
+          }
+        }
+      }
+    },
+    "⚠︎ Download failed: %@. The next dictation tries again." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⚠︎ Не удалось загрузить: %@. Следующая диктовка попробует снова."
+          }
+        }
+      }
+    },
+    "⚠︎ Nothing starts dictation. Pick a key or a chord." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⚠︎ Диктовку нечем запустить. Выберите клавишу или сочетание."
+          }
+        }
+      }
+    },
+    "⚠︎ macOS can't dictate %@. Pick another language." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⚠︎ Диктовка в macOS недоступна для этого языка (%@). Выберите другой язык."
+          }
+        }
+      }
+    },
+    "⚠︎ ⌃Space and %@ also switch keyboard layouts in macOS." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⚠︎ ⌃Space и %@ также переключают раскладку в macOS."
+          }
+        }
+      }
+    },
+    "⚠︎ ⌘Space opens Spotlight and %@ a Finder search." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⚠︎ ⌘Space открывает Spotlight, а %@ — поиск в Finder."
+          }
+        }
+      }
+    },
+    "✓ Accepted — %@ takes a whole suggestion next time." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ Принято — в следующий раз %@ примет всю подсказку."
+          }
+        }
+      }
+    },
+    "✓ Connected — answered in %lld ms" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ Подключено — ответ за %lld мс"
+          }
+        }
+      }
+    },
+    "✓ looks fine" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ всё верно"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

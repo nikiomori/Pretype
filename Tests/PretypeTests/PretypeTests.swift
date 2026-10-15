@@ -818,6 +818,48 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(request.persona(global: "I write concisely."), "I write concisely.")
     }
 
+    // A translation is formatted with the code's own arguments: a specifier
+    // dropped, added or retyped in the catalog garbles or crashes that line in
+    // one language only, where nobody looks by hand. Also: no key the code
+    // knows (as of the last Scripts/sync-strings.py) ships untranslated.
+    func testStringCatalogTranslations() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Localization/Localizable.xcstrings")
+        let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        let strings = try XCTUnwrap(catalog?["strings"] as? [String: [String: Any]])
+        let spec = try NSRegularExpression(pattern: "%(?:(\\d+)\\$)?(lld|ld|lf|@|d|f|%)")
+        func arguments(_ text: String) -> [Int: String] {
+            let ns = text as NSString
+            var out: [Int: String] = [:]
+            var next = 0
+            for match in spec.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+                let kind = ns.substring(with: match.range(at: 2))
+                guard kind != "%" else { continue }
+                next += 1
+                let position = match.range(at: 1).location == NSNotFound
+                    ? next : Int(ns.substring(with: match.range(at: 1))) ?? next
+                out[position] = kind
+            }
+            return out
+        }
+        XCTAssertGreaterThan(strings.count, 500)
+        for (key, entry) in strings where entry["extractionState"] as? String != "stale" {
+            let localizations = entry["localizations"] as? [String: [String: Any]] ?? [:]
+            for (language, localization) in localizations {
+                var values = [(localization["stringUnit"] as? [String: Any])?["value"] as? String]
+                let plural = (localization["variations"] as? [String: Any])?["plural"] as? [String: [String: Any]]
+                values += (plural ?? [:]).values.map { ($0["stringUnit"] as? [String: Any])?["value"] as? String }
+                for value in values.compactMap({ $0 }) {
+                    XCTAssertEqual(arguments(value), arguments(key), "\(language): \(key) ⇒ \(value)")
+                }
+            }
+            if entry["shouldTranslate"] as? Bool != false {
+                XCTAssertNotNil(localizations["ru"], "untranslated: \(key)")
+            }
+        }
+    }
+
     // AppStyles/ takes pull requests from people who never touch the Swift
     // code, so this is their review: CI fails a file the app would mis-key,
     // silently skip, or that would bloat every prompt it rides in.

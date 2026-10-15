@@ -153,6 +153,7 @@ Rewrites and reply drafts have measurements for each model. The best model fixes
 * **Pause on Battery** in the menu stops suggestions while the Mac is not connected to power.
 * If you almost never accept the suggestions in an app, Pretype stops in that app. The menu shows the numbers and a **Resume** item.
 * Optional on-screen OCR adds the text near the field as context.
+* The interface is in English and Russian. Pretype uses the language of macOS. To select a different language, use **Settings → General → Language**.
 
 ### Dictation *(macOS 26 or later, off by default)*
 

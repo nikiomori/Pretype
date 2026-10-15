@@ -24,4 +24,9 @@ fi
 # Community per-app styles, where Bundle.main looks for them on a bare binary.
 rm -rf "$BIN_DIR/AppStyles" && cp -R AppStyles "$BIN_DIR/AppStyles"
 
+# UI translations, next to the bare binary for the same reason.
+for catalog in Localization/*.xcstrings; do
+    xcrun xcstringstool compile "$catalog" --output-directory "$BIN_DIR"
+done
+
 exec "$BIN_DIR/Pretype" "$@"

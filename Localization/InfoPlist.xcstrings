@@ -1,0 +1,24 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSMicrophoneUsageDescription": {
+      "comment": "Microphone permission prompt (Info.plist). Keep in sync with Scripts/make-app.sh.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype transcribes what you say into the text field you are typing in, on this Mac. Audio is never recorded to disk, and it leaves your computer only if you choose a cloud speech provider in Settings → API."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype превращает вашу речь в текст прямо в поле, где вы печатаете, на этом Mac. Звук никогда не записывается на диск и покидает компьютер, только если вы выберете облачный сервис распознавания в Настройках → API."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
