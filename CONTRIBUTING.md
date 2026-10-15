@@ -125,14 +125,14 @@ The interface is in English and Russian. The strings are in `Localization/Locali
 
 ```mermaid
 flowchart LR
-    B["swift build"] --> T["swift test"] --> L["swiftlint --strict"]
+    B["swift build --build-tests"] --> T["swift test"] --> L["swiftlint --strict"]
     L --> R["Test in a real text field<br/>(TextEdit, Notes)"] --> PR["Open the pull request"]
     PR --> Q{"Prompt, model,<br/>or gate change?"}
     Q -- yes --> E["A maintainer runs the eval<br/>and posts the numbers"] --> V["Review"]
     Q -- no --> V
 ```
 
-- [ ] `swift build` and `swift test` pass, and `swiftlint --strict` shows no problems. CI runs all three.
+- [ ] `swift build --build-tests` and `swift test` pass, and `swiftlint --strict` shows no problems. If you changed text that the user sees, `Scripts/sync-strings.py --check` passes. CI runs all of these checks.
 - [ ] The app starts, and the change operates in a real text field. TextEdit and Notes have the best Accessibility support.
 - [ ] For prompt, model, or gate changes: you asked for eval numbers. A maintainer runs the harness. See *Quality eval* above.
 - [ ] The diff contains only the change. Comments explain the decisions that are not obvious.

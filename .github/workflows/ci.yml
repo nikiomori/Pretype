@@ -55,7 +55,10 @@ jobs:
           path: |
             .build
             ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Package.resolved') }}
+          # The strings check builds a second tree under .build/l10n. An exact
+          # key hit never saves again, so the script is in the key: a change
+          # to it saves a cache that holds that build too.
+          key: spm-${{ runner.os }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Package.resolved', 'Scripts/sync-strings.py') }}
           restore-keys: |
             spm-${{ runner.os }}-${{ env.XCODE_VERSION }}-
 
@@ -70,6 +73,14 @@ jobs:
       # headless on the runner even though the full engine can't.
       - name: Test
         run: swift test
+
+      # A `String(localized:)` or SwiftUI literal that never reached
+      # Localization/Localizable.xcstrings ships untranslated. The script cannot
+      # reuse the test build: it compiles the app module again with the
+      # compiler's string extraction, in its own scratch path (.build/l10n,
+      # cached with .build). Exits 1 when a key in the code has no translation.
+      - name: Check strings
+        run: Scripts/sync-strings.py --check
 
       # The release build is the first thing that ever runs make-app.sh, and a
       # broken bundle there only shows up as a bad download. Same script, same
