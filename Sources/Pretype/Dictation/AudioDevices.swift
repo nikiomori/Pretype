@@ -89,8 +89,7 @@ enum AudioDevices {
     /// the laptop").
     static func automaticExplanation(defaultInput: Device?, chosen: Device?) -> String? {
         guard let defaultInput, let chosen, chosen.uid != defaultInput.uid else { return nil }
-        return "\(defaultInput.name) is playing your audio too — recording from it would drop "
-            + "it into call quality, so dictation uses \(chosen.name)."
+        return "Using \(chosen.name), so \(defaultInput.name) keeps playing in full quality."
     }
 
     // MARK: - Devices

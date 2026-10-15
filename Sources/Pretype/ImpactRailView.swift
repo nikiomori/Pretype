@@ -11,10 +11,12 @@ struct ImpactRailView: View {
 
     /// The four meters, top to bottom. Indigo, not red, for Compute: that
     /// meter is mostly full in the default state (longer = lighter load), and
-    /// a full red bar reads as an alarm, not a resting figure.
+    /// a full red bar reads as an alarm, not a resting figure. The source
+    /// lines are tooltips: four lines of eval provenance under four bars was
+    /// a wall of fine print.
     private static let meters: [(icon: String, tint: Color, label: String,
                                  value: KeyPath<ConfigProjection, String>,
-                                 sub: KeyPath<ConfigProjection, String>,
+                                 help: KeyPath<ConfigProjection, String>,
                                  fraction: KeyPath<ConfigProjection, Double?>)] = [
         ("scope", .green, "Accuracy", \.accuracyText, \.accuracySub, \.accuracyFraction),
         ("bolt.fill", .blue, "Speed", \.latencyText, \.latencySub, \.speedFraction),
@@ -26,7 +28,7 @@ struct ImpactRailView: View {
         let base = store.projection
         // A hover that lands on the committed runtime (the selected segment,
         // the active preset) previews nothing — treat it as no preview instead
-        // of flashing "Previewing change" over identical figures.
+        // of offering "Click to apply" over identical figures.
         let previewsRuntime = store.previewedConfig
             .map { !$0.sameRuntime(as: store.committedConfig) } ?? false
         let target = previewsRuntime ? store.previewedProjection : nil
@@ -39,13 +41,14 @@ struct ImpactRailView: View {
                 // The meters project ON-DEVICE configurations; none of them
                 // describes a hosted model, so none is shown while one runs.
                 if store.apiText.enabled {
-                    Caption("Text runs on an API model, which Pretype hasn't measured. "
-                        + "“Test connection” in Settings → API shows its round trip.")
+                    Caption("Text runs on \(store.apiText.preset.name). Pretype hasn't measured it.")
                 } else {
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(Self.meters, id: \.label) { m in
                             MeterView(icon: m.icon, tint: m.tint, label: m.label,
-                                      value: base[keyPath: m.value], sub: base[keyPath: m.sub],
+                                      value: base[keyPath: m.value],
+                                      sub: m.label == "Accuracy" ? coverageLine(base, target) : nil,
+                                      help: (target ?? base)[keyPath: m.help],
                                       fraction: base[keyPath: m.fraction],
                                       previewFraction: target?[keyPath: m.fraction],
                                       previewValue: target?[keyPath: m.value],
@@ -56,7 +59,11 @@ struct ImpactRailView: View {
                     .animation(.easeOut(duration: 0.25), value: store.enabled)
                 }
 
-                footer(target)
+                if target != nil {
+                    Text("Click to apply.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 0)
             }
             .padding(14)
@@ -96,47 +103,14 @@ struct ImpactRailView: View {
         }
     }
 
-    @ViewBuilder private func footer(_ target: ConfigProjection?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(target != nil ? "Previewing change" : "Tip")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
-            if let target {
-                // The target's own accuracy line — this is where a change
-                // whose value lives off the meters (Instruct's authored-text
-                // strength, the gate's coverage cost) states its case.
-                Text("\(target.accuracyText) accuracy — \(target.accuracySub)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Click to apply.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(tipText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    /// The gate's whole trade is coverage, which no bar shows: "suggests 82%
+    /// → 19% of the time" under Accuracy is the one line the rail keeps.
+    private func coverageLine(_ base: ConfigProjection, _ target: ConfigProjection?) -> String? {
+        guard let now = base.coveragePct else { return nil }
+        if let next = target?.coveragePct, next != now {
+            return "suggests \(now)% → \(next)% of the time"
         }
-        .padding(.top, 2)
-        // A 1-line tip swapping for a 3-line preview block snapped the rail on
-        // every hover enter/exit.
-        .animation(.easeOut(duration: 0.2), value: target != nil)
-    }
-
-    /// The idle tip, tab-aware: only Model and Suggestions controls drive a
-    /// hover preview, so General/Personalization describe the rail as a
-    /// read-only readout rather than inviting a hover that does nothing there.
-    private var tipText: String {
-        switch store.activeTab {
-        case .model:
-            return "Hover a model to preview it. Bigger bubble = more memory."
-        case .suggestions:
-            return "Hover any control to see exactly what it improves or costs — before you commit."
-        case .general, .personalization, .api:
-            return "A live readout of your current setup. Hover a control on the Model or Suggestions tab to preview a change before it commits."
-        }
+        return "suggests \(now)% of the time"
     }
 }
 
@@ -148,7 +122,9 @@ private struct MeterView: View {
     let tint: Color
     let label: String
     let value: String
-    let sub: String
+    let sub: String?
+    /// Where the figure comes from — a tooltip, not a caption.
+    let help: String
     let fraction: Double?
     let previewFraction: Double?
     /// The hovered target's value. While previewing, the value area shows
@@ -185,11 +161,14 @@ private struct MeterView: View {
             }
             .animation(.easeOut(duration: 0.15), value: previewValue)
             bar
-            Text(sub)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if let sub {
+                Text(sub)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .help(help)
         .accessibilityElement(children: .combine)
     }
 

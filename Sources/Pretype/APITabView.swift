@@ -31,9 +31,8 @@ private struct APIEndpointSection: View {
             Toggle(isOn: $config.enabled) {
                 Text(kind == .text ? "Use an API model for text" : "Use an API model for dictation")
                 Text(kind == .text
-                    ? "Suggestions, \(store.hotkeyStyle.correctionLabel) fix, reply and voice commands run on "
-                        + "the model below instead of the on-device model. Off, the on-device model runs again."
-                    : "Dictation is transcribed by the model below instead of the speech models on this Mac.")
+                    ? "Suggestions, fix, reply and voice commands use this model."
+                    : "Transcribes dictation with this model.")
             }
             Picker("Provider", selection: Binding(
                 get: { config.provider },
@@ -73,15 +72,15 @@ private struct APIEndpointSection: View {
         if config.isLocal {
             return "This server runs on your Mac, so nothing leaves it."
         }
+        // Short, but never vaguer: what leaves the Mac, when, and what doesn't.
         if kind == .text {
-            return "When this is on, the text you type goes to \(host) as you type: one request each time "
-                + "a suggestion is due. The screen and clipboard context go too when they are on, and so "
-                + "does dictated text when “Tidy up” is on. Password fields and blocked apps never send "
-                + "anything. The provider charges for each request."
+            return "What you type goes to \(host) with each suggestion, plus screen and clipboard "
+                + "context and dictation to tidy up when those are on. Password fields and turned-off "
+                + "apps send nothing. The provider may charge per request."
         }
-        return "When this is on, each recording goes to \(host) when you stop speaking"
+        return "Each recording goes to \(host) when you stop speaking"
             + (APIClient.sendsHints(model: config.model, provider: config.provider)
-                ? ", with the names already in the field as spelling hints. " : ". ")
-            + "Pretype keeps the audio in memory only and never writes it to disk."
+                ? ", with names from the field as spelling hints. " : ". ")
+            + "Audio is never saved to disk."
     }
 }

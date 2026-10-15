@@ -3,109 +3,6 @@ import AVFoundation
 import Carbon
 import SwiftUI
 
-// MARK: - Effect badges
-
-/// A compact measured-effect chip: what a setting does to speed, quality or
-/// memory. The tooltip carries the actual measurement and its source — every
-/// number here comes from an eval run, never an estimate.
-struct EffectBadge: View {
-    enum Tone { case quality, speed, memory, caution, neutral }
-    let icon: String
-    let text: String
-    var tone = Tone.neutral
-    var source: String?
-
-    var body: some View {
-        // The capsule and the symbol carry the tone; 11pt text in the tone color
-        // sits at 1.8–2.3:1 on a light form. Primary ink keeps it readable in
-        // both appearances without losing the color language.
-        Label { Text(text) } icon: {
-            // Tone stays on the symbol (the leaf modifier wins over the outer
-            // .primary), so the badge keeps the shared metric color language
-            // while the 11pt text gets readable contrast.
-            Image(systemName: icon).foregroundStyle(color)
-        }
-            .font(.caption2.weight(.medium))
-            .lineLimit(1)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .foregroundStyle(.primary)
-            .background(color.opacity(0.18), in: Capsule())
-            .help(source ?? text)
-    }
-
-    private var color: Color {
-        switch tone {
-        case .quality: return .green
-        case .speed: return .blue
-        case .memory: return .teal
-        case .caution: return .orange
-        case .neutral: return Color.gray
-        }
-    }
-}
-
-/// How much evidence stands behind a figure, as a strength scale rather than a
-/// row of arithmetic. "n = 280" tells most people nothing — sampling error
-/// shrinks with the square root of the sample, so the number is not readable at
-/// a glance — while two bars against four is instantly comparable, and the
-/// tolerance beside it is the part that actually changes a decision. Exact rows
-/// stay one hover away.
-struct SampleBadge: View {
-    let samples: Int
-    let marginPP: Int
-
-    /// Bars filled, by tolerance rather than raw rows: what matters is how wide
-    /// the interval is, and that depends on the rate as well as the count (a 1%
-    /// cell is far tighter than a 25% one at the same size).
-    private var level: Double {
-        switch marginPP {
-        case ...1: return 1.0
-        case 2...3: return 0.72
-        case 4...5: return 0.45
-        default: return 0.18
-        }
-    }
-
-    var body: some View {
-        Label {
-            Text("±\(marginPP) pp")
-        } icon: {
-            Image(systemName: "cellularbars", variableValue: level)
-                .foregroundStyle(.secondary)
-        }
-        .font(.caption2.weight(.medium))
-        .lineLimit(1)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .foregroundStyle(.primary)
-        .background(Color.gray.opacity(0.18), in: Capsule())
-        .help("\(samples) held-out samples behind this figure — the 95% interval is ±\(marginPP) points, "
-            + "so two models closer than that are a tie, not a ranking.")
-        .accessibilityElement()
-        .accessibilityLabel("Confidence: \(samples) samples, give or take \(marginPP) points")
-    }
-}
-
-/// A wrapping row of effect badges under a control.
-struct BadgeRow: View {
-    let badges: [EffectBadge]
-    var body: some View {
-        // Stacks instead of truncating when the window is narrow: several rows
-        // measure 480–620 pt against a ~480 pt form at the minimum width, and
-        // an ellipsized badge loses exactly the number it exists to show.
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
-                ForEach(Array(badges.enumerated()), id: \.offset) { $0.element }
-                Spacer(minLength: 0)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(badges.enumerated()), id: \.offset) { $0.element }
-            }
-        }
-    }
-}
-
 extension Color {
     /// This tint as small TEXT: darkened under the light appearance, where
     /// system green, orange and teal at caption size sit near 2:1 on a light
@@ -187,16 +84,6 @@ enum SettingsTab: String, CaseIterable {
         }
     }
 
-    /// One-line pane subtitle under the pane title.
-    var subtitle: String {
-        switch self {
-        case .general: return "How suggestions look and where they run."
-        case .suggestions: return "Tune quality, speed and precision — hover any control to preview its effect."
-        case .model: return "Pick the on-device model. Everything is measured on real text."
-        case .personalization: return "Teach Pretype your voice — all on your Mac."
-        case .api: return "Optional: run text or dictation on a hosted model. Off by default — everything stays on your Mac."
-        }
-    }
 }
 
 /// Sidebar + pane + Live Impact inspector — the System Settings shape of the
@@ -254,9 +141,6 @@ struct SettingsRootView: View {
                             Text("v\(v)").font(.caption2).foregroundStyle(.tertiary)
                         }
                     }
-                    Text("System-wide AI autocomplete")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
@@ -270,13 +154,9 @@ struct SettingsRootView: View {
 
     private var detail: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(store.activeTab.rawValue)
-                    .font(.title2.weight(.bold))
-                Text(store.activeTab.subtitle)
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(store.activeTab.rawValue)
+                .font(.title2.weight(.bold))
+                .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 22)
             .padding(.top, 12)
             .padding(.bottom, 8)
@@ -444,6 +324,18 @@ struct GeneralTab: View {
     /// floor must not preview fainter than the ghost actually draws.
     private var ghost: Double { max(0.4, ghostOpacity) }
 
+    /// The speech model the dictation language resolves to, for the Language
+    /// row's subtitle.
+    private var speechModel: String? {
+        switch store.dictationSupport {
+        case .preferred: return "Apple's newer speech model"
+        case .fallback: return "System dictation model"
+        case .parakeet: return "Parakeet"
+        case .api: return store.apiAudio.preset.name
+        case .unsupported, nil: return nil
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -466,8 +358,8 @@ struct GeneralTab: View {
                 Text("Suggestion display")
             } footer: {
                 Text(store.presentation == .inline
-                    ? "Ghost text continues your line right at the cursor, same size and baseline. \(store.hotkeyStyle.label) accepts. Unstable: it can leave drawing glitches in some apps — switch to Panel if you see them."
-                    : "A small floating box beside the cursor shows the suggestion with a \(store.hotkeyStyle.label) hint. Never overlaps your text, and forgiving when the cursor can only be estimated.")
+                    ? "Ghost text right at the cursor. It can leave drawing glitches in some apps."
+                    : "A small box above the line. It never covers your text.")
             }
 
             Section {
@@ -479,9 +371,9 @@ struct GeneralTab: View {
                 // not after the user's input-source switch stops working.
                 switch store.hotkeyStyle {
                 case .ctrlSpace:
-                    Caption("⚠︎ ⌃Space and ⌃⌥Space are macOS's input-source switches. Pretype takes \(store.hotkeyStyle.correctionLabel) on every press and ⌃Space while a suggestion shows — pick another hotkey if you switch keyboard layouts with them.")
+                    Caption("⚠︎ ⌃Space and \(store.hotkeyStyle.correctionLabel) also switch keyboard layouts in macOS.")
                 case .cmdSpace:
-                    Caption("⚠︎ ⌘Space is Spotlight and ⌥⌘Space a Finder search. Pretype takes \(store.hotkeyStyle.correctionLabel) on every press and ⌘Space while a suggestion shows.")
+                    Caption("⚠︎ ⌘Space opens Spotlight and \(store.hotkeyStyle.correctionLabel) a Finder search.")
                 default:
                     EmptyView()
                 }
@@ -511,10 +403,6 @@ struct GeneralTab: View {
                 OverlayPreview(presentation: store.presentation,
                                opacity: ghost,
                                hotkey: store.hotkeyStyle)
-            } footer: {
-                Text(store.presentation == .inline
-                    ? "Live preview. The ghost uses the field's own font and ink; with the cursor mid-line or near the edge it moves above the line. New users see the \(store.hotkeyStyle.label) key beside it for their first 20 accepts."
-                    : "Live preview — the floating panel is a fully opaque HUD, legible on any background. It picks dark or light rendering from behind the cursor (with Screen Recording; otherwise it follows the system theme).")
             }
 
             Section {
@@ -522,12 +410,17 @@ struct GeneralTab: View {
                     ForEach(ReplyGesture.allCases, id: \.self) { Text($0.label).tag($0) }
                 } label: {
                     Text("Write a reply")
-                    Text("Reads the conversation on screen and drafts your next message as ghost text — \(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
+                    Text("Drafts your next message from the conversation on screen.")
                 }
+                .help("\(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. "
+                    + "Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
                 Toggle(isOn: $autoReply) {
                     Text("Offer replies in chats")
-                    Text("When you click into an empty message box in Messages, Telegram, WhatsApp, Slack, Discord and other messengers, the reply appears by itself — no chord. Each time, Pretype reads the window. Typing anything drops the reply. It runs only once the reply model is downloaded: the chord's first use downloads it.")
+                    Text("Drafts a reply when you click into an empty message box.")
                 }
+                .help("In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything "
+                    + "drops the reply. It starts once the reply model is downloaded — the chord's first use "
+                    + "downloads it.")
                 // Reply is on by default but reads the screen, which is off by
                 // default and needs a permission — the checklist says what's
                 // missing and fixes it in place, instead of the chord flashing
@@ -542,26 +435,22 @@ struct GeneralTab: View {
             // Right under the reply checklist that asks for it, not on the
             // Model tab among memory settings it has nothing to do with.
             Section("Context") {
-                Toggle("Use screen context (OCR)", isOn: $store.screenContext)
-                BadgeRow(badges: [
-                    EffectBadge(icon: "eye", text: "on-device window OCR", tone: .neutral,
-                                source: "OCR of the focused app's window (the conversation above a chat box, the email being replied to) — captured locally, never leaves the Mac, never written to the journal."),
-                    EffectBadge(icon: "circle.lefthalf.filled", text: "adapts to app background", tone: .neutral,
-                                source: "With Screen Recording granted, the suggestion overlay samples the background under the cursor and switches to dark or light text to stay readable on any page."),
-                    EffectBadge(icon: "flask", text: "accuracy gain unmeasured", tone: .neutral,
-                                source: "Honest status: no eval isolates the OCR context's effect on suggestion accuracy yet."),
-                ])
-
-                Toggle("Use clipboard context", isOn: $clipboardContext)
-                BadgeRow(badges: [
-                    EffectBadge(icon: "doc.on.clipboard", text: "helps when replying to copied text", tone: .neutral,
-                                source: "The current clipboard text (capped at 600 chars) is fed to the model as extra context — the thing being replied to is often just-copied. Read only when the clipboard changes; concealed clipboards from password managers are never read; never written to the journal or debug log."),
-                    EffectBadge(icon: "flask", text: "accuracy gain unmeasured", tone: .neutral,
-                                source: "Honest status: no eval isolates the clipboard context's effect on suggestion accuracy yet."),
-                ])
+                Toggle(isOn: $store.screenContext) {
+                    Text("Use screen context")
+                    Text("Reads the focused window on this Mac.")
+                }
+                .help("On-device OCR of the focused window — the conversation above a chat box, the email "
+                    + "being replied to. It never leaves the Mac and is never written to the journal. With "
+                    + "Screen Recording, the overlay also adapts to the background under the cursor.")
+                Toggle(isOn: $clipboardContext) {
+                    Text("Use clipboard context")
+                    Text("Uses text you just copied.")
+                }
+                .help("Up to 600 characters, read only when the clipboard changes. Copies from password "
+                    + "managers are never read, and nothing is written to the journal or debug log.")
             }
 
-            Section("Dictation") {
+                        Section("Dictation") {
                 if let blocker = store.dictationBlocker {
                     Caption(blocker)
                     if store.dictationMicDenied {
@@ -574,11 +463,11 @@ struct GeneralTab: View {
                 } else {
                     Toggle(isOn: $store.dictation) {
                         Text("Talk instead of typing")
-                        Text("Hold a key and say the sentence, or press a chord and say the "
-                            + "paragraph — either way it is typed into the field you're already in. "
-                            + "macOS transcribes it on this Mac: no audio is written to disk, nothing "
-                            + "is sent anywhere, and nothing records unless you asked it to.")
+                        Text("Hold a key and speak. Transcribed on this Mac.")
                     }
+                    .help("Hold a key for a sentence, or press a chord for a paragraph — either way it is "
+                        + "typed into the field you're in. No audio is written to disk, and nothing records "
+                        + "unless you ask.")
                     if store.dictation {
                         Picker(selection: $dictationGesture) {
                             ForEach(DictationGesture.allCases, id: \.self) { gesture in
@@ -587,16 +476,15 @@ struct GeneralTab: View {
                         } label: {
                             Text("Push-to-talk key")
                             if dictationGesture != .off {
-                                Text("A hold, not a tap"
-                                    + (replyGesture == .off ? "" : ", so it never collides with “\(replyGesture.label)” for a reply")
-                                    + ". Recording starts after about half a second of quiet hold; any other "
-                                    + "key, click or scroll before that cancels it, and esc discards one already running.")
+                                Text("Hold to record. Esc discards.")
                             }
                         }
+                        .help("A hold, not a tap"
+                            + (replyGesture == .off ? "" : ", so it never collides with “\(replyGesture.label)” for a reply")
+                            + ". Recording starts after about half a second of quiet hold; any other key, "
+                            + "click or scroll before that cancels it.")
                         if dictationGesture == .off, dictationLatch == .off {
-                            Caption("⚠︎ Dictation is on but no key is assigned, so nothing can "
-                                + "start a capture. Pick a key above or a hands-free chord below, "
-                                + "or switch the feature off.")
+                            Caption("⚠︎ Nothing starts dictation. Pick a key or a chord.")
                         }
                         Picker(selection: $dictationLatch) {
                             ForEach(DictationLatch.allCases, id: \.self) { latch in
@@ -605,35 +493,27 @@ struct GeneralTab: View {
                         } label: {
                             Text("Hands-free chord")
                             if dictationLatch != .off {
-                                Text("Press it once to start, once more to stop — nothing to hold, so "
-                                    + "you can scroll, click and think mid-sentence without losing the "
-                                    + "capture. It also starts recording on the keypress itself rather "
-                                    + "than half a second later, because nothing else on the system means "
-                                    + "this chord. ⎋ still throws the capture away, and moving to another "
-                                    + "field ends it.")
+                                Text("Press once to start, again to stop.")
                             }
                         }
+                        .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording "
+                            + "starts on the keypress itself. ⎋ throws the capture away, and moving to another "
+                            + "field ends it.")
                         if dictationLatch != .off {
                             if dictationLatch.collidesWithFixChord {
-                                Caption("⚠︎ \(dictationLatch.label) is already the \(store.hotkeyStyle.correctionLabel) fix's chord "
-                                    + "under your “\(store.hotkeyStyle.label)” hotkey, and the fix wins. "
-                                    + "Pick the other chord, or change the accept hotkey above.")
+                                Caption("⚠︎ \(dictationLatch.label) is also the fix chord, and the fix wins. "
+                                    + "Pick the other chord.")
                             }
-                            Picker(selection: $dictationSilence) {
+                            Picker("Stop after silence", selection: $dictationSilence) {
                                 Text("Never").tag(0.0)
                                 Text("3 seconds").tag(3.0)
                                 Text("5 seconds").tag(5.0)
                                 Text("10 seconds").tag(10.0)
-                            } label: {
-                                Text("Stop after silence")
-                                Text(dictationSilence == 0
-                                    ? "A hands-free capture runs until you press the chord again — or for "
-                                        + "ten minutes, whichever comes first."
-                                    : "A hands-free capture that hears nothing for this long types what it "
-                                        + "has and stops, so a forgotten chord isn't an open microphone. "
-                                        + "The clock only starts once you've said something: pausing before "
-                                        + "the first word gives you half a minute.")
                             }
+                            .help(dictationSilence == 0
+                                ? "Runs until you press the chord again, or for ten minutes."
+                                : "Types what it has and stops, so a forgotten chord isn't an open "
+                                    + "microphone. The clock starts after your first word.")
                         }
                         Picker(selection: $store.dictationInput) {
                             Text("Automatic").tag("auto")
@@ -656,19 +536,15 @@ struct GeneralTab: View {
                         } label: {
                             Text("Microphone")
                             Text(store.dictationInput == "auto"
-                                ? "Automatic keeps wireless earbuds out of call mode. A headset carries "
-                                    + "either good playback or a two-way call, never both — so the moment "
-                                    + "anything opens its microphone, whatever you're listening to drops "
-                                    + "to mono and goes quiet. When your default input and output are the "
-                                    + "same headset, dictation records from the built-in microphone "
-                                    + "instead and your audio never changes."
-                                : "Dictation records from this device. Note that recording from a "
-                                    + "wireless headset switches it into call mode for the length of the "
-                                    + "capture, which makes anything playing sound flat and quiet.")
+                                ? store.dictationInputNote ?? "Keeps wireless headphones out of call mode."
+                                : "Wireless headsets switch to call mode while recording.")
                         }
-                        if let note = store.dictationInputNote {
-                            Caption("✓ \(note)")
-                        }
+                        .help(store.dictationInput == "auto"
+                            ? "A headset carries either good playback or a two-way call, never both. When your "
+                                + "default input and output are the same headset, dictation records from the "
+                                + "built-in microphone instead, so your audio never changes."
+                            : "Recording from a wireless headset switches it into call mode for the capture, "
+                                + "which makes anything playing sound flat and quiet.")
                         Picker(selection: $store.dictationLanguage) {
                             Text("Follow keyboard").tag("auto")
                             Divider()
@@ -679,70 +555,55 @@ struct GeneralTab: View {
                             }
                         } label: {
                             Text("Language")
-                            Text(store.dictationLanguage == "auto"
-                                ? "Whichever keyboard layout is active when you press the key — right now "
-                                    + "that resolves to \(store.dictationLanguageName). Switching keyboard "
-                                    + "switches dictation language, which is a thing you already do to type."
-                                : "Pinned. Dictation always listens for this language, whatever the keyboard "
-                                    + "is set to.")
+                            // Which speech model it lands on, right where the
+                            // language is picked.
+                            let line = [store.dictationLanguage == "auto" ? "Now \(store.dictationLanguageName)" : nil,
+                                        speechModel].compactMap { $0 }
+                            if !line.isEmpty {
+                                Text(line.joined(separator: " · "))
+                            }
                         }
-                        // Which model — and, for the languages macOS simply
-                        // cannot dictate, saying so HERE instead of letting the
-                        // user find out by holding a key and getting nothing.
-                        switch store.dictationSupport {
-                        case .preferred:
-                            Caption("\(store.dictationLanguageName): uses Apple's newer speech model — "
-                                + "the more accurate of the two, with its own punctuation. macOS "
-                                + "downloads it the first time you speak this language.")
-                        case .fallback:
-                            Caption("\(store.dictationLanguageName): Apple's newer speech model covers only "
-                                + "30 locales and this isn't one of them, so dictation uses the system "
-                                + "dictation model instead — the same one macOS's own dictation key uses. "
-                                + "It is a little rougher, which is what “Tidy up” below is for.")
-                        case .parakeet:
-                            Caption("\(store.dictationLanguageName): dictated with Parakeet, on this Mac's "
-                                + "Neural Engine.")
-                        case .api:
-                            Caption("Dictated by \(store.apiAudio.preset.name) (\(store.apiAudio.model)) — "
-                                + "see Settings → API.")
-                        case .unsupported:
-                            Caption("⚠︎ macOS has no speech model for \(store.dictationLanguageName) at all. "
-                                + "Pick a language it can dictate, or switch keyboard layout before "
-                                + "holding the key.")
-                        case nil:
-                            EmptyView()
+                        .help((store.dictationLanguage == "auto"
+                            ? "Follows the keyboard layout that's active when you start — switch layouts to "
+                                + "switch dictation language."
+                            : "Always listens for this language, whatever the keyboard is set to.")
+                            + (store.dictationSupport == .fallback
+                                ? " Apple's newer speech model doesn't cover \(store.dictationLanguageName), so this "
+                                    + "uses the one macOS's own dictation key uses — a little rougher, which "
+                                    + "“Tidy up” helps with."
+                                : ""))
+                        // For the languages macOS simply cannot dictate, say so
+                        // HERE instead of letting the user find out by holding
+                        // a key and getting nothing.
+                        if store.dictationSupport == .unsupported {
+                            Caption("⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language.")
                         }
                         if [.fallback, .parakeet].contains(store.dictationSupport),
                            Parakeet.covers(Settings.resolvedDictationLocale) {
                             Toggle(isOn: $store.dictationParakeet) {
                                 Text("Use Parakeet for \(store.dictationLanguageName)")
-                                Text("NVIDIA's open speech model, run locally, for the languages Apple's "
-                                    + "newer model skips. On Russian it makes under half the word errors of the "
-                                    + "system model and writes its own punctuation (F1 0.87 against 0.02), "
-                                    + "three times faster. A one-time ~610 MB download.")
+                                Text("Fewer errors and real punctuation. A one-time 610 MB download.")
                             }
+                            .help("NVIDIA's open speech model, run locally. On Russian it makes under half the "
+                                + "word errors of the system model, punctuates (F1 0.87 against 0.02) and runs "
+                                + "three times faster.")
                             if let note = store.parakeetNote {
                                 Caption(note)
                             }
                         }
                         Toggle(isOn: $dictationPolish) {
                             Text("Tidy up with the model")
-                            Text("Runs the transcript through the same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses on a "
-                                + "selection — capitalization, punctuation, obvious mishearings — and "
-                                + "rejects the result outright if the model starts rephrasing instead. "
-                                + "Costs one short generation before the text lands; off types exactly "
-                                + "what was heard. On models that fix with a separate instruct sibling, "
-                                + "the first use downloads it — dictations land as heard rather than "
-                                + "waiting for that, and the tidy-up starts once it has finished.")
+                            Text("Fixes capitalization, punctuation and mishearings.")
                         }
+                        .help("The same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses; a result "
+                            + "that rephrases is rejected. Costs one short generation before the text lands. "
+                            + "Where the fix needs a separate model, its first use downloads it.")
                         Toggle(isOn: $dictationCommands) {
                             Text("Voice commands on selected text")
-                            Text("With text selected, what you say is an instruction for it instead of "
-                                + "words to type — \u{201C}make this shorter\u{201D}, \u{201C}more formal\u{201D}, "
-                                + "\u{201C}translate to English\u{201D}. The rewrite is previewed like a "
-                                + "\(store.hotkeyStyle.correctionLabel) fix: ⏎ applies it over the selection, "
-                                + "⎋ keeps the original. Off, dictating over a selection replaces it.")
+                            Text("Say an edit like “make this shorter” over a selection.")
                         }
+                        .help("The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. "
+                            + "Off, dictating over a selection replaces it.")
                         DictationSendList(store: store)
                     }
                 }
@@ -763,8 +624,8 @@ struct GeneralTab: View {
                 .receive(on: DispatchQueue.main)) { _ in
                 store.refreshDictationInput()
             }
-            // Under "Follow keyboard" both the caption's "right now that
-            // resolves to X" and the speech-model badge depend on the layout
+            // Under "Follow keyboard" both the "Now X" subtitle and the
+            // speech-model caption depend on the layout
             // that is selected system-wide — and the user switches it from the
             // menu bar or ⌃Space, outside our process, so no state we own
             // changes. Carbon's distributed notification is the only signal
@@ -776,9 +637,10 @@ struct GeneralTab: View {
                 store.refreshDictationLanguage()
             }
 
-            Section {
+            Section("Turned off in these apps") {
                 if store.blacklist.isEmpty {
-                    Caption("Suggestions currently run everywhere except password managers, which are always excluded, and terminals, where they run only in an AI agent's prompt. Add apps where Pretype should stay silent.")
+                    Caption("Always off in password managers.")
+                        .help("Terminals get suggestions only in an AI agent's prompt.")
                 }
                 ForEach(store.blacklist, id: \.self) { entry in
                     BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }
@@ -790,20 +652,16 @@ struct GeneralTab: View {
                         Label("Add App…", systemImage: "plus")
                     }
                     .controlSize(.small)
-                    TextField("", text: $blacklistDraft,
-                              prompt: Text("or part of a bundle ID (e.g. slack) — ⏎ adds"))
+                    TextField("", text: $blacklistDraft, prompt: Text("or type part of a bundle ID"))
                         .labelsHidden()
                         .textFieldStyle(.roundedBorder)
                         .controlSize(.small)
+                        .help("A fragment like “slack” covers Slack everywhere. ⏎ adds it.")
                         .onSubmit {
                             store.addBlacklistEntry(blacklistDraft)
                             blacklistDraft = ""
                         }
                 }
-            } header: {
-                Text("Turned off in these apps")
-            } footer: {
-                Text("Matched against the app's bundle ID, so a fragment like “slack” covers Slack everywhere.")
             }
 
             Section("Startup") {
@@ -815,15 +673,13 @@ struct GeneralTab: View {
                     set: { store.setOpenAtLogin($0) }
                 )) {
                     Text("Open at login")
-                    Text("Pretype starts with your Mac and waits in the menu bar — no Dock icon, no window. "
-                        + "macOS owns this switch: it also lives in System Settings → General → Login Items, "
-                        + "and flipping it there flips it here.")
                 }
+                .help("Also in System Settings → General → Login Items.")
                 .disabled(!LoginItem.isSupported)
                 // The same switch lives in System Settings, and `sync()` only
                 // runs when the window is (re)presented — catch the user coming
-                // back from flipping it there, or the caption's "flipping it
-                // there flips it here" only holds across window reopens.
+                // back from flipping it there, or this toggle only catches up
+                // when the window reopens.
                 .onReceive(NotificationCenter.default.publisher(
                     for: NSApplication.didBecomeActiveNotification)) { _ in
                     store.loginStatus = LoginItem.status
@@ -836,8 +692,9 @@ struct GeneralTab: View {
             Section("Updates") {
                 Toggle(isOn: $automaticUpdateCheck) {
                     Text("Check for updates automatically")
-                    Text("Asks GitHub once a day whether a newer release exists — the only request Pretype makes on its own, and it sends nothing about you. New versions are announced in the menu bar and installed by you; nothing is downloaded or replaced automatically. Off still leaves “Check for Updates…” in the menu.")
+                    Text("Asks GitHub once a day. Sends nothing about you.")
                 }
+                .help("New versions are announced in the menu bar; nothing is downloaded automatically.")
             }
         }
         .formStyle(.grouped)
@@ -859,9 +716,9 @@ private struct DictationSendList: View {
             .controlSize(.small)
         } label: {
             Text("Press Return after dictation")
-            Text("Sends the message in the apps listed here. A website is added from the "
-                + "menu bar while you're on it: “Press Return after Dictation on …”.")
+            Text("Sends the message in these apps.")
         }
+        .help("Add a website from the menu bar while you're on it.")
         ForEach(store.dictationSendApps, id: \.self) { entry in
             BlacklistRow(entry: entry, removeLabel: "Stop pressing Return in",
                          removeHelp: "Type dictations here without sending them") {
@@ -1139,12 +996,12 @@ struct SuggestionsTab: View {
     var body: some View {
         Form {
             // Apple Intelligence runs as the macOS system model on the Neural
-            // Engine: Style and the precision gate never reach it (EngineCoordinator
-            // sends only length + persona), and their badges quote MLX-model figures
-            // that are false for it — so those tuning sections are on-device only.
+            // Engine: Style and the precision gate never reach it
+            // (EngineCoordinator sends only length + persona), so those tuning
+            // sections are on-device only.
             if store.isAppleIntelligence {
                 Section {
-                    Caption("Apple Intelligence runs as the macOS system model on the Neural Engine — Style and the precision gate are on-device-model controls that don't apply here. Length below still shapes each suggestion; teach its voice from the Personalization tab.")
+                    Caption("Style and precision don't apply to Apple Intelligence.")
                 }
             }
             if !store.isAppleIntelligence {
@@ -1152,8 +1009,8 @@ struct SuggestionsTab: View {
                     Toggle(isOn: $store.useRecommended) {
                         Text("Use recommended settings")
                         Text(store.useRecommended
-                            ? "Style and Length follow the measured-best configuration for the selected model — now \(store.recommendation.summary). Adjusting either by hand turns this off."
-                            : "Style and Length are tuned by hand below. Turn on to snap back to the measured-best configuration (\(store.recommendation.summary)).")
+                            ? "Now \(store.recommendation.summary). Changing Style or Length turns this off."
+                            : "Best for this model: \(store.recommendation.summary).")
                     }
                     .onHover { store.setHover(.useRecommended(!store.useRecommended), $0) }
                 }
@@ -1165,7 +1022,7 @@ struct SuggestionsTab: View {
                                   selection: store.style,
                                   select: { style in
                                       // Base↔Instruct inserts/removes requirement
-                                      // rows and swaps badge blocks in two sections.
+                                      // rows and swaps footers in two sections.
                                       withAnimation(.easeInOut(duration: 0.18)) { store.style = style }
                                   },
                                   hover: { style, hovering in
@@ -1173,46 +1030,32 @@ struct SuggestionsTab: View {
                                   })
                     if store.style == .instruct, store.instructUnusable {
                         RequirementRow(met: false,
-                                       text: "Instruct is broken on \(store.selectedModelName) — it answers the text instead of continuing it (~0% first-word measured)",
+                                       text: "Instruct doesn't work on \(store.selectedModelName)",
                                        fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
+                            .help("It answers the text instead of continuing it. Instruct needs a Gemma E4B model.")
                     }
-                    BadgeRow(badges: styleBadges)
                 } header: {
                     Text("Style")
                 } footer: {
                     Text(store.style == .instruct
-                        ? (store.instructUnusable
-                            ? "Instruct only works on models with a usable instruct sibling (the Gemma E4B tiers) — pick one in the Model pane, or use Base here."
-                            : "Steers an instruct-tuned model with your persona — tone- and length-aware. Strongest on text you compose (email, chat replies).")
-                        : "Plain next-word continuation of the selected model — no persona, but it can abstain instead of forcing a guess, and it unlocks the high-precision gates below.")
+                        ? "Follows your persona. Loads a second model."
+                        : "Continues your text. Most accurate on everyday typing.")
                 }
 
-                Section {
-                    Toggle("Show only confident suggestions", isOn: $store.logprobGate)
-                        .disabled(!store.logprobGateUsable)
-                        .onHover { hovering in
-                            guard store.logprobGateUsable else { return }
-                            store.setHover(.logprobGate(!store.logprobGate), hovering)
-                        }
-                    if !store.logprobGateUsable {
-                        RequirementRow(met: false,
-                                       text: "Needs Base style — Instruct has no confidence score to filter on",
-                                       fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
-                    } else {
-                        BadgeRow(badges: gateBadges)
-                        BadgeRow(badges: [
-                            EffectBadge(icon: "bolt", text: "no added latency", tone: .speed,
-                                        source: "Reads the first-word log-probability the decoder already produced — zero extra generation."),
-                            EffectBadge(icon: "keyboard", text: "net keystrokes: −5% → +11%", tone: .quality,
-                                        source: "Typing simulation (λ=2, E2B-8bit, verified on the held-out half): ungated suggestions cost −5% net keystrokes; gated save +11% — eval-real, 2026-07-15."),
-                        ])
+                Section("Precision") {
+                    Toggle(isOn: $store.logprobGate) {
+                        Text("Show only confident suggestions")
+                        Text(gateLine)
                     }
-                } header: {
-                    Text("High precision")
-                } footer: {
-                    // A footer, not the toggle's subtitle: the toggle disables
-                    // under Instruct, and the subtitle would dim with it.
-                    Text("Trades coverage for precision: far fewer suggestions, far more of them right — read straight off the decoder, so it costs nothing. Off means more (but less certain) suggestions.")
+                    .disabled(!store.logprobGateUsable)
+                    .onHover { hovering in
+                        guard store.logprobGateUsable else { return }
+                        store.setHover(.logprobGate(!store.logprobGate), hovering)
+                    }
+                    if !store.logprobGateUsable {
+                        RequirementRow(met: false, text: "Needs Base style",
+                                       fixTitle: "Switch to Base") { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
+                    }
                 }
             }  // end on-device-only tuning sections (hidden for Apple Intelligence)
 
@@ -1227,62 +1070,25 @@ struct SuggestionsTab: View {
                                   store.setHover(.length(length), hovering)
                               })
                     .disabled(lengthInert)
-                BadgeRow(badges: lengthBadges)
             } header: {
                 Text("Length")
             } footer: {
-                Text(lengthInert
-                    ? "Base ends each suggestion at the first uncertain word, about 2 words ahead, so length has no effect here. It applies in Instruct style."
-                    : "\(store.hotkeyStyle.label) still accepts one word at a time; length caps how far a single suggestion runs ahead. Low-confidence endings are trimmed automatically, so this is a maximum, not a promise.")
+                Text(lengthLine)
             }
         }
         .formStyle(.grouped)
     }
 
-    /// The gate's trade for the SELECTED model, from the projection the Live
-    /// Impact rail reads — hard-coded calibration figures contradicted the
-    /// rail beside them on every other model.
-    private var gateBadges: [EffectBadge] {
+    /// The gate's trade for the SELECTED model in one line, from the
+    /// projection the Live Impact rail reads — so the two always agree.
+    private var gateLine: String {
         var config = store.committedConfig
         config.logprobGate = true
         let on = ConfigProjection.project(config)
-        config.logprobGate = false
-        let off = ConfigProjection.project(config)
-        let offers = on.coveragePct.map { "offers ~\($0)% of the time" } ?? "offers less often"
-        let vs = off.coveragePct.map { " (vs \($0)%)" } ?? ""
-        return [
-            EffectBadge(icon: "scope", text: on.accuracyPct == nil ? "not measured on this model"
-                            : "\(on.accuracyText) first-word on what it shows", tone: .quality,
-                        source: on.accuracySub),
-            EffectBadge(icon: "hand.raised", text: offers + vs, tone: .caution,
-                        source: "The other side of the trade: suggestions below the confidence bar are withheld, not shown — \(on.accuracySub)."),
-        ]
-    }
-
-    private var styleBadges: [EffectBadge] {
-        if store.style == .base {
-            return [
-                EffectBadge(icon: "checkmark.seal", text: "more accurate on real text", tone: .quality,
-                            source: "First-word 32% vs 20% of shown suggestions (Base vs Instruct+persona, same E4B-6bit family), McNemar p≈1e-9 — eval-real EN+RU core, n=1449, 2026-10-15."),
-                EffectBadge(icon: "memorychip", text: "no second model", tone: .memory,
-                            source: "Instruct loads a separate instruct-tuned sibling (up to ~5.6 GB on E4B); Base runs only the selected model."),
-                EffectBadge(icon: "hand.raised", text: "can abstain", tone: .neutral,
-                            source: "Base offers nothing on ~18% of keystrokes instead of forcing a guess (coverage 82% vs 99% for Instruct) — fewer wrong flashes."),
-            ]
+        guard store.logprobGateUsable, on.accuracyPct != nil, let shown = on.coveragePct else {
+            return "Fewer suggestions, more of them right."
         }
-        var badges = [
-            EffectBadge(icon: "text.quote", text: "85% first-word on authored text", tone: .quality,
-                        source: "eval-v2 (40 hand-authored samples) with the auto-persona: 85% first-word (EN 88 / RU 81). On real held-out text Base measures better (32% vs 20%) — pick by what you type."),
-            EffectBadge(icon: "person.text.rectangle", text: "persona steering", tone: .neutral,
-                        source: "Follows your persona text; the persona lifts Instruct from 66% to 85–88% first-word on eval-v2."),
-            EffectBadge(icon: "memorychip", text: "loads an instruct sibling", tone: .memory,
-                        source: "Runs the instruct-tuned sibling of the selected model (~5.6 GB it-6bit on the E4B tiers, ~3–4.6 GB on smaller tiers)."),
-        ]
-        if store.instructUnusable {
-            badges.insert(EffectBadge(icon: "exclamationmark.triangle", text: "broken on this model", tone: .caution,
-                                      source: "\(store.selectedModelName) answers the text instead of continuing it in Instruct style (~0% first-word measured) — use Base."), at: 0)
-        }
-        return badges
+        return "Suggests \(shown)% of the time; \(on.accuracyText) of those are right."
     }
 
     /// Base style's entropy stop ends a suggestion inside even Short's budget
@@ -1292,50 +1098,19 @@ struct SuggestionsTab: View {
         store.style == .base && !store.isAppleIntelligence
     }
 
-    private var lengthBadges: [EffectBadge] {
-        // Measured on the EN+RU core, 2026-10-15 (`latencyFactor`). In Base
-        // style the entropy stop ends a suggestion near its second word,
-        // inside even Short's budget, so length changes nothing; Instruct
-        // follows the directive's word hint. Latency per length comes from
-        // the projection the rail reads, so badge and rail always agree.
-        func ms(_ length: CompletionLength) -> String? {
-            var config = store.committedConfig
-            config.length = length
-            return ConfigProjection.project(config).p50Ms.map { latencyLabel(ms: $0) }
-        }
-        let source = "Length run on the EN+RU core (n=1449, 2026-10-15): Base gave identical suggestions and latency at all three lengths (E2B 4-bit 35/35/34 ms, Qwen3.5 2B 33/33/33); Instruct on E4B-it 98 / 127 / 163 ms."
-        if store.style == .base {
-            return [
-                EffectBadge(icon: "text.word.spacing", text: "about 2 words at any length", tone: .neutral,
-                            source: "Base suggestions end at the first uncertain word — almost always inside Short's budget — so Medium and Long change nothing here. Length matters in Instruct style."),
-                EffectBadge(icon: "bolt", text: ms(.short).map { "p50 ~\($0) at any length" } ?? "same speed at any length",
-                            tone: .speed, source: source),
-            ]
-        }
-        let ratio = ConfigProjection.latencyFactor(store.length, style: .instruct)
-        let reach: EffectBadge
+    /// How far one suggestion runs and what it costs, from the projection
+    /// the rail reads (measured on the EN+RU core, 2026-10-15).
+    private var lengthLine: String {
+        if lengthInert { return "Base stops at about 2 words, so length has no effect." }
+        let reach: String
         switch store.length {
-        case .short:
-            reach = EffectBadge(icon: "text.word.spacing", text: "runs 2–3 words ahead", tone: .neutral,
-                                source: "How far one suggestion runs. Short is the fastest point for inline ghost text, at the same first-word accuracy as longer settings.")
-        case .medium:
-            reach = EffectBadge(icon: "text.word.spacing", text: "runs up to ~6 words ahead", tone: .neutral,
-                                source: "What longer buys: more of the phrase per suggestion (completeness 0.75 → 0.92 in the run). First-word accuracy does not improve — you pay in wait time.")
-        case .long:
-            reach = EffectBadge(icon: "text.word.spacing", text: "runs up to a sentence ahead", tone: .neutral,
-                                source: "What longer buys: more of the phrase per suggestion (completeness 0.75 → 0.93 in the run). First-word accuracy does not improve, and weak tails are trimmed automatically.")
+        case .short: reach = "2–3 words ahead"
+        case .medium: reach = "Up to ~6 words ahead"
+        case .long: reach = "Up to a sentence ahead"
         }
-        let speedText = ms(store.length).map { ratio > 1 ? "p50 ~\($0) (≈\(String(format: "%g", ratio))× short)" : "fastest — p50 ~\($0)" }
-            ?? (ratio > 1 ? "≈\(String(format: "%g", ratio))× slower than short" : "fastest")
-        return [
-            reach,
-            EffectBadge(icon: ratio > 1.5 ? "tortoise" : "bolt", text: speedText,
-                        tone: ratio > 1 ? .caution : .speed, source: source),
-            EffectBadge(icon: "scope", text: "accuracy unchanged", tone: .quality,
-                        source: "First-word accuracy is length-independent: 19 · 18 · 19% of all rows for Short, Medium, Long in the run — speed is the real trade-off."),
-        ]
+        return ConfigProjection.project(store.committedConfig).p50Ms
+            .map { "\(reach), about \(latencyLabel(ms: $0)) each." } ?? "\(reach)."
     }
-
 }
 
 // MARK: - Personalization tab
@@ -1361,23 +1136,18 @@ struct PersonalTab: View {
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
                 HStack {
                     Caption(store.isAppleIntelligence
-                        ? "Auto-filled from your account name and keyboard languages — the primary voice control for Apple Intelligence, passed as its system instructions. It stays on your Mac."
-                        : "Auto-filled from your account name and keyboard languages — shapes reply drafts always, completions in Instruct style. It stays on your Mac.")
+                        ? "Sets the voice of Apple Intelligence. Stays on this Mac."
+                        : "Shapes replies and Instruct suggestions. Stays on this Mac.")
                     Spacer()
                     Button("Restore Default") { store.resetInstructions() }
                         .controlSize(.small)
-                }
-                if !store.isAppleIntelligence {
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "scope", text: "66% → 85–88% first-word (Instruct)", tone: .quality,
-                                    source: "Measured on eval-v2: Instruct without a persona 66% first-word; with the auto-persona 85%; with a hand-tuned one 88%."),
-                    ])
+                        .help("Rebuild it from your account name and keyboard languages")
                 }
             }
 
-            Section {
+            Section("Per-app style") {
                 if store.perAppInstructions.isEmpty {
-                    Caption("The persona above applies everywhere. Add an app to append extra style lines only there — formal in Mail, casual and short in Slack.")
+                    Caption("Add an app to give it its own style on top of your persona.")
                 }
                 ForEach(store.perAppInstructions.keys.sorted(), id: \.self) { bundleID in
                     PerAppInstructionRow(bundleID: bundleID, store: store)
@@ -1391,6 +1161,9 @@ struct PersonalTab: View {
                             Label("Fill In Suggested", systemImage: "sparkles")
                         }
                         .controlSize(.small)
+                        .help("Ready-made styles for "
+                            + suggestions.map { resolveApp($0.bundleID).name }.joined(separator: ", ")
+                            + ". Every line stays editable.")
                     }
                     Button {
                         store.addPerAppInstructionApp()
@@ -1405,17 +1178,6 @@ struct PersonalTab: View {
                     }
                     .controlSize(.small)
                 }
-                if !suggestions.isEmpty {
-                    Caption("Suggested fills in ready-made styles for the apps found on this Mac — "
-                        + suggestions.map { resolveApp($0.bundleID).name }.joined(separator: ", ")
-                        + ". Every line stays editable: tweak or remove whatever doesn't fit.")
-                }
-            } header: {
-                Text("Per-app style")
-            } footer: {
-                Text(store.isAppleIntelligence
-                    ? "Appended to your persona while typing in that app — steers the system model's voice, like the persona itself."
-                    : "Appended to your persona while typing in that app — shapes reply drafts always, completions in Instruct style.")
             }
 
             // The n-gram boost never reaches Apple Intelligence (FoundationModelsEngine
@@ -1423,24 +1185,18 @@ struct PersonalTab: View {
             // learning would collect words it can never apply. On-device models only.
             if !store.isAppleIntelligence {
                 Section("Learning") {
-                    Toggle("Learn my words", isOn: $store.personalization)
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "flask", text: "no measured gain yet", tone: .neutral,
-                                    source: "Boost = 0.6 × ln(1 + times you typed this word after this context, capped), applied to the first token. A first time-split replay leaned its way (3/0, p=0.25, n=54); the 2026-07-20 re-measure on a larger replay (n=64, β 0.6 and 1.2) found zero changed outcomes — the bias only fires at clean word boundaries. The old context-free favored-word bias measured null (p=1.0) and was removed. Collected only while on; nothing leaves your Mac."),
-                    ])
-                    HStack {
-                        Caption("Boosts the words you habitually type next — learned from your suggestion journal. Clear the journal to forget them.")
-                        Spacer()
-                        Text(store.learnedWords > 0 ? "\(store.learnedWords) words" : "nothing learned yet")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
+                    Toggle(isOn: $store.personalization) {
+                        Text("Learn my words")
+                        Text(store.learnedWords > 0
+                            ? "\(store.learnedWords) words learned from your typing."
+                            : "Boosts words you often type.")
                     }
+                    .help("Learned from your suggestion journal, only while on. Clear the journal to forget them.")
                 }
             }  // end Learning (hidden for Apple Intelligence)
 
             Section("Journal") {
-                Toggle("Keep suggestion journal", isOn: Binding(
+                Toggle(isOn: Binding(
                     get: { store.journalEnabled },
                     set: { on in
                         // Turning off deletes the journal via the store's didSet;
@@ -1452,24 +1208,27 @@ struct PersonalTab: View {
                             store.journalEnabled = on
                         }
                     }
-                ))
-                HStack {
-                    Caption("Records each suggestion with a snippet of the surrounding text you typed — the raw data for personalization and quality tuning. Stays on this Mac in Application Support (capped at 50 MB); on-screen OCR text is never written. Turning this off also deletes the stored journal.")
-                    Spacer()
-                    Button(store.journalBytes > 0
-                        ? "Clear (\(ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)))"
-                        : "Empty") {
-                        clearDisablesJournal = false
-                        confirmingClear = true
-                    }
-                    .controlSize(.small)
-                    .disabled(store.journalBytes == 0)
+                )) {
+                    Text("Keep suggestion journal")
+                    Text("Saves suggestions with nearby text, on this Mac only.")
                 }
-                HStack {
-                    Caption(store.journalEnabled
-                        ? "The journal only grows while you type, which is why personalization is still thin. Import .txt or .md files you wrote and Pretype learns your words and reuses your own sentences as prompt examples — the files are only read, and Clear above forgets imported text too."
-                        : "Importing writes into the journal — turn “Keep suggestion journal” on first.")
-                    Spacer()
+                .help("The raw data for personalization, capped at 50 MB in Application Support. "
+                    + "On-screen text is never written. Turning this off deletes it.")
+                LabeledContent("Size") {
+                    HStack(spacing: 10) {
+                        Text(store.journalBytes > 0
+                            ? ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)
+                            : "Empty")
+                            .monospacedDigit()
+                        Button("Clear…") {
+                            clearDisablesJournal = false
+                            confirmingClear = true
+                        }
+                        .controlSize(.small)
+                        .disabled(store.journalBytes == 0)
+                    }
+                }
+                LabeledContent {
                     Button {
                         store.importTextFiles()
                     } label: {
@@ -1477,7 +1236,12 @@ struct PersonalTab: View {
                     }
                     .controlSize(.small)
                     .disabled(!store.journalEnabled || store.importing)
+                } label: {
+                    Text("Learn from your writing")
+                    Text(store.journalEnabled ? "Import .txt or .md files you wrote." : "Turn on the journal first.")
                 }
+                .help("Pretype learns your words and reuses your sentences as examples. Files are only read; "
+                    + "Clear forgets imported text too.")
                 if let status = store.importStatus {
                     Caption(status)
                 }

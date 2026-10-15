@@ -36,11 +36,12 @@ struct ModelTab: View {
         Form {
             if store.apiText.enabled {
                 Section {
-                    LabeledContent("Running on the API") {
-                        Button("Open API settings") { store.activeTab = .api }
+                    LabeledContent {
+                        Button("Open API Settings") { store.activeTab = .api }
+                    } label: {
+                        Text("Text runs on \(store.apiText.preset.name)")
+                        Text("The model below runs again when the API is off.")
                     }
-                    Caption("Text runs on \(store.apiText.preset.name) (\(store.apiText.model)). "
-                        + "The model you pick here runs again when you turn the API off.")
                 }
             }
             Section {
@@ -49,8 +50,8 @@ struct ModelTab: View {
                 // differently (every small model is stronger in English), and
                 // its real job — anchoring the settings projections — is a mode,
                 // not a language. It moved to the toggle below.
-                Picker("Accuracy shown for", selection: $store.accuracyAxis) {
-                    Text("All \(ModelMetrics.evalLanguages.count) languages — equal-weight average").tag("*")
+                Picker("Accuracy in", selection: $store.accuracyAxis) {
+                    Text("All languages").tag("*")
                     Divider()
                     ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
                         Text(langName(code)).tag(code)
@@ -59,16 +60,14 @@ struct ModelTab: View {
                 // Not disabled while the map is on: picking a language turns the
                 // map off (see SettingsStore.accuracyAxis), so the control the
                 // user reaches for is the one that answers.
-                Toggle("Show what settings do to the map", isOn: $store.settingsMapMode)
-                HStack(spacing: 8) {
-                    sampleBadge(for: axis)
-                    Text(axis == "*" ? "\(ModelMetrics.evalLanguages.count) languages pooled equally"
-                                     : "held-out samples behind every figure below")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                Toggle(isOn: $store.settingsMapMode) {
+                    Text("Show settings on the map")
+                    if store.settingsMapMode {
+                        Text("Measured on English and Russian.")
+                    }
                 }
-            } footer: {
-                axisCaption
+                .help("Plots this model's other settings on the map. They were measured on English and "
+                    + "Russian together, so the whole tab switches to that sample.")
             }
 
             Section {
@@ -86,8 +85,6 @@ struct ModelTab: View {
                 .fixedSize(horizontal: false, vertical: true)
             } header: {
                 Text("What matters most")
-            } footer: {
-                Text("One click switches to the measured-best model for that goal on the axis above, in the exact configuration the card's figures come from (Base · Short). Your precision gates stay on where the model supports them — hover to preview.")
             }
 
             Section {
@@ -96,39 +93,15 @@ struct ModelTab: View {
                 // map rather than extra bubbles — same axes, different task.
                 HoverSegments(title: "Map task", options: [
                     (MapLens.completion, "Completions"),
-                    (MapLens.fix, "Fix a line (\(store.hotkeyStyle.correctionLabel))"),
-                    (MapLens.reply, "Reply (\(store.hotkeyStyle.replyLabel))"),
+                    (MapLens.fix, "Fix"),
+                    (MapLens.reply, "Reply"),
                 ], selection: mapLens, select: { mapLens = $0 })
                 ModelMapView(store: store, lens: mapLens)
             } header: {
-                Text("The model map")
-            } footer: {
-                switch mapLens {
-                case .fix:
-                    Text("Up = noisy lines restored byte-exactly · right = faster · bubble size = the sibling's memory. "
-                        + "These are the models that actually run the \(store.hotkeyStyle.correctionLabel) fix — the ring marks the one your pick loads; hover a bubble to see who shares it, click to switch to the pick it serves. "
-                        + "Catalog-wide totals (510 lines, 17 languages, ±4 pp) — the language picker above doesn't apply here.")
-                case .reply:
-                    Text("Up = usable reply drafts — right language, no echo of the screen; a floor on usability, not a quality score · right = faster · bubble size = the sibling's memory. "
-                        + "The ring marks the sibling your pick loads for \(store.hotkeyStyle.replyLabel); click a bubble to switch to the pick it serves. "
-                        + "Catalog-wide totals (380 conversations, 19 languages, ±5 pp) — the language picker above doesn't apply here.")
-                case .completion:
-                    if axis == "core" {
-                        Text("Up = more accurate · right = faster · bubble size = memory (\(ModelMetrics.evalSource)). "
-                            + "The ring is your current configuration; the small dots inside the dashed zone are this model's other settings — hover to preview, click to apply.")
-                    } else {
-                        Text("Up = more accurate for \(ModelMetrics.axisDisplayName(axis)), silence counted as a miss · right = faster · bubble size = memory. "
-                            + "Settings dots and the reachable zone are anchored to the pooled English+Russian sample, not to this language — "
-                            + "turn on “Show what settings do to the map” above to see them on the sample they were measured on.")
-                    }
-                }
+                Text("Model map")
             }
 
-            Section {
-                Caption("Longer bars are better: Speed = how fast it answers, Memory = how light it is. "
-                    + "Fix · Reply = the \(store.hotkeyStyle.correctionLabel) and \(store.hotkeyStyle.replyLabel) chords, measured on the sibling the model loads for them — "
-                    + "catalog-wide totals that don't follow the language picker. "
-                    + "Hover a row to preview it in the Live Impact rail; click to switch.")
+            Section("All models") {
                 ForEach(rankedEntries, id: \.id) { entry in
                     ModelRow(id: entry.id, title: entry.title,
                              isSelected: store.modelID == entry.id,
@@ -145,36 +118,24 @@ struct ModelTab: View {
                              downloadGB: downloadGB(for: entry.id),
                              heavyGB: heavyGB(for: entry.id))
                 }
-            } header: {
-                Text("Ranked by measured accuracy")
-            } footer: {
-                if !store.modelDiskBytes.isEmpty {
-                    // "on disk", not just "a size": the ↓ figure on a row is the
-                    // download a click would start, the opposite case.
-                    Text("A size “on disk” on a row = that model's weights sit in the local Hugging Face cache, "
-                        + "including the separate instruct sibling the \(Settings.hotkeyStyle.correctionLabel) rewrite loads. Deleting frees the space now; "
-                        + "picking the model again re-downloads it. The model you're using is never offered.")
-                }
             }
 
             selectedModelSection
 
             Section("Runtime") {
-                Picker("Free memory when idle", selection: $idleUnloadMinutes) {
+                Picker(selection: $idleUnloadMinutes) {
                     Text("Never").tag(0)
                     Text("After 1 minute").tag(1)
                     Text("After 5 minutes").tag(5)
                     Text("After 15 minutes").tag(15)
                     Text("After 30 minutes").tag(30)
+                } label: {
+                    Text("Free memory when idle")
+                    if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
+                        Text(String(format: "Frees about %.1f GB while unused.", store.selectedRamGB))
+                    }
                 }
-                if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
-                    BadgeRow(badges: [
-                        EffectBadge(icon: "memorychip",
-                                    text: String(format: "frees ~%.1f GB when unused", store.selectedRamGB),
-                                    tone: .memory,
-                                    source: "Unloads the resident model after \(idleUnloadMinutes) min idle; the next keystroke reloads it from the on-disk cache (a focus change pre-warms it)."),
-                    ])
-                }
+                .help("The next keystroke reloads the model from disk; switching to a text field pre-warms it.")
             }
 
         }
@@ -218,31 +179,6 @@ struct ModelTab: View {
         return gb
     }
 
-    /// The axis note (the first section's footer): what the numbers on this
-    /// tab mean and where they come from — swapped with the axis so the
-    /// citation is never stale.
-    @ViewBuilder private var axisCaption: some View {
-        switch axis {
-        // The sample size and its tolerance live in the badge above, so these
-        // captions say what the numbers MEAN and leave the arithmetic to it.
-        case "*":
-            Text("Every measured language weighted equally; staying silent counts as a miss. "
-                + "An average hides per-language cliffs — pick the language you type in to see the whole tab re-measured for it.")
-        case "core":
-            // The split is the point: this sample pools two languages that
-            // measure differently, and every small model is stronger in English
-            // than in Russian. Naming both numbers is cheaper than a caveat.
-            Text("Settings map on: the whole tab is showing the one sample the config projections are "
-                + "anchored to — English and Russian pooled. Accuracy = correct first word of shown suggestions. "
-                + "The two languages do not score alike\(coreSplitText). Turn this off to go back to "
-                + "measuring one language at a time.")
-        default:
-            Text("Everything on this tab — cards, map, ranking — is measured for \(langName(axis)): "
-                + "first word right with silence counted as a miss, matched text registers. "
-                + "Compare models, not languages against each other (Chinese and Japanese score per character).")
-        }
-    }
-
     /// The tolerance on every figure the axis shows, computed at the selected
     /// model's own rate so it is honest at the low end too (a 1% cell is far
     /// tighter than a 25% one).
@@ -251,22 +187,13 @@ struct ModelTab: View {
         return ModelMetrics.marginOfError(pct: pct, n: ModelMetrics.axisSampleSize(axis))
     }
 
-    /// The evidence behind this axis as a strength scale — bars plus the
-    /// tolerance, with the row count in the tooltip.
-    private func sampleBadge(for axis: String) -> some View {
-        SampleBadge(samples: ModelMetrics.axisSampleSize(axis), marginPP: margin(for: axis))
-    }
-
-    /// The EN/RU split for the selected model, for the pooled axis's caption.
-    /// The split cells count silence as a miss while the pooled figure counts
-    /// only shown suggestions — so both halves can sit BELOW the pool, which
-    /// reads as broken arithmetic unless the sentence says the rule changed.
-    private var coreSplitText: String {
-        guard let en = ModelMetrics.axisAccuracy(for: store.modelID, axis: "en"),
-              let ru = ModelMetrics.axisAccuracy(for: store.modelID, axis: "ru")
-        else { return "" }
-        return " — counting silence as a miss, this model measures \(en)% on English and \(ru)% on Russian"
-            + " (a stricter rule than the pooled figure, which is why both can read lower)"
+    /// The selected model's accuracy evidence — rule, sample, tolerance and
+    /// the catalog note — as one tooltip.
+    private func accuracyHelp(note: String?) -> String {
+        let rule = axis == "core" ? "First word right" : "First word right, silence counted as a miss"
+        let sample = "\(ModelMetrics.axisDisplayName(axis)), \(ModelMetrics.axisSampleSize(axis)) samples, "
+            + "±\(margin(for: axis)) pp."
+        return "\(rule) — \(sample)" + (note.map { "\n\n" + $0 } ?? "")
     }
 
     /// Axis accuracy for a row, with the axis best for bar normalization —
@@ -312,36 +239,27 @@ struct ModelTab: View {
                 // Both rows follow the axis. Coverage used to be the pooled EN+RU
                 // figure no matter what was selected, which is how "offers a
                 // suggestion 81% of the time" ended up on the Hebrew axis for a
-                // model that answers 58% of Hebrew.
-                LabeledContent("Offers a suggestion") {
-                    Text("\(ModelMetrics.axisCoverage(for: store.modelID, axis: axis) ?? m.coveragePct)% "
-                        + "of the time — stays silent otherwise")
+                // model that answers 58% of Hebrew. The evidence (sample size,
+                // tolerance, the catalog note) is a tooltip, not a paragraph.
+                let v = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis)
+                LabeledContent("Accuracy") {
+                    Text(v.map { "\($0)%" } ?? "Not measured")
                 }
-                if let v = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis) {
-                    LabeledContent("Accuracy — \(ModelMetrics.axisDisplayName(axis))") {
-                        // The badge carries the tolerance so the sentence stays a
-                        // sentence: at 280 rows a 2-point gap between two models
-                        // is noise, and nothing on this tab used to say so.
-                        HStack(spacing: 6) {
-                            Text("\(v)% first word"
-                                + (axis == "core" ? "" : ", silence counted as a miss"))
-                            sampleBadge(for: axis)
-                        }
-                    }
+                .help(accuracyHelp(note: m.note))
+                LabeledContent("Suggests") {
+                    Text("\(ModelMetrics.axisCoverage(for: store.modelID, axis: axis) ?? m.coveragePct)% of the time")
                 }
+                .help("Stays silent the rest of the time rather than guess.")
                 // Apple Intelligence is the system model: style is moot (setupLine
                 // omits it too) — so suppress the measured-config row.
                 if !store.isAppleIntelligence {
-                    LabeledContent("Best measured config") {
+                    LabeledContent("Best settings") {
                         Text(store.recommendation.summary)
                     }
                 }
                 ChordTaskRows(store: store)
-                if let note = m.note {
-                    Caption(note)
-                }
             } else {
-                Caption("No measured figures for this model yet.")
+                Caption("Not measured yet.")
             }
         }
     }
@@ -358,21 +276,22 @@ struct ChordTaskRows: View {
 
     var body: some View {
         if store.isAppleIntelligence {
-            LabeledContent("Fix & reply chords") {
-                Text("run on the system model — not yet in the task eval")
+            LabeledContent("Fix and reply") {
+                Text("Not measured")
             }
+            .help("The chords run on the system model, which the task eval doesn't cover yet.")
         } else if let t = ModelMetrics.taskMetrics(for: store.modelID, style: store.style) {
             LabeledContent("Fix a line (\(store.hotkeyStyle.correctionLabel))") {
-                Text("\(t.m.fixPct)% restored exactly · touches \(t.m.falseFixPct)% of clean lines")
+                Text("\(t.m.fixPct)% exact")
             }
             .help("Of 510 single-typo sentences in 17 languages, \(t.runsOn) — the model this pick loads for the chord — restored \(t.m.fixPct)% [\(t.m.fixCI.lowerBound)–\(t.m.fixCI.upperBound)] to the exact original; on 170 already-clean lines it still proposed a change \(t.m.falseFixPct)% of the time. Warm median \(t.m.fixP50Ms) ms. \(ModelMetrics.taskSource).")
             LabeledContent("Draft a reply (\(store.hotkeyStyle.replyLabel))") {
-                Text("\(t.m.replyPct)% usable drafts — right language, no echo")
+                Text("\(t.m.replyPct)% usable")
             }
             .help("Of 380 on-screen conversations in 19 languages, \(t.runsOn) drafted something in the conversation's language without parroting the screen \(t.m.replyPct)% [\(t.m.replyCI.lowerBound)–\(t.m.replyCI.upperBound)] of the time — a floor on usability, not a quality score. Warm median \(t.m.replyP50Ms) ms. \(ModelMetrics.taskSource).")
         } else {
-            LabeledContent("Fix & reply chords") {
-                Text("not measured for this model's correction sibling yet")
+            LabeledContent("Fix and reply") {
+                Text("Not measured")
             }
         }
     }
@@ -424,9 +343,13 @@ struct ModelRow: View {
                             .help(ModelCatalog.defaultRationale)
                     }
                     if let heavyGB {
-                        EffectBadge(icon: "exclamationmark.triangle", text: "heavy for this Mac", tone: .caution,
-                                    source: String(format: "Keeps ~%.1f GB resident — over a quarter of this Mac's %.0f GB, the line the auto-picked model stays under. Everything else you run gets that much less room.",
-                                                   heavyGB, ModelCatalog.machineRamGB))
+                        Text("Heavy for this Mac")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 5).padding(.vertical, 1.5)
+                            .foregroundStyle(Color.orange.legible)
+                            .background(Color.orange.opacity(0.15), in: Capsule())
+                            .help(String(format: "Keeps ~%.1f GB resident — over a quarter of this Mac's %.0f GB, the line the auto-picked model stays under. Everything else you run gets that much less room.",
+                                         heavyGB, ModelCatalog.machineRamGB))
                     }
                     Spacer()
                     if let downloadGB {
@@ -835,6 +758,21 @@ struct ModelMapView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Color.blue.opacity(0.8))
                 .position(x: plot.maxX - 26, y: plot.maxY + 12)
+            Text(legend)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .position(x: (plot.minX + plot.maxX) / 2, y: plot.maxY + 12)
+        }
+    }
+
+    /// What up and bubble size mean on this lens — the map's whole legend,
+    /// where a paragraph under it used to be. The chord lenses are catalog
+    /// totals, so they say they ignore the language picker.
+    private var legend: String {
+        switch lens {
+        case .completion: return "↑ accuracy · bubble = memory"
+        case .fix: return "↑ exact fixes, all languages · bubble = memory"
+        case .reply: return "↑ usable replies, all languages · bubble = memory"
         }
     }
 
@@ -851,7 +789,7 @@ struct ModelMapView: View {
     /// the map on purpose — they move only on an axis the map doesn't plot
     /// (how far one suggestion runs) and would render as strictly-worse dots
     /// (same accuracy, 2–3.5× slower); the Length control carries that
-    /// trade-off with its own badges instead.
+    /// trade-off with its own one-line footer instead.
     private func reachableConfigs(for id: String) -> [ReachableConfig] {
         guard ModelMetrics.metrics(for: id) != nil else { return [] }
         func cfg(_ style: CompletionStyle, _ length: CompletionLength,
