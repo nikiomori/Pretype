@@ -352,6 +352,7 @@ struct HoverSegments<T: Hashable>: View {
     @Namespace private var thumbSpace
     @State private var hovered: T?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         HStack(spacing: 2) {
@@ -375,6 +376,7 @@ struct HoverSegments<T: Hashable>: View {
                     }
                 }
                 .onHover { over in
+                    guard isEnabled else { return }
                     hovered = over ? option.value : (hovered == option.value ? nil : hovered)
                     hover?(option.value, over)
                 }
@@ -382,6 +384,7 @@ struct HoverSegments<T: Hashable>: View {
         }
         .padding(2)
         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .opacity(isEnabled ? 1 : 0.5)
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: selection)
         .animation(.easeOut(duration: 0.12), value: hovered)
         // Like the native control: one Tab stop, arrows move the selection,
@@ -1223,11 +1226,14 @@ struct SuggestionsTab: View {
                               hover: { length, hovering in
                                   store.setHover(.length(length), hovering)
                               })
+                    .disabled(lengthInert)
                 BadgeRow(badges: lengthBadges)
             } header: {
                 Text("Length")
             } footer: {
-                Text("\(store.hotkeyStyle.label) still accepts one word at a time; length caps how far a single suggestion runs ahead. Low-confidence endings are trimmed automatically, so this is a maximum, not a promise.")
+                Text(lengthInert
+                    ? "Base ends each suggestion at the first uncertain word, about 2 words ahead, so length has no effect here. It applies in Instruct style."
+                    : "\(store.hotkeyStyle.label) still accepts one word at a time; length caps how far a single suggestion runs ahead. Low-confidence endings are trimmed automatically, so this is a maximum, not a promise.")
             }
         }
         .formStyle(.grouped)
@@ -1277,6 +1283,13 @@ struct SuggestionsTab: View {
                                       source: "\(store.selectedModelName) answers the text instead of continuing it in Instruct style (~0% first-word measured) — use Base."), at: 0)
         }
         return badges
+    }
+
+    /// Base style's entropy stop ends a suggestion inside even Short's budget
+    /// (identical output at all three lengths, 2026-10-15), so the control is
+    /// off there. Apple Intelligence reads length whatever the style says.
+    private var lengthInert: Bool {
+        store.style == .base && !store.isAppleIntelligence
     }
 
     private var lengthBadges: [EffectBadge] {
