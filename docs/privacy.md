@@ -38,7 +38,7 @@ None of these requests contains your text. The optional API providers are differ
 | Request | Source | When | Notes |
 |---|---|---|---|
 | Model weights | Hugging Face | First launch. | Needed for every local model. |
-| Current build of an older model | Hugging Face | One time, in the background. Only for an install that downloaded its model before 2026-10-11. | This is the smaller Gemma re-pack, or the Base build of Qwen3.5. Never on a cellular, hotspot or Low Data Mode network. The old build continues to serve until the new build is in place. |
+| Current build of your model | Hugging Face | One time, in the background, after an update that changes your model. Pretype checks at launch and then one time each hour. | This is a new build (the smaller Gemma re-pack, Qwen3.5 Base 6-bit, MiniCPM5 8-bit), or the weights of a new recommended style. Never on a cellular, hotspot or Low Data Mode network. The old model continues to serve until the new one is in place. The menu bar status shows the progress. |
 | Instruct sibling | Hugging Face | The first time that you use <kbd>⌥Tab</kbd>, **or dictate with “Tidy up” on**. Only on models that need it. | Both features use the same fix pass. A dictation does not wait for the download. It types what it heard and downloads in the background, on an unmetered network only. On a metered network, the first <kbd>⌥Tab</kbd> downloads it. The tidy-up starts after the download is complete. |
 | Speculative-decoding drafter, ~150 MB | Hugging Face | Gemma tiers only. In the background, when the drafter is missing. One attempt for each launch. | It makes the fix and reply chords faster. |
 | Version check | GitHub Releases API | One time each day. | It sends no data about you. To stop it, go to **Settings → General**. |

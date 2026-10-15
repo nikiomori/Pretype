@@ -470,12 +470,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let id = Settings.mlxModelID
         let name = engine is CloudEngine ? engine.name
             : ModelMetrics.metrics(for: id)?.shortName ?? ModelCatalog.option(for: id)?.title ?? engine.name
+        // A background fetch (`ModelStorage.fetchQuietly`, up to a few GB)
+        // leaves the model serving — news, not a fault, so it stays green.
+        let update = ModelStorage.quietFetchProgress.get()
+            .map { " · updating the model \(Int($0 * 100))%" } ?? ""
         switch engine.state {
         case .ready:
-            return (.systemGreen, "\(name) ready")
+            return (.systemGreen, "\(name) ready\(update)")
         case .preparing where !engine.isLoading:
             // Idle-unloaded: nothing is wrong, and the next keystroke reloads it.
-            return (.systemGreen, "\(name) ready · idle")
+            return (.systemGreen, "\(name) ready · idle\(update)")
         case .preparing(let detail):
             return (.systemOrange, "\(name) — \(detail)")
         case .failed(let detail):

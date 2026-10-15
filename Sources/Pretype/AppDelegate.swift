@@ -98,10 +98,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Settings.dictationEnabled, Settings.dictationParakeet, Parakeet.isDownloaded {
             Task.detached(priority: .utility) { _ = try? await Parakeet.prepare() }
         }
-        let selected = Settings.mlxModelID
+        // Hourly, not only at launch: a menu-bar app runs for weeks, and a
+        // fetch declined at launch (cellular, Low Data Mode, a full disk) or
+        // an old build waiting for its replacement to load must not wait for
+        // the next one. Every step is a no-op once done.
         Task.detached(priority: .background) {
-            await ModelStorage.upgradeToSlim(selected: selected)
-            guard await ModelStorage.fetchRecommendedWeights(selected: selected) else { return }
+            while !Task.isCancelled {
+                await Self.maintainModels(controller)
+                try? await Task.sleep(for: .seconds(3600))
+            }
+        }
+    }
+
+    /// The model upkeep an update can owe this install, in background fetches
+    /// that leave the current model serving: new builds of the pick
+    /// (`ModelStorage.upgradeToSlim`) and the weights its recommended style
+    /// runs on.
+    /// None while an API model writes the text: the local one isn't in use.
+    nonisolated private static func maintainModels(_ controller: SuggestionController) async {
+        guard !Settings.apiText.enabled else { return }
+        let selected = Settings.mlxModelID
+        await ModelStorage.upgradeToSlim(selected: selected)
+        if await ModelStorage.fetchRecommendedWeights(selected: selected) {
             await MainActor.run {
                 // The pick may have changed while the weights downloaded.
                 guard Settings.mlxModelID == selected, Settings.useRecommendedSettings,

@@ -272,7 +272,7 @@ enum ModelStorage {
     /// Only the selected model's repos: a model nobody uses isn't worth
     /// gigabytes of the user's bandwidth. Skipped on an expensive (cellular,
     /// hotspot) or Low Data Mode network and when the disk can't hold both
-    /// builds at once; the next launch tries again.
+    /// builds at once; the next pass (`AppDelegate`, hourly) tries again.
     static func upgradeToSlim(selected: String) async {
         let inUse = repos(for: selected)
         let pairs = ModelCatalog.slimRepos.map { (original: $0.key, slim: $0.value, keepOriginal: false) }
@@ -305,19 +305,34 @@ enum ModelStorage {
     /// are fetched quietly; true once the caller can re-apply the
     /// recommendation without a download wait.
     static func fetchRecommendedWeights(selected: String) async -> Bool {
-        guard Settings.useRecommendedSettings, let option = ModelCatalog.option(for: selected) else { return false }
+        guard Settings.useRecommendedSettings, ModelCatalog.option(for: selected) != nil else { return false }
         let style = ModelCatalog.recommended(for: selected).style
         guard style != Settings.completionStyle else { return false }
-        let weights = style == .instruct ? option.instructModelID : option.id
+        return await fetchWeights(for: selected, style: style)
+    }
+
+    /// The weights catalog entry `id` completes on in `style`: its instruct
+    /// primary in Instruct style, itself in Base.
+    static func weights(for id: String, style: CompletionStyle) -> String {
+        style == .instruct ? ModelCatalog.option(for: id)?.instructModelID ?? id : id
+    }
+
+    /// `fetchQuietly` for what `id` completes on in `style`; true once it's here.
+    static func fetchWeights(for id: String, style: CompletionStyle) async -> Bool {
+        let weights = weights(for: id, style: style)
         if isFetched(weights) { return true }
         return await fetchQuietly(repo: ModelCatalog.repo(for: weights),
-                                  sizeHint: Int64(option.approxSizeMB) * 1_000_000)
+                                  sizeHint: Int64(ModelCatalog.option(for: id)?.approxSizeMB ?? 0) * 1_000_000)
     }
+
+    /// How far the running `fetchQuietly` is, 0…1, for the status line; nil
+    /// when none runs.
+    static let quietFetchProgress = LockedValue<Double?>(nil)
 
     /// A download nobody clicked for, on the terms every such fetch keeps: an
     /// unmetered network (`isNetworkUnmetered`) and room for about `sizeHint`
     /// bytes plus 2 GB. Whether `repo` is complete on disk afterwards; a
-    /// declined or failed fetch is retried at the next launch.
+    /// declined or failed fetch is retried on the next pass.
     static func fetchQuietly(repo: String, sizeHint: Int64) async -> Bool {
         guard let directory = cacheDirectory(repo: repo) else { return false }
         let free = (try? directory.deletingLastPathComponent()
@@ -325,10 +340,12 @@ enum ModelStorage {
             .volumeAvailableCapacityForImportantUsage ?? 0
         guard free > sizeHint + 2_000_000_000, await isNetworkUnmetered() else { return false }
         DebugLog.shared.log("MLX", "fetching \(repo) in the background")
+        quietFetchProgress.set(0)
+        defer { quietFetchProgress.set(nil) }
         do {
             _ = try await resolve(configuration: ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo)),
                                   from: #hubDownloader(),
-                                  useLatest: false, progressHandler: { _ in })
+                                  useLatest: false, progressHandler: { quietFetchProgress.set($0.fractionCompleted) })
         } catch {
             DebugLog.shared.log("MLX", "background fetch of \(repo) failed: \(error.localizedDescription)")
             return false

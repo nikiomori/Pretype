@@ -186,10 +186,10 @@ The outputs are the same as the originals, row for row. The downloads are 13–3
 | Gemma 4 E4B 6-bit | 7.1 GB | 5.3 GB | 5.0 GB |
 | Gemma 4 E4B 8-bit | 9.0 GB | 6.3 GB | 6.0 GB |
 
-If your install downloaded an original build before the re-packs, Pretype moves it to the re-pack automatically. It never does this on a cellular, hotspot or Low Data Mode network. After the change, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
+If your install downloaded an original build before the re-packs, Pretype moves it to the re-pack automatically. Pretype checks at launch and then one time each hour. It never downloads on a cellular, hotspot or Low Data Mode network. After the change, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
 
 <div align="center">
-<img src="diagram-models-slim-upgrade.svg" width="440" alt="Flow diagram. Pretype starts. Is the model in use an original build? No: nothing to do. Yes: is the free disk space more than the original size plus 2 GB? No: try again at the next launch. Yes: is the network unmetered (no cellular, hotspot or Low Data Mode)? No: try again at the next launch. Yes: download the re-pack in the background while the original serves. Did the re-pack load on this Mac? Yes: delete the original. Not yet: try again at the next launch." />
+<img src="diagram-models-slim-upgrade.svg" width="440" alt="Flow diagram. Pretype starts, and then each hour: is the model in use an original build? No: nothing to do. Yes: is the free disk space more than the original size plus 2 GB? No: try again in one hour. Yes: is the network unmetered (no cellular, hotspot or Low Data Mode)? No: try again in one hour. Yes: download the re-pack in the background while the original serves. Did the re-pack load on this Mac? Yes: delete the original. Not yet: try again in one hour." />
 </div>
 
 ### Memory is used only while you type
