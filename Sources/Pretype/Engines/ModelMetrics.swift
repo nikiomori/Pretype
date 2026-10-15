@@ -110,19 +110,18 @@ struct ModelMetrics {
     /// the model's own τ (`ModelCatalog.recommended(for:).logprobGateTau`) —
     /// on the headline's EN+RU core rows: % of prompts that still get a
     /// suggestion, and first-word accuracy of those (Wilson 95%). Measured per
-    /// model on 2026-10-15; it replaces a projection scaled from one model's
-    /// offline calibration that promised ~30% shown. τ is calibrated on the
-    /// offline re-forward, and the live recorder spreads wider (r≈0.6), so the
-    /// gate passes about half of what the calibration says.
+    /// model on 2026-10-15 (runs-2026-10-15-rebook, calib-live.py), after τ
+    /// moved to the live recorder's scale: the offline-calibrated τ passed
+    /// only 15–22% of suggestions where its calibration said 25%.
     static let gated: [String: (shownPct: Int, firstWordPct: Int, ci: ClosedRange<Int>)] = [
-        "mlx-community/gemma-4-e4b-8bit": (12, 66, 59...72),
-        "mlx-community/gemma-4-e4b-6bit": (13, 64, 57...70),
-        "mlx-community/gemma-4-e2b-8bit": (16, 58, 52...64),
-        "mlx-community/gemma-4-e2b-4bit": (15, 59, 52...65),
-        "nikimori/MiniCPM5-1B-Base-8bit": (13, 55, 48...62),
-        "mlx-community/Qwen2.5-0.5B-bf16": (17, 48, 42...54),
-        "nikimori/Qwen3.5-2B-Base-6bit": (16, 54, 48...61),
-        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (17, 53, 47...59),
+        "mlx-community/gemma-4-e4b-8bit": (19, 58, 52...64),
+        "mlx-community/gemma-4-e4b-6bit": (19, 56, 50...62),
+        "mlx-community/gemma-4-e2b-8bit": (19, 57, 51...63),
+        "mlx-community/gemma-4-e2b-4bit": (20, 52, 46...58),
+        "nikimori/MiniCPM5-1B-Base-8bit": (20, 51, 45...56),
+        "mlx-community/Qwen2.5-0.5B-bf16": (27, 42, 37...47),
+        "nikimori/Qwen3.5-2B-Base-6bit": (21, 50, 44...56),
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42, 37...47),
     ]
 
     // MARK: - Per-language breakdown

@@ -198,7 +198,10 @@ trim. This diagram shows the checks in base style:
 * **Confidence gate.** It is in **Settings → Suggestions**. It is off by
   default and operates only in base style. The mean log-probability of the
   first word must be at or above a threshold τ. We calibrate τ for each
-  model on one half of the eval set and verify it on the other half.
+  model on one half of the eval set and verify it on the other half. The
+  calibration uses the log-probability that the app records while it
+  decodes, because the gate compares against that value. About 25% of the
+  suggestions pass.
 * **Token healing bypasses the gate.** Healing repairs mid-word completions.
   The match with the typed fragment is already a sufficient filter.
 * **Confidence trim.** It operates by default. It cuts the low-confidence tail

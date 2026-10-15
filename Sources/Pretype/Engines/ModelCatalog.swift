@@ -318,10 +318,12 @@ enum ModelCatalog {
         let length: CompletionLength
         /// Logprob-gate τ calibrated PER MODEL: the same mean first-word logprob
         /// means different confidence on different tokenizers/models — split-half
-        /// Q4 edges span −0.75 (E4B-8bit) … −1.12 (Qwen0.5B) across the catalog
-        /// (runs-2026-07-16 logs, τ from the even half, precision verified on the
-        /// odd). One global τ is therefore too strict for small models and too lax
-        /// for big Gemma. nil = no logprob available (Apple Intelligence).
+        /// Q4 edges span −0.94 (E4B) … −1.34 (Qwen0.5B) across the catalog, so one
+        /// global τ is too strict for small models and too lax for big Gemma.
+        /// Taken on the live recorder's scale, the one `MLXEngine` compares
+        /// against (runs-2026-10-15-rebook/calib-live.py: τ from the even half,
+        /// 24–26% of the odd half's suggestions pass); the offline re-forward τ
+        /// before it passed 15–22%. nil = no logprob available (Apple Intelligence).
         let logprobGateTau: Double?
         /// One-line human summary for the settings UI, e.g. "Instruct · Short".
         var summary: String {
@@ -344,7 +346,7 @@ enum ModelCatalog {
         // 291 / long 550 ms p50 on eval-real) — so short wins for inline ghost
         // text. Its gate τ is the calibration run's own.
         if id.contains("MiniCPM5") {
-            return Recommendation(style: .base, length: .short, logprobGateTau: -1.00)
+            return Recommendation(style: .base, length: .short, logprobGateTau: -1.21)
         }
         // Small base-continuation picks from the 07-15 sweep (Qwen2.5-0.5B,
         // Qwen3.5-2B, ternary Bonsai-4B): base only — instruct echoes; short
@@ -352,8 +354,7 @@ enum ModelCatalog {
         // works (monotone calibration).
         if id.contains("Qwen2.5-0.5B") || id.contains("Qwen3.5-2B")
             || id.contains("Ternary-Bonsai") {
-            // Qwen3.5 Base 6-bit lands on −1.00 too (runs-2026-10-14-small book-6bit).
-            let tau = id.contains("Qwen2.5-0.5B") ? -1.12 : id.contains("Ternary-Bonsai") ? -0.95 : -1.00
+            let tau = id.contains("Qwen2.5-0.5B") ? -1.34 : id.contains("Ternary-Bonsai") ? -1.15 : -1.18
             return Recommendation(style: .base, length: .short, logprobGateTau: tau)
         }
         // Gemma E-series: base, short. Instruct + persona wins on text you
@@ -361,11 +362,7 @@ enum ModelCatalog {
         // 2026-10-14 (5% vs 21% of all rows, runs-2026-10-14-small), E4B since
         // 2026-10-15 (it-6bit 15% vs 23% of all rows on 17 languages, p=5e-53;
         // en 21 vs 29, ru 16 vs 24 — runs-2026-10-15-rebook).
-        let isE4B = id.contains("e4b")
-        let is4bit = id.contains("4bit")
-        let tau: Double = isE4B
-            ? (is4bit ? -1.00 : id.contains("6bit") ? -0.79 : -0.75)
-            : (is4bit ? -0.94 : -0.88)
+        let tau: Double = id.contains("e4b") ? -0.94 : id.contains("4bit") ? -1.07 : -0.96
         return Recommendation(style: .base, length: .short, logprobGateTau: tau)
     }
 

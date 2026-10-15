@@ -1199,11 +1199,11 @@ final class PretypeTests: XCTestCase {
 
         // Logprob gate: each model's own measured trade, no scaling.
         let gated = cfg(mini, .base, logprob: true)
-        XCTAssertEqual(gated.accuracyText, "55%")
-        XCTAssertEqual(gated.coveragePct, 13)
+        XCTAssertEqual(gated.accuracyText, "51%")
+        XCTAssertEqual(gated.coveragePct, 20)
         XCTAssertEqual(gated.p50Ms, 18)
         let gatedE4B = cfg(e4b6, .base, logprob: true)
-        XCTAssertEqual(gatedE4B.accuracyPct, 64)
+        XCTAssertEqual(gatedE4B.accuracyPct, 56)
         XCTAssertFalse(gatedE4B.accuracyText.hasPrefix("≈"))
         let gatedQwen05 = cfg("mlx-community/Qwen2.5-0.5B-bf16", .base, logprob: true)
         XCTAssertNotEqual(gatedE4B.accuracyPct, gatedQwen05.accuracyPct)
@@ -1629,17 +1629,18 @@ final class PretypeTests: XCTestCase {
         XCTAssertEqual(MLXEngine.topIndices([5], k: 3), [0])
     }
 
-    // Per-model gate τ (split-half Q4 edges, runs-2026-07-16) — pin the values
+    // Per-model gate τ (live-scale split-half Q4 edges, runs-2026-10-15-rebook) — pin the values
     // so a catalog refactor can't silently unify them back to one global τ.
     func testPerModelGateTau() {
         func tau(_ id: String) -> Double? { ModelCatalog.recommended(for: id).logprobGateTau }
-        XCTAssertEqual(tau("mlx-community/gemma-4-e4b-8bit"), -0.75)
-        XCTAssertEqual(tau("mlx-community/gemma-4-e4b-6bit"), -0.79)
-        XCTAssertEqual(tau("mlx-community/gemma-4-e2b-8bit"), -0.88)
-        XCTAssertEqual(tau("mlx-community/gemma-4-e2b-4bit"), -0.94)
-        XCTAssertEqual(tau("nikimori/MiniCPM5-1B-Base-8bit"), -1.00)
-        XCTAssertEqual(tau("nikimori/Qwen3.5-2B-Base-6bit"), -1.00)
-        XCTAssertEqual(tau("mlx-community/Qwen2.5-0.5B-bf16"), -1.12)
+        XCTAssertEqual(tau("mlx-community/gemma-4-e4b-8bit"), -0.94)
+        XCTAssertEqual(tau("mlx-community/gemma-4-e4b-6bit"), -0.94)
+        XCTAssertEqual(tau("mlx-community/gemma-4-e2b-8bit"), -0.96)
+        XCTAssertEqual(tau("mlx-community/gemma-4-e2b-4bit"), -1.07)
+        XCTAssertEqual(tau("nikimori/MiniCPM5-1B-Base-8bit"), -1.21)
+        XCTAssertEqual(tau("nikimori/Qwen3.5-2B-Base-6bit"), -1.18)
+        XCTAssertEqual(tau("mlx-community/Qwen2.5-0.5B-bf16"), -1.34)
+        XCTAssertEqual(tau("prism-ml/Ternary-Bonsai-4B-mlx-2bit"), -1.15)
         XCTAssertNil(tau(ModelCatalog.appleIntelligenceID))   // no logprob to gate on
     }
 

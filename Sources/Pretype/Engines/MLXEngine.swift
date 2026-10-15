@@ -208,7 +208,7 @@ final class MLXEngine: CompletionEngine {
             self.logprobGateThreshold = Double(e)
         } else if Settings.logprobGate {
             // Recommended settings follow the model: τ is calibrated per model
-            // (Q4 edges −0.75…−1.12 — see Recommendation.logprobGateTau); a
+            // (Q4 edges −0.94…−1.34 — see Recommendation.logprobGateTau); a
             // hand-tuned threshold (useRecommendedSettings off) applies as-is.
             self.logprobGateThreshold = Settings.useRecommendedSettings
                 ? ModelCatalog.recommended(for: modelID).logprobGateTau ?? Settings.logprobGateThreshold
