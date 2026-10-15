@@ -124,12 +124,17 @@ final class MLXEngine: CompletionEngine {
     /// An unloaded model's configuration, plus a placeholder for each of its
     /// quantized layers. The tokenizer stays with `tokenizers` — held here it
     /// could never be let go. `vlm`: the MTP-capable build (see `loadTarget`).
+    /// `husk`: the model itself, emptied, with its arrays, when it has
+    /// compiled traces (see `husk(of:)`).
     struct Blueprint: @unchecked Sendable {
         let configuration: ModelConfiguration
         let tokenizerDirectory: URL
         let layers: [(path: String, placeholder: () -> Module)]
         let vlm: Bool
+        let husk: Husk?
     }
+
+    typealias Husk = (model: any LanguageModel, arrays: [(path: String, array: MLXArray)])
 
     /// Pretype feeds models token arrays it builds itself, never a
     /// `UserInput`: a rebuilt context needs no input processor — and the
@@ -437,9 +442,79 @@ final class MLXEngine: CompletionEngine {
                          verify: [.none])
         try await loadWeights(modelDirectory: directory, model: model,
                               perLayerQuantization: base.perLayerQuantization)
+        let served = blueprint.husk.flatMap { adopt(model, into: $0) } ?? model
         return ModelContainer(context: ModelContext(
-            configuration: blueprint.configuration, model: model,
+            configuration: blueprint.configuration, model: served,
             processor: UnusedInputProcessor(), tokenizer: try await tokenizer))
+    }
+
+    /// A model with compiled traces (Qwen3.5), emptied to be kept: every array
+    /// it holds becomes lazy zeros, so the weights go and the traces stay. A
+    /// rebuilt model brings new traces, and erasing the old ones leaks their
+    /// tapes in the bundled MLX: ~22 MB per Qwen3.5 2B reload (measured; MLX
+    /// #4453 and #4440 don't fix it). nil without traces: the blueprint alone
+    /// rebuilds such a model leak-free.
+    /// ponytail: delete once the bundled MLX frees an erased tape.
+    private static func husk(of model: any LanguageModel) -> Husk? {
+        let (arrays, traced) = arrays(of: model)
+        guard traced else { return nil }
+        for (_, array) in arrays { array._updateInternal(MLXArray.zeros(array.shape, dtype: array.dtype)) }
+        return (model, arrays)
+    }
+
+    /// `husk` with `fresh`'s arrays written into its own, the ones its traces
+    /// read — or nil when the two don't line up: then `fresh` serves, and the
+    /// husk's traces leak once.
+    private static func adopt(_ fresh: any LanguageModel, into husk: Husk) -> (any LanguageModel)? {
+        let new = arrays(of: fresh).arrays, old = husk.arrays
+        guard new.count == old.count, zip(new, old).allSatisfy({
+            $0.path == $1.path && $0.array.shape == $1.array.shape && $0.array.dtype == $1.array.dtype
+        }) else {
+            DebugLog.shared.log("MLX", "kept model doesn't match its rebuild — serving the rebuild")
+            return nil
+        }
+        for (new, old) in zip(new, old) { old.array._updateInternal(new.array) }
+        return husk.model
+    }
+
+    /// Every array `model` holds, by its path through the object graph, and
+    /// whether that graph holds a compiled trace. Reflection, not
+    /// `parameters()`: derived state such as a fused projection is no
+    /// registered parameter, and it is found without naming library internals.
+    private static func arrays(of model: any LanguageModel) -> (arrays: [(path: String, array: MLXArray)], traced: Bool) {
+        var found: [(path: String, array: MLXArray)] = []
+        var traced = false
+        var seen = Set<ObjectIdentifier>()
+        func walk(_ value: Any, _ path: String) {
+            if let array = value as? MLXArray {
+                if seen.insert(ObjectIdentifier(array)).inserted { found.append((path, array)) }
+                return
+            }
+            if value is CompiledTraceInvalidating { traced = true }
+            let mirror = Mirror(reflecting: value)
+            switch mirror.displayStyle {
+            case .class:
+                guard seen.insert(ObjectIdentifier(value as AnyObject)).inserted else { return }
+            case .dictionary:
+                // Sorted: a dictionary's order differs between two equal ones.
+                let entries = mirror.children.map { Array(Mirror(reflecting: $0.value).children) }
+                for entry in entries.sorted(by: { "\($0[0].value)" < "\($1[0].value)" }) {
+                    walk(entry[1].value, "\(path)[\(entry[0].value)]")
+                }
+                return
+            default:
+                break
+            }
+            var level: Mirror? = mirror
+            while let current = level {
+                for (index, child) in current.children.enumerated() {
+                    walk(child.value, "\(path).\(child.label ?? String(index))")
+                }
+                level = current.superclassMirror
+            }
+        }
+        walk(model, "")
+        return (found, traced)
     }
 
     /// Records how to rebuild an unloaded model (see `Blueprint`), so the next
@@ -463,9 +538,9 @@ final class MLXEngine: CompletionEngine {
                 guard let container = try? await owner.exchange(nil)?.value,
                       let tokenizerDirectory = try? await container.tokenizerDirectory else { return nil }
                 return await container.perform { context in
-                    Blueprint(configuration: context.configuration, tokenizerDirectory: tokenizerDirectory,
-                              layers: context.model.leafModules().flattened().compactMap(Self.placeholder),
-                              vlm: vlm)
+                    let layers = context.model.leafModules().flattened().compactMap(Self.placeholder)
+                    return Blueprint(configuration: context.configuration, tokenizerDirectory: tokenizerDirectory,
+                                     layers: layers, vlm: vlm, husk: Self.husk(of: context.model))
                 }
             }()
             if let blueprint { blueprints.mutate { $0[repo] = blueprint } }
