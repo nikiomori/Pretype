@@ -65,28 +65,27 @@ Plain `swift build` compiles the app, but MLX cannot run from a SwiftPM binary. 
 > If you have an *Apple Development* certificate, `make-app.sh` signs with it. Then the permissions stay after each rebuild. If you do not have one, the script uses an ad-hoc signature. Then you must grant the permissions again after each rebuild:
 > `tccutil reset Accessibility app.pretype.Pretype`. See [Troubleshooting](docs/troubleshooting.md).
 
-## Headless harnesses
+## Diagnostic flags
 
-The quality work uses a CLI and eval harness. It runs the real engine without the full UI.
+The app binary has two diagnostic flags. With a flag, the binary prints to the terminal and does not start the app.
 
 | Flag | What it does |
 |---|---|
-| `--complete` | Runs one or more completions through the KV-cache path. |
-| `--fix` | Runs fix-selection through the instruct sibling. |
-| `--type-sim` | Tests the KV-cache integrity. It types a string one word at a time, then compares the result with a fresh engine. |
-| `--eval` | Runs the quality regression. See the next section. |
+| `--ax-probe` | Prints what Accessibility shows for the focused text field: the role, the caret position and the caret rectangle. It prints every 0.8 seconds for 25 seconds. Use it when the suggestion shows at the wrong position in an app, for example in an Electron app. |
+| `--dictation-probe` | Prints the dictation settings and status one time. Then it prints each change of a modifier key, with the hold state that the change caused. When a hold completes, it prints each condition that a capture checks. Use it when the dictation key does nothing. The probe only observes. It does not record and does not type. |
 
-The harness is in the git-ignored `dev-tools/` tree. It is not in the app. If you need it for a change, ask a maintainer.
+Run a flag on the built app bundle:
 
-The harness reads these environment variables. They override the stored Settings.
+```bash
+./build/Pretype.app/Contents/MacOS/Pretype --ax-probe
+./build/Pretype.app/Contents/MacOS/Pretype --dictation-probe
+```
 
-| Variable | Effect |
-|---|---|
-| `PRETYPE_TEST_MODEL` | Sets a different model ID. |
-| `PRETYPE_TEST_ENGINE=fm` | Uses the Apple Intelligence engine (macOS 26 or later). |
-| `PRETYPE_TEST_APP` | Sets a different app-context header. An empty string disables the header. |
-| `PRETYPE_TEST_SCREEN` | Adds screen-context text. |
-| `PRETYPE_EVAL_VERBOSE=1` | Shows the eval output for each sample. |
+Both probes need the Accessibility permission. If the binary does not have it, `--ax-probe` shows the system prompt and stops. Grant the permission, then run the probe again.
+
+> **NOTE:** Run from a terminal, `--dictation-probe` shows the microphone permission of the terminal, not of Pretype. To see the permission of Pretype, open the Pretype menu and read **Diagnostics → Dictation**.
+
+The quality CLI and the eval harness are not in the repository. See *Quality eval* below.
 
 ## Quality eval — please measure prompt/model changes
 

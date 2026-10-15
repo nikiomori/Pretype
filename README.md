@@ -247,7 +247,7 @@ Pretype has no Dock icon and no main window. It operates from the **menu bar** o
    open build/Pretype.app
    ```
 
-The [Contributing Guide](CONTRIBUTING.md#development-setup) gives the development loop, the headless harnesses, and the limits of SwiftPM with Metal.
+The [Contributing Guide](CONTRIBUTING.md#development-setup) gives the development loop, the diagnostic flags, and the limits of SwiftPM with Metal.
 
 ---
 

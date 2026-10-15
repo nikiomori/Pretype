@@ -16,17 +16,14 @@ The one exception is opt-in. In **Settings → API**, you can turn on a hosted m
 
 ### Network connections
 
-By default, Pretype connects to the network only for downloads and for one version check. None of these connections carry your text. An API provider that you turn on is the one exception. [docs/privacy.md](docs/privacy.md) gives the full list.
+By default, Pretype connects to the network only for these purposes:
 
-| Source | What Pretype gets | When | Opt-out |
-|---|---|---|---|
-| Hugging Face | Model weights, cached in `~/.cache/huggingface` | At the first use of a model | — |
-| Hugging Face | An instruct sibling, on the models that need it | At the first ⌥Tab, or at the first dictation with tidy-up on | — |
-| Hugging Face | A ~150 MB speculative-decoding drafter, on the Gemma tiers | In the background, when it is missing. Pretype tries one time for each launch. | — |
-| Hugging Face | The current build of a model that an older install downloaded: the slimmer Gemma re-packs, or the Base build of Qwen3.5 | One time, in the background, only on an unmetered network (not cellular, hotspot, or Low Data Mode). The old build operates until the new build is in place. | — |
-| GitHub Releases API | The latest version number. Pretype sends no data about you. | One time each day | Disable it in **Settings → General** |
-| Apple servers (macOS downloads it) | The on-device speech model for your dictation language | When you enable dictation or change the dictation language | Keep dictation off |
-| Hugging Face | The Parakeet model, ~610 MB (`FluidInference/parakeet-ultra-coreml`). An install that opted in before this model replaces its `parakeet-tdt-0.6b-v3-coreml` one time, in the background, on an unmetered network. | Only if you opt in to Parakeet dictation | Opt-in only |
+* to download models, from Hugging Face and Apple servers,
+* to keep the selected model current, in the background (it checks at launch and then one time each hour),
+* to check for a new version, one time each day,
+* for a request that you start yourself, for example **Download Refrain**.
+
+None of these connections carry your text. An API provider that you turn on is the one exception. [docs/privacy.md → Network requests](docs/privacy.md#network-requests) is the full list. It gives the source of each request and when it occurs.
 
 When the models are on the disk, completions, fixes, and dictation operate fully offline. This is not true while an API provider is on, unless it is a local server such as Ollama.
 

@@ -25,12 +25,17 @@ The other files in this folder are the visual assets of the README, the
 diagrams of the pages, and the GitHub social preview. There are four types.
 Each type has a different update procedure.
 
+> **NOTE:** The tools for the rendered art, the real captures and the model
+> chart are in the `dev-tools/` tree. Git ignores this tree, thus a clone does
+> not have it. A maintainer makes these assets again. If your change needs a
+> new asset, write this in the pull request. Only the diagram script
+> (`docs/diagrams/render.sh`) is in the repository.
+
 ## Rendered art — `demo*.gif`, `hero.png`, `shot-modes.png`
 
-The `PretypeHeroArt` generator draws these files with code. The generator is in
-the `dev-tools/` tree, which git ignores. It uses only Core Graphics and no app
-code. Its output is deterministic at 2×, so a fresh clone always makes
-byte-identical files. To make all files again:
+The `PretypeHeroArt` generator (maintainer only) draws these files with code.
+It uses only Core Graphics and no app code. Its output is deterministic at 2×.
+Thus each run makes byte-identical files. To make all files again:
 
 ```sh
 cd dev-tools/HeroArt
@@ -123,8 +128,8 @@ Rules:
 
 ## `chart-models.svg` — the model chart
 
-A script makes this chart from the catalog that the app ships. Thus the chart
-and the app always agree:
+A script (maintainer only, git-ignored) makes this chart from the catalog that
+the app ships. Thus the chart and the app always agree:
 
 ```sh
 python3 dev-tools/gen-readme-chart.py
