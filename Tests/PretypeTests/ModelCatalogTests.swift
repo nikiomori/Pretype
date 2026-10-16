@@ -439,4 +439,41 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(tau("prism-ml/Ternary-Bonsai-4B-mlx-2bit"), -1.15)
         XCTAssertNil(tau(ModelCatalog.appleIntelligenceID))   // no logprob to gate on
     }
+
+    // The same cases script-tau.py asserts on its Python copy — the table was
+    // calibrated on that copy, so the two must agree.
+    func testGateScriptDetector() {
+        XCTAssertNil(GateScript.of("Hello world "))
+        XCTAssertNil(GateScript.of("Привет, "))
+        XCTAssertNil(GateScript.of(""))
+        XCTAssertEqual(GateScript.of("今日は天気が"), .kana)      // kana folds the Han in
+        XCTAssertEqual(GateScript.of("今天天气很"), .han)
+        XCTAssertEqual(GateScript.of("안녕하세요 "), .hangul)
+        XCTAssertEqual(GateScript.of("مرحبا "), .arabic)
+        XCTAssertEqual(GateScript.of("שלום "), .hebrew)
+        XCTAssertNil(GateScript.of("Meeting notes for 今日は"))   // dominant class wins
+        XCTAssertEqual(GateScript.of(String(repeating: "a", count: 100)
+                                     + String(repeating: "今日は天気が良いですね。", count: 6)), .kana) // last 64 only
+    }
+
+    // Per-script τ (runs-2026-10-16-gate/script-tau.py): Japanese is never
+    // worth a suggestion on any measured model; the rest are model-specific.
+    func testPerScriptGateTau() {
+        let mlx = ["mlx-community/gemma-4-e4b-8bit", "mlx-community/gemma-4-e4b-6bit",
+                   "mlx-community/gemma-4-e2b-8bit", "mlx-community/gemma-4-e2b-4bit",
+                   "nikimori/MiniCPM5-1B-Base-8bit", "nikimori/Qwen3.5-2B-Base-6bit",
+                   "mlx-community/Qwen2.5-0.5B-bf16", "prism-ml/Ternary-Bonsai-4B-mlx-2bit"]
+        for id in mlx {
+            XCTAssertEqual(ModelCatalog.recommended(for: id).scriptGateTau[.kana], .infinity, id)
+        }
+        let minicpm = ModelCatalog.recommended(for: "nikimori/MiniCPM5-1B-Base-8bit").scriptGateTau
+        XCTAssertEqual(minicpm[.arabic], -0.38)
+        XCTAssertEqual(minicpm[.hebrew], -0.77)
+        XCTAssertNil(ModelCatalog.recommended(for: "mlx-community/gemma-4-e4b-8bit").scriptGateTau[.han])
+        // Stricter only: no override may loosen the model's own τ.
+        for id in mlx {
+            let r = ModelCatalog.recommended(for: id)
+            for (_, t) in r.scriptGateTau { XCTAssertGreaterThan(t, r.logprobGateTau!, id) }
+        }
+    }
 }

@@ -171,6 +171,43 @@ enum CompletionGates {
     }
 }
 
+/// The writing system a prompt is typed in, for the per-script logprob gate
+/// (`ModelCatalog.Recommendation.scriptGateTau`). The dominant class over the
+/// last 64 scalars wins, ties to the earlier case; any kana folds Han into kana
+/// (Japanese mixes both). nil = Latin, Cyrillic or anything else — the model's
+/// own τ covers those. Eval/runs-2026-10-16-gate/script-tau.py calibrated the
+/// table on a byte-for-byte Python copy of this function: change both together.
+enum GateScript: CaseIterable {
+    case han, kana, hangul, arabic, hebrew
+
+    static func of(_ text: String) -> GateScript? {
+        var rest = 0, han = 0, kana = 0, hangul = 0, arabic = 0, hebrew = 0
+        for s in text.unicodeScalars.suffix(64) {
+            switch s.value {
+            case 0x3040...0x30FF, 0x31F0...0x31FF, 0xFF66...0xFF9F: kana += 1
+            case 0x4E00...0x9FFF, 0x3400...0x4DBF, 0xF900...0xFAFF: han += 1
+            case 0xAC00...0xD7AF, 0x1100...0x11FF, 0x3130...0x318F: hangul += 1
+            case 0x0600...0x06FF, 0x0750...0x077F, 0xFB50...0xFDFF, 0xFE70...0xFEFF: arabic += 1
+            case 0x0590...0x05FF, 0xFB1D...0xFB4F: hebrew += 1
+            default:
+                // Python's str.isalpha(): general category L*.
+                switch s.properties.generalCategory {
+                case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter:
+                    rest += 1
+                default: break
+                }
+            }
+        }
+        if kana > 0 { kana += han; han = 0 }
+        var best: (script: GateScript?, count: Int) = (nil, rest)
+        for c in [(GateScript.han, han), (.kana, kana), (.hangul, hangul), (.arabic, arabic), (.hebrew, hebrew)]
+        where c.1 > best.count {
+            best = c
+        }
+        return best.script
+    }
+}
+
 /// Shared prompt preparation for every completion path. Trims the trailing
 /// spaces the user typed (a dangling space derails SentencePiece models into
 /// a stray newline), enforces a per-path context floor, and records the

@@ -325,6 +325,13 @@ enum ModelCatalog {
         /// 24–26% of the odd half's suggestions pass); the offline re-forward τ
         /// before it passed 15–22%. nil = no logprob available (Apple Intelligence).
         let logprobGateTau: Double?
+        /// Stricter τ for the scripts where `logprobGateTau` still shows
+        /// suggestions that cost more than they save — Net-KSS per prompt at the
+        /// journal's λ=1.25, a cell adopted only when 2-fold cross-fitting holds
+        /// at p<0.01 and it does not lose with IME-priced CJK chars or λ=0.4
+        /// (runs-2026-10-16-gate/script-tau.py). Japanese pays on no model
+        /// (first word right 6–18% of shown) → `.infinity`, never suggest.
+        var scriptGateTau: [GateScript: Double] = [:]
         /// One-line human summary for the settings UI, e.g. "Instruct · Short".
         var summary: String {
             [style.label, length.label].joined(separator: " · ")
@@ -345,24 +352,38 @@ enum ModelCatalog {
         // 291 / long 550 ms p50 on eval-real) — so short wins for inline ghost
         // text. Its gate τ is the calibration run's own.
         if id.contains("MiniCPM5") {
-            return Recommendation(style: .base, length: .short, logprobGateTau: -1.21)
+            // Its byte-level scores run high on Arabic/Hebrew: τ −1.21 showed
+            // 46–48% of prompts at 7–12% first-word right there.
+            return Recommendation(style: .base, length: .short, logprobGateTau: -1.21,
+                                  scriptGateTau: [.kana: .infinity, .hangul: -0.48, .arabic: -0.38, .hebrew: -0.77])
         }
         // Small base-continuation picks from the 07-15 sweep (Qwen2.5-0.5B,
         // Qwen3.5-2B, ternary Bonsai-4B): base only — instruct echoes; short
         // (first-word is length-independent here). The logprob gate still
         // works (monotone calibration).
-        if id.contains("Qwen2.5-0.5B") || id.contains("Qwen3.5-2B")
-            || id.contains("Ternary-Bonsai") {
-            let tau = id.contains("Qwen2.5-0.5B") ? -1.34 : id.contains("Ternary-Bonsai") ? -1.15 : -1.18
-            return Recommendation(style: .base, length: .short, logprobGateTau: tau)
+        if id.contains("Qwen2.5-0.5B") {
+            return Recommendation(style: .base, length: .short, logprobGateTau: -1.34,
+                                  scriptGateTau: [.kana: .infinity, .hangul: -0.65, .arabic: -0.85])
+        }
+        if id.contains("Ternary-Bonsai") {
+            return Recommendation(style: .base, length: .short, logprobGateTau: -1.15,
+                                  scriptGateTau: [.han: -0.56, .kana: .infinity, .hangul: -0.42])
+        }
+        if id.contains("Qwen3.5-2B") {
+            return Recommendation(style: .base, length: .short, logprobGateTau: -1.18,
+                                  scriptGateTau: [.kana: .infinity, .hangul: -0.57])
         }
         // Gemma E-series: base, short. Instruct + persona wins on text you
         // author (~85% first-word, eval-v2) but loses on real text: E2B since
         // 2026-10-14 (5% vs 21% of all rows, runs-2026-10-14-small), E4B since
         // 2026-10-15 (it-6bit 15% vs 23% of all rows on 17 languages, p=5e-53;
         // en 21 vs 29, ru 16 vs 24 — runs-2026-10-15-rebook).
-        let tau: Double = id.contains("e4b") ? -0.94 : id.contains("4bit") ? -1.07 : -0.96
-        return Recommendation(style: .base, length: .short, logprobGateTau: tau)
+        if !id.contains("e4b"), id.contains("4bit") {
+            return Recommendation(style: .base, length: .short, logprobGateTau: -1.07,
+                                  scriptGateTau: [.han: -0.75, .kana: .infinity])
+        }
+        return Recommendation(style: .base, length: .short, logprobGateTau: id.contains("e4b") ? -0.94 : -0.96,
+                              scriptGateTau: [.kana: .infinity])
     }
 
     /// Whether Instruct style continues the text on `id`. Elsewhere the

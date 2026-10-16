@@ -50,6 +50,10 @@ final class MLXEngine: CompletionEngine {
     /// Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode — the value
     /// is already captured by the live decode loop (firstWordLogProbBox).
     let logprobGateThreshold: Double?
+    /// Per-script overrides of `logprobGateThreshold` (`Recommendation.scriptGateTau`),
+    /// recommended settings only: an env pin or a hand-tuned threshold applies
+    /// to every script as-is.
+    let scriptGateTau: [GateScript: Double]
     /// Confidence trim: cut the shown suggestion just before the first decode
     /// token whose logprob < this (never inside the first word). Same live
     /// recorder as the logprob gate — 0× extra decode; unlike the gate it trims
@@ -204,17 +208,26 @@ final class MLXEngine: CompletionEngine {
         // A SET env var pins the knob regardless of Settings — non-numeric
         // ("off") disables. Falling back to Settings on a set-but-non-numeric
         // value would let eval runs silently inherit the app's live config.
-        if let e = env["PRETYPE_LOGPROB_GATE"] {
-            self.logprobGateThreshold = Double(e)
-        } else if Settings.logprobGate {
+        // PRETYPE_LOGPROB_GATE=recommended pins the shipped per-model +
+        // per-script τ whatever Settings say (the eval's gate-on arm).
+        let gatePin = env["PRETYPE_LOGPROB_GATE"]
+        let recommended = ModelCatalog.recommended(for: modelID)
+        if let gatePin, gatePin != "recommended" {
+            self.logprobGateThreshold = Double(gatePin)
+            self.scriptGateTau = [:]
+        } else if gatePin != nil || (Settings.logprobGate && Settings.useRecommendedSettings) {
             // Recommended settings follow the model: τ is calibrated per model
-            // (Q4 edges −0.94…−1.34 — see Recommendation.logprobGateTau); a
-            // hand-tuned threshold (useRecommendedSettings off) applies as-is.
-            self.logprobGateThreshold = Settings.useRecommendedSettings
-                ? ModelCatalog.recommended(for: modelID).logprobGateTau ?? Settings.logprobGateThreshold
-                : Settings.logprobGateThreshold
+            // (Q4 edges −0.94…−1.34) and per script where that still loses —
+            // see Recommendation.logprobGateTau / scriptGateTau.
+            self.logprobGateThreshold = recommended.logprobGateTau ?? Settings.logprobGateThreshold
+            self.scriptGateTau = recommended.logprobGateTau == nil ? [:] : recommended.scriptGateTau
+        } else if Settings.logprobGate {
+            // A hand-tuned threshold (useRecommendedSettings off) applies as-is.
+            self.logprobGateThreshold = Settings.logprobGateThreshold
+            self.scriptGateTau = [:]
         } else {
             self.logprobGateThreshold = nil
+            self.scriptGateTau = [:]
         }
         self.trimLogProbThreshold = env["PRETYPE_TRIM_LOGPROB"].map { Float($0) } ?? -1.5
 
@@ -948,6 +961,8 @@ final class MLXEngine: CompletionEngine {
             }
         }
         let healedGate = healed(prepared.gate(cleanInstruct: false))
+        // The script of what the user typed — the text the table was calibrated on.
+        let gateTau = logprobGateThreshold.map { GateScript.of(request.textBeforeCaret).flatMap { scriptGateTau[$0] } ?? $0 }
         let generationText = heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
             ?? prepared.generationText
         let promptCache = self.promptCache
@@ -964,7 +979,7 @@ final class MLXEngine: CompletionEngine {
             trimLogProb: recording ? trimLogProbThreshold : nil,
             trimEntropy: recording ? Self.trimEntropyThreshold : nil,
             // Healed suggestions bypass the gate (see below).
-            gateLogProb: recording && heal == nil ? logprobGateThreshold : nil,
+            gateLogProb: recording && heal == nil ? gateTau : nil,
             healExpected: heal?.expected,
             prefillOnly: prefillOnly,
             onPartial: Self.makeStreamHandler(
@@ -985,7 +1000,7 @@ final class MLXEngine: CompletionEngine {
         // CURRENT word (forced tokens under constrained decode) — a different
         // scale that the word-boundary τ mostly rejects, while fragment-match
         // already holds healed precision at ~77% (mid3, ANALYTICS §6в′).
-        if let thr = logprobGateThreshold, result != nil, heal == nil, let lp, lp < thr {
+        if let thr = gateTau, result != nil, heal == nil, let lp, lp < thr {
             DebugLog.shared.log("GATE", "logprob-gate: first-word \(String(format: "%.2f", lp)) < \(thr) — abstaining")
             firstWordLogProbBox.set(nil)
             return nil

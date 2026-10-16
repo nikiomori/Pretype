@@ -202,6 +202,10 @@ trim. This diagram shows the checks in base style:
   calibration uses the log-probability that the app records while it
   decodes, because the gate compares against that value. About 25% of the
   suggestions pass.
+* **A stricter τ for some scripts.** For each model, one τ does not fit all
+  writing systems. Some models get a stricter τ for Chinese, Korean, Arabic
+  or Hebrew. The script comes from the last 64 characters before the caret.
+  Latin and Cyrillic text keeps the τ of the model.
 * **Token healing bypasses the gate.** Healing repairs mid-word completions.
   The match with the typed fragment is already a sufficient filter.
 * **Confidence trim.** It operates by default. It cuts the low-confidence tail
@@ -212,8 +216,8 @@ trim. This diagram shows the checks in base style:
   of the typed text, a duplicate of the text after the caret, and control
   characters.
 
-The thresholds for each model are `Recommendation.logprobGateTau` in
-`ModelCatalog.recommended(for:)`. The output gates are in
+The thresholds for each model are `Recommendation.logprobGateTau` and
+`Recommendation.scriptGateTau` in `ModelCatalog.recommended(for:)`. The output gates are in
 `Engines/CompletionGates.swift`.
 
 ## Typo corrections and rewrites
