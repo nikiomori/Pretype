@@ -868,6 +868,25 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.inserted.isEmpty, "an instruction is never typed")
     }
 
+    /// A command whose field lost focus is dropped — its selection is gone —
+    /// but out loud, like every other drop.
+    func testAVoiceCommandDroppedByAFocusChangeSaysSo() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("make it shorter", in: rig)
+        rig.host.focusGeneration += 1
+        await release(rig.controller)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertTrue(rig.host.commands.isEmpty)
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a silently dropped command reads as a broken feature")
+        }
+        XCTAssertTrue(notice.contains("voice command dropped"), notice)
+    }
+
     /// Off (the default), dictating over a selection types — replacing it.
     func testWithoutVoiceCommandsASelectionIsDictatedOver() async {
         let rig = makeRig()

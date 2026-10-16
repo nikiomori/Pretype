@@ -1013,11 +1013,16 @@ final class DictationController {
                     // focus moved — the selection it was about is gone.
                     self.phase = .idle
                     self.session = nil
-                    owner.hideOverlay()
                     if focusHeld() {
+                        owner.hideOverlay()
                         owner.applyVoiceCommand(transcript, to: selection)
                     } else {
+                        // Said out loud like every other drop: a command that
+                        // silently does nothing reads as the feature being broken.
                         Self.note("dropped a voice command — focus changed")
+                        owner.showTransientOverlay(
+                            .hint(String(localized: "voice command dropped — the focus moved")),
+                            at: self.noticeRect, host: self.hostStyle)
                     }
                     self.resumePendingHold(noticeIfMissed: true)
                     return
