@@ -62,6 +62,11 @@ final class SuggestionJournal: @unchecked Sendable {
         var shownForMs: Int
         /// Whether the prompt also carried OCR screen context (not logged itself).
         var screen: Bool
+        /// Characters of `suggestion` the user had typed or accepted when it
+        /// resolved — the live first-word signal: a `diverged` show with this
+        /// ≥ its first word still had that word right. nil on older entries and
+        /// when no ghost was up at resolve (`superseded`).
+        var consumedChars: Int? = nil
     }
 
     /// A phrase the user demonstrably wanted (accepted or typed through),

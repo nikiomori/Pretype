@@ -2,9 +2,9 @@ import XCTest
 @testable import Pretype
 
 final class PersonalizationTests: XCTestCase {
-    // The journal record holds the whole offer as of its ctx: ctx + suggestion
-    // is always text the user was offered.
-    func testJournalOffer() {
+    // The journal record holds the whole offer as of its ctx, and how much of
+    // it the user took — the live first-word signal journal-report.py reads.
+    func testJournalOfferAndConsumed() {
         // A stream re-anchored after the user typed "hel": the rest is "lo world".
         XCTAssertEqual(SuggestionController.journalSuggestion("lo world", current: "Say hel", recordCtx: "Say "),
                        "hello world")
@@ -12,6 +12,10 @@ final class PersonalizationTests: XCTestCase {
         // Context jumped away from the record: nothing to prepend.
         XCTAssertEqual(SuggestionController.journalSuggestion("x", current: "Other", recordCtx: "Say "), "x")
         XCTAssertEqual(SuggestionController.journalSuggestion("x", current: "Say ", recordCtx: nil), "x")
+        // Typed "hello" of "hello world", then went another way.
+        XCTAssertEqual(SuggestionController.consumedChars(outcome: .diverged, offered: "hello world", remaining: " world"), 5)
+        XCTAssertEqual(SuggestionController.consumedChars(outcome: .accepted, offered: "hello world", remaining: " world"), 11)
+        XCTAssertEqual(SuggestionController.consumedChars(outcome: .dismissed, offered: "hi", remaining: "hi there"), 0)
     }
 
     // The journal is the dataset every future personalization feature reads;

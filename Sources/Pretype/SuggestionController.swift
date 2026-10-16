@@ -285,6 +285,10 @@ final class SuggestionController: NSObject {
         }
         entry.ts = SuggestionJournal.timestamp()
         entry.outcome = outcome
+        if outcome != .superseded, let active {   // superseded: `active` is already the new ghost
+            entry.consumedChars = Self.consumedChars(outcome: outcome, offered: entry.suggestion,
+                                                     remaining: active.text)
+        }
         entry.typed = typed.map { String($0.prefix(20)) }
         entry.shownForMs = shownForMs
         // Read at resolve, not show: the engine publishes the value only
@@ -1508,6 +1512,15 @@ final class SuggestionController: NSObject {
                                               recordCtx: String?) -> String {
         guard let recordCtx, current.hasPrefix(recordCtx) else { return remaining }
         return String(current.dropFirst(recordCtx.count)) + remaining
+    }
+
+    /// How much of the offered suggestion the user took before it resolved.
+    /// Accepted / typed-through took all of it; otherwise what is no longer on
+    /// screen (the record holds the whole offer, `remaining` the rest).
+    nonisolated static func consumedChars(outcome: SuggestionJournal.Outcome, offered: String,
+                                          remaining: String) -> Int {
+        outcome == .accepted || outcome == .typedThrough
+            ? offered.count : max(0, offered.count - remaining.count)
     }
 
     /// Pure half of `inject` (testable): the text before the caret once
