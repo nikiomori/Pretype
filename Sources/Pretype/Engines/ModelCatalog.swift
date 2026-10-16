@@ -174,7 +174,7 @@ enum ModelCatalog {
     /// ties 6-bit (p=0.28) for more memory, so it stays the manual pick.
     /// Below the smallest Gemma tier the floor is Qwen3.5 2B: ties MiniCPM5
     /// on EN/RU completions, beats every other small multilingually
-    /// (p<0.001) — 1.5 GB, plus its 1.6 GB post-trained sibling once the
+    /// (p<0.001) — 1.5 GB, plus its 1.1 GB post-trained sibling once the
     /// chords are used (fix 33% / reply 35% on topic, the sibling MiniCPM5 borrows).
     ///
     /// A fixed table, not derived from the size tables: the thresholds are 4×
@@ -201,7 +201,7 @@ enum ModelCatalog {
         (14, "mlx-community/gemma-4-e2b-4bit",
          String(localized: "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%.")),
         (0, "nikimori/Qwen3.5-2B-Base-6bit",
-         String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")),
+         String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.1 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")),
     ]
 
     /// The fit rule `defaultID` sizes on, for any resident size: past about a
@@ -234,9 +234,11 @@ enum ModelCatalog {
     /// and both embedding tables ship at the 4-bit the app used to re-quantize
     /// them to at every load. The same weights the app already ran, 13–39%
     /// less to download (E2B 8-bit 5.9 → 3.6 GB); Eval/runs-2026-10-11 slim-*.
+    /// Qwen3.5's post-trained build (the 8 GB tier's chords) drops its vision
+    /// tower, 1.72 → 1.06 GB, outputs identical (Eval/runs-2026-10-16-hostple).
     static let slimRepos: [String: String] = Dictionary(uniqueKeysWithValues: [
         "gemma-4-e4b-8bit", "gemma-4-e4b-6bit", "gemma-4-e2b-8bit", "gemma-4-e2b-4bit",
-        "gemma-4-e4b-it-6bit", "gemma-4-e4b-it-4bit", "gemma-4-e2b-it-4bit",
+        "gemma-4-e4b-it-6bit", "gemma-4-e4b-it-4bit", "gemma-4-e2b-it-4bit", "Qwen3.5-2B-4bit",
     ].map { ("mlx-community/\($0)", "nikimori/\($0)-slim") })
 
     /// Entries whose completion build changed under the same pick: the builds
@@ -290,6 +292,7 @@ enum ModelCatalog {
         "nikimori/MiniCPM5-1B-Base-8bit": "5ccc5190f40e2a2d23caf12283d949d581f6fb16",
         "nikimori/Qwen3.5-2B-Base-4bit": "9254a84e0f65f6d4cd97e70cd0957bf66d59a663",
         "nikimori/Qwen3.5-2B-Base-6bit": "03abc6421ac277c0a4ea27aa2d594db5143a168b",
+        "nikimori/Qwen3.5-2B-4bit-slim": "d440e47342c84460814566d0f026824228acd152",
         "nikimori/Qwen3.5-2B-M40-6bit": "3ab2486bae9ec5f8d44247c553a2f7cf563a712d",
         "nikimori/gemma-4-e2b-4bit-slim": "305acaa7d45feb640158ea6344cee719578e989f",
         "nikimori/gemma-4-e2b-8bit-slim": "ab7d6c423cd7bdd54354d0715ac5f2dfe94dd78a",

@@ -312,7 +312,7 @@ struct ModelMetrics {
     }
 
     /// Download sizes of the instruct siblings, GB — hub sizes of what the
-    /// engine fetches (the Gemma ones from their slim re-packs, which keep the
+    /// engine fetches (from the slim re-packs; the Gemma ones keep the
     /// vision tower the MTP path loads, so this is also what they hold
     /// resident). Feeds the setup summary's memory estimate and the download
     /// prompt when Instruct style loads a second model. Not the default
@@ -321,7 +321,7 @@ struct ModelMetrics {
         "mlx-community/gemma-4-e4b-it-6bit": 5.56,
         "mlx-community/gemma-4-e4b-it-4bit": 4.57,
         "mlx-community/gemma-4-e2b-it-4bit": 2.97,
-        "mlx-community/Qwen3.5-2B-4bit": 1.6,  // Qwen3.5 Base's chord sibling
+        "mlx-community/Qwen3.5-2B-4bit": 1.06,  // Qwen3.5 Base's chord sibling
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": 0.4,
         "openbmb/MiniCPM5-1B": 2.2,
     ]

@@ -9491,7 +9491,108 @@
         }
       }
     },
+    "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.1 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vybráno automaticky podle paměti tohoto Macu: nejsilnější model, který se pohodlně vejde — 1.5 GB. V doplňování v angličtině a ruštině je na úrovni nejrychlejších malých modelů, na širší sadě jazyků porazí všechny ostatní modely do 2 GB (p<0.001) a díky dotrénované verzi zachová funkční zkratky pro opravu a odpověď (33% / 35%) — jednorázové stažení 1.1 GB při prvním použití. Na Macu s větší pamětí je přesnější varianta Gemma."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt: das stärkste Modell, das bequem passt – 1,5 GB. Gleichauf mit den schnellsten kleinen Modellen bei Vervollständigungen auf Englisch und Russisch, vor jedem anderen Modell unter 2 GB im breiteren Sprachset (p<0,001) und mit funktionierender Korrektur und Antwort (33% / 35%) über seine nachtrainierte Variante – ein einmaliger Download von 1,1 GB beim ersten Gebrauch. Eine Gemma-Stufe ist das Genauigkeits-Upgrade auf einem Mac mit mehr Speicher."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegido automáticamente según la memoria de este Mac: el modelo más potente que cabe con holgura, 1,5 GB. Empata con los modelos pequeños más rápidos en autocompletado en inglés y ruso, supera a todos los demás modelos de menos de 2 GB en el conjunto amplio de idiomas (p<0.001) y mantiene los atajos de corrección y respuesta (33% / 35%) con su versión postentrenada, una descarga única de 1,1 GB al usarla por primera vez. Un nivel Gemma es la mejora de precisión en un Mac con más memoria."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisi automatiquement selon la mémoire de ce Mac : le modèle le plus performant qui tient à l’aise — 1,5 Go. À égalité avec les petits modèles les plus rapides en complétion anglaise et russe, il bat tous les autres modèles de moins de 2 Go sur l’ensemble de langues élargi (p<0.001) et assure les raccourcis de correction et de réponse (33% / 35%) grâce à sa version post-entraînée, téléchargée une seule fois (1,1 Go) à la première utilisation. Sur un Mac doté de plus de mémoire, une variante Gemma est plus précise."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scelto automaticamente in base alla memoria di questo Mac: il modello più forte che ci sta comodamente, 1,5 GB. Alla pari con i modelli piccoli più veloci nei completamenti in inglese e russo, batte ogni altro modello sotto i 2 GB sull'insieme più ampio di lingue (p<0,001) e mantiene attive le combinazioni di correzione e risposta (33% / 35%) tramite la sua versione post-addestrata, un download unico di 1,1 GB al primo uso. Su un Mac con più memoria, un livello Gemma è più preciso."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのメモリに合わせて自動選択：無理なく収まる最も強力なモデル（1.5 GB）。英語とロシア語の補完では最速の小型モデルと互角で、より多くの言語では2 GB未満のほかのどのモデルよりも優れています（p<0.001）。修正と返信のショートカットも、追加学習版で動作します（33% / 35%、初回使用時に1.1 GBを一度だけダウンロード）。メモリの多いMacなら、Gemmaで精度が上がります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨: 여유 있게 들어가는 가장 강력한 모델(1.5 GB)입니다. 영어와 러시아어 완성에서는 가장 빠른 소형 모델과 대등하고, 더 넓은 언어 세트에서는 2 GB 미만의 다른 모든 모델보다 앞서며(p<0.001), 추가 학습된 버전을 통해 수정 및 답장 단축키도 작동합니다(33% / 35%). 이 버전은 처음 사용할 때 1.1 GB를 한 번 다운로드합니다. 메모리가 더 많은 Mac에서는 Gemma 등급이 더 정확합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch gekozen voor het geheugen van deze Mac: het sterkste model dat ruim past – 1,5 GB. Gelijk aan de snelste kleine modellen bij aanvullingen in het Engels en Russisch, beter dan elk ander model onder 2 GB op de bredere talenset (p<0,001) en met werkende correctie en antwoord (33% / 35%) via de nagetrainde variant, een eenmalige download van 1,1 GB bij het eerste gebruik. Een Gemma-variant is de upgrade in nauwkeurigheid op een Mac met meer geheugen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybrany automatycznie według pamięci tego Maca: najmocniejszy model, który swobodnie się mieści — 1.5 GB. Dorównuje najszybszym małym modelom w uzupełnieniach po angielsku i rosyjsku, wyprzedza wszystkie inne modele poniżej 2 GB na szerszym zestawie języków (p<0.001) i utrzymuje działanie skrótów poprawek i odpowiedzi (33% / 35%) dzięki wersji dotrenowanej — jednorazowe pobranie 1.1 GB przy pierwszym użyciu. Na Macu z większą pamięcią dokładniejszy będzie wariant Gemma."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolhido automaticamente pela memória deste Mac: o modelo mais forte que cabe com folga, 1,5 GB. Empata com os modelos pequenos mais rápidos no autocompletar em inglês e russo, supera todos os outros modelos abaixo de 2 GB no conjunto amplo de idiomas (p<0.001) e mantém os atalhos de correção e resposta (33% / 35%) com sua versão pós-treinada, um download único de 1,1 GB no primeiro uso. Um nível Gemma é o ganho de precisão em um Mac com mais memória."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ales automat după memoria acestui Mac: cel mai puternic model care încape comod — 1.5 GB. Egalează cele mai rapide modele mici la completări în engleză și rusă, depășește orice alt model sub 2 GB pe setul extins de limbi (p<0.001) și menține funcționale combinațiile de corectare și răspuns (33% / 35%) prin versiunea sa post-antrenată, o descărcare unică de 1.1 GB la prima utilizare. Un nivel Gemma oferă mai multă acuratețe pe un Mac cu mai multă memorie."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана автоматически по памяти этого Mac: самая сильная модель, которая свободно помещается, — 1.5 ГБ. Наравне с самыми быстрыми малыми моделями в дополнениях на английском и русском, опережает все остальные модели до 2 ГБ на расширенном наборе языков (p<0.001) и поддерживает сочетания исправления и ответа (33% / 35%) через дообученную версию — разовая загрузка 1.1 ГБ при первом использовании. На Mac с большей памятью точнее вариант Gemma."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valdes automatiskt efter den här Macens minne: den starkaste modellen som får plats med marginal — 1.5 GB. Den står jämnt med de snabbaste små modellerna på engelska och ryska kompletteringar, slår alla andra modeller under 2 GB på den bredare språkuppsättningen (p<0.001) och håller kortkommandona för rättning och svar igång (33 % / 35 %) via sin eftertränade syskonmodell, en engångshämtning på 1.1 GB vid första användning. En Gemma-nivå ger högre träffsäkerhet på en Mac med mer minne."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu Mac’in belleğine göre otomatik seçildi: rahatça sığan en güçlü model — 1.5 GB. İngilizce ve Rusça tamamlamalarda en hızlı küçük modellerle başa baş, geniş dil kümesinde 2 GB altındaki diğer tüm modelleri geçer (p<0.001) ve sonradan eğitilmiş kardeş modeliyle düzeltme ve yanıt kısayollarını çalışır tutar (%33 / %35); bu model ilk kullanımda bir kerelik 1.1 GB indirilir. Daha fazla belleği olan bir Mac’te bir Gemma katmanı daha doğrudur."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac: найсильніша модель, що вільно вміщується, — 1.5 ГБ. Нарівні з найшвидшими малими моделями в доповненнях англійською та російською, випереджає всі інші моделі до 2 ГБ на ширшому наборі мов (p<0.001) і підтримує комбінації виправлення й відповіді (33% / 35%) через дотреновану версію — одноразове завантаження 1.1 ГБ під час першого використання. На Mac з більшою пам’яттю точніший варіант Gemma."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根据这台 Mac 的内存自动选择：能宽松容纳的最强模型，1.5 GB。英语和俄语补全与最快的小模型持平，在更广的语言集上胜过其他所有 2 GB 以下的模型（p<0.001），并通过其后训练版本保持修正和回复快捷键可用（33% / 35%），首次使用时一次性下载 1.1 GB。在内存更大的 Mac 上，Gemma 档位的准确率更高。"
+          }
+        }
+      }
+    },
     "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {

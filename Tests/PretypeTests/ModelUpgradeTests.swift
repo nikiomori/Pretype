@@ -127,8 +127,11 @@ final class ModelUpgradeTests: XCTestCase {
         for pair in ModelStorage.upgradePairs where ModelCatalog.previousBuilds[pair.slim] != nil {
             XCTAssertEqual(pair.keepOriginal, siblings.contains(pair.original), pair.original)
         }
-        let qwen = ModelStorage.upgradePairs.first { $0.original == "mlx-community/Qwen3.5-2B-4bit" }
-        XCTAssertEqual(qwen?.keepOriginal, true, "MiniCPM5's and Qwen3.5's chords load it")
+        // As Qwen3.5 Base's previous build it stays (MiniCPM5's and Qwen3.5's
+        // chords load it); only its own re-pack replaces it.
+        let qwen = ModelStorage.upgradePairs.filter { $0.original == "mlx-community/Qwen3.5-2B-4bit" }
+        XCTAssertEqual(qwen.first { $0.slim == "nikimori/Qwen3.5-2B-Base-6bit" }?.keepOriginal, true)
+        XCTAssertEqual(qwen.first { $0.slim == "nikimori/Qwen3.5-2B-4bit-slim" }?.keepOriginal, false)
         let base4 = ModelStorage.upgradePairs.first { $0.original == "nikimori/Qwen3.5-2B-Base-4bit" }
         XCTAssertEqual(base4?.keepOriginal, false)
     }

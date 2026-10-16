@@ -79,7 +79,7 @@ Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimori/Qwen3.5-
 * Fix: it restores 41% of the typo rows, against 33% for the post-trained sibling of the Base build (p<0.001).
 * Fix on clean text: it proposes a change on 10% of clean lines, against 28% (p<0.001).
 * Reply: 56% of its replies are on topic, against 37% for the post-trained sibling (p<0.001). Qwen3.8 27B rated both.
-* Size: 1.5 GB in total. The Base build with its sibling uses 1.5 GB + 1.7 GB.
+* Size: 1.5 GB in total. The Base build with its sibling uses 1.5 GB + 1.1 GB.
 
 The two fix results have different causes. The post-trained build at the same 6 bits restores 39% and changes 24% of clean lines. Thus 6-bit gives the higher fix rate, and the Base half of the mix gives the lower rate of false fixes. Mixes with more of the post-trained build (60% and 80%) lose completion accuracy outside English and Russian.
 
@@ -92,7 +92,7 @@ Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it use
 * Speed: about 30% faster per suggestion.
 * A 6-bit build is a little worse, and a 4-bit build is worse (12%, p<0.001).
 
-The fix and reply chords of MiniCPM5 now run on the post-trained Qwen3.5 2B build. MiniCPM5's own instruct build fixed 4% of rows, and 34% of its replies were on topic. The Qwen3.5 build fixes 33%, and 35% of its replies are on topic. It is also smaller: 1.6 GB, against 2.2 GB.
+The fix and reply chords of MiniCPM5 now run on the post-trained Qwen3.5 2B build. MiniCPM5's own instruct build fixed 4% of rows, and 34% of its replies were on topic. The Qwen3.5 build fixes 33%, and 35% of its replies are on topic. It is also smaller: 1.1 GB, against 2.2 GB.
 
 If your install has the bf16 build, Pretype downloads the 8-bit build in the background. When the 8-bit build has loaded, Pretype deletes the bf16 build.
 
@@ -235,6 +235,8 @@ The outputs are the same as the originals, row for row. The downloads are 13–3
 | Gemma 4 E4B 6-bit | 7.1 GB | 5.3 GB | 5.0 GB |
 | Gemma 4 E4B 8-bit | 9.0 GB | 6.3 GB | 6.0 GB |
 
+The post-trained Qwen3.5 2B build also has a re-pack ([nikimori/Qwen3.5-2B-4bit-slim](https://huggingface.co/nikimori/Qwen3.5-2B-4bit-slim)). It does not contain the vision encoder. The download is 1.1 GB, against 1.7 GB. The fix and reply outputs are the same, row for row.
+
 If your install downloaded an original build before the re-packs, Pretype moves it to the re-pack automatically. Pretype checks at launch and then one time each hour. It never downloads on a cellular, hotspot or Low Data Mode network. After the change, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
 
 <div align="center">
@@ -255,8 +257,8 @@ On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one ti
 
 | Model | Instruct sibling download |
 |---|---|
-| MiniCPM5 | ≈1.6 GB (the post-trained Qwen3.5 build) |
-| Qwen3.5 | ≈1.6 GB (its post-trained build) |
+| MiniCPM5 | ≈1.1 GB (the post-trained Qwen3.5 build) |
+| Qwen3.5 | ≈1.1 GB (its post-trained build) |
 | Qwen3.5 M40 | None. M40 corrects with itself. |
 | A Gemma tier in Base style | up to ≈5.6 GB (E4B-it 6-bit on the E4B tiers) |
 | Bonsai | None. Bonsai corrects with itself. |
