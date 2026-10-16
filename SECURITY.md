@@ -31,6 +31,8 @@ When the models are on the disk, completions, fixes, and dictation operate fully
 
 * **Pretype never reads password fields.** Pretype skips secure text fields. Also, macOS blocks Accessibility access to them.
 * **Screen context (OCR) is opt-in and local.** It is off by default, and it needs a separate Screen Recording permission. It captures only the focused window and runs Vision OCR locally. Pretype clears it at each focus change. It is disabled in terminals, password managers, and code editors.
+* **Screen Recording also gives a brightness sample.** When the permission is granted, Pretype captures a small strip to the right of the caret when it shows text there. It reduces the capture to 8 × 4 pixels and then to one brightness value, to select dark or light text. It keeps no image.
+* **Clipboard context is opt-in.** It is off by default. When it is on, Pretype reads up to 600 characters of copied text into the prompt. It does not read copies that password managers mark as concealed or transient. The journal and the debug log never contain it.
 * **No telemetry, no analytics, no crash reports.** The usage statistics in the menu stay on your Mac. To see exactly what the model received, use **Diagnostics → Show Last Prompt…**.
 
 ### Permissions
@@ -38,7 +40,7 @@ When the models are on the disk, completions, fixes, and dictation operate fully
 | Permission | Use | When |
 |---|---|---|
 | **Accessibility** | Reads the focused field, runs the event tap, and injects keystrokes | Always |
-| **Screen Recording** | OCR | Only if you enable it |
+| **Screen Recording** | OCR, and the brightness beside the caret | Only if you enable it |
 | **Microphone** | Dictation | Only if you enable it, and only while a capture runs |
 
 ## Supported versions

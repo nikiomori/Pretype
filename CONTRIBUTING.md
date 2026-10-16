@@ -102,12 +102,14 @@ The eval is a tool for **comparison**. The absolute first-word accuracy is lower
 
 ## Translations
 
-The interface is in English and Russian. The strings are in `Localization/Localizable.xcstrings`, a String Catalog. The English text in the code is the key.
+The interface is in 17 languages: English (the source) and cs, de, es, fr, it, ja, ko, nl, pl, pt-BR, ro, ru, sv, tr, uk and zh-Hans. The strings are in `Localization/Localizable.xcstrings`, a String Catalog. The English text in the code is the key.
 
 * Write each string that the user sees as a SwiftUI literal (`Text("…")`, `.help("…")`) or as `String(localized: "…")`. Keep a full sentence in one string. Do not join parts of a sentence with `+`.
 * Do not localize prompts, log lines, identifiers, or defaults keys.
 * After you add or change strings, run `Scripts/sync-strings.py`. The script adds the new keys to the catalog. It marks removed keys as stale, or deletes them if they have no translations. Then it shows the untranslated keys.
 * To translate, open the catalog in Xcode, or edit the JSON.
+* CI runs `Scripts/sync-strings.py --check`. The check fails if a key has no translation in one of the languages of the catalog.
+* If you cannot translate a new string, write this in the pull request. The maintainer then adds the missing translations.
 * To add a language, add its translations to the catalog. `Scripts/make-app.sh` compiles each language into the app, and **Settings → General → Language** shows it.
 
 ## Add an engine

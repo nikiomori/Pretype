@@ -123,7 +123,7 @@ Pretype must have the **Accessibility** permission. It uses it to read the focus
 
 By default, your text stays on your Mac. Pretype uses the network only for model downloads and one version check each day. If you turn on an API provider in **Settings → API**, your text goes to that provider.
 
-Do not trust these statements without proof. Three files contain all of the input path: [`AXText.swift`](Sources/Pretype/AXText.swift), [`KeyTap.swift`](Sources/Pretype/KeyTap.swift), and [`TextInjector.swift`](Sources/Pretype/TextInjector.swift). [Privacy & permissions](docs/privacy.md) lists each connection and all data on disk.
+Do not trust these statements without proof. Three files read the field, watch the keys and type text back: [`AXText.swift`](Sources/Pretype/AXText.swift), [`KeyTap.swift`](Sources/Pretype/KeyTap.swift), and [`TextInjector.swift`](Sources/Pretype/TextInjector.swift). [Privacy & permissions](docs/privacy.md) lists the optional reads (screen, clipboard, microphone), each connection and all data on disk.
 
 ## Quick Start
 
@@ -133,14 +133,14 @@ You must have macOS 26 or later and a Mac with Apple Silicon (M1 or newer). 8 GB
 brew install nikiomori/tap/pretype
 ```
 
-Or download [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip), unzip it, and move `Pretype.app` to `/Applications`. Apple notarizes all releases.
+Or download [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/latest/download/Pretype.app.zip), unzip it, and move `Pretype.app` to `/Applications`. Apple notarizes all releases since 2.5.0.
 
 1. Open Pretype. It has no Dock icon. It operates from the menu bar.
 2. Grant the **Accessibility** permission. If you grant it after the launch, restart Pretype.
 3. Wait for the model download to complete. The menu-bar icon shows the progress.
 4. Type in a text field.
 
-The model download is ≈1–5.7 GB. Pretype selects the strongest model that uses about a quarter of the memory of your Mac. To use a different model, go to **Settings → Model**. [Choosing a model](docs/models.md) compares the models.
+The model download is ≈1–5.7 GB. Pretype selects the default model from a fixed table of Mac memory sizes. The default uses less than a quarter of the memory. To use a different model, go to **Settings → Model**. [Choosing a model](docs/models.md) compares the models.
 
 To build from source, see [Development setup](CONTRIBUTING.md#development-setup).
 

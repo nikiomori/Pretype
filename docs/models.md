@@ -3,7 +3,7 @@
 We measure every model in the catalog on the same held-out eval. The Apple Intelligence system model is in the eval too. The eval measures first-word accuracy on real human text. If a model stays silent, the eval counts a miss. We ran the full eval again on 2026-10-15, on the engine as it ships.
 
 <div align="center">
-<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English the eight downloadable models score 26-29% first-word accuracy, a tie, and Apple Intelligence 22%; averaged over 16 other languages they fan out from 22.8% (Gemma 4 E4B) down to 8.0% (Apple Intelligence)" />
+<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English the eight downloadable models of the 2026-10-15 run score 26-29% first-word accuracy, a tie, and Apple Intelligence 22%; averaged over 16 other languages they fan out from 22.8% (Gemma 4 E4B) down to 8.0% (Apple Intelligence)" />
 </div>
 
 ## Which model to use
@@ -16,7 +16,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 
 | Situation | Model | Evidence |
 |---|---|---|
-| You type in English | Any downloadable model. For speed, MiniCPM5 1B. | No downloadable model is measurably better than another. All eight score between 26% and 29%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
+| You type in English | Any downloadable model. For speed, MiniCPM5 1B. | No downloadable model is measurably better than another. The eight models of the 2026-10-15 run score between 26% and 29%. That is inside the ±5 pp of a single-language cell. Qwen3.5 2B M40 came later. It has no English figure here. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
 | You type in English and have little free memory | Qwen2.5 0.5B | It runs in ≈1 GB. On English, its accuracy is equal to the other models. |
 | You type in another language | The default | Outside English, the tie stops. The Gemma 4 tiers lose 4–9 points. MiniCPM5, Bonsai and Qwen 0.5B lose more than half of their English score. |
 | You type in another language on an 8 GB Mac | Qwen3.5 2B (Base), the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). |
@@ -120,7 +120,7 @@ Instruct style stays available on E4B as a manual choice. It is the only tier wh
 
 ## The default follows the memory of your Mac
 
-Since 2026-07-25, Pretype selects the default from the memory of your Mac. Before that date, your keyboard layouts selected it. The default is the strongest tier whose resident model uses about a quarter of physical memory or less.
+Since 2026-07-25, Pretype selects the default from the memory of your Mac. Before that date, your keyboard layouts selected it. The default comes from a fixed table with three thresholds: 14, 20 and 27.2 GB. Each threshold is four times the resident size of its tier on 2026-07-25. Since then, the slim re-packs and Base style made each tier smaller. Thus each default uses less than a quarter of physical memory. The table does not move with the sizes: a 24 GB Mac can hold E4B 6-bit in a quarter, but it gets E2B 8-bit.
 
 | Mac memory | Default | Resident (recommended config) |
 |---|---|--:|
@@ -214,7 +214,7 @@ Disk use and memory use increase together.
 
 | Cost | Range |
 |---|---|
-| Memory of the default model, while you type | ≈1.5–5 GB. This is about a quarter of the memory of the Mac (see the ladder above). |
+| Memory of the default model, while you type | ≈1.5–5 GB. This is less than a quarter of the memory of the Mac (see the ladder above). |
 | Smallest model in the catalog | ≈1 GB |
 | Largest download | Gemma 4 E4B 8-bit, ≈6 GB |
 | Warm completion time, local models | 17–81 ms |

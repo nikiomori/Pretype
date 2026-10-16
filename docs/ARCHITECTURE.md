@@ -107,7 +107,7 @@ memory of the Mac. The function is `ModelCatalog.defaultID(forRamGB:)`.
 The rule selects the best Gemma tier whose resident model stays in about a
 quarter of the RAM. The quality sequence is E4B 6-bit, then E2B 8-bit, then
 E2B 4-bit. The resident model is the model in its recommended configuration
-(the instruct primary). Qwen3.5 2B is the floor below the smallest Gemma tier
+(the base build: all Gemma tiers run Base style). Qwen3.5 2B is the floor below the smallest Gemma tier
 ([why](models.md)).
 
 The thresholds are a fixed table. We sized them on the builds before the slim
