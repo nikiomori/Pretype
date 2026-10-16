@@ -536,6 +536,8 @@ final class SuggestionController {
     /// Clipboard text for the prompt, re-read only when the pasteboard
     /// changes (reading a multi-MB copy per keystroke would hurt). Concealed
     /// and transient contents — password managers mark both — are never read.
+    /// The read itself can stall (a huge or lazily-provided copy): never call
+    /// this — or `makeRequest` — inside the event-tap callback.
     private func currentClipboardContext() -> String? {
         let pasteboard = NSPasteboard.general
         if pasteboard.changeCount != clipboardChangeCount {
@@ -544,12 +546,16 @@ final class SuggestionController {
                 $0.rawValue == "org.nspasteboard.ConcealedType"
                     || $0.rawValue == "org.nspasteboard.TransientType"
             } ?? false
-            let text = concealed
-                ? nil
-                : pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            clipboardSnippet = text.flatMap { $0.isEmpty ? nil : String($0.prefix(600)) }
+            clipboardSnippet = concealed ? nil : pasteboard.string(forType: .string).flatMap(Self.clipboardSnippet)
         }
         return clipboardSnippet
+    }
+
+    /// The prompt's cut of a clipboard string: capped BEFORE trimming —
+    /// trimming first copied a whole multi-MB string to keep 600 characters.
+    nonisolated static func clipboardSnippet(_ text: String) -> String? {
+        let snippet = text.drop(while: \.isWhitespace).prefix(600).trimmingCharacters(in: .whitespacesAndNewlines)
+        return snippet.isEmpty ? nil : snippet
     }
 
     /// The screen block and the retrieved examples sit at the HEAD of the

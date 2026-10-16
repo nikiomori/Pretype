@@ -191,13 +191,17 @@ final class CorrectionController {
                 if owner.window.showsCorrection { applyPendingFix() } else { showPreview(fix) }
                 return .consumed
             }
-            if selection != nil { correctSelection(); return .consumed }
-            // The last-word fix needs a synchronous AX read; it must NOT run here
-            // inside the event-tap callback (a hung target app would block the main
-            // thread and get the tap disabled). Hop off the callback and consume
-            // the key now — the correction hotkey isn't a system shortcut, so
-            // swallowing it even when there's nothing to fix is harmless.
-            DispatchQueue.main.async { [weak self] in self?.correctLastWord() }
+            // Neither fix may run here, inside the event-tap callback: the
+            // last-word fix does a synchronous AX read, and both build a request,
+            // which reads the clipboard — a hung target app, or a huge or lazily
+            // provided copy, would block the main thread and get the tap
+            // disabled. Hop off the callback and consume the key now — the
+            // correction hotkey isn't a system shortcut, so swallowing it even
+            // when there's nothing to fix is harmless.
+            let fixSelection = selection != nil
+            DispatchQueue.main.async { [weak self] in
+                if fixSelection { self?.correctSelection() } else { self?.correctLastWord() }
+            }
             return .consumed
         }
 
@@ -239,7 +243,8 @@ final class CorrectionController {
 
     // MARK: - Fix selection (⌥Tab)
 
-    /// First ⌥⇥ on a selection: ask the engine for a fix and preview it.
+    /// First ⌥⇥ on a selection: ask the engine for a fix and preview it. Runs
+    /// off the event-tap callback (`makeRequest` reads the clipboard).
     private func correctSelection() {
         guard let sel = selection, !inFlight else { return }
         owner.lastCaretRect = sel.rect ?? owner.lastCaretRect

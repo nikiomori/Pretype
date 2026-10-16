@@ -15,6 +15,15 @@ final class PrivacyAndReplyTests: XCTestCase {
         XCTAssertTrue(logged.contains("redacted from log"))
     }
 
+    // The clipboard reaches the prompt as at most 600 characters, edges
+    // trimmed — and an all-blank copy as nothing.
+    func testClipboardSnippetIsCappedAndTrimmed() {
+        let long = "\n  " + String(repeating: "a", count: 5000)
+        XCTAssertEqual(SuggestionController.clipboardSnippet(long), String(repeating: "a", count: 600))
+        XCTAssertEqual(SuggestionController.clipboardSnippet("  hi there \n"), "hi there")
+        XCTAssertNil(SuggestionController.clipboardSnippet(" \n\t "))
+    }
+
     // A reply that restates the screen is dropped — on word boundaries only,
     // and never for sharing a one-word label with it.
     func testReplyEchoMatchesWholeWords() {
