@@ -121,8 +121,10 @@ final class MLXEngine: CompletionEngine {
     private var defaultsObserver: NSObjectProtocol?
 
     /// How to rebuild each unloaded model without the build leak, by repo —
-    /// see `keepBlueprint`.
-    private let blueprints = LockedValue<[String: Blueprint]>([:])
+    /// see `keepBlueprint`. Stored as a task the moment the model is let go,
+    /// so a load right after waits for it instead of racing it. Handed to the
+    /// engine that replaces this one (see `init`).
+    private let blueprints: LockedValue<[String: Task<Blueprint?, Never>]>
 
     /// An unloaded model's configuration, plus a placeholder for each of its
     /// quantized layers. The tokenizer stays with `tokenizers` — held here it
@@ -149,9 +151,10 @@ final class MLXEngine: CompletionEngine {
     /// Parsed tokenizers, kept across idle unloads. Parsing tokenizer.json is
     /// most of a reload — Gemma 1.45 s of ~1.9 s, the weights loading in
     /// parallel finish first — for ~120 MB resident (Qwen3.5 ~86 MB) against
-    /// the gigabytes the unload frees. Dropped with the engine, and when
-    /// memory pressure forces the unload.
-    private let tokenizers = TokenizerCache()
+    /// the gigabytes the unload frees. Handed to the engine that replaces
+    /// this one for the models they share, else dropped with it; dropped too
+    /// when memory pressure forces the unload.
+    private let tokenizers: TokenizerCache
 
     /// The fix model's progress while it loads, else the primary's state.
     var state: EngineState { correctionStatus.get().map(EngineState.preparing) ?? stateBox.get() }
@@ -197,7 +200,11 @@ final class MLXEngine: CompletionEngine {
         }
     }
 
-    init(modelID: String) {
+    /// `previous`: the engine this one replaces, already shut down — its
+    /// blueprints and tokenizers carry over (see `EngineCoordinator.rebuild`).
+    init(modelID: String, after previous: MLXEngine? = nil) {
+        blueprints = previous?.blueprints ?? LockedValue([:])
+        tokenizers = previous?.tokenizers ?? TokenizerCache()
         let baseOption = ModelCatalog.option(for: modelID)
         let config = CompletionConfig.resolved()
         self.style = config.style
@@ -240,6 +247,14 @@ final class MLXEngine: CompletionEngine {
                 ?? baseOption?.instructModelID ?? baseOption?.correctionModelID ?? modelID
         }
         self.modelID = primaryID
+        // A settings change rebuilt the engine: models it shares with the old
+        // one reload without the build leak or a tokenizer parse; the rest go.
+        if previous != nil {
+            let repos: Set<String> = [ModelCatalog.repo(for: primaryID), ModelCatalog.repo(for: correctionModelID)]
+            blueprints.mutate { kept in kept = kept.filter { repos.contains($0.key) } }
+            let folders = repos.compactMap { ModelStorage.cacheDirectory(repo: $0).map { $0.path + "/" } }
+            tokenizers.retain { directory in folders.contains { directory.path.hasPrefix($0) } }
+        }
         // Once per engine, not per keystroke: the reason never changes while
         // it lives, and logged inline it filled the 400-entry ring.
         if config.style == .instruct, !Self.isFIMCapable(primaryID) {
@@ -368,7 +383,7 @@ final class MLXEngine: CompletionEngine {
     private static func loadTarget(
         _ configuration: ModelConfiguration, repo: String, drafterID: String?,
         into drafterBox: LockedValue<(any MTPDrafterModel)?>, tokenizers: TokenizerCache,
-        blueprints: LockedValue<[String: Blueprint]>,
+        blueprints: LockedValue<[String: Task<Blueprint?, Never>]>,
         progressHandler: @escaping @Sendable (Progress) -> Void
     ) async throws -> ModelContainer {
         // The same bytes a background fetch is already bringing in.
@@ -377,7 +392,7 @@ final class MLXEngine: CompletionEngine {
         drafterBox.set(nil)
         let drafterID = drafterID.flatMap { brokenDrafters.get().contains($0) ? nil : $0 }
         let drafterDirectory = drafterID.flatMap(ModelStorage.localSnapshot(for:))
-        if let blueprint = blueprints.mutate({ $0.removeValue(forKey: repo) }),
+        if let blueprint = await blueprints.mutate({ $0.removeValue(forKey: repo) })?.value,
            blueprint.vlm == (drafterDirectory != nil),
            let directory = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:)),
            // Drawn from this snapshot: an upgrade since gets a fresh load.
@@ -559,7 +574,7 @@ final class MLXEngine: CompletionEngine {
         // let go of it before clearing the buffer pool, or its freed weights
         // fill the pool the unload just emptied and sit there all idle.
         let owner = LockedValue<Task<ModelContainer, Error>?>(task)
-        Task.detached(priority: .userInitiated) {
+        blueprints.mutate { $0[repo] = Task.detached(priority: .userInitiated) {
             let blueprint: Blueprint? = await {
                 guard let container = try? await owner.exchange(nil)?.value,
                       let tokenizerDirectory = try? await container.tokenizerDirectory else { return nil }
@@ -569,9 +584,9 @@ final class MLXEngine: CompletionEngine {
                                      layers: layers, vlm: vlm, husk: Self.husk(of: context.model))
                 }
             }()
-            if let blueprint { blueprints.mutate { $0[repo] = blueprint } }
             Memory.clearCache()
-        }
+            return blueprint
+        } }
     }
 
     /// A lazy-zero stand-in for a loaded quantized layer, same shapes and
@@ -1292,6 +1307,15 @@ final class MLXEngine: CompletionEngine {
             // A late `warmPrompt` or prewarm on this retired engine must not
             // rebuild a whole model next to the replacement's.
             didInitLoad = false
+            // For the replacement (see `init`). Not mid-request (the husk
+            // would be emptied under a running generation) nor mid-load (the
+            // replacement's load would wait on this cancelled one).
+            if inFlightCount == 0, !Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
+                                                   correctionStatus: correctionStatus.get()) {
+                keepBlueprint(loadTask, repo: ModelCatalog.repo(for: modelID), vlm: drafter.get() != nil)
+                keepBlueprint(correctionLoadTask, repo: ModelCatalog.repo(for: correctionModelID),
+                              vlm: correctionDrafter.get() != nil)
+            }
             loadTask?.cancel(); loadTask = nil
             correctionLoadTask?.cancel(); correctionLoadTask = nil
         }
@@ -1406,5 +1430,9 @@ final class TokenizerCache: TokenizerLoader, @unchecked Sendable {
 
     func clear() {
         byDirectory.set([:])
+    }
+
+    func retain(where keep: (URL) -> Bool) {
+        byDirectory.mutate { $0 = $0.filter { keep($0.key) } }
     }
 }

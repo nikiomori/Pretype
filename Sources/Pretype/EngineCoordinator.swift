@@ -23,7 +23,7 @@ final class EngineCoordinator {
     /// build-time setting change — and the way back from `.failed`.
     func rebuild() {
         engine.shutdown()
-        engine = Self.makeEngine(modelID: Settings.mlxModelID)
+        engine = Self.makeEngine(modelID: Settings.mlxModelID, after: engine)
         onRebuild?()
     }
 
@@ -67,14 +67,14 @@ final class EngineCoordinator {
         engine.updateCompletion(length: Settings.completionLength, instructions: instructions)
     }
 
-    private static func makeEngine(modelID: String) -> CompletionEngine {
+    private static func makeEngine(modelID: String, after previous: CompletionEngine? = nil) -> CompletionEngine {
         let engine: CompletionEngine
         if Settings.apiText.enabled {
             engine = CloudEngine(Settings.apiText)
         } else if modelID == ModelCatalog.appleIntelligenceID {
             engine = FoundationModelsEngine()
         } else {
-            engine = MLXEngine(modelID: modelID)
+            engine = MLXEngine(modelID: modelID, after: previous as? MLXEngine)
         }
         let config = CompletionConfig.resolved()
         engine.updateCompletion(length: config.length, instructions: config.instructions)
