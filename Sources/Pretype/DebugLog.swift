@@ -24,39 +24,34 @@ final class DebugLog: @unchecked Sendable {
 
     func log(_ category: String, _ message: String, detail: String? = nil) {
         let watched = DebugWindowController.shared.isVisible
-        lock.lock()
-        entries.append(DebugEntry(id: nextID, date: Date(), category: category, message: message, detail: detail))
-        nextID += 1
-        if entries.count > capacity {
-            entries.removeFirst(entries.count - capacity)
+        let refresh = lock.withLock {
+            entries.append(DebugEntry(id: nextID, date: Date(), category: category, message: message, detail: detail))
+            nextID += 1
+            if entries.count > capacity {
+                entries.removeFirst(entries.count - capacity)
+            }
+            // Only pay the main-queue hop when the Debug Console is actually on
+            // screen, and only one per burst. At hundreds of entries/second
+            // (decode streaming, AX polling) the cross-thread dispatch is the
+            // dominant cost when nobody is watching — this makes it free — and a
+            // re-render per entry would be the dominant cost when someone is.
+            let refresh = watched && !refreshQueued
+            if refresh { refreshQueued = true }
+            return refresh
         }
-        // Only pay the main-queue hop when the Debug Console is actually on
-        // screen, and only one per burst. At hundreds of entries/second
-        // (decode streaming, AX polling) the cross-thread dispatch is the
-        // dominant cost when nobody is watching — this makes it free — and a
-        // re-render per entry would be the dominant cost when someone is.
-        let refresh = watched && !refreshQueued
-        if refresh { refreshQueued = true }
-        lock.unlock()
         guard refresh else { return }
         DispatchQueue.main.async {
-            self.lock.lock()
-            self.refreshQueued = false
-            self.lock.unlock()
+            self.lock.withLock { self.refreshQueued = false }
             DebugWindowController.shared.model.reload()
         }
     }
 
     func snapshot() -> [DebugEntry] {
-        lock.lock()
-        defer { lock.unlock() }
-        return entries
+        lock.withLock { entries }
     }
 
     func clear() {
-        lock.lock()
-        entries.removeAll()
-        lock.unlock()
+        lock.withLock { entries.removeAll() }
     }
 }
 

@@ -33,30 +33,30 @@ enum TypedLanguage {
         // while the eval tables key on the bare code — keep only the language
         // subtag or `dominant` could never match a measured axis for Chinese.
         let code = code.prefix(while: { $0 != "-" }).lowercased()
-        lock.lock()
-        defer { lock.unlock() }
-        counts[code, default: 0] += 1
-        total += 1
-        guard total >= decayAt else { return }
-        counts = counts.compactMapValues { $0 / 2 > 0 ? $0 / 2 : nil }
-        total = counts.values.reduce(0, +)
+        lock.withLock {
+            counts[code, default: 0] += 1
+            total += 1
+            guard total >= decayAt else { return }
+            counts = counts.compactMapValues { $0 / 2 > 0 ? $0 / 2 : nil }
+            total = counts.values.reduce(0, +)
+        }
     }
 
     /// The language being typed, or nil while the signal is thin or mixed.
     static var dominant: String? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard total >= minObservations,
-              let top = counts.max(by: { $0.value < $1.value }),
-              Double(top.value) / Double(total) >= minShare
-        else { return nil }
-        return top.key
+        lock.withLock {
+            guard total >= minObservations,
+                  let top = counts.max(by: { $0.value < $1.value }),
+                  Double(top.value) / Double(total) >= minShare
+            else { return nil }
+            return top.key
+        }
     }
 
     static func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        counts.removeAll()
-        total = 0
+        lock.withLock {
+            counts.removeAll()
+            total = 0
+        }
     }
 }

@@ -136,7 +136,7 @@ final class SuggestionJournal: @unchecked Sendable {
     /// Privacy: these are ordinary rows in the ordinary journal file, so the
     /// kill switch and Clear (`reset()`) delete them exactly like typed ones,
     /// and nothing is copied anywhere else — no second store, no side file.
-    static func importEntries(from text: String, source: String, phraseLimit: Int = 500) -> [Entry] {
+    static func importEntries(from text: String, source: String, phraseLimit: Int) -> [Entry] {
         let text = String(text.prefix(2_000_000))
         let ts = timestamp()
         // `engine: "import"` is how the offline replay bench excludes these rows
@@ -167,11 +167,12 @@ final class SuggestionJournal: @unchecked Sendable {
                 ctx: String(text[..<range.lowerBound].suffix(400)),
                 after: "", suggestion: sentence, outcome: .typedThrough,
                 acceptedChars: 0, shownForMs: 0, screen: false))
-            // 500 is load-bearing, not a round number: `loadPhrasesLocked` keeps
-            // `loaded.suffix(maxPhrases)` = the LAST 2000 phrases, and imported
-            // rows are appended last — so an uncapped import would evict every
-            // live accepted phrase from the retrieval corpus and make
-            // personalization WORSE. 500 leaves 1500 slots for real accepts.
+            // The caller's 500 budget is load-bearing, not a round number:
+            // `loadPhrasesLocked` keeps `loaded.suffix(maxPhrases)` = the LAST
+            // 2000 phrases, and imported rows are appended last — so an
+            // uncapped import would evict every live accepted phrase from the
+            // retrieval corpus and make personalization WORSE. 500 leaves 1500
+            // slots for real accepts.
             // ponytail: first 500 sentences per file, then stop. The corpus caps
             // at 2000 regardless and the n-gram's own measured effect is still
             // null (p=0.25), so buying more n-gram material with a second bulk
@@ -366,9 +367,8 @@ final class SuggestionJournal: @unchecked Sendable {
     private func trim() {
         guard fileSizeLocked() > maxBytes,
               let data = try? Data(contentsOf: url) else { return }
-        var start = max(0, data.count - maxBytes / 2)
-        while start < data.count, data[start] != 0x0A { start += 1 }
-        start = min(start + 1, data.count)
+        let half = max(0, data.count - maxBytes / 2)
+        let start = min((data[half...].firstIndex(of: 0x0A) ?? data.count) + 1, data.count)
         try? Data(data[start...]).write(to: url, options: .atomic)
     }
 

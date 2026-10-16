@@ -265,7 +265,7 @@ final class PersonalizationTests: XCTestCase {
         XCTAssertEqual(SuggestionJournal.importEntries(from: text, source: "t", phraseLimit: 1).count, 1)
 
         // Three sentences, two rows: the first is ctx-seed only.
-        let entries = SuggestionJournal.importEntries(from: text, source: "thesis.txt")
+        let entries = SuggestionJournal.importEntries(from: text, source: "thesis.txt", phraseLimit: 500)
         XCTAssertEqual(entries.count, 2)
         XCTAssertEqual(entries.map(\.suggestion), [s2, s3])
         XCTAssertEqual(entries[0].app, "import:thesis.txt")

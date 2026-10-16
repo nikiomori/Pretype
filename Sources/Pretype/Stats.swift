@@ -69,6 +69,11 @@ enum Stats {
 
     private static func bump(_ key: String, by amount: Int = 1) {
         rollDayIfNeeded()
+        add(key, amount)
+    }
+
+    /// Add to a counter as is — a lifetime total, which the day roll leaves alone.
+    private static func add(_ key: String, _ amount: Int) {
         defaults.set(defaults.integer(forKey: key) + amount, forKey: key)
     }
 
@@ -125,13 +130,10 @@ enum Stats {
         if countSuggestion {
             bump("stats.accepted")
             bumpApp(app, accepted: 1)
-            defaults.set(lifetimeAccepted + 1, forKey: "stats.lifetimeAccepted")
+            add("stats.lifetimeAccepted", 1)
         }
         bump("stats.acceptedChars", by: chunk.count)
-        defaults.set(
-            defaults.integer(forKey: "stats.lifetimeChars") + chunk.count,
-            forKey: "stats.lifetimeChars"
-        )
+        add("stats.lifetimeChars", chunk.count)
     }
 
     private static var lifetimeAccepted: Int {
@@ -160,10 +162,7 @@ enum Stats {
     static func recordDictated(chars: Int) {
         guard chars > 0 else { return }
         bump("stats.dictatedChars", by: chars)
-        defaults.set(
-            defaults.integer(forKey: "stats.lifetimeDictatedChars") + chars,
-            forKey: "stats.lifetimeDictatedChars"
-        )
+        add("stats.lifetimeDictatedChars", chars)
     }
 
     static var dictatedTotal: Int { defaults.integer(forKey: "stats.lifetimeDictatedChars") }

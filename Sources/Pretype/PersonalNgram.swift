@@ -41,24 +41,25 @@ final class PersonalNgram: @unchecked Sendable {
     /// build is done, so an entry resolving DURING the build is counted by the
     /// build's own file read (or the next launch's), never twice.
     func prepareIfNeeded(journal: SuggestionJournal = .shared) {
-        lock.lock()
-        guard !started else { lock.unlock(); return }
-        started = true
-        let startEpoch = epoch
-        lock.unlock()
+        let startEpoch: Int? = lock.withLock {
+            guard !started else { return nil }
+            started = true
+            return epoch
+        }
+        guard let startEpoch else { return }
         DispatchQueue.global(qos: .utility).async { [self] in
             let chunks = journal.typedStreamChunks()
             var bi: [String: [String: Int]] = [:]
             var tri: [String: [String: Int]] = [:]
             var uni: [String: [String: Int]] = [:]
             for chunk in chunks { Self.learn(chunk, bigram: &bi, trigram: &tri, unigram: &uni) }
-            lock.lock()
-            defer { lock.unlock() }
-            guard epoch == startEpoch else { return }   // reset() raced the build
-            bigram.merge(bi) { $0.merging($1, uniquingKeysWith: +) }
-            trigram.merge(tri) { $0.merging($1, uniquingKeysWith: +) }
-            unigram.merge(uni) { $0.merging($1, uniquingKeysWith: +) }
-            prepared = true
+            lock.withLock {
+                guard epoch == startEpoch else { return }   // reset() raced the build
+                bigram.merge(bi) { $0.merging($1, uniquingKeysWith: +) }
+                trigram.merge(tri) { $0.merging($1, uniquingKeysWith: +) }
+                unigram.merge(uni) { $0.merging($1, uniquingKeysWith: +) }
+                prepared = true
+            }
         }
     }
 
@@ -78,13 +79,13 @@ final class PersonalNgram: @unchecked Sendable {
     /// and in either case ≥50% of everything ever typed after that context.
     func nextWord(after text: String) -> String? {
         guard let context = Self.lookupContext(text) else { return nil }
-        lock.lock()
-        defer { lock.unlock() }
-        if let triKey = context.triKey,
-           let hit = Self.confident(trigram[triKey], minCount: 2) {
-            return hit
+        return lock.withLock {
+            if let triKey = context.triKey,
+               let hit = Self.confident(trigram[triKey], minCount: 2) {
+                return hit
+            }
+            return Self.confident(bigram[context.last], minCount: 3)
         }
-        return Self.confident(bigram[context.last], minCount: 3)
     }
 
     /// Complete the partial word at the caret from the personal vocabulary:
@@ -93,28 +94,26 @@ final class PersonalNgram: @unchecked Sendable {
     func completeWord(partial: String) -> String? {
         guard partial.count >= 3 else { return nil }
         let folded = Self.fold(partial)
-        lock.lock()
-        defer { lock.unlock() }
-        var best: (word: String, count: Int)?
-        var runnerUp = 0
-        for (word, count) in unigram[Self.prefixKey(folded)] ?? [:] where word.count >= partial.count + 2 {
-            guard Self.fold(word).hasPrefix(folded) else { continue }
-            if count > (best?.count ?? 0) {
-                runnerUp = best?.count ?? 0
-                best = (word, count)
-            } else if count > runnerUp {
-                runnerUp = count
+        return lock.withLock {
+            var best: (word: String, count: Int)?
+            var runnerUp = 0
+            for (word, count) in unigram[Self.prefixKey(folded)] ?? [:] where word.count >= partial.count + 2 {
+                guard Self.fold(word).hasPrefix(folded) else { continue }
+                if count > (best?.count ?? 0) {
+                    runnerUp = best?.count ?? 0
+                    best = (word, count)
+                } else if count > runnerUp {
+                    runnerUp = count
+                }
             }
+            guard let best, best.count >= 3, best.count >= runnerUp * 2 else { return nil }
+            return String(best.word.dropFirst(partial.count))
         }
-        guard let best, best.count >= 3, best.count >= runnerUp * 2 else { return nil }
-        return String(best.word.dropFirst(partial.count))
     }
 
     /// Fold a stretch of the user's text into the counts. Callers hold no lock.
     func learn(_ text: String) {
-        lock.lock()
-        learnLocked(text)
-        lock.unlock()
+        lock.withLock { learnLocked(text) }
     }
 
     /// Live learning from a resolving suggestion's ctx snapshot — the same
@@ -128,39 +127,33 @@ final class PersonalNgram: @unchecked Sendable {
     func observe(ctx: String, app: String?) {
         guard !ctx.isEmpty else { return }
         let key = app ?? "?"
-        lock.lock()
-        defer { lock.unlock() }
-        guard prepared else { return }
-        if let prev = prevByApp[key] {
-            let delta = SuggestionJournal.newText(in: ctx, since: prev)
-            if !delta.isEmpty { learnLocked(delta) }
+        lock.withLock {
+            guard prepared else { return }
+            if let prev = prevByApp[key] {
+                let delta = SuggestionJournal.newText(in: ctx, since: prev)
+                if !delta.isEmpty { learnLocked(delta) }
+            }
+            prevByApp[key] = ctx
         }
-        prevByApp[key] = ctx
     }
 
     /// Size of the personal vocabulary — the Settings "learned words" figure.
     var wordCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return unigram.values.reduce(0) { $0 + $1.count }
+        lock.withLock { unigram.values.reduce(0) { $0 + $1.count } }
     }
 
     /// Build finished. Lets tests (and the UI, if it ever wants a spinner)
     /// await the async startup replay.
-    var isPrepared: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return prepared
-    }
+    var isPrepared: Bool { lock.withLock { prepared } }
 
     func reset() {
-        lock.lock()
-        bigram = [:]; trigram = [:]; unigram = [:]
-        prevByApp = [:]
-        started = false
-        prepared = false
-        epoch += 1
-        lock.unlock()
+        lock.withLock {
+            bigram = [:]; trigram = [:]; unigram = [:]
+            prevByApp = [:]
+            started = false
+            prepared = false
+            epoch += 1
+        }
     }
 
     private func learnLocked(_ text: String) {
