@@ -310,15 +310,9 @@ struct ConfigProjection {
     // MARK: Formatting
 
     var latencyText: String {
-        guard let ms = p50Ms else { return "—" }
-        let base = ms >= 1000
-            ? String(localized: "\(oneDecimal(Double(ms) / 1000)) s") : String(localized: "\(ms) ms")
-        return latencyIsApprox ? "≈" + base : base
+        p50Ms.map { (latencyIsApprox ? "≈" : "") + latencyLabel(ms: $0) } ?? "—"
     }
-    var memoryText: String {
-        guard let gb = ramGB else { return "—" }
-        return gb <= 0 ? String(localized: "0 GB") : String(localized: "\(oneDecimal(gb)) GB")
-    }
+    var memoryText: String { ramGB.map(gbLabel) ?? "—" }
     var computeText: String {
         guard let rel = computeRel else { return "ANE" }
         return rel < 10 ? "\(oneDecimal(rel))×" : "\(Int(rel.rounded()))×"

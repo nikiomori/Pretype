@@ -49,15 +49,12 @@ final class SettingsStore {
             Settings.hotkeyStyle = hotkeyStyle
             controller?.dismiss() }
     }
-    /// Hold-to-talk dictation. The write goes through `SettingsUI` because
+    /// Hold-to-talk dictation. The write goes through `setDictation` because
     /// switching it on is what asks for the microphone — and has to report a
     /// refusal, since macOS only ever prompts once.
     var dictation = false {
         didSet { guard !syncing, oldValue != dictation else { return }
-            SettingsUI.setDictation(dictation) { [weak self] granted in
-                guard let self, !granted else { return }
-                self.quietly { self.dictation = false }
-            } }
+            setDictation(dictation) }
     }
     var dictationInput = "auto" {
         didSet { guard !syncing, oldValue != dictationInput else { return }
@@ -103,7 +100,7 @@ final class SettingsStore {
     var apiText = APIConfig(provider: APIProvider.all[0], kind: .text) {
         didSet { guard !syncing, oldValue != apiText else { return }
             Settings.apiText = apiText
-            apiTextTest = nil
+            apiTests[.text] = nil
             if apiText.enabled != oldValue.enabled {
                 apiRebuild?.cancel()
                 controller?.engineCoordinator.rebuild()
@@ -128,12 +125,11 @@ final class SettingsStore {
     var apiAudio = APIConfig(provider: APIProvider.all[0], kind: .audio) {
         didSet { guard !syncing, oldValue != apiAudio else { return }
             Settings.apiAudio = apiAudio
-            apiAudioTest = nil
+            apiTests[.audio] = nil
             refreshDictationLanguage() }
     }
     /// The last "Test" result per kind, or "Testing…"; cleared by any edit.
-    var apiTextTest: String?
-    var apiAudioTest: String?
+    var apiTests: [APIKind: String] = [:]
 
     /// Bumped when a key is saved: both sections mirror the Keychain, and one
     /// provider's key serves both (OpenAI for text AND dictation).
@@ -144,21 +140,22 @@ final class SettingsStore {
     func apiKeyChanged(provider: String) {
         apiKeyRevision += 1
         if apiText.provider == provider {
-            apiTextTest = nil
+            apiTests[.text] = nil
             if apiText.enabled { rebuildAfterTyping() }
         }
-        if apiAudio.provider == provider { apiAudioTest = nil }
+        if apiAudio.provider == provider { apiTests[.audio] = nil }
     }
 
     func testAPI(_ kind: APIKind) {
         let config = kind == .text ? apiText : apiAudio
-        if kind == .text { apiTextTest = String(localized: "Testing…") } else { apiAudioTest = String(localized: "Testing…") }
+        apiTests[kind] = String(localized: "Testing…")
         Task { @MainActor [weak self] in
             let result = kind == .text ? await CloudEngine.test(config) : await CloudTranscription.test(config)
             guard let self else { return }
             // An edit made during the round trip already cleared the line.
-            if kind == .text, self.apiText == config, self.apiTextTest != nil { self.apiTextTest = result }
-            if kind == .audio, self.apiAudio == config, self.apiAudioTest != nil { self.apiAudioTest = result }
+            if self.apiTests[kind] != nil, (kind == .text ? self.apiText : self.apiAudio) == config {
+                self.apiTests[kind] = result
+            }
         }
     }
 
@@ -237,7 +234,7 @@ final class SettingsStore {
     }
     var screenContext = false {
         didSet { guard !syncing, oldValue != screenContext else { return }
-            SettingsUI.setScreenContext(screenContext) }
+            setScreenContext(screenContext) }
     }
     /// Login-item state, re-read from launchd on every `sync()` — there is no
     /// stored mirror to keep in step (see `LoginItem`). Writes go through
@@ -348,12 +345,7 @@ final class SettingsStore {
 
     /// The language a capture would open with right now, named — so "Follow
     /// keyboard" can show what it currently resolves to.
-    var dictationLanguageName: String {
-        let locale = Settings.resolvedDictationLocale
-        return Locale.current.localizedString(forIdentifier: locale.identifier)
-            ?? Locale.current.localizedString(forLanguageCode: locale.identifier)
-            ?? locale.identifier
-    }
+    var dictationLanguageName: String { Transcription.name(of: Settings.resolvedDictationLocale) }
 
     /// Load the transcriber's language list once (async, never changes within
     /// a session). Sorted by their names in the user's own locale.
@@ -607,7 +599,7 @@ final class SettingsStore {
         alert.addButton(withTitle: String(localized: "Add"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
-        SettingsUI.present(alert) { [weak self] in
+        Self.present(alert) { [weak self] in
             guard let self, let host = Self.host(fromTyped: field.stringValue) else { return }
             let key = AppPolicy.siteEntry(host)
             if perAppInstructions[key] == nil { perAppInstructions[key] = PerAppPresets.template(for: key) ?? "" }
@@ -635,7 +627,90 @@ final class SettingsStore {
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.prompt = prompt
         panel.message = message
-        SettingsUI.run(panel, picked: picked)
+        Self.run(panel, picked: picked)
+    }
+
+    // MARK: Permission flows and sheets
+
+    /// Turn screen-context OCR on or off. Enabling it without permission
+    /// explains what is needed first, as a sheet; only on "Open System
+    /// Settings" does it register the app with TCC and open the Screen
+    /// Recording pane — and it doesn't pull Pretype back in front after,
+    /// which raced System Settings for the user's attention.
+    private func setScreenContext(_ enable: Bool) {
+        Settings.screenContextEnabled = enable
+        guard enable, !ScreenContext.hasPermission else { return }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Screen Recording permission")
+        alert.informativeText = String(localized: """
+        Screen context reads the window you're typing in, on this Mac, and macOS \
+        asks for Screen Recording permission for that. Enable Pretype in System \
+        Settings → Privacy & Security → Screen Recording, then quit and relaunch \
+        Pretype — macOS applies this permission only at app launch.
+        """)
+        alert.addButton(withTitle: String(localized: "Open System Settings"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        Self.present(alert) { ScreenContext.openScreenRecordingPane() }
+    }
+
+    /// Turn hold-to-talk dictation on or off. Enabling asks for the microphone
+    /// the first time; a refusal — just now, or earlier, which macOS never asks
+    /// about twice — can only be undone in System Settings, so that case snaps
+    /// the switch back, says so and offers the pane instead of leaving a switch
+    /// that flips and does nothing.
+    private func setDictation(_ enable: Bool) {
+        guard enable else {
+            Settings.dictationEnabled = false
+            return
+        }
+        Task { @MainActor [weak self] in
+            let granted = await MicrophoneAccess.request()
+            Settings.dictationEnabled = granted
+            guard !granted else { return }
+            self?.quietly { self?.dictation = false }
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Pretype needs the microphone")
+            alert.informativeText = String(localized: """
+            Dictation transcribes what you say on this Mac and types it into the field \
+            you're in. Nothing is recorded to disk and nothing leaves your computer.
+
+            Allow Pretype under System Settings → Privacy & Security → Microphone, \
+            then switch dictation on again.
+            """)
+            alert.addButton(withTitle: String(localized: "Open System Settings"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+            Self.present(alert) {
+                if let url = MicrophoneAccess.settingsURL { NSWorkspace.shared.open(url) }
+            }
+        }
+    }
+
+    /// The Settings window, for sheets — nil once it has closed.
+    private static var settingsWindow: NSWindow? {
+        NSApp.windows.first {
+            $0.isVisible && $0.contentViewController is NSHostingController<SettingsRootView>
+        }
+    }
+
+    /// `alert` as a sheet on the Settings window (app-modal only if that is
+    /// gone); `confirmed` runs on its first button.
+    private static func present(_ alert: NSAlert, confirmed: @escaping () -> Void) {
+        guard let window = settingsWindow else {
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn { confirmed() }
+            return
+        }
+        alert.beginSheetModal(for: window) { if $0 == .alertFirstButtonReturn { confirmed() } }
+    }
+
+    /// `panel` as a sheet on the Settings window (app-modal only if that is
+    /// gone); `picked` gets the chosen URLs on OK.
+    private static func run(_ panel: NSOpenPanel, picked: @escaping ([URL]) -> Void) {
+        guard let window = settingsWindow else {
+            if panel.runModal() == .OK { picked(panel.urls) }
+            return
+        }
+        panel.beginSheetModal(for: window) { if $0 == .OK { picked(panel.urls) } }
     }
 
     /// Offer this app's (or site's) style to everyone: explain, then open it
@@ -648,7 +723,7 @@ final class SettingsStore {
         alert.informativeText = String(localized: "GitHub opens in your browser with this style ready to propose to Pretype. Everyone who uses \(name) can then add it in one click, so check it says nothing personal. Nothing is sent until you submit it there (a free GitHub account is needed).")
         alert.addButton(withTitle: String(localized: "Open GitHub"))
         alert.addButton(withTitle: String(localized: "Cancel"))
-        SettingsUI.present(alert) { NSWorkspace.shared.open(url) }
+        Self.present(alert) { NSWorkspace.shared.open(url) }
     }
 
     /// Preset apps installed on this Mac and not configured yet.
@@ -687,7 +762,7 @@ final class SettingsStore {
         panel.allowedContentTypes = [.plainText]
         panel.prompt = String(localized: "Import")
         panel.message = String(localized: "Choose plain-text or Markdown files you wrote — Pretype learns your phrasing from them.")
-        SettingsUI.run(panel) { [weak self] urls in self?.importTextFiles(urls) }
+        Self.run(panel) { [weak self] urls in self?.importTextFiles(urls) }
     }
 
     private func importTextFiles(_ urls: [URL]) {

@@ -14,13 +14,18 @@ enum ScreenContext {
 
     /// Makes Pretype appear in System Settings → Screen Recording: TCC only
     /// lists an app after it actually attempts a capture query, a plain
-    /// CGRequestScreenCaptureAccess() is not enough on modern macOS.
-    static func registerWithTCC() {
+    /// CGRequestScreenCaptureAccess() is not enough on modern macOS. Then
+    /// opens that pane. Every "Open System Settings" for Screen Recording
+    /// goes through here, or the user lands on a list without us.
+    @MainActor static func openScreenRecordingPane() {
         CGRequestScreenCaptureAccess()
         Task {
             _ = try? await SCShareableContent.excludingDesktopWindows(
                 true, onScreenWindowsOnly: true
             )
+        }
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
         }
     }
 

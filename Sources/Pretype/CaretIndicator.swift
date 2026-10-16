@@ -18,16 +18,6 @@ final class CaretIndicator {
         self.owner = owner
     }
 
-    /// The idle-unloaded resting state reports `.preparing` with nothing
-    /// running; the keystroke reloads it in well under a second. At the caret
-    /// that is just a slow query (dots), not "idle — model unloaded" flashed
-    /// over the user's text.
-    private var engineState: EngineState {
-        let engine = owner.engine
-        if case .preparing = engine.state, !engine.isLoading { return .ready }
-        return engine.state
-    }
-
     /// The ⌥⇥ fix flows run outside the completion query; without them the
     /// timer sees .ready + idle at its first tick and kills the thinking dots.
     private var isQueryRunning: Bool {
@@ -77,7 +67,9 @@ final class CaretIndicator {
 
     private func update() {
         guard let rect = owner.lastCaretRect else { return }
-        switch engineState {
+        // `shownState`: an idle-unloaded reload is just a slow query here
+        // (dots), not "idle — model unloaded" flashed over the user's text.
+        switch owner.engine.shownState {
         case .preparing(let detail):
             // Same invariant as .ready: never overdraw a live ghost (the
             // instant n-gram suggestion can be up while the model loads) —

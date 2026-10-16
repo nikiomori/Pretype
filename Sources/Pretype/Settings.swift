@@ -73,7 +73,7 @@ enum PersonalizationLevel: String {
 ///   when the caret can only be estimated.
 /// - `inline`: ghost text drawn on the line itself (Cotypist-style) — needs an
 ///   accurate caret and still shows drawing glitches, so the UI marks it unstable.
-enum SuggestionPresentation: String, CaseIterable {
+enum SuggestionPresentation: String {
     case inline
     case panel
 }
@@ -145,27 +145,10 @@ enum DictationGesture: String, CaseIterable {
         }
     }
 
-    /// Short form for the caret pill and the menu ("⌥ to talk").
-    var shortLabel: String {
-        switch self {
-        case .option: return "⌥"
-        case .command: return "⌘"
-        case .control: return "⌃"
-        case .off: return ""
-        }
-    }
-
-    /// Both physical keys to watch and the flag they raise — same shape as
-    /// `ReplyGesture`, so the tap-twin and the hold-twin of a modifier behave
-    /// identically about which key you actually reach for.
-    var keys: (codes: [Int64], mask: CGEventFlags)? {
-        switch self {
-        case .option: return ([KeyCode.leftOption, KeyCode.rightOption], .maskAlternate)
-        case .command: return ([KeyCode.leftCommand, KeyCode.rightCommand], .maskCommand)
-        case .control: return ([KeyCode.leftControl, KeyCode.rightControl], .maskControl)
-        case .off: return nil
-        }
-    }
+    /// Both physical keys to watch and the flag they raise — `ReplyGesture`'s
+    /// table (the raw values match), so the tap-twin and the hold-twin of a
+    /// modifier behave identically about which key you actually reach for.
+    var keys: (codes: [Int64], mask: CGEventFlags)? { ReplyGesture(rawValue: rawValue)?.keys }
 }
 
 /// Hands-free dictation: one chord starts a capture, the next one ends it —
@@ -210,20 +193,6 @@ enum DictationLatch: String, CaseIterable {
         guard let expected = self.keyCode, keyCode == expected else { return false }
         return flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
             == [.maskControl, .maskAlternate]
-    }
-
-    /// True when this chord is already the ⌥⇥ fix's chord under the current
-    /// base hotkey.
-    ///
-    /// No shipped combination reaches it — every fix chord is built on ⇥ or
-    /// Space and every latch chord is a letter — but it is what KEEPS that
-    /// true. The latch is matched before the fix at the tap, so this guard,
-    /// not the ordering, is what stops a new chord from silently eating ⌥⇥'s
-    /// twin; and Settings says so rather than letting the latch look broken.
-    var collidesWithFixChord: Bool {
-        guard let keyCode else { return false }
-        return Settings.hotkeyStyle.matchesCorrection(
-            keyCode: keyCode, flags: [.maskControl, .maskAlternate])
     }
 }
 
@@ -378,7 +347,9 @@ enum Settings {
         if langs.isEmpty {
             result += "I write in a friendly, professional and concise voice."
         } else {
-            result += "I write in \(formatLanguages(langs)), in a friendly, professional and concise voice."
+            // "English and Russian", "English, Russian, and German".
+            let list = langs.formatted(.list(type: .and).locale(Locale(identifier: "en_US")))
+            result += "I write in \(list), in a friendly, professional and concise voice."
         }
         return result
     }
@@ -409,9 +380,7 @@ enum Settings {
     /// language (some IMEs, the emoji picker).
     static var currentKeyboardLanguage: String? {
         guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
-              let langPtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages),
-              let langs = Unmanaged<CFArray>.fromOpaque(langPtr).takeUnretainedValue() as? [String],
-              let first = langs.first, !first.isEmpty else { return nil }
+              let first = firstLanguage(of: source), !first.isEmpty else { return nil }
         return first
     }
 
@@ -428,20 +397,15 @@ enum Settings {
                 let type = Unmanaged<CFString>.fromOpaque(typePtr).takeUnretainedValue() as String
                 guard keyboardTypes.contains(type) else { continue }
             }
-            if let langPtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages),
-               let langs = Unmanaged<CFArray>.fromOpaque(langPtr).takeUnretainedValue() as? [String],
-               let first = langs.first {
-                result.append(first)
-            }
+            if let first = firstLanguage(of: source) { result.append(first) }
         }
         return result
     }
 
-    /// "English", "English and Russian", "English, Russian, and German".
-    private static func formatLanguages(_ names: [String]) -> String {
-        let formatter = ListFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        return formatter.string(from: names) ?? ""
+    /// The first language an input source declares ("ru"), if any.
+    private static func firstLanguage(of source: TISInputSource) -> String? {
+        guard let ptr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages) else { return nil }
+        return (Unmanaged<CFArray>.fromOpaque(ptr).takeUnretainedValue() as? [String])?.first
     }
 
     /// Gemma registered Instruct until 2026-10-14 (E2B) and -15 (E4B). An
@@ -458,6 +422,9 @@ enum Settings {
 
     /// One-shot rewrites of stored values. Runs first thing in main.
     static func migrate(isFetched: (String) -> Bool = ModelStorage.isFetched) {
+        // The ghost slider's floor rose from 0.1 to 0.4; a value stored under
+        // the old one kept the ghost near-invisible.
+        if ghostOpacity < 0.4 { ghostOpacity = 0.4 }
         // `object(forKey:)`, not `completionStyle`: the property answers an
         // unset key with its default.
         if defaults.object(forKey: "completionStyle") == nil, keepsLegacyInstruct(model: mlxModelID, isFetched: isFetched) {
@@ -647,10 +614,8 @@ enum Settings {
 
     /// 0.45 read as near-invisible over real app backgrounds; 0.7 is still
     /// clearly "ghost" next to the host text but survives noise.
-    @Pref("ghostOpacity", 0.7) private static var storedGhostOpacity: Double
-    /// Floored like the Settings slider (0.4…1): a value stored under the old
-    /// 0.1 floor would otherwise keep the ghost near-invisible.
-    static var ghostOpacity: Double { max(0.4, storedGhostOpacity) }
+    /// Floored at 0.4 by `migrate()`, like the Settings slider.
+    @Pref("ghostOpacity", 0.7) static var ghostOpacity: Double
 
     @Pref("hotkeyStyle", HotkeyStyle.tab) static var hotkeyStyle: HotkeyStyle
 
@@ -755,14 +720,9 @@ enum LoginItem {
     /// SMAppService registers a login item *by bundle*. A bare `swift build`
     /// binary has no .app around it, so `register()` could only ever throw —
     /// the toggle says so instead of failing silently.
-    static var isSupported: Bool { Bundle.main.bundleURL.pathExtension == "app" }
+    static var isSupported: Bool { MicrophoneAccess.isBundled }
 
     static var status: SMAppService.Status { SMAppService.mainApp.status }
-
-    /// Registered *and* allowed to run. `.requiresApproval` means the job exists
-    /// but macOS is holding it — on, yet doing nothing, which is exactly the
-    /// state a switch must not show as on.
-    static func isOn(_ status: SMAppService.Status) -> Bool { status == .enabled }
 
     /// Extra line under the toggle when the plain caption isn't the whole story.
     static func note(_ status: SMAppService.Status) -> String? {

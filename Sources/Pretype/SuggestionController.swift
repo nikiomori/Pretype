@@ -1269,10 +1269,9 @@ final class SuggestionController {
     private func isLatchChord(keyCode: Int64, flags: CGEventFlags) -> Bool {
         let latch = Settings.dictationLatch
         guard latch != .off, Settings.dictationEnabled else { return false }
+        // Matched before the fix chord: no latch chord may equal one
+        // (HotkeyTests pins that).
         guard latch.matches(keyCode: keyCode, flags: flags) else { return false }
-        // Where the two collide the fix chord wins, and Settings says so —
-        // eating it here would make ⌥⇥'s twin silently stop fixing text.
-        guard !latch.collidesWithFixChord else { return false }
         // An app Pretype has been told to stay out of is one where holding on
         // to its keystrokes is still being in the way; `begin` would refuse a
         // moment later anyway, having already eaten the key. A terminal is

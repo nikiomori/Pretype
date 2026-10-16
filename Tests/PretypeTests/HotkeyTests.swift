@@ -29,6 +29,20 @@ final class HotkeyTests: XCTestCase {
         XCTAssertTrue(HotkeyStyle.optSpace.matchesCorrection(keyCode: space, flags: [.maskCommand, .maskAlternate]))
     }
 
+    // The tap matches the hands-free latch before the fix chord, so a latch
+    // chord equal to a fix chord would silently eat the fix.
+    func testLatchChordNeverEqualsFixChord() {
+        let flags: CGEventFlags = [.maskControl, .maskAlternate]
+        for latch in DictationLatch.allCases where latch != .off {
+            let codes = (Int64(0)..<128).filter { latch.matches(keyCode: $0, flags: flags) }
+            XCTAssertEqual(codes.count, 1, latch.label)
+            for style in HotkeyStyle.allCases {
+                XCTAssertFalse(codes.contains { style.matchesCorrection(keyCode: $0, flags: flags) },
+                               "\(latch.label) vs \(style.label)")
+            }
+        }
+    }
+
     // ⌘Z undo-accept must be an EXACT chord: ⇧⌘Z (redo) and ⌥⌘Z belong to the
     // app — matching them swallowed the app's redo and deleted text.
     func testPlainCommandZMatcher() {

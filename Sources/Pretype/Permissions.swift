@@ -9,9 +9,8 @@ enum Permissions {
     /// Security → Accessibility as "Device Control and Data Access" (same
     /// TCC service, same deep link), so the old name sends users hunting.
     static var paneName: String {
-        ProcessInfo.processInfo.isOperatingSystemAtLeast(
-            OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0))
-            ? String(localized: "Device Control and Data Access") : String(localized: "Accessibility")
+        if #available(macOS 27, *) { return String(localized: "Device Control and Data Access") }
+        return String(localized: "Accessibility")
     }
 
     /// The one re-grant instruction, shared by the launch alert and the
@@ -29,9 +28,8 @@ enum Permissions {
     /// click those instructions send the user to wants the prompt, not them again.
     @MainActor static var explainedRegrant = false
 
-    @discardableResult
-    static func prompt() -> Bool {
+    static func prompt() {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        return AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+        AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
     }
 }

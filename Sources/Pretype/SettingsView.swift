@@ -69,14 +69,16 @@ func latencyLabel(ms: Int) -> String {
     ms >= 1000 ? String(localized: "\(oneDecimal(Double(ms) / 1000)) s") : String(localized: "\(ms) ms")
 }
 
+/// "1.4 GB" — one decimal, the unit through the catalog; "0 GB" for the
+/// system model, which holds no app memory.
+func gbLabel(_ gb: Double) -> String {
+    gb <= 0 ? String(localized: "0 GB") : String(localized: "\(oneDecimal(gb)) GB")
+}
+
 // MARK: - Root
 
-enum SettingsTab: String, CaseIterable {
-    case general = "General"
-    case suggestions = "Suggestions"
-    case model = "Model"
-    case personalization = "Personalization"
-    case api = "API"
+enum SettingsTab: CaseIterable {
+    case general, suggestions, model, personalization, api
 
     /// Sidebar icon.
     var symbol: String {
@@ -89,7 +91,7 @@ enum SettingsTab: String, CaseIterable {
         }
     }
 
-    /// Sidebar label and pane title; `rawValue` stays the identity.
+    /// Sidebar label and pane title.
     var title: String {
         switch self {
         case .general: return String(localized: "General")
@@ -153,9 +155,7 @@ struct SettingsRootView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
                         Text(verbatim: "Pretype").font(.headline)
-                        if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                            Text("v\(v)").font(.caption2).foregroundStyle(.tertiary)
-                        }
+                        Text("v\(UpdateChecker.currentVersion)").font(.caption2).foregroundStyle(.tertiary)
                     }
                 }
                 Spacer(minLength: 0)
@@ -221,15 +221,6 @@ private struct EngineStatusFooter: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
-    }
-}
-
-/// Liquid Glass. For small
-/// floating layers only (chart info card and the like) — content sections
-/// stay on standard backgrounds.
-extension View {
-    func glassCard(cornerRadius: CGFloat = 10) -> some View {
-        glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
     }
 }
 
@@ -338,10 +329,6 @@ struct GeneralTab: View {
     /// The interface-language override; "" follows the system.
     @State private var language = AppLanguage.override ?? ""
 
-    /// Floored like `Settings.ghostOpacity`: a value stored under the old 0.1
-    /// floor must not preview fainter than the ghost actually draws.
-    private var ghost: Double { max(0.4, ghostOpacity) }
-
     /// The speech model the dictation language resolves to, for the Language
     /// row's subtitle.
     private var speechModel: String? {
@@ -373,12 +360,12 @@ struct GeneralTab: View {
                     // animate its own insertion from a Section modifier.
                     PresentationCard(mode: .panel, title: String(localized: "Panel"),
                                      isSelected: store.presentation == .panel,
-                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghost) {
+                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
                     }
                     PresentationCard(mode: .inline, title: String(localized: "Inline"), badge: String(localized: "Unstable"),
                                      isSelected: store.presentation == .inline,
-                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghost) {
+                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
                     }
                 }
@@ -417,9 +404,9 @@ struct GeneralTab: View {
                             // near-invisible, and below that the ghost vanished.
                             Slider(value: $ghostOpacity, in: 0.4...1, step: 0.05)
                                 .accessibilityLabel("Ghost visibility")
-                                .accessibilityValue("\(Int(ghost * 100)) percent")
+                                .accessibilityValue("\(Int(ghostOpacity * 100)) percent")
                             Text("Bold").font(.caption).foregroundStyle(.secondary)
-                            Text("\(Int(ghost * 100))%")
+                            Text("\(Int(ghostOpacity * 100))%")
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                                 .frame(width: 36, alignment: .trailing)
@@ -429,7 +416,7 @@ struct GeneralTab: View {
                     }
                 }
                 OverlayPreview(presentation: store.presentation,
-                               opacity: ghost,
+                               opacity: ghostOpacity,
                                hotkey: store.hotkeyStyle)
             }
 
@@ -454,7 +441,7 @@ struct GeneralTab: View {
                                fixTitle: String(localized: "Turn On")) { store.screenContext = true }
                 RequirementRow(met: ScreenContext.hasPermission,
                                text: String(localized: "Screen Recording allowed (then relaunch Pretype)"),
-                               fixTitle: String(localized: "Open System Settings…")) { SettingsUI.openScreenRecordingPane() }
+                               fixTitle: String(localized: "Open System Settings…")) { ScreenContext.openScreenRecordingPane() }
             }
 
             // Right under the reply checklist that asks for it, not on the
@@ -521,9 +508,6 @@ struct GeneralTab: View {
                         }
                         .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording starts on the keypress itself. ⎋ throws the capture away, and moving to another field ends it.")
                         if dictationLatch != .off {
-                            if dictationLatch.collidesWithFixChord {
-                                Caption(String(localized: "⚠︎ \(dictationLatch.label) is also the fix chord, and the fix wins. Pick the other chord."))
-                            }
                             Picker("Stop after silence", selection: $dictationSilence) {
                                 Text("Never").tag(0.0)
                                 Text("3 seconds").tag(3.0)
@@ -565,9 +549,7 @@ struct GeneralTab: View {
                             Text("Follow keyboard").tag("auto")
                             Divider()
                             ForEach(store.dictationLocales, id: \.identifier) { locale in
-                                Text(Locale.current.localizedString(forIdentifier: locale.identifier)
-                                    ?? locale.identifier)
-                                    .tag(locale.identifier)
+                                Text(Transcription.name(of: locale)).tag(locale.identifier)
                             }
                         } label: {
                             Text("Language")
@@ -693,8 +675,10 @@ struct GeneralTab: View {
                 // Bound to launchd, not to a stored bool: the same switch lives
                 // in System Settings → Login Items, and mirroring it in
                 // UserDefaults would eventually show a state that isn't real.
+                // Only `.enabled` is on: `.requiresApproval` is registered but
+                // held by macOS — on, yet doing nothing.
                 Toggle(isOn: Binding(
-                    get: { LoginItem.isOn(store.loginStatus) },
+                    get: { store.loginStatus == .enabled },
                     set: { store.setOpenAtLogin($0) }
                 )) {
                     Text("Open at login")
@@ -771,16 +755,17 @@ private struct BlacklistRow: View {
                 Text(entry).font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
-            removeButton(removeLabel(resolved.name), help: removeHelp, action: remove)
+            iconButton("minus.circle.fill", label: removeLabel(resolved.name), help: removeHelp, action: remove)
         }
     }
 }
 
-/// A list row's trailing minus. The label names the row: .help is a hint, not
-/// a name — without it every row's remove button announces identically.
-@MainActor private func removeButton(_ label: String, help: String, action: @escaping () -> Void) -> some View {
+/// A list row's trailing icon (remove, share). The label names the row: .help
+/// is a hint, not a name — without it every row's button announces identically.
+@MainActor private func iconButton(_ symbol: String, label: String, help: String,
+                                   action: @escaping () -> Void) -> some View {
     Button(action: action) {
-        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+        Image(systemName: symbol).foregroundStyle(.secondary)
             .frame(width: 22, height: 22)
             .contentShape(Rectangle())
     }
@@ -840,17 +825,13 @@ private struct PerAppInstructionRow: View {
                 .controlSize(.small)
             let text = (store.perAppInstructions[bundleID] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty, text != PerAppPresets.community[bundleID] {
-                Button { store.shareStyle(bundleID, name: resolved.name) } label: {
-                    Image(systemName: "square.and.arrow.up").foregroundStyle(.secondary)
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
+                iconButton("square.and.arrow.up", label: String(localized: "Share the style for \(resolved.name)"),
+                           help: String(localized: "Share this style with other Pretype users")) {
+                    store.shareStyle(bundleID, name: resolved.name)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Share the style for \(resolved.name)")
-                .help("Share this style with other Pretype users")
             }
-            removeButton(String(localized: "Remove instructions for \(resolved.name)"),
-                         help: String(localized: "Remove this app's instructions")) {
+            iconButton("minus.circle.fill", label: String(localized: "Remove instructions for \(resolved.name)"),
+                       help: String(localized: "Remove this app's instructions")) {
                 store.perAppInstructions.removeValue(forKey: bundleID)
             }
         }
@@ -1032,8 +1013,7 @@ struct SuggestionsTab: View {
                 Section {
                     Caption(String(localized: "Style and precision don't apply to Apple Intelligence."))
                 }
-            }
-            if !store.isAppleIntelligence {
+            } else {
                 Section {
                     Toggle(isOn: $store.useRecommended) {
                         Text("Use recommended settings")
@@ -1048,8 +1028,7 @@ struct SuggestionsTab: View {
 
                 Section {
                     HoverSegments(title: String(localized: "Style"),
-                                  options: [(CompletionStyle.base, String(localized: "Base")),
-                                            (CompletionStyle.instruct, String(localized: "Instruct"))],
+                                  options: CompletionStyle.allCases.map { ($0, $0.label) },
                                   selection: store.style,
                                   select: { style in
                                       // Base↔Instruct inserts/removes requirement
@@ -1092,9 +1071,7 @@ struct SuggestionsTab: View {
 
             Section {
                 HoverSegments(title: String(localized: "Length"),
-                              options: [(CompletionLength.short, String(localized: "Short")),
-                                        (CompletionLength.medium, String(localized: "Medium")),
-                                        (CompletionLength.long, String(localized: "Long"))],
+                              options: CompletionLength.allCases.map { ($0, $0.label) },
                               selection: store.length,
                               select: { store.length = $0 },
                               hover: { length, hovering in

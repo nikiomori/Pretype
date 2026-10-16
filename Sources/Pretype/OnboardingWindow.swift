@@ -7,14 +7,9 @@ final class OnboardingWindow: NSPanel {
     private weak var controller: SuggestionController?
     private let card = OnboardingCard()
 
-    /// Mirrors the engine state (model download progress, failures) into the
-    /// window — without this, a first launch spends minutes "Waiting for
-    /// suggestion…" while the model downloads, with no hint anything is
-    /// happening (the menu-bar icon alone is easy to miss).
-    private var statusTimer: Timer?
-
     init(controller: SuggestionController?) {
         self.controller = controller
+        card.controller = controller
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 280),
@@ -36,10 +31,7 @@ final class OnboardingWindow: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
 
         card.tryIt = { Self.openTextEdit() }
-        card.retry = { [weak self] in
-            self?.controller?.engineCoordinator.rebuild()
-            self?.refreshEngineStatus()
-        }
+        card.retry = { [weak self] in self?.controller?.engineCoordinator.rebuild() }
         card.gotIt = { [weak self] in
             Settings.onboardingCompleted = true
             self?.dismiss()
@@ -56,7 +48,6 @@ final class OnboardingWindow: NSPanel {
         // Top-right, under the menu bar: centred, it sat on top of the very
         // window it asked the user to type in — and up here it points at
         // where Pretype lives once this card is gone.
-        refreshEngineStatus()
         let size = contentView?.fittingSize ?? frame.size
         setContentSize(size)
         setFrameOrigin(CGPoint(x: screenFrame.maxX - size.width - 16, y: screenFrame.maxY - size.height - 12))
@@ -69,23 +60,6 @@ final class OnboardingWindow: NSPanel {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             animator().alphaValue = 1
         }
-
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refreshEngineStatus()
-            }
-        }
-    }
-
-    /// Same 1 s poll the menu-bar icon uses — no engine callback plumbing.
-    private func refreshEngineStatus() {
-        guard !card.suggestionActive, !card.celebrating else { return }
-        let engine = controller?.engine
-        var state = engine?.state ?? .ready
-        // Idle-unloaded is `.preparing` with nothing running; it reloads on
-        // the first keystroke, so for this card it is ready.
-        if case .preparing = state, engine?.isLoading == false { state = .ready }
-        if card.engine != state { card.engine = state }
     }
 
     /// The first accept: say it worked before going, instead of vanishing on
@@ -109,8 +83,6 @@ final class OnboardingWindow: NSPanel {
     }
 
     func dismiss() {
-        statusTimer?.invalidate()
-        statusTimer = nil
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.2
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -125,10 +97,9 @@ final class OnboardingWindow: NSPanel {
 
     func updateStatusSuggestionActive(_ active: Bool) {
         // apply() calls this on every suggestion; without the edge check the title
-        // restarts its blink on each keystroke and refreshEngineStatus() thrashes.
+        // restarts its blink on each keystroke.
         guard card.suggestionActive != active else { return }
         card.suggestionActive = active
-        if !active { refreshEngineStatus() }
     }
 }
 
@@ -143,7 +114,11 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
 @MainActor
 @Observable
 final class OnboardingCard {
-    var engine = EngineState.ready
+    /// Read live — the view re-reads it once a second, like the menu-bar
+    /// icon — so a first launch shows the model download instead of minutes
+    /// of waiting with no hint anything is happening.
+    var engine: EngineState { controller?.engine.shownState ?? .ready }
+    @ObservationIgnored weak var controller: SuggestionController?
     var suggestionActive = false
     var celebrating = false
     @ObservationIgnored var tryIt: () -> Void = {}
@@ -202,7 +177,12 @@ struct OnboardingCardView: View {
         }
     }
 
+    /// The engine state is polled, not observed: a tick re-reads it.
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in content }
+    }
+
+    private var content: some View {
         // Keycaps follow the configured hotkey — hardcoding Tab taught the wrong
         // keys to anyone on ⌘/⌥/⌃Space. Same labels the menu and overlay use.
         let hotkey = Settings.hotkeyStyle
@@ -210,7 +190,7 @@ struct OnboardingCardView: View {
         // Pulses the title three times while the first suggestion is up, to
         // draw the eye to it; held at full opacity otherwise.
         let pulsing = card.suggestionActive && !card.celebrating
-        VStack(spacing: 16) {
+        return VStack(spacing: 16) {
             VStack(spacing: 4) {
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))
@@ -259,22 +239,6 @@ struct OnboardingCardView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
-        .background(HUDBackdrop())
+        .glassEffect(.regular, in: .rect(cornerRadius: 16))
     }
-}
-
-/// The card's frosted HUD backdrop, blurred against what is behind the window.
-private struct HUDBackdrop: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.state = .active
-        view.blendingMode = .behindWindow
-        view.wantsLayer = true
-        view.layer?.cornerRadius = 16
-        view.layer?.masksToBounds = true
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }

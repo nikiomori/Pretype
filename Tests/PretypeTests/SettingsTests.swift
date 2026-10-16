@@ -47,15 +47,9 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(UpdateChecker.isNewer("nightly", than: "0.1.0"))
     }
 
-    // The login item's truth lives in launchd, so the only thing to pin is the
-    // mapping: only .enabled is "on" — .requiresApproval is registered but held
-    // by macOS, and a switch that shows it as on would be lying.
-    func testLoginItemStatusMapping() {
-        XCTAssertTrue(LoginItem.isOn(.enabled))
-        XCTAssertFalse(LoginItem.isOn(.requiresApproval))
-        XCTAssertFalse(LoginItem.isOn(.notRegistered))
-        XCTAssertFalse(LoginItem.isOn(.notFound))
-        // Held-by-macOS is the one state that needs its own explanation.
+    // The login item's truth lives in launchd; held-by-macOS is the one state
+    // that needs its own explanation.
+    func testLoginItemHeldStateIsExplained() {
         XCTAssertNotNil(LoginItem.note(.requiresApproval))
     }
 

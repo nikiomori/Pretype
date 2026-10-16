@@ -25,7 +25,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// the menu opened.
     private var menuIsOpen = false
 
-    private var statusTimer: Timer?
     private var iconPhase = 0   // animates the preparing-state typing dots
     private var lastIconID = ""  // gates the icon redraw (kept off the a11y label)
     private var settingsWindow: SettingsWindowController?
@@ -57,7 +56,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // its own mode, and a default-mode timer stops for exactly as long as
         // the user is looking at the menu.
         RunLoop.main.add(timer, forMode: .common)
-        statusTimer = timer
         updateStatusIcon()
     }
 
@@ -73,12 +71,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         } else if suggestionController?.dictationController.isCapturing == true {
             state = .listening                    // the microphone is open right now
         } else if let engine = suggestionController?.engine {
-            switch engine.state {
+            // `shownState`: idle-unloaded is the app's most common resting
+            // state, and animating "loading" dots for hours over it was a
+            // false alarm.
+            switch engine.shownState {
             case .ready: state = .ready
-            // Idle-unloaded is `.preparing` with nothing running — the app's
-            // most common resting state, and it reloads on the next keystroke.
-            // Animating "loading" dots for hours over it was a false alarm.
-            case .preparing: state = engine.isLoading ? .preparing : .ready
+            case .preparing: state = .preparing
             case .failed: state = .failed         // engine not working
             }
         } else {
@@ -226,9 +224,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// Menu-sized template symbol. Every action row gets one: half-iconned rows
     /// are a large part of why the menu read as unstructured.
     private func symbol(_ name: String) -> NSImage? {
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
-        image?.isTemplate = true
-        return image
+        NSImage(systemSymbolName: name, accessibilityDescription: nil)
     }
 
     /// An action row targeting this controller, appended to `menu` (the status
@@ -272,11 +268,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         enabledItem.title = Settings.enabled ? String(localized: "Pause Pretype") : String(localized: "Resume Pretype")
         enabledItem.image = symbol(Settings.enabled ? "pause.circle" : "play.circle")
         batteryItem.state = Settings.pauseOnBattery ? .on : .off
-        if case .failed = suggestionController?.engine.state {
-            retryItem.isHidden = false
-        } else {
-            retryItem.isHidden = true
-        }
+        retryItem.isHidden = if case .failed = suggestionController?.engine.state { false } else { true }
         // Settings needs the pipeline, which starts once Accessibility is
         // granted — until then the item greys out (nil action) and says why,
         // instead of silently doing nothing when clicked.
@@ -440,7 +432,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // Only once it's switched on: a shortcut for a feature the user hasn't
         // enabled is a line of noise in a list that has to stay scannable.
         let talk = Settings.dictationEnabled && Settings.dictationGesture != .off
-            ? String(localized: "Hold \(Settings.dictationGesture.shortLabel)") : nil
+            ? Settings.dictationGesture.label : nil
         let latch = Settings.dictationEnabled && Settings.dictationLatch != .off
             ? Settings.dictationLatch.label : nil
         guard Stats.tutorsAccept else {

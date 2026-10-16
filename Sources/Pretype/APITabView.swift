@@ -7,8 +7,8 @@ struct APITab: View {
 
     var body: some View {
         Form {
-            APIEndpointSection(kind: .text, config: $store.apiText, test: store.apiTextTest, store: store)
-            APIEndpointSection(kind: .audio, config: $store.apiAudio, test: store.apiAudioTest, store: store)
+            APIEndpointSection(kind: .text, config: $store.apiText, store: store)
+            APIEndpointSection(kind: .audio, config: $store.apiAudio, store: store)
         }
         .formStyle(.grouped)
     }
@@ -17,13 +17,13 @@ struct APITab: View {
 private struct APIEndpointSection: View {
     let kind: APIKind
     @Binding var config: APIConfig
-    let test: String?
     let store: SettingsStore
     /// The field's text. The key itself lives in the Keychain and is written
     /// through on every edit; this only mirrors it.
     @State private var key = ""
 
     private var provider: APIProvider { config.preset }
+    private var test: String? { store.apiTests[kind] }
     private var host: String {
         URL(string: config.baseURL)?.host
             ?? String(localized: "the server", comment: "Stands in for the host name in the API privacy note.")

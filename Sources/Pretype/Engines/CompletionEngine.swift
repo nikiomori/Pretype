@@ -281,6 +281,16 @@ enum EngineState: Equatable {
     case failed(String)
 }
 
+extension CompletionEngine {
+    /// `state` as the user sees it: the idle-unloaded resting state reports
+    /// `.preparing` with nothing running, and the next keystroke reloads it —
+    /// ready, not loading.
+    var shownState: EngineState {
+        if case .preparing = state, !isLoading { return .ready }
+        return state
+    }
+}
+
 /// An explicit request (⌥⇥ fix, ⌥⇧⇥ reply) reached an engine with no model to
 /// run it on. Thrown, not returned as nil: nil means "nothing to fix" and
 /// shows "✓ looks fine" — a verdict on text no model ever read.

@@ -19,10 +19,6 @@ struct ModelTab: View {
     /// selection, so cards, map and ranking always tell the same story.
     private var axis: String { store.effectiveAxis }
 
-    private func langName(_ code: String) -> String {
-        Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code
-    }
-
     /// Priority cards for the current axis with duplicates collapsed: when two
     /// goals land on the same model (Balanced == Quick & accurate on EN/RU,
     /// where the default is picked to be the fastest at parity) the first in
@@ -54,7 +50,7 @@ struct ModelTab: View {
                     Text("All languages").tag("*")
                     Divider()
                     ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
-                        Text(langName(code)).tag(code)
+                        Text(ModelMetrics.axisDisplayName(code)).tag(code)
                     }
                 }
                 // Not disabled while the map is on: picking a language turns the
@@ -403,7 +399,7 @@ struct ModelRow: View {
                                   color: .blue,
                                   help: String(localized: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster."))
                         MetricBar(label: String(localized: "Memory"), fraction: Bounds.lightness(m),
-                                  text: m.ramGB > 0 ? gbLabel(m.ramGB) : String(localized: "0 GB"),
+                                  text: gbLabel(m.ramGB),
                                   color: .teal,
                                   help: m.ramGB > 0
                                     ? String(localized: "Resident weights: \(oneDecimal(m.ramGB)) GB — longer bar = lighter.")
@@ -563,7 +559,7 @@ private struct PriorityCard: View {
 
 /// What the map plots: the completion catalog, or one of the two chord tasks
 /// measured on the instruct siblings.
-enum MapLens: Hashable {
+enum MapLens {
     case completion, fix, reply
 }
 
@@ -990,12 +986,12 @@ struct ModelMapView: View {
                 HStack(spacing: 10) {
                     stat(String(localized: "ACC"), "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%", .green)
                     stat(String(localized: "SPEED"), latencyLabel(ms: m.p50Ms), .blue)
-                    stat(String(localized: "MEM"), m.ramGB <= 0 ? String(localized: "0 GB") : gbLabel(m.ramGB), .teal)
+                    stat(String(localized: "MEM"), gbLabel(m.ramGB), .teal)
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .glassCard(cornerRadius: 8)
+            .glassEffect(.regular, in: .rect(cornerRadius: 8))
             .allowsHitTesting(false)
         }
     }
@@ -1147,15 +1143,10 @@ struct ModelMapView: View {
             .frame(maxWidth: 250, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .glassCard(cornerRadius: 8)
+            .glassEffect(.regular, in: .rect(cornerRadius: 8))
             .allowsHitTesting(false)
         }
     }
-}
-
-/// "1.4 GB" — one decimal, the unit through the catalog.
-private func gbLabel(_ gb: Double) -> String {
-    String(localized: "\(oneDecimal(gb)) GB")
 }
 
 /// A labeled mini-bar: name left, measured value right, fill = "how good"
@@ -1174,14 +1165,8 @@ private struct MetricBar: View {
                 Spacer()
                 Text(text).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(color.opacity(0.14))
-                    Capsule().fill(color.opacity(0.75))
-                        .frame(width: max(5, geo.size.width * fraction))
-                }
-            }
-            .frame(height: 5)
+            // Floored so the slowest model still shows a sliver of bar.
+            ProgressView(value: max(0.03, fraction)).tint(color)
         }
         .frame(maxWidth: .infinity)
         .help(help)

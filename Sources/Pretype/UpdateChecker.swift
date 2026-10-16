@@ -122,23 +122,17 @@ enum UpdateChecker {
 
     private static var fetchingRefrain = false
 
-    /// Component-wise numeric compare: a plain string compare would call 0.9.1
-    /// newer than 0.10.0 and pester everyone into a downgrade. Non-numeric
-    /// suffixes ("0.2.0-beta") compare by their leading number, so a pre-release
-    /// never outranks the final tag of the same version.
+    /// Numeric compare: a plain string compare would call 0.9.1 newer than
+    /// 0.10.0 and pester everyone into a downgrade. The "-beta" suffix goes
+    /// first, so a pre-release never outranks the final tag of the same
+    /// version ("2.6.0-beta.1" compared whole reads as 2.6.0.1).
+    /// ponytail: "1.0.0" reads newer than "1.0" — every tag and bundle version
+    /// has three parts; pad them if that ever changes.
     static func isNewer(_ candidate: String, than current: String) -> Bool {
-        func parts(_ v: String) -> [Int] {
-            // The suffix goes first: "2.6.0-beta.1" split on dots alone is 2.6.0.1.
-            let release = v.split(separator: "-", maxSplits: 1).first ?? ""
-            return release.split(separator: ".").map { Int($0.prefix(while: \.isNumber)) ?? 0 }
-        }
-        let new = parts(candidate), old = parts(current)
-        for i in 0 ..< max(new.count, old.count) {
-            let a = i < new.count ? new[i] : 0
-            let b = i < old.count ? old[i] : 0
-            if a != b { return a > b }
-        }
-        return false
+        func release(_ v: String) -> String { String(v.prefix { $0 != "-" }) }
+        // Garbage ("nightly") must not read as newer.
+        guard candidate.first?.isNumber == true else { return false }
+        return release(candidate).compare(release(current), options: .numeric) == .orderedDescending
     }
 
     /// True when this copy has no Team ID (ad-hoc signed). Only then does

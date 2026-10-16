@@ -44,7 +44,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         showWindow(nil)
-        window?.makeKeyAndOrderFront(nil)
         store.startStatusTimer()
     }
 
