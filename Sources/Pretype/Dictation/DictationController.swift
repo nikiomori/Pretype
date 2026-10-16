@@ -216,9 +216,6 @@ final class DictationController {
     private var startedInLauncher = false
     private var caretRect: CGRect?
     private var hostStyle = HostTextStyle()
-    /// Text before the caret when the key went down, so the tidy-up pass can
-    /// see what the sentence is continuing.
-    private var contextBefore = ""
     /// The selection this capture's words are an instruction for (voice
     /// command mode), or nil for ordinary dictation.
     private var commandSelection: String?
@@ -656,10 +653,9 @@ final class DictationController {
         startedInLauncher = owner.focusIsInLauncher
         caretRect = rect
         hostStyle = anchor?.host ?? HostTextStyle()
-        contextBefore = anchor?.textBeforeCaret ?? ""
         commandSelection = Settings.dictationCommands
             ? anchor.flatMap { $0.selectedText.isEmpty ? nil : $0.selectedText } : nil
-        Transcription.contextualWords.set(Transcription.biasWords(in: contextBefore))
+        Transcription.contextualWords.set(Transcription.biasWords(in: anchor?.textBeforeCaret ?? ""))
         if let rect, let anchor { owner.noteCaret(rect: rect, host: anchor.host) }
         generation += 1
         let gen = generation
@@ -1123,14 +1119,13 @@ final class DictationController {
         // characters (see `MLXEngine.correct`); a longer dictation goes in as
         // heard rather than half-corrected.
         guard text.count <= 500 else { return nil }
-        let context = contextBefore
         let fixed: String?
         do {
             // The same abandon-not-await race as the finalize watchdog: an
             // `engine.correct` mid-model-reload does not observe cancellation,
             // and a task group would wait for it anyway.
             fixed = try await Self.withDeadline(seconds: polishSeconds) { @MainActor in
-                await owner.tidyDictation(text, before: context)
+                await owner.tidyDictation(text)
             }
         } catch {
             Self.note("tidy-up passed its budget — typing the transcript as heard")

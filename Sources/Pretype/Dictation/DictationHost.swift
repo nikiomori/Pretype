@@ -82,7 +82,7 @@ protocol DictationHost: AnyObject {
     func applyVoiceCommand(_ instruction: String, to selection: String)
     /// The engine's minimal-edit fix over the transcript, or nil to keep it
     /// exactly as heard. May be slow — the caller owns the time budget.
-    func tidyDictation(_ text: String, before context: String) async -> String?
+    func tidyDictation(_ text: String) async -> String?
     /// A capture started whose transcript will go through `tidyDictation` or
     /// a voice command: load that model while the user speaks, so its reload
     /// isn't paid inside the tidy-up's time budget.

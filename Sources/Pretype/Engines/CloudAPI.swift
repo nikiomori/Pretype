@@ -407,8 +407,7 @@ final class CloudEngine: CompletionEngine {
         }
     }
 
-    func correct(selection: String, request: CompletionRequest,
-                 redactLog: Bool) async throws -> String? {
+    func correct(selection: String, redactLog: Bool) async throws -> String? {
         try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "API", generate: try chat())
     }
 
@@ -417,8 +416,7 @@ final class CloudEngine: CompletionEngine {
                                         instructions: instructionsBox.get(), generate: try chat())
     }
 
-    func rewrite(selection: String, instruction: String,
-                 request: CompletionRequest) async throws -> String? {
+    func rewrite(selection: String, instruction: String) async throws -> String? {
         try await CorrectionGates.rewrite(selection, instruction: instruction, generate: try chat())
     }
 

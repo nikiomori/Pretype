@@ -105,7 +105,7 @@ private final class MockDictationHost: DictationHost {
     func applyVoiceCommand(_ instruction: String, to selection: String) {
         commands.append((instruction, selection))
     }
-    func tidyDictation(_ text: String, before context: String) async -> String? {
+    func tidyDictation(_ text: String) async -> String? {
         if tidyDelay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(tidyDelay * 1_000_000_000))
         }

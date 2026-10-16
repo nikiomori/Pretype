@@ -2200,7 +2200,7 @@ extension SuggestionController: DictationHost {
         if engine.isCorrectionReady { engine.prewarmCorrection() }
     }
 
-    func tidyDictation(_ text: String, before context: String) async -> String? {
+    func tidyDictation(_ text: String) async -> String? {
         // A fix model that still has to be fetched cannot help THIS sentence:
         // the tidy-up budget is three seconds and the download is gigabytes.
         // Waiting would only stall every dictation behind a progress bar it
@@ -2217,12 +2217,11 @@ extension SuggestionController: DictationHost {
             }
             return nil
         }
-        let request = makeRequest(text: context)
         // `redactLog` is the whole point of the parameter: what is being fixed
         // here was SPOKEN, and the divergence guard's rejection path logs the
         // pair verbatim otherwise — into a buffer whose export dialog only
         // warns about text the user typed.
-        let fixed = try? await engine.correct(selection: text, request: request, redactLog: true)
+        let fixed = try? await engine.correct(selection: text, redactLog: true)
         guard let fixed, !fixed.isEmpty, fixed != text else { return nil }
         return fixed
     }

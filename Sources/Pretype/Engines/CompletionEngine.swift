@@ -365,8 +365,7 @@ protocol CompletionEngine: AnyObject {
     /// on words the user typed, which the log export already declares, while
     /// the dictation tidy-up pass is handed a spoken sentence, which
     /// `docs/privacy.md` promises never reaches the log.
-    func correct(selection: String, request: CompletionRequest,
-                 redactLog: Bool) async throws -> String?
+    func correct(selection: String, redactLog: Bool) async throws -> String?
 
     /// Composes the user's whole next message from the conversation on screen
     /// (the reply hotkey), instead of continuing what they typed. nil when the
@@ -376,8 +375,7 @@ protocol CompletionEngine: AnyObject {
     /// Voice command mode: `selection` rewritten the way the spoken
     /// `instruction` asks. nil when the engine declines or can't. The
     /// instruction is speech, so engines keep it (and the text) out of the log.
-    func rewrite(selection: String, instruction: String,
-                 request: CompletionRequest) async throws -> String?
+    func rewrite(selection: String, instruction: String) async throws -> String?
 
     /// Live update of the user-tunable completion knobs (length, persona).
     /// Style/model changes rebuild the engine instead; these don't.
@@ -412,8 +410,8 @@ extension CompletionEngine {
 
     /// The ⌥⇥ spelling: text the user typed, logged as the debug export
     /// already says it is.
-    func correct(selection: String, request: CompletionRequest) async throws -> String? {
-        try await correct(selection: selection, request: request, redactLog: false)
+    func correct(selection: String) async throws -> String? {
+        try await correct(selection: selection, redactLog: false)
     }
     func shutdown() {}
     func prewarmIfNeeded() {}

@@ -114,8 +114,7 @@ final class FoundationModelsEngine: CompletionEngine {
         instructionsBox.set(instructions)
     }
 
-    func correct(selection: String, request: CompletionRequest,
-                 redactLog: Bool) async throws -> String? {
+    func correct(selection: String, redactLog: Bool) async throws -> String? {
         try requireReady()
         return try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "FM") {
             try await Self.respond(to: $0, maxTokens: $1, label: "fix")
@@ -130,8 +129,7 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
-    func rewrite(selection: String, instruction: String,
-                 request: CompletionRequest) async throws -> String? {
+    func rewrite(selection: String, instruction: String) async throws -> String? {
         try requireReady()
         return try await CorrectionGates.rewrite(selection, instruction: instruction) {
             try await Self.respond(to: $0, maxTokens: $1, label: "voice command")

@@ -1209,8 +1209,7 @@ final class MLXEngine: CompletionEngine {
     /// keep it from rewriting the selection (see `CorrectionGates.fix`). NO
     /// repetition penalty: fixing typos means re-emitting most of the original
     /// tokens verbatim, which a penalty actively punishes.
-    func correct(selection: String, request: CompletionRequest,
-                 redactLog: Bool) async throws -> String? {
+    func correct(selection: String, redactLog: Bool) async throws -> String? {
         try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "FIX") {
             // The generation log prints its own raw output — redacting only the
             // divergence-guard line would leave the same sentence in the
@@ -1221,8 +1220,7 @@ final class MLXEngine: CompletionEngine {
 
     // MARK: - Voice command
 
-    func rewrite(selection: String, instruction: String,
-                 request: CompletionRequest) async throws -> String? {
+    func rewrite(selection: String, instruction: String) async throws -> String? {
         try await CorrectionGates.rewrite(selection, instruction: instruction) {
             try await self.chatGenerate($0, maxTokens: $1, logRaw: false)
         }

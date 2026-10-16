@@ -191,13 +191,12 @@ final class CorrectionController {
                 if owner.window.showsCorrection { applyPendingFix() } else { showPreview(fix) }
                 return .consumed
             }
-            // Neither fix may run here, inside the event-tap callback: the
-            // last-word fix does a synchronous AX read, and both build a request,
-            // which reads the clipboard — a hung target app, or a huge or lazily
-            // provided copy, would block the main thread and get the tap
-            // disabled. Hop off the callback and consume the key now — the
-            // correction hotkey isn't a system shortcut, so swallowing it even
-            // when there's nothing to fix is harmless.
+            // Neither fix runs here, inside the event-tap callback: the
+            // last-word fix does a synchronous AX read — a hung target app
+            // would block the main thread and get the tap disabled. Hop off
+            // the callback and consume the key now — the correction hotkey
+            // isn't a system shortcut, so swallowing it even when there's
+            // nothing to fix is harmless.
             let fixSelection = selection != nil
             DispatchQueue.main.async { [weak self] in
                 if fixSelection { self?.correctSelection() } else { self?.correctLastWord() }
@@ -244,15 +243,14 @@ final class CorrectionController {
     // MARK: - Fix selection (⌥Tab)
 
     /// First ⌥⇥ on a selection: ask the engine for a fix and preview it. Runs
-    /// off the event-tap callback (`makeRequest` reads the clipboard).
+    /// off the event-tap callback.
     private func correctSelection() {
         guard let sel = selection, !inFlight else { return }
         owner.lastCaretRect = sel.rect ?? owner.lastCaretRect
         runFix(
             selectionText: sel.text,
-            request: owner.makeRequest(text: ""),
-            makePending: { PendingFix(original: sel.text, replacement: $0) },
-            proposedEvent: "fix proposed — ⏎ to apply, esc to keep"
+            proposedEvent: "fix proposed — ⏎ to apply, esc to keep",
+            perform: { try await $0.correct(selection: sel.text) }
         )
     }
 
@@ -267,13 +265,9 @@ final class CorrectionController {
         owner.clearActiveCompletion()
         runFix(
             selectionText: text,
-            request: owner.makeRequest(text: ""),
-            makePending: { PendingFix(original: text, replacement: $0) },
             proposedEvent: "voice command — ⏎ to apply, esc to keep",
             unchangedNotice: String(localized: "no change"),
-            perform: { engine, request in
-                try await engine.rewrite(selection: text, instruction: instruction, request: request)
-            }
+            perform: { try await $0.rewrite(selection: text, instruction: instruction) }
         )
     }
 
@@ -299,12 +293,11 @@ final class CorrectionController {
         let before = ctx.textBeforeCaret
         runFix(
             selectionText: word,
-            request: owner.makeRequest(text: before),
-            makePending: { PendingFix(original: word, replacement: $0, deletesOriginal: true) },
+            deletesOriginal: true,
             proposedEvent: "last-word fix proposed — ⏎ to apply, esc to keep",
-            perform: { engine, request in
+            perform: { engine in
                 try await CorrectionGates.fixLastWord(word, before: before) {
-                    try await engine.correct(selection: $0, request: request)
+                    try await engine.correct(selection: $0)
                 }
             }
         )
@@ -313,13 +306,13 @@ final class CorrectionController {
     /// Shared body for both ⌥⇥ flows: run the engine off the main actor, then on
     /// the main actor surface the proposal, a "looks fine" notice, or a failure —
     /// guarding on the focus generation so a result for stale context is dropped.
+    /// `deletesOriginal`: see `PendingFix`.
     private func runFix(
         selectionText: String,
-        request: CompletionRequest,
-        makePending: @escaping (String) -> PendingFix,
+        deletesOriginal: Bool = false,
         proposedEvent: String,
         unchangedNotice: String = String(localized: "✓ looks fine"),
-        perform: (@Sendable (any CompletionEngine, CompletionRequest) async throws -> String?)? = nil
+        perform: @escaping @Sendable (any CompletionEngine) async throws -> String?
     ) {
         inFlight = true
         owner.indicator.start()
@@ -329,11 +322,7 @@ final class CorrectionController {
             let started = Date()
             let outcome: Result<String?, Error>
             do {
-                if let perform {
-                    outcome = .success(try await perform(engine, request))
-                } else {
-                    outcome = .success(try await engine.correct(selection: selectionText, request: request))
-                }
+                outcome = .success(try await perform(engine))
             } catch is CancellationError {
                 return
             } catch {
@@ -358,7 +347,8 @@ final class CorrectionController {
             }
             switch outcome {
             case .success(let fixed?):
-                let fix = makePending(fixed)
+                let fix = PendingFix(original: selectionText, replacement: fixed,
+                                     deletesOriginal: deletesOriginal)
                 // Nothing cancels the task while the user types on in the
                 // same field, so a slow result can arrive for text that's
                 // gone — showing it would swallow the next ⏎ (Enter-to-send)
