@@ -11,12 +11,18 @@ struct ModelOption {
     /// Base style runs BOTH chords (fix and reply) on it.
     let correctionModelID: String
     /// Instruct sibling that becomes the *primary* model in instruct
-    /// completion style. On the Gemma builds it is sized to the entry's RAM
+    /// completion style: the fix sibling unless the entry names another. On
+    /// the Gemma builds it is sized to the entry's RAM
     /// tier: E4B 6-bit where the tier affords ~5.6 GB (an eval A/B showed
     /// instruct only matches/beats base at 6–8 bit), 4-bit siblings on the
     /// tighter tiers — a handicapped instruct still beats swapping a model the
     /// Mac can't hold. Overridable via PRETYPE_INSTRUCT_MODEL.
     let instructModelID: String
+
+    init(id: String, title: String, correctionModelID: String, instructModelID: String? = nil) {
+        (self.id, self.title, self.correctionModelID) = (id, title, correctionModelID)
+        self.instructModelID = instructModelID ?? correctionModelID
+    }
 }
 
 enum ModelCatalog {
@@ -29,8 +35,7 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e4b-8bit",
             title: String(localized: "Gemma 4 E4B 8-bit — best quality"),
-            correctionModelID: "mlx-community/gemma-4-e4b-it-6bit",
-            instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
+            correctionModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e4b-6bit",
@@ -38,8 +43,7 @@ enum ModelCatalog {
             // it-6bit, not 4-bit: it fixes 69% of noisy lines against 65%
             // (p<0.001), and the installs that ran it as their Instruct
             // primary before 2026-10-15 already hold it.
-            correctionModelID: "mlx-community/gemma-4-e4b-it-6bit",
-            instructModelID: "mlx-community/gemma-4-e4b-it-6bit"
+            correctionModelID: "mlx-community/gemma-4-e4b-it-6bit"
         ),
         ModelOption(
             id: "mlx-community/gemma-4-e2b-8bit",
@@ -47,8 +51,7 @@ enum ModelCatalog {
             // E4B-it, not E2B-it: its chords fix 65% of noisy lines against 50%,
             // and the installs that ran it as their Instruct primary before
             // 2026-10-14 already hold it.
-            correctionModelID: "mlx-community/gemma-4-e4b-it-4bit",
-            instructModelID: "mlx-community/gemma-4-e4b-it-4bit"  // ~5 GB — fits the 11–16 GB tier
+            correctionModelID: "mlx-community/gemma-4-e4b-it-4bit"  // ~5 GB — fits the 11–16 GB tier
         ),
         // E4B-4bit dropped 2026-07-17: strictly dominated by E2B-4bit on every
         // axis (EN/RU 21 vs 29, 17-lang macro 10 vs 20, p50 151 vs 127 ms,
@@ -56,8 +59,7 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/gemma-4-e2b-4bit",
             title: String(localized: "Gemma 4 E2B — for 8–16 GB Macs"),
-            correctionModelID: "mlx-community/gemma-4-e2b-it-4bit",
-            instructModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
+            correctionModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
         ),
         // The former EN/RU default (2026-07-07 → 07-25): base ties E4B-8bit
         // base on the POOLED EN+RU core at a quarter of the RAM and, with
@@ -97,8 +99,7 @@ enum ModelCatalog {
         ModelOption(
             id: "mlx-community/Qwen2.5-0.5B-bf16",
             title: String(localized: "Qwen2.5 0.5B — smallest footprint"),
-            correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
-            instructModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+            correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
         ),
         // The small-RAM default (the sub-12 GB floor of the memory ladder;
         // 17-language eval-real, 2026-07-16/17): best sub-2 GB model on the
@@ -118,8 +119,7 @@ enum ModelCatalog {
         ModelOption(
             id: "nikimori/Qwen3.5-2B-Base-6bit",
             title: String(localized: "Qwen3.5 2B — best small multilingual"),
-            correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
-            instructModelID: "mlx-community/Qwen3.5-2B-4bit"
+            correctionModelID: "mlx-community/Qwen3.5-2B-4bit"
         ),
         // One model for completion AND chords (2026-10-16, Eval/runs-2026-10-16-m1):
         // Qwen3.5 2B Base and its post-trained build interpolated 0.6/0.4, our
@@ -132,14 +132,12 @@ enum ModelCatalog {
         ModelOption(
             id: "nikimori/Qwen3.5-2B-M40-6bit",
             title: String(localized: "Qwen3.5 2B M40 — one model for typing and fixes"),
-            correctionModelID: "nikimori/Qwen3.5-2B-M40-6bit",
-            instructModelID: "nikimori/Qwen3.5-2B-M40-6bit"
+            correctionModelID: "nikimori/Qwen3.5-2B-M40-6bit"
         ),
         ModelOption(
             id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             title: String(localized: "Ternary Bonsai 4B — 1 GB base"),  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
-            correctionModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
-            instructModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit"
+            correctionModelID: "prism-ml/Ternary-Bonsai-4B-mlx-2bit"
         ),
         // LFM2.5-1.2B dropped 2026-07-17: strictly dominated by MiniCPM5 at the
         // same 2.2 GB (EN/RU 23 vs 28, macro 11 vs 13, p50 59 vs 49 ms).
@@ -319,8 +317,7 @@ enum ModelCatalog {
             return ModelOption(
                 id: appleIntelligenceID,
                 title: String(localized: "Apple Intelligence — system model"),
-                correctionModelID: appleIntelligenceID,
-                instructModelID: appleIntelligenceID
+                correctionModelID: appleIntelligenceID
             )
         }
         return options.first { $0.id == id }
@@ -441,23 +438,5 @@ enum ModelCatalog {
     static func instructCompletes(_ id: String) -> Bool {
         id == appleIntelligenceID
             || option(for: id)?.instructModelID == ModelMetrics.instructCompletion.id
-    }
-}
-
-enum MLXSupport {
-    /// MLX needs its compiled Metal shaders at runtime. `swift build` cannot
-    /// produce them (xcodebuild only), so a plain SwiftPM dev binary would
-    /// crash deep in C++ on first use — detect the situation up front.
-    /// Mirrors the lookup order in mlx's device.cpp.
-    static var isAvailable: Bool {
-        let fm = FileManager.default
-        let executableDir = Bundle.main.executableURL?.deletingLastPathComponent()
-        let candidates: [URL?] = [
-            executableDir?.appendingPathComponent("mlx.metallib"),
-            executableDir?.appendingPathComponent("Resources/mlx.metallib"),
-            Bundle.main.resourceURL?.appendingPathComponent("mlx-swift_Cmlx.bundle"),
-            Bundle.main.bundleURL.appendingPathComponent("mlx-swift_Cmlx.bundle"),
-        ]
-        return candidates.compactMap { $0 }.contains { fm.fileExists(atPath: $0.path) }
     }
 }

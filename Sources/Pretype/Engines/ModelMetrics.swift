@@ -116,23 +116,23 @@ struct ModelMetrics {
     /// The precision gate as it ships — the live first-word logprob against
     /// the model's own τ (`ModelCatalog.recommended(for:).logprobGateTau`) —
     /// on the headline's EN+RU core rows: % of prompts that still get a
-    /// suggestion, and first-word accuracy of those (Wilson 95%). Measured per
+    /// suggestion, and first-word accuracy of those. Measured per
     /// model on 2026-10-15 (runs-2026-10-15-rebook, calib-live.py), after τ
     /// moved to the live recorder's scale: the offline-calibrated τ passed
     /// only 15–22% of suggestions where its calibration said 25%. Booked on
     /// the ODD half only (n=724): τ is the even half's Q4 edge, so the even
     /// rows would score the threshold on its own calibration data. The
     /// per-script τ don't touch these rows — en/ru keep the model τ.
-    static let gated: [String: (shownPct: Int, firstWordPct: Int, ci: ClosedRange<Int>)] = [
-        "mlx-community/gemma-4-e4b-8bit": (18, 60, 52...68),
-        "mlx-community/gemma-4-e4b-6bit": (18, 56, 48...64),
-        "mlx-community/gemma-4-e2b-8bit": (19, 55, 47...64),
-        "mlx-community/gemma-4-e2b-4bit": (20, 53, 45...61),
-        "nikimori/MiniCPM5-1B-Base-8bit": (19, 53, 45...61),
-        "mlx-community/Qwen2.5-0.5B-bf16": (27, 41, 35...48),
-        "nikimori/Qwen3.5-2B-Base-6bit": (21, 53, 45...60),
-        "nikimori/Qwen3.5-2B-M40-6bit": (23, 49, 42...57),
-        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42, 35...49),
+    static let gated: [String: (shownPct: Int, firstWordPct: Int)] = [
+        "mlx-community/gemma-4-e4b-8bit": (18, 60),
+        "mlx-community/gemma-4-e4b-6bit": (18, 56),
+        "mlx-community/gemma-4-e2b-8bit": (19, 55),
+        "mlx-community/gemma-4-e2b-4bit": (20, 53),
+        "nikimori/MiniCPM5-1B-Base-8bit": (19, 53),
+        "mlx-community/Qwen2.5-0.5B-bf16": (27, 41),
+        "nikimori/Qwen3.5-2B-Base-6bit": (21, 53),
+        "nikimori/Qwen3.5-2B-M40-6bit": (23, 49),
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42),
     ]
 
     // MARK: - Per-language breakdown

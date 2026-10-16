@@ -18,7 +18,7 @@ import Tokenizers
 /// decided the rest would never be shown. Per-keystroke cost is a handful of
 /// decode steps instead of re-reading the whole context.
 ///
-/// The model catalog and runtime support live in `ModelCatalog.swift`; the
+/// The model catalog lives in `ModelCatalog.swift`; the
 /// token-iteration core, KV-cache and logit processors in
 /// `MLXEngine+Generation.swift`; the shared output/correction gates in
 /// `CompletionGates`/`CorrectionGates`.
@@ -186,7 +186,7 @@ final class MLXEngine: CompletionEngine {
     var lastFirstWordLogProb: Double? { firstWordLogProbBox.get() }
 
     var statusLine: String? {
-        let model = modelID.split(separator: "/").last.map(String.init) ?? modelID
+        let model = loadedModelID ?? modelID
         switch state {
         case .preparing(let detail): return "\(model): \(detail)"
         case .ready: return String(localized: "\(model): ready")
@@ -238,24 +238,23 @@ final class MLXEngine: CompletionEngine {
             primaryID = modelID
         case .instruct:
             primaryID = ProcessInfo.processInfo.environment["PRETYPE_INSTRUCT_MODEL"]
-                ?? baseOption?.instructModelID ?? baseOption?.correctionModelID ?? modelID
+                ?? baseOption?.instructModelID ?? modelID
         }
         self.modelID = primaryID
-        // A settings change rebuilt the engine: models it shares with the old
-        // one reload without the build leak or a tokenizer parse; the rest go.
-        if previous != nil {
-            let repos: Set<String> = [ModelCatalog.repo(for: primaryID), ModelCatalog.repo(for: correctionModelID)]
-            blueprints.mutate { kept in kept = kept.filter { repos.contains($0.key) } }
-            let folders = repos.compactMap { ModelStorage.cacheDirectory(repo: $0).map { $0.path + "/" } }
-            tokenizers.retain { directory in folders.contains { directory.path.hasPrefix($0) } }
-        }
+        // A settings change rebuilt the engine (`previous`): models it shares
+        // with the old one reload without the build leak or a tokenizer parse;
+        // the rest go.
+        let repos: Set<String> = [ModelCatalog.repo(for: primaryID), ModelCatalog.repo(for: correctionModelID)]
+        blueprints.mutate { kept in kept = kept.filter { repos.contains($0.key) } }
+        let folders = repos.compactMap { ModelStorage.cacheDirectory(repo: $0).map { $0.path + "/" } }
+        tokenizers.retain { directory in folders.contains { directory.path.hasPrefix($0) } }
         // Once per engine, not per keystroke: the reason never changes while
         // it lives, and logged inline it filled the 400-entry ring.
         if config.style == .instruct, !Self.isFIMCapable(primaryID) {
             DebugLog.shared.log("GATE", "fill-in-the-middle off — \(primaryID) is not E4B-class (unreliable here)")
         }
 
-        guard MLXSupport.isAvailable else {
+        guard Self.metalShadersPresent else {
             stateBox.set(.failed(String(localized: "Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh")))
             return
         }
@@ -267,6 +266,22 @@ final class MLXEngine: CompletionEngine {
         loadTask = makeLoadTask()
         didInitLoad = true
         startIdleMaintenance()
+    }
+
+    /// MLX needs its compiled Metal shaders at runtime. `swift build` cannot
+    /// produce them (xcodebuild only), so a plain SwiftPM dev binary would
+    /// crash deep in C++ on first use — detect the situation up front.
+    /// Mirrors the lookup order in mlx's device.cpp.
+    private static var metalShadersPresent: Bool {
+        let fm = FileManager.default
+        let executableDir = Bundle.main.executableURL?.deletingLastPathComponent()
+        let candidates: [URL?] = [
+            executableDir?.appendingPathComponent("mlx.metallib"),
+            executableDir?.appendingPathComponent("Resources/mlx.metallib"),
+            Bundle.main.resourceURL?.appendingPathComponent("mlx-swift_Cmlx.bundle"),
+            Bundle.main.bundleURL.appendingPathComponent("mlx-swift_Cmlx.bundle"),
+        ]
+        return candidates.compactMap { $0 }.contains { fm.fileExists(atPath: $0.path) }
     }
 
     // MARK: - Model lifecycle (load · idle-unload · reload)
@@ -284,7 +299,7 @@ final class MLXEngine: CompletionEngine {
             let repo = ModelCatalog.repo(for: id)
             do {
                 let loaded = try await Self.loadTarget(
-                    Self.configuration(for: repo), repo: repo, drafterID: drafterID, into: drafterBox,
+                    repo: repo, drafterID: drafterID, into: drafterBox,
                     tokenizers: tokenizers, blueprints: blueprints,
                     progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
                 await HostPLE.install(in: loaded, repo: repo)
@@ -330,15 +345,6 @@ final class MLXEngine: CompletionEngine {
         }
     }
 
-    /// Where to load `repo` from: its downloaded snapshot (no network round
-    /// trip, see `ModelStorage.localSnapshot`), else the Hub at the pinned
-    /// revision.
-    private static func configuration(for repo: String) -> ModelConfiguration {
-        ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
-            .map { ModelConfiguration(directory: $0) }
-            ?? ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo))
-    }
-
     private static let warmUpPrompt = String(repeating: "The weekly update covers hiring, the roadmap and next steps. ", count: 7)
 
     /// Frees the weights of a multimodal build's vision/audio towers: the
@@ -368,13 +374,15 @@ final class MLXEngine: CompletionEngine {
     /// never matched a blueprint again.
     private static let brokenDrafters = LockedValue<Set<String>>([])
 
-    /// Loads a model, with its MTP drafter into `drafterBox` when `drafterID`
-    /// names one that is already on disk. A missing drafter downloads in the
-    /// background for the next load — 150 MB must not hold up this one — once
-    /// per launch. It is part of the model the user already chose (listed and
-    /// deleted with it, see `ModelStorage.repos`), so it rides that consent.
+    /// Loads `repo` — from its downloaded snapshot (no network round trip, see
+    /// `ModelStorage.localSnapshot`), else from the Hub at the pinned revision —
+    /// with its MTP drafter into `drafterBox` when `drafterID` names one that
+    /// is already on disk. A missing drafter downloads in the background for
+    /// the next load — 150 MB must not hold up this one — once per launch. It
+    /// is part of the model the user already chose (listed and deleted with
+    /// it, see `ModelStorage.repos`), so it rides that consent.
     private static func loadTarget(
-        _ configuration: ModelConfiguration, repo: String, drafterID: String?,
+        repo: String, drafterID: String?,
         into drafterBox: LockedValue<(any MTPDrafterModel)?>, tokenizers: TokenizerCache,
         blueprints: LockedValue<[String: Task<Blueprint?, Never>]>,
         progressHandler: @escaping @Sendable (Progress) -> Void
@@ -382,12 +390,14 @@ final class MLXEngine: CompletionEngine {
         // The same bytes a background fetch is already bringing in.
         await ModelStorage.waitForQuietFetch(repo: repo)
         try Task.checkCancellation()
+        let snapshot = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
+        let configuration = snapshot.map { ModelConfiguration(directory: $0) }
+            ?? ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo))
         drafterBox.set(nil)
         let drafterID = drafterID.flatMap { brokenDrafters.get().contains($0) ? nil : $0 }
         let drafterDirectory = drafterID.flatMap(ModelStorage.localSnapshot(for:))
         if let blueprint = await blueprints.mutate({ $0.removeValue(forKey: repo) })?.value,
-           blueprint.vlm == (drafterDirectory != nil),
-           let directory = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:)),
+           blueprint.vlm == (drafterDirectory != nil), let directory = snapshot,
            // Drawn from this snapshot: an upgrade since gets a fresh load.
            case .directory(directory) = blueprint.configuration.id {
             do {
@@ -733,25 +743,18 @@ final class MLXEngine: CompletionEngine {
             modelLock.unlock(); return
         }
         let before = Memory.snapshot().activeMemory
-        if reason == "memory pressure" {
-            blueprints.set([:])
-        } else {
-            keepBlueprint(loadTask, repo: ModelCatalog.repo(for: modelID), vlm: drafter.get() != nil)
-            keepBlueprint(correctionLoadTask, repo: ModelCatalog.repo(for: correctionModelID),
-                          vlm: correctionDrafter.get() != nil)
-        }
-        loadTask?.cancel(); loadTask = nil
-        correctionLoadTask?.cancel(); correctionLoadTask = nil
+        let pressure = reason == "memory pressure"
+        if pressure { blueprints.set([:]) }
         // Still under the lock: a request arriving the moment it drops starts
         // a reload, and these writes landing after it would erase that load's
         // drafter and paint "idle" over its "loading…".
-        drafter.set(nil)
-        correctionDrafter.set(nil)
+        letGo(sibling: false, keep: !pressure)
+        letGo(sibling: true, keep: !pressure)
         promptCache.clear()
         // After the KV snapshots go, not before: freeing them refills the
         // buffer pool, and it then sat at its 64 MB cap for the whole idle.
         Memory.clearCache()
-        if reason == "memory pressure" { tokenizers.clear() }
+        if pressure { tokenizers.retain { _ in false } }
         // A failure stays on screen until a retry replaces it.
         if case .failed = primary {} else { stateBox.set(.preparing(String(localized: "idle — model unloaded"))) }
         modelLock.unlock()
@@ -769,15 +772,27 @@ final class MLXEngine: CompletionEngine {
             let idle = Date().timeIntervalSince(lastSiblingUse)
             guard style == .base, correctionLoadTask != nil, siblingInFlight == 0,
                   correctionStatus.get() == nil, idle >= limit else { return nil }
-            keepBlueprint(correctionLoadTask, repo: ModelCatalog.repo(for: correctionModelID),
-                          vlm: correctionDrafter.get() != nil)
-            correctionLoadTask?.cancel(); correctionLoadTask = nil
-            correctionDrafter.set(nil)
+            letGo(sibling: true, keep: true)
             return idle
         }
         guard let idle else { return }
         Memory.clearCache()
         DebugLog.shared.log("MLX", "unloaded fix model (idle \(Int(idle))s)")
+    }
+
+    /// Lets go of the primary or the fix sibling, under `modelLock`: its load
+    /// task, cancelled, and its drafter — the blueprint recorded first when
+    /// `keep` (see `keepBlueprint`).
+    private func letGo(sibling: Bool, keep: Bool) {
+        let task = sibling ? correctionLoadTask : loadTask
+        let drafterBox = sibling ? correctionDrafter : drafter
+        if keep {
+            keepBlueprint(task, repo: ModelCatalog.repo(for: sibling ? correctionModelID : modelID),
+                          vlm: drafterBox.get() != nil)
+        }
+        task?.cancel()
+        if sibling { correctionLoadTask = nil } else { loadTask = nil }
+        drafterBox.set(nil)
     }
 
     /// A minute without typing: keep the newest KV snapshot only, and hand the
@@ -1283,14 +1298,10 @@ final class MLXEngine: CompletionEngine {
             // For the replacement (see `init`). Not mid-request (the husk
             // would be emptied under a running generation) nor mid-load (the
             // replacement's load would wait on this cancelled one).
-            if inFlightCount == 0, !Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
-                                                   correctionStatus: correctionStatus.get()) {
-                keepBlueprint(loadTask, repo: ModelCatalog.repo(for: modelID), vlm: drafter.get() != nil)
-                keepBlueprint(correctionLoadTask, repo: ModelCatalog.repo(for: correctionModelID),
-                              vlm: correctionDrafter.get() != nil)
-            }
-            loadTask?.cancel(); loadTask = nil
-            correctionLoadTask?.cancel(); correctionLoadTask = nil
+            let keep = inFlightCount == 0 && !Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
+                                                             correctionStatus: correctionStatus.get())
+            letGo(sibling: false, keep: keep)
+            letGo(sibling: true, keep: keep)
         }
     }
 
@@ -1352,8 +1363,7 @@ final class MLXEngine: CompletionEngine {
                 let repo = ModelCatalog.repo(for: id)
                 do {
                     let container = try await Self.loadTarget(
-                        Self.configuration(for: repo), repo: repo,
-                        drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox,
+                        repo: repo, drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox,
                         tokenizers: tokenizers, blueprints: blueprints,
                         progressHandler: { progress in
                             status.set(Self.downloadStatus(progress, fixModel: true))
@@ -1398,10 +1408,6 @@ final class TokenizerCache: TokenizerLoader, @unchecked Sendable {
             cache[directory] = tokenizer
         }
         return tokenizer
-    }
-
-    func clear() {
-        byDirectory.set([:])
     }
 
     func retain(where keep: (URL) -> Bool) {
