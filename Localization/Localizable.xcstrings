@@ -9592,6 +9592,7 @@
       }
     },
     "Auto-picked for this Mac." : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -21692,6 +21693,7 @@
       }
     },
     "Hold %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -63369,6 +63371,7 @@
       }
     },
     "⚠︎ %@ is also the fix chord, and the fix wins. Pick the other chord." : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {

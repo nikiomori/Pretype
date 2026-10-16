@@ -6,8 +6,9 @@
 
 The compiler knows every localizable string — SwiftUI literals, String(localized:)
 — with the exact key it looks up ("Now %@", "%lld words"). A build with
--emit-localized-strings writes them out per source file; this merges them into
-the catalog: new keys are added, keys the code no longer has are marked stale,
+-emit-localized-strings writes them out per source file; `xcstringstool sync`
+merges them into the catalog the way Xcode does: new keys are added, keys the
+code no longer has are marked stale (or dropped, if nothing translates them),
 translations are never touched. Translate in Xcode (open the .xcstrings file)
 or by editing the JSON. The package's catalog lives outside the target so
 SwiftPM leaves it alone and lookups stay on Bundle.main; make-app.sh compiles it.
@@ -44,38 +45,25 @@ def extract():
                            cwd=ROOT, capture_output=True, text=True)
     if build.returncode:
         sys.exit(build.stdout[-3000:] + build.stderr[-3000:] + "\nbuild failed")
-    keys = {}
-    for f in glob.glob(os.path.join(OUT, "*.stringsdata")):
-        data = json.load(open(f))
-        if not data["source"].startswith(SOURCES):
-            continue  # a dependency's strings
-        for table, items in data["tables"].items():
-            if table != "Localizable":
-                continue
-            for item in items:
-                keys.setdefault(item["key"], item.get("comment", ""))
-    return keys
+    # Only the app's own files: on a fresh scratch path the dependencies
+    # compile with the same flag and write theirs here too.
+    return [f for f in glob.glob(os.path.join(OUT, "*.stringsdata"))
+            if json.load(open(f))["source"].startswith(SOURCES)]
 
 
 def main():
-    keys = extract()
-    catalog = (json.load(open(CATALOG)) if os.path.exists(CATALOG)
-               else {"sourceLanguage": "en", "strings": {}, "version": "1.0"})
+    subprocess.run(["xcrun", "xcstringstool", "sync", CATALOG, "--stringsdata", *extract()], check=True)
+    catalog = json.load(open(CATALOG))
     strings = catalog["strings"]
-    for key, comment in keys.items():
-        entry = strings.setdefault(key, {})
-        entry.pop("extractionState", None)
-        if comment:
-            entry["comment"] = comment
-        # Pure placeholders ("%@%@") are Text composition, not words.
-        if not key.replace("%@", "").replace("%lld", "").strip():
+    # Pure placeholders ("%@%@") are Text composition, not words. Written back
+    # only when a new one appeared; sync keeps the flag on the ones it has.
+    pure = [e for k, e in strings.items()
+            if not k.replace("%@", "").replace("%lld", "").strip() and e.get("shouldTranslate", True)]
+    if pure:
+        for entry in pure:
             entry["shouldTranslate"] = False
-    for key, entry in strings.items():
-        if key not in keys:
-            entry["extractionState"] = "stale"
-    with open(CATALOG, "w") as f:
-        json.dump(catalog, f, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", " : "))
-        f.write("\n")
+        with open(CATALOG, "w") as f:
+            json.dump(catalog, f, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", " : "))
 
     languages = sorted({lang for e in strings.values() for lang in e.get("localizations", {})} - {"en"})
     missing = {lang: [k for k, e in strings.items()
@@ -83,7 +71,7 @@ def main():
                       and lang not in e.get("localizations", {})]
                for lang in languages}
     stale = sum(e.get("extractionState") == "stale" for e in strings.values())
-    print(f"{len(keys)} keys in the code, {stale} stale in the catalog")
+    print(f"{len(strings) - stale} keys in the code, {stale} stale in the catalog")
     for lang, ks in missing.items():
         print(f"{lang}: {len(ks)} untranslated")
         for k in ks[:20]:

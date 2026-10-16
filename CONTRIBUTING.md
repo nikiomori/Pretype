@@ -106,7 +106,7 @@ The interface is in English and Russian. The strings are in `Localization/Locali
 
 * Write each string that the user sees as a SwiftUI literal (`Text("…")`, `.help("…")`) or as `String(localized: "…")`. Keep a full sentence in one string. Do not join parts of a sentence with `+`.
 * Do not localize prompts, log lines, identifiers, or defaults keys.
-* After you add or change strings, run `Scripts/sync-strings.py`. The script adds the new keys to the catalog, marks removed keys as stale, and shows the untranslated keys.
+* After you add or change strings, run `Scripts/sync-strings.py`. The script adds the new keys to the catalog. It marks removed keys as stale, or deletes them if they have no translations. Then it shows the untranslated keys.
 * To translate, open the catalog in Xcode, or edit the JSON.
 * To add a language, add its translations to the catalog. `Scripts/make-app.sh` compiles each language into the app, and **Settings → General → Language** shows it.
 
