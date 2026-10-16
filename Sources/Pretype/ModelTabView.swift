@@ -1128,7 +1128,7 @@ struct ModelMapView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(s.name).font(.caption.weight(.bold))
                 HStack(spacing: 10) {
-                    stat(lens == .fix ? String(localized: "EXACT FIX") : String(localized: "USABLE REPLY"),
+                    stat(lens == .fix ? String(localized: "EXACT FIX") : String(localized: "ON TOPIC"),
                          "\(s.pct)% [\(s.ci.lowerBound)–\(s.ci.upperBound)]", chordTint)
                     stat(String(localized: "SPEED"), latencyLabel(ms: s.p50Ms), .blue)
                     stat(String(localized: "MEM"), gbLabel(s.ramGB), .teal)
