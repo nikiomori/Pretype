@@ -111,6 +111,14 @@ final class StatusMenuTests: XCTestCase {
         XCTAssertTrue(["min", "h"].contains(savings.todayFigure.unit), savings.todayFigure.unit)
     }
 
+    // The day key is data, not display: Gregorian years and ASCII digits in any
+    // region (a Thai one wrote "2569-…", an Arabic one native digits). Noon UTC
+    // is Oct 16 or 17 in every time zone.
+    func testDayKeyIsGregorianASCII() {
+        let key = Stats.dayKey(Date(timeIntervalSince1970: 1_792_152_000))
+        XCTAssertTrue(["2026-10-16", "2026-10-17"].contains(key), key)
+    }
+
     // NSMenu lays a custom-view item out at the view's own frame, so a hosting
     // view left at its zero starting frame renders as a blank sliver — which is
     // exactly how the drawn header and footer first shipped. Pin both the

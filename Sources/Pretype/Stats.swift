@@ -10,11 +10,17 @@ enum Stats {
         "stats.dictatedChars",
     ]
 
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+    /// "yyyy-MM-dd" for `date` — Gregorian, ASCII digits, the time zone the
+    /// Mac is in now. The key is data (stored, sorted, compared), not text
+    /// for the user: a `DateFormatter` follows the region, which wrote Thai
+    /// Buddhist years and Arabic-Indic digits, and changing it broke the
+    /// week, the trim and the day roll; it also kept its launch time zone.
+    nonisolated static func dayKey(_ date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let day = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
+    }
 
     /// Today's key, formatted once a day: every booked event asks — the
     /// latency one on the first token of every suggestion — and formatting
@@ -23,7 +29,7 @@ enum Stats {
     private static var today: String {
         let now = Date()
         if let cache = todayCache, now < cache.until { return cache.key }
-        let key = dayFormatter.string(from: now)
+        let key = dayKey(now)
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
         todayCache = (key, Calendar.current.startOfDay(for: tomorrow))
         return key
@@ -58,7 +64,7 @@ enum Stats {
     /// 86 400-second arithmetic, which skips or repeats a day across a DST shift.
     private static func day(_ offset: Int) -> String {
         guard let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) else { return today }
-        return dayFormatter.string(from: date)
+        return dayKey(date)
     }
 
     private static func bump(_ key: String, by amount: Int = 1) {
