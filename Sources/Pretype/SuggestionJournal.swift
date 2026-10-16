@@ -50,7 +50,9 @@ final class SuggestionJournal: @unchecked Sendable {
         /// Text before the caret when the suggestion appeared (capped tail).
         var ctx: String
         var after: String
-        /// The suggestion as last shown (streamed partials keep it current).
+        /// The whole offer as of `ctx`: what the user typed or accepted of it
+        /// since, plus what was still on screen (streamed partials keep it
+        /// current), so `ctx + suggestion` is always the text that was offered.
         var suggestion: String
         var outcome: Outcome
         /// Characters the user accepted; negative when an accept was undone.

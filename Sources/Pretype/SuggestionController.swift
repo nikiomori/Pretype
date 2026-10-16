@@ -1033,7 +1033,8 @@ final class SuggestionController: NSObject {
                 shownAt: Date())
         } else {
             // Streamed growth of the same suggestion — keep the record current.
-            pendingJournal?.entry.suggestion = suggestion
+            let recordCtx = pendingJournal?.entry.ctx
+            pendingJournal?.entry.suggestion = Self.journalSuggestion(suggestion, current: current, recordCtx: recordCtx)
         }
         showSuggestion(suggestion, ctx)
         return true
@@ -1070,7 +1071,9 @@ final class SuggestionController: NSObject {
                                 trimToLine: active?.trimToLine ?? true) ?? text
         if shown != text {
             active?.text = shown
-            pendingJournal?.entry.suggestion = shown
+            let recordCtx = pendingJournal?.entry.ctx
+            pendingJournal?.entry.suggestion = Self.journalSuggestion(shown, current: ctx.textBeforeCaret,
+                                                                      recordCtx: recordCtx)
         }
         lastEvent = "suggesting \"\(shown.prefix(40))\""
         if shown != lastLoggedSuggestion {
@@ -1495,6 +1498,16 @@ final class SuggestionController: NSObject {
         latestTextBeforeCaret = Self.textAfterInjection(text, deletingBackward: deleteCount, over: before)
         injectionSettleDeadline = Date().addingTimeInterval(0.3)
         return latestTextBeforeCaret
+    }
+
+    /// The journal record's suggestion for a ghost now showing `remaining` at
+    /// `current`: what was typed since the record's `ctx`, then `remaining` —
+    /// a stream that re-anchors after the user typed hands over only the rest,
+    /// and storing that alone made `ctx + suggestion` text nobody was offered.
+    nonisolated static func journalSuggestion(_ remaining: String, current: String,
+                                              recordCtx: String?) -> String {
+        guard let recordCtx, current.hasPrefix(recordCtx) else { return remaining }
+        return String(current.dropFirst(recordCtx.count)) + remaining
     }
 
     /// Pure half of `inject` (testable): the text before the caret once
