@@ -192,10 +192,10 @@ final class SuggestionController {
             // (or a transcript being finalized) during that tail is
             // deliberate, not a scroll gesture interrupting it.
             let dictating = self.dictationController.isBusy
-            if !isMomentum { self.dictationController.scrolled() }
+            if !isMomentum { self.dictationController.pointerInterrupted() }
             // While dictation is busy the overlay is its to keep: the live
             // pill riding out a momentum tail, or the protected "dictation
-            // dropped" notice `scrolled()` just posted — `dropOverlay` would
+            // dropped" notice `pointerInterrupted()` just posted — `dropOverlay` would
             // erase either one, and dictation tears down its own overlay on
             // discard anyway. (`mouseDownHandler` skips it for the same
             // reason.)
@@ -206,9 +206,9 @@ final class SuggestionController {
         keyTap.mouseDownHandler = { [weak self] in
             guard let self else { return }
             // Dictation keeps the overlay while busy, as for scroll — read
-            // before `mouseDown()`, which may end the capture.
+            // before `pointerInterrupted()`, which may end the capture.
             let dictating = self.dictationController.isBusy
-            self.dictationController.mouseDown()
+            self.dictationController.pointerInterrupted()
             self.dropCompletion(afterUnseenCaretMove: "mouse click", overlay: !dictating)
         }
         keyTap.reenabledHandler = { [weak self] in

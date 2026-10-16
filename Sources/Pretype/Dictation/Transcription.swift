@@ -66,12 +66,8 @@ enum Transcription {
     /// picker offers.
     static func supportedLocales() async -> [Locale] {
         var seen = Set<String>()
-        var result: [Locale] = []
-        for locale in await SpeechTranscriber.supportedLocales
-            + DictationTranscriber.supportedLocales where seen.insert(locale.identifier).inserted {
-            result.append(locale)
-        }
-        return result
+        return (await SpeechTranscriber.supportedLocales + DictationTranscriber.supportedLocales)
+            .filter { seen.insert($0.identifier).inserted }
     }
 
     /// The transcriber's own identifier for `locale` and which model will serve

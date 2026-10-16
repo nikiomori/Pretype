@@ -726,7 +726,7 @@ final class DictationControllerTests: XCTestCase {
         await hear("about to move", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
-        rig.controller.mouseDown()
+        rig.controller.pointerInterrupted()
         await pump(until: { !rig.host.rescued.isEmpty })
         XCTAssertEqual(rig.host.rescued, ["hello world"], "a clicked-away finished sentence is kept")
         XCTAssertTrue(rig.host.inserted.isEmpty)
@@ -734,7 +734,7 @@ final class DictationControllerTests: XCTestCase {
         let quiet = makeRig()
         await startCapture(quiet)
         XCTAssertEqual(quiet.controller.phase, .listening(""))
-        quiet.controller.scrolled()
+        quiet.controller.pointerInterrupted()
         XCTAssertEqual(quiet.controller.phase, .idle)
         XCTAssertTrue(quiet.host.transientNotices.isEmpty,
                       "a listening capture interrupted by the pointer stays silent")
@@ -942,7 +942,7 @@ final class DictationControllerTests: XCTestCase {
         rig.host.focusGeneration += 1
         rig.controller.invalidate()
         XCTAssertEqual(rig.controller.phase, .working)
-        rig.controller.mouseDown()
+        rig.controller.pointerInterrupted()
         rig.controller.keyPressed()
         await pump(until: { !rig.host.rescued.isEmpty })
         XCTAssertEqual(rig.host.rescued, ["hello world"])
@@ -966,8 +966,7 @@ final class DictationControllerTests: XCTestCase {
         await startLatched(rig)
         await hear("still going", in: rig)
         rig.controller.keyPressed()
-        rig.controller.mouseDown()
-        rig.controller.scrolled()
+        rig.controller.pointerInterrupted()
         await pump(0.05)
         XCTAssertEqual(rig.controller.phase, .listening("still going"),
                        "hands-free means the user keeps working while it runs")
@@ -1109,8 +1108,7 @@ final class DictationControllerTests: XCTestCase {
         slowStart(rig, seconds: 0.3)
         rig.controller.toggleLatch()
         await pump(until: { rig.controller.phase == .preparing })
-        rig.controller.scrolled()
-        rig.controller.mouseDown()
+        rig.controller.pointerInterrupted()
         rig.controller.keyPressed()
         XCTAssertEqual(rig.controller.phase, .preparing,
                        "the wait for the microphone is still part of the capture")
@@ -1228,7 +1226,7 @@ final class DictationControllerTests: XCTestCase {
         await hear("about to land", in: rig)
         rig.controller.toggleLatch()
         XCTAssertEqual(rig.controller.phase, .working)
-        rig.controller.mouseDown()
+        rig.controller.pointerInterrupted()
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.inserted.isEmpty,
                       "the caret moved — the transcript must not follow it")

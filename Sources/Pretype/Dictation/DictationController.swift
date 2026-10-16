@@ -69,15 +69,12 @@ final class DictationController {
 
     private(set) var trigger: Trigger = .hold
 
-    /// A hands-free capture is running. Every interrupt that exists because a
-    /// held modifier is ambiguous — a keystroke, a click, a scroll — reads this
-    /// and stands down: hands-free means the user is expected to keep using the
-    /// machine, and a capture that died on the first scroll would be a hold
-    /// with extra steps.
-    private var isLatched: Bool { trigger == .latch && isBusy }
-
     /// A hands-free capture that has not been stopped yet — which is the window
-    /// the relaxed interrupt rules apply to.
+    /// the relaxed interrupt rules apply to. Every interrupt that exists because
+    /// a held modifier is ambiguous — a keystroke, a click, a scroll — reads
+    /// this and stands down: hands-free means the user is expected to keep
+    /// using the machine, and a capture that died on the first scroll would be
+    /// a hold with extra steps.
     ///
     /// `.preparing` is in it, deliberately and load-bearingly. That phase is
     /// tens of milliseconds on a built-in microphone, seconds on a Bluetooth
@@ -343,17 +340,13 @@ final class DictationController {
             : nil)
     }
 
-    /// A mouse press ends a hold too: ⌥-click and ⌥-drag are ordinary gestures,
-    /// and the click has just moved the caret away from where the words were
-    /// going.
-    func mouseDown() { pointerInterrupted() }
-
-    /// So does a scroll. Under "Hold ⌃" the gesture key is also the pinch-zoom
-    /// modifier, so a ⌃-scroll held past the threshold would open the
-    /// microphone mid-zoom; and during a live capture the view has just carried
-    /// the caret out from under the pill.
-    func scrolled() { pointerInterrupted() }
-
+    /// A mouse press or a scroll ends a hold too. ⌥-click and ⌥-drag are
+    /// ordinary gestures, and the click has just moved the caret away from
+    /// where the words were going. Under "Hold ⌃" the gesture key is also the
+    /// pinch-zoom modifier, so a ⌃-scroll held past the threshold would open
+    /// the microphone mid-zoom; and during a live capture the view has just
+    /// carried the caret out from under the pill.
+    ///
     /// Armed counts as well as busy: the damage these two prevent happens in
     /// the first `threshold` seconds, before a capture exists to be `isBusy`
     /// about. Fully idle stays a cheap early return, because both ride global
@@ -365,7 +358,7 @@ final class DictationController {
     /// `keyPressed`. A voice command dropped there earns a notice. A click
     /// during `.listening` stays silent: the pill vanishing under the click IS
     /// the explanation there.
-    private func pointerInterrupted() {
+    func pointerInterrupted() {
         // Both of these exist because a held modifier is ambiguous — ⌥-click
         // and ⌃-scroll are ordinary gestures that happen to look like a hold.
         // A latch is not ambiguous about anything, and reading a page or
@@ -382,12 +375,6 @@ final class DictationController {
     /// Focus moved, Pretype was paused, the app is quitting: whatever was being
     /// captured can no longer be typed anywhere sensible.
     func invalidate() {
-        // Silent for a hold: the key came up, or the user switched apps with
-        // one hand on a modifier, and a pill about it would be noise. A latched
-        // capture is the opposite case — it can be minutes of speech, the user
-        // has no key in their hand to tell them it was live, and losing a
-        // paragraph without a word is exactly how this feature reads as broken.
-        let spoken = isLatched
         // Already finishing: the transcript is done, and the finish task's own
         // focus check routes it to the clipboard now that it can't be typed
         // here. Discarding instead would drop it — and an app switch fires
@@ -401,6 +388,12 @@ final class DictationController {
             if pendingBegin == .latch { pendingBegin = nil }
             return
         }
+        // Silent for a hold: the key came up, or the user switched apps with
+        // one hand on a modifier, and a pill about it would be noise. A latched
+        // capture is the opposite case — it can be minutes of speech, the user
+        // has no key in their hand to tell them it was live, and losing a
+        // paragraph without a word is exactly how this feature reads as broken.
+        let spoken = isLatchedAndLive
         _ = hold.interrupt()
         // …and a latched capture that has heard something is finished, not
         // discarded: `finish` sees the focus moved and hands the transcript
@@ -975,11 +968,7 @@ final class DictationController {
         }
         guard case .listening(let heard) = phase, let session else { return }
         capture.stop()
-        limitTimer?.invalidate()
-        limitTimer = nil
-        silenceTimer?.invalidate()
-        silenceTimer = nil
-        meter = nil
+        stopTimers()
         phase = .working
         render()
         let gen = generation
@@ -1174,14 +1163,9 @@ final class DictationController {
         seconds: TimeInterval, _ body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
-            let resumed = OSAllocatedUnfairLock(initialState: false)
+            let resumed = LockedValue(false)
             @Sendable func resumeOnce(_ result: Result<T, Error>) {
-                let first = resumed.withLock { done in
-                    if done { return false }
-                    done = true
-                    return true
-                }
-                if first { continuation.resume(with: result) }
+                if !resumed.exchange(true) { continuation.resume(with: result) }
             }
             let work = Task {
                 do { resumeOnce(.success(try await body())) } catch { resumeOnce(.failure(error)) }
@@ -1202,6 +1186,16 @@ final class DictationController {
         sessionTask?.cancel()
         sessionTask = nil
         discard(notice: .error(why))
+    }
+
+    /// The capture's ceiling and silence timers and its level meter, gone with
+    /// it — on the way to `.working` or to `.idle`.
+    private func stopTimers() {
+        limitTimer?.invalidate()
+        limitTimer = nil
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+        meter = nil
     }
 
     /// Stop everything and forget it.
@@ -1226,11 +1220,7 @@ final class DictationController {
         phase = .idle
         armTimer?.invalidate()
         armTimer = nil
-        limitTimer?.invalidate()
-        limitTimer = nil
-        silenceTimer?.invalidate()
-        silenceTimer = nil
-        meter = nil
+        stopTimers()
         // A queued LATCH does not survive a discard. What made the resume below
         // safe was that every interrupt path calls `hold.interrupt()` first, so
         // a queued hold could only still be there if the key was genuinely
@@ -1426,7 +1416,8 @@ final class VoiceMeter: Sendable {
     /// from there is spent on a wait nobody could have spoken into. Long
     /// enough, and the first check after the microphone opened would end the
     /// capture as "nothing heard" before the user got a word in.
-    func opened(at now: Date = Date()) {
+    func opened() {
+        let now = Date()
         state.withLock { state in
             state.openedAt = now
             state.lastQuietAt = now
