@@ -13,6 +13,11 @@ Exact pinned versions are recorded in [Package.resolved](Package.resolved).
 | Package | License | Source |
 | :--- | :--- | :--- |
 | mlx-swift | MIT | <https://github.com/ml-explore/mlx-swift> |
+| MLX (vendored in mlx-swift's `Cmlx`) | MIT | <https://github.com/ml-explore/mlx> |
+| mlx-c (vendored in `Cmlx`) | MIT | <https://github.com/ml-explore/mlx-c> |
+| nlohmann/json 3.11.3 (vendored in `Cmlx`) | MIT | <https://github.com/nlohmann/json> |
+| {fmt} 12.1.0 (vendored in `Cmlx`) | MIT | <https://github.com/fmtlib/fmt> |
+| metal-cpp (vendored in `Cmlx`) | Apache-2.0 | <https://developer.apple.com/metal/cpp/> |
 | mlx-swift-lm | MIT | <https://github.com/ml-explore/mlx-swift-lm> |
 | EventSource | MIT | <https://github.com/mattt/EventSource> |
 | yyjson | MIT | <https://github.com/ibireme/yyjson> |
@@ -29,8 +34,8 @@ Exact pinned versions are recorded in [Package.resolved](Package.resolved).
 | text-processing-rs (NemoTextProcessing, linked by FluidAudio; includes NVIDIA NeMo text-processing grammars, rustfst, flate2) | Apache-2.0 | <https://github.com/FluidInference/text-processing-rs> |
 
 FluidAudio documents the third-party work it carries (including the above) in its
-[`ThirdPartyLicenses/`](https://github.com/FluidInference/FluidAudio/tree/main/ThirdPartyLicenses)
-directory.
+[`ThirdPartyLicenses/`](https://github.com/FluidInference/FluidAudio/tree/503b4bd1bbf7220882de39fe8ae6716aae4132da/ThirdPartyLicenses)
+directory (at the revision pinned in `Package.resolved`).
 
 ## Model weights (downloaded at runtime, not distributed with the app)
 
@@ -39,12 +44,15 @@ first use. Those weights are licensed by their publishers, not by Pretype's MIT 
 
 | Model family | Publisher | License |
 | :--- | :--- | :--- |
-| Gemma 4 (all variants) | Google | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) — includes use restrictions |
-| MiniCPM5 | OpenBMB | See the [model card](https://huggingface.co/openbmb) |
+| Gemma 4 (all variants) | Google | Apache-2.0 — see [Google's Gemma 4 license page](https://ai.google.dev/gemma/docs/gemma_4_license) |
+| MiniCPM5 | OpenBMB | Apache-2.0 — see the [model card](https://huggingface.co/openbmb/MiniCPM5-1B) |
 | Qwen 2.5 / 3.5 | Alibaba (Qwen) | Apache-2.0 — see the [model card](https://huggingface.co/Qwen) |
-| Ternary Bonsai | prism-ml | See the [model card](https://huggingface.co/prism-ml) |
+| Ternary Bonsai | prism-ml | Apache-2.0 — see the [model card](https://huggingface.co/prism-ml/Ternary-Bonsai-4B-mlx-2bit) |
 | Parakeet Ultra — moondream's post-training of NVIDIA Parakeet TDT 0.6B v3 (opt-in dictation, CoreML conversion by FluidInference) | moondream, NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/moondream/parakeet-ultra) |
 | Parakeet TDT 0.6B v3 (installs that opted in before Ultra, until the background swap) | NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |
+
+The `mlx-community` conversions of the Gemma 4 instruct builds and drafters tag their cards
+`license: gemma`. Google's own cards for the same models (`google/gemma-4-*`) state Apache-2.0.
 
 By downloading a model through Pretype you accept its publisher's terms. Check the model
 card on Hugging Face for the authoritative, current license of any specific repository.
@@ -56,6 +64,11 @@ card on Hugging Face for the authoritative, current license of any specific repo
 Applies to:
 
 - mlx-swift — Copyright (c) 2023 ml-explore
+- MLX — Copyright © 2023 Apple Inc.
+- mlx-c — Copyright (c) 2023 ml-explore
+- nlohmann/json — Copyright (c) 2013-2022 Niels Lohmann
+- {fmt} — Copyright (c) 2012 - present, Victor Zverovich and {fmt} contributors (its license adds
+  an optional exception for embedded object code)
 - mlx-swift-lm — Copyright (c) 2024 ml-explore
 - EventSource — Copyright 2025 Mattt (https://mat.tt)
 - yyjson — Copyright (c) 2020 YaoYuan <ibireme@gmail.com>
@@ -100,8 +113,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 Applies to swift-transformers (Copyright 2022 Hugging Face SAS), swift-jinja (Copyright
 2022 Hugging Face SAS), swift-huggingface (Copyright 2025 Hugging Face SAS), swift-crypto,
-swift-asn1, swift-collections, swift-numerics, swift-syntax, FluidAudio and
-text-processing-rs. The full text is at the end of this file.
+swift-asn1, swift-collections, swift-numerics, swift-syntax, FluidAudio,
+text-processing-rs and metal-cpp (Copyright 2020-2025 Apple Inc.). The full text is at the end
+of this file.
 
 swift-collections, swift-numerics and swift-syntax add this exception to it:
 
