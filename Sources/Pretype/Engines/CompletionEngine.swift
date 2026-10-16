@@ -32,16 +32,6 @@ struct CompletionRequest {
 }
 
 extension CompletionRequest {
-    init(textBeforeCaret: String, textAfterCaret: String = "", context: TypingContext) {
-        self.init(
-            textBeforeCaret: textBeforeCaret,
-            textAfterCaret: textAfterCaret,
-            appBundleID: context.bundleID,
-            appName: context.appName,
-            site: context.site
-        )
-    }
-
     /// The text to hand to the completion model: a plain capped tail of the
     /// typed text — pure continuation conditioning, no instructions. When screen
     /// context is available it is prefixed as a separate label-free block (the
@@ -263,22 +253,24 @@ extension CompletionRequest {
 }
 
 /// Minimal thread-safe value holder: completion knobs are set on the main
-/// thread (menu) and read on the engine's background task.
-final class LockedValue<Value>: @unchecked Sendable {
-    private let lock: OSAllocatedUnfairLock<Value>
-    init(_ initial: Value) { lock = OSAllocatedUnfairLock(uncheckedState: initial) }
+/// thread (menu) and read on the engine's background task. The system lock
+/// itself (a reference: copies share the one value), with the value API below.
+typealias LockedValue<Value> = OSAllocatedUnfairLock<Value>
+
+extension OSAllocatedUnfairLock {
+    init(_ initial: State) { self.init(uncheckedState: initial) }
 
     /// Read-modify-write under the one lock — a get then a set would let a
     /// concurrent writer's change fall between them and be lost.
-    func mutate<R>(_ body: (inout Value) -> R) -> R { lock.withLockUnchecked(body) }
+    func mutate<R>(_ body: (inout State) -> R) -> R { withLockUnchecked(body) }
 
-    func get() -> Value { mutate { $0 } }
+    func get() -> State { mutate { $0 } }
 
-    func set(_ newValue: Value) { mutate { $0 = newValue } }
+    func set(_ newValue: State) { mutate { $0 = newValue } }
 
     /// Atomically store `newValue` and return the previous one — for a
-    /// race-free test-and-set (e.g. a single-flight guard).
-    func exchange(_ newValue: Value) -> Value { mutate { let old = $0; $0 = newValue; return old } }
+    /// race-free test-and-set.
+    func exchange(_ newValue: State) -> State { mutate { let old = $0; $0 = newValue; return old } }
 }
 
 enum EngineState: Equatable {
@@ -413,8 +405,6 @@ extension CompletionEngine {
     func correct(selection: String, request: CompletionRequest) async throws -> String? {
         try await correct(selection: selection, request: request, redactLog: false)
     }
-    func rewrite(selection: String, instruction: String,
-                 request: CompletionRequest) async throws -> String? { nil }
     func shutdown() {}
     func prewarmIfNeeded() {}
     func releaseModelNow() {}

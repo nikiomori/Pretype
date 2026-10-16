@@ -18,27 +18,6 @@ enum CorrectionGates {
     ONLY the corrected text — no quotes, no explanations.
     """
 
-    /// Voice command mode: a spoken instruction applied to the selected text
-    /// ("make it more formal", "translate to English"). Unlike the fix, the
-    /// rewrite is the point — no minimal-edit guard follows it.
-    static func commandPrompt(instruction: String, text: String) -> String {
-        """
-        Rewrite the text below following this instruction: \(instruction)
-        Keep the text's language unless the instruction asks for another one. \
-        Reply with ONLY the rewritten text — no quotes, no explanations, no preamble.
-
-        \(text)
-        """
-    }
-
-    /// A command's output keeps its line breaks (a rewritten paragraph is
-    /// still a paragraph); only surrounding whitespace and a wrapping quote
-    /// pair go.
-    static func cleanCommandOutput(_ raw: String) -> String {
-        unquoted(raw.trimmingCharacters(in: .whitespacesAndNewlines))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     /// `text` without the wrapping quote pairs a model may add, checked in
     /// this order: "…", «…», “…”.
     private static func unquoted(_ text: String) -> String {
@@ -60,9 +39,12 @@ enum CorrectionGates {
     static func fix(_ selection: String, redactLog: Bool, logTag: String,
                     generate: Generate) async throws -> String? {
         let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A generous output-token budget: the fix is about the length of the
+        // input, but tokens run shorter than characters (≈2× denser for
+        // Russian), so budget the worst case to stop long selections clipping
+        // (the "doesn't fix the whole thing" bug). Capped so it can't run away.
         guard !trimmed.isEmpty, trimmed.count <= 500, !trimmed.contains("\n"),
-              let raw = try await generate("\(correctionDirective)\n\n\(trimmed)",
-                                           correctionTokenBudget(forChars: trimmed.count))
+              let raw = try await generate("\(correctionDirective)\n\n\(trimmed)", min(512, max(64, trimmed.count)))
         else { return nil }
         // A cancelled request (focus moved on, overlay reset) must not
         // surface its late result.
@@ -144,17 +126,28 @@ enum CorrectionGates {
     }
 
     /// Voice command mode on any engine: `selection` rewritten the way the
-    /// spoken `instruction` asks; nil when nothing new came back.
+    /// spoken `instruction` asks ("make it more formal", "translate to
+    /// English"); nil when nothing new came back. Unlike the fix, the rewrite
+    /// is the point — no minimal-edit guard follows it.
     static func rewrite(_ selection: String, instruction: String,
                         generate: Generate) async throws -> String? {
         let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
         let spoken = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = """
+            Rewrite the text below following this instruction: \(spoken)
+            Keep the text's language unless the instruction asks for another one. \
+            Reply with ONLY the rewritten text — no quotes, no explanations, no preamble.
+
+            \(text)
+            """
         guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty,
-              let raw = try await generate(commandPrompt(instruction: spoken, text: text),
-                                           min(1024, max(64, text.count)))
+              let raw = try await generate(prompt, min(1024, max(64, text.count)))
         else { return nil }
         try Task.checkCancellation()
-        let result = cleanCommandOutput(raw)
+        // The output keeps its line breaks (a rewritten paragraph is still a
+        // paragraph); only surrounding whitespace and a wrapping quote pair go.
+        let result = unquoted(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return result.isEmpty || result == text ? nil : result
     }
 
@@ -169,14 +162,6 @@ enum CorrectionGates {
             request.replyPrompt(conversation: conversation, instructions: instructions), 200) else { return nil }
         try Task.checkCancellation()
         return request.cleanReply(raw, conversation: conversation)
-    }
-
-    /// A generous output-token budget for a correction: the fix is about the
-    /// length of the input, but tokens run shorter than characters (≈2× denser
-    /// for Russian), so budget the worst case to stop long selections clipping
-    /// (the "doesn't fix the whole thing" bug). Capped so it can't run away.
-    static func correctionTokenBudget(forChars count: Int) -> Int {
-        min(512, max(64, count))
     }
 
     /// Normalize a raw correction generation into one clean line: trim, take the

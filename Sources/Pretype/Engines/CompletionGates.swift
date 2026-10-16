@@ -177,7 +177,7 @@ enum CompletionGates {
 /// (Japanese mixes both). nil = Latin, Cyrillic or anything else — the model's
 /// own τ covers those. Eval/runs-2026-10-16-gate/script-tau.py calibrated the
 /// table on a byte-for-byte Python copy of this function: change both together.
-enum GateScript: CaseIterable {
+enum GateScript {
     case han, kana, hangul, arabic, hebrew
 
     static func of(_ text: String) -> GateScript? {

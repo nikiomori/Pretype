@@ -23,16 +23,6 @@ import Tokenizers
 /// `MLXEngine+Generation.swift`; the shared output/correction gates in
 /// `CompletionGates`/`CorrectionGates`.
 final class MLXEngine: CompletionEngine {
-    // These two are process-wide knobs the dev/eval harness sets ONCE at
-    // startup, before any engine spins up, and the generation tasks then only
-    // read them. A `LockedValue` makes the shared mutable state explicit and
-    // thread-safe under the Swift 6 language mode.
-    /// Verbose generation logging for the --complete test harness.
-    static let debugLogging = LockedValue<Bool>(false)
-    /// The harness's decoding pin (`PRETYPE_EVAL_SAMPLING=1` clears it), which
-    /// it hands on to Apple Intelligence. MLX itself always decodes greedily
-    /// (see `completionParameters`).
-    static let greedy = LockedValue<Bool>(true)
     /// Pre-caret context-tail cap (chars).
     static let maxContextChars = 1000
 
@@ -201,8 +191,9 @@ final class MLXEngine: CompletionEngine {
         }
     }
 
-    init(modelID: String, config: CompletionConfig = .resolved()) {
+    init(modelID: String) {
         let baseOption = ModelCatalog.option(for: modelID)
+        let config = CompletionConfig.resolved()
         self.style = config.style
         self.lengthBox = LockedValue(config.length)
         self.instructionsBox = LockedValue(config.instructions)
@@ -214,22 +205,17 @@ final class MLXEngine: CompletionEngine {
         // per-script τ whatever Settings say (the eval's gate-on arm).
         let gatePin = env["PRETYPE_LOGPROB_GATE"]
         let recommended = ModelCatalog.recommended(for: modelID)
-        if let gatePin, gatePin != "recommended" {
-            self.logprobGateThreshold = Double(gatePin)
-            self.scriptGateTau = [:]
+        (logprobGateThreshold, scriptGateTau) = if let gatePin, gatePin != "recommended" {
+            (Double(gatePin), [:])
         } else if gatePin != nil || (Settings.logprobGate && Settings.useRecommendedSettings) {
             // Recommended settings follow the model: τ is calibrated per model
             // (Q4 edges −0.94…−1.34) and per script where that still loses —
             // see Recommendation.logprobGateTau / scriptGateTau.
-            self.logprobGateThreshold = recommended.logprobGateTau ?? Settings.logprobGateThreshold
-            self.scriptGateTau = recommended.logprobGateTau == nil ? [:] : recommended.scriptGateTau
-        } else if Settings.logprobGate {
-            // A hand-tuned threshold (useRecommendedSettings off) applies as-is.
-            self.logprobGateThreshold = Settings.logprobGateThreshold
-            self.scriptGateTau = [:]
+            (recommended.logprobGateTau ?? Settings.logprobGateThreshold,
+             recommended.logprobGateTau == nil ? [:] : recommended.scriptGateTau)
         } else {
-            self.logprobGateThreshold = nil
-            self.scriptGateTau = [:]
+            // Off, or a hand-tuned threshold (useRecommendedSettings off) as-is.
+            (Settings.logprobGate ? Settings.logprobGateThreshold : nil, [:])
         }
         self.silentScripts = ModelCatalog.silentScripts(for: modelID)
         self.alwaysOnGateTau = ModelCatalog.alwaysOnGateTau(for: modelID)
@@ -646,9 +632,10 @@ final class MLXEngine: CompletionEngine {
     /// `beginRequest` for work that runs on the fix sibling only (base style's
     /// fix and reply): holds off the idle unload without reloading — or, in its
     /// failure cooldown, refusing on behalf of — the completion model, which
-    /// this request never touches. Pair with `endSiblingRequest()`.
-    private func beginSiblingRequest() -> Bool {
-        modelLock.withLock {
+    /// this request never touches. Returns the sibling's load task, started if
+    /// needed. Pair with `endRequest(sibling: true)`.
+    private func beginSiblingRequest() -> Task<ModelContainer, Error>? {
+        let started = modelLock.withLock {
             guard didInitLoad else { return false }
             inFlightCount += 1
             siblingInFlight += 1
@@ -656,21 +643,17 @@ final class MLXEngine: CompletionEngine {
             lastSiblingUse = lastActivity
             return true
         }
+        return started ? correctionLoadTaskOrCreate() : nil
     }
 
-    func endRequest() {
+    func endRequest(sibling: Bool = false) {
         modelLock.withLock {
             inFlightCount = max(0, inFlightCount - 1)
             lastActivity = Date()
-        }
-    }
-
-    private func endSiblingRequest() {
-        modelLock.withLock {
-            inFlightCount = max(0, inFlightCount - 1)
-            siblingInFlight = max(0, siblingInFlight - 1)
-            lastActivity = Date()
-            lastSiblingUse = lastActivity
+            if sibling {
+                siblingInFlight = max(0, siblingInFlight - 1)
+                lastSiblingUse = lastActivity
+            }
         }
     }
 
@@ -839,7 +822,9 @@ final class MLXEngine: CompletionEngine {
         return max(on ?? -.infinity, f)
     }
 
-    /// The completion path for this engine's style.
+    /// The completion path: one request's model, prompt floor, decode and
+    /// first-word confidence, around its style's prompt and output gates
+    /// (`basePlan` / `instructPlan`).
     private func run(_ request: CompletionRequest, onPartial: (@Sendable (String) -> Void)? = nil,
                      prefillOnly: Bool = false) async throws -> String? {
         // Every style: a script this model never pays off in costs no decode.
@@ -847,10 +832,72 @@ final class MLXEngine: CompletionEngine {
             if !prefillOnly { DebugLog.shared.log("GATE", "no suggestions in this script for this model — not querying it") }
             return nil
         }
-        switch style {
-        case .base: return try await completeBase(request, onPartial: onPartial, prefillOnly: prefillOnly)
-        case .instruct: return try await completeInstruct(request, onPartial: onPartial, prefillOnly: prefillOnly)
-        }
+        guard let task = beginRequest() else { return nil }
+        defer { endRequest() }
+        let container = try await task.value
+        try Task.checkCancellation()
+
+        // A base model given only 3-4 tokens lands in random-language territory
+        // (verified: "а теперь" → Turkish gibberish), so it floors higher than
+        // the instruct model, which the directive + persona keep coherent on
+        // short context (the first few words of a chat message) — except
+        // mid-word, where the partial word constrains both. The retrieved
+        // accepted phrases ride the base prompt as a label-free preamble (the
+        // RAG signal, p=0.016 on instruct, ported to the path that actually
+        // wins — see Eval/BASELINE.md "the prize").
+        let base = style == .base
+        guard let prepared = PreparedPrompt(
+            request.completionPrompt(maxChars: Self.maxContextChars), request: request,
+            midWordFloor: base ? 10 : 6, boundaryFloor: base ? 16 : 10,
+            preamble: base ? request.personalPreambleBlock : nil) else { return nil }
+        let plan = base ? basePlan(request, prepared) : instructPlan(request, prepared)
+
+        // First-word confidence capture: reset up front so a stale value from a
+        // previous generation can never be journaled against this one; publish
+        // below only when the result survives the output gate, so a resolve-time
+        // read refers to the suggestion that was shown. A warm-up prefill must
+        // not touch the box: it describes the suggestion on screen, which this
+        // call doesn't replace.
+        let recording = !prefillOnly
+        if recording { firstWordLogProbBox.set(nil) }
+        let logProbSink = recording ? LockedValue<Double?>(nil) : nil
+        let output = try await Self.generate(
+            in: container,
+            makeTokens: plan.makeTokens,
+            parameters: completionParameters(for: request),
+            promptCache: promptCache,
+            logProbSink: logProbSink,
+            trimLogProb: recording ? trimLogProbThreshold : nil,
+            trimEntropy: recording ? Self.trimEntropyThreshold : nil,
+            gateLogProb: recording ? plan.gateLogProb : nil,
+            healExpected: plan.healExpected,
+            prefillOnly: prefillOnly,
+            // No drafter: starting the speculative iterator costs ~25 ms
+            // before the first token, and a streamed suggestion is judged by
+            // its first word (instruct primary: first-visible p50 +8 ms,
+            // final −5%). The drafter pays off on the longer, non-streamed
+            // fix and reply.
+            onPartial: Self.makeStreamHandler(onPartial, gate: plan.streamGate)
+        )
+        if prefillOnly { return nil }
+        try Task.checkCancellation()
+        let lp = logProbSink?.get()
+        let result = plan.finish(output, lp)
+        if result != nil { firstWordLogProbBox.set(lp) }
+        return result
+    }
+
+    /// A style's half of a completion (see `run`): what to decode, and how
+    /// to gate what comes back.
+    private struct Plan {
+        let makeTokens: @Sendable (ModelContext) throws -> [Int]
+        /// Logprob-gate τ and the token-healing fragment (see `generate`).
+        var gateLogProb: Double?
+        var healExpected: String?
+        /// The output gate for each streamed partial.
+        let streamGate: @Sendable (String) -> String?
+        /// The final output's gate, given its first-word logprob.
+        let finish: (_ output: String, _ firstWordLogProb: Double?) -> String?
     }
 
     func completions(for request: CompletionRequest) -> AsyncThrowingStream<String, Error> {
@@ -889,15 +936,6 @@ final class MLXEngine: CompletionEngine {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
-    }
-
-    /// Shared prompt preparation for both completion paths (see `PreparedPrompt`).
-    private func prepare(_ request: CompletionRequest,
-                         midWordFloor: Int, boundaryFloor: Int,
-                         personalPreamble: Bool = false) -> PreparedPrompt? {
-        PreparedPrompt(request.completionPrompt(maxChars: Self.maxContextChars), request: request,
-                       midWordFloor: midWordFloor, boundaryFloor: boundaryFloor,
-                       preamble: personalPreamble ? request.personalPreambleBlock : nil)
     }
 
     /// Token healing for the mid-word caret state. A prompt that ends inside a
@@ -941,34 +979,7 @@ final class MLXEngine: CompletionEngine {
     }
 
     /// Raw text continuation against a base model: encode the tail, continue it.
-    /// A base model given only 3-4 tokens lands in random-language territory
-    /// (verified: "а теперь" → Turkish gibberish), so it floors higher than the
-    /// instruct path — except mid-word, where the partial word constrains it.
-    private func completeBase(_ request: CompletionRequest,
-                              onPartial: (@Sendable (String) -> Void)? = nil,
-                              prefillOnly: Bool = false) async throws -> String? {
-        guard let task = beginRequest() else { return nil }
-        defer { endRequest() }
-        let container = try await task.value
-        try Task.checkCancellation()
-
-        // The retrieved accepted phrases ride the base prompt as a label-free
-        // preamble (the RAG signal, p=0.016 on instruct, ported to the path
-        // that actually wins — see Eval/BASELINE.md "the prize").
-        guard let prepared = prepare(request, midWordFloor: 10, boundaryFloor: 16,
-                                     personalPreamble: true) else { return nil }
-
-        // First-word confidence capture: reset up front so a stale value from a
-        // previous generation can never be journaled against this one; publish
-        // below only when the result survives the output gate, so a resolve-time
-        // read refers to the suggestion that was shown. A warm-up prefill must
-        // not touch the box: it describes the suggestion on screen, which this
-        // call doesn't replace.
-        let recording = !prefillOnly
-        if recording { firstWordLogProbBox.set(nil) }
-        let logProbSink = recording ? LockedValue<Double?>(nil) : nil
-
-        let parameters = completionParameters(for: request)
+    private func basePlan(_ request: CompletionRequest, _ prepared: PreparedPrompt) -> Plan {
         // Mid-word: decode from the word boundary and strip the re-generated
         // fragment (see tokenHealing).
         let heal = prepared.endsMidWord ? Self.tokenHealing(text: prepared.text) : nil
@@ -985,61 +996,43 @@ final class MLXEngine: CompletionEngine {
         let generationText = heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
             ?? prepared.generationText
         let promptCache = self.promptCache
-        let output = try await Self.generate(
-            in: container,
+        return Plan(
             makeTokens: { promptCache.encoder.encode(generationText, with: $0.tokenizer) },
-            parameters: parameters,
-            promptCache: promptCache,
-            logProbSink: logProbSink,
-            trimLogProb: recording ? trimLogProbThreshold : nil,
-            trimEntropy: recording ? Self.trimEntropyThreshold : nil,
             // Healed suggestions bypass the gate (see below).
-            gateLogProb: recording && heal == nil ? gateTau : nil,
+            gateLogProb: heal == nil ? gateTau : nil,
             healExpected: heal?.expected,
-            prefillOnly: prefillOnly,
-            onPartial: Self.makeStreamHandler(
-                onPartial, gate: healed(prepared.gate(cleanInstruct: false, logRejects: false)))
+            streamGate: healed(prepared.gate(cleanInstruct: false, logRejects: false)),
+            finish: { output, lp in
+                if let heal, !output.hasPrefix(heal.expected) {
+                    DebugLog.shared.log("GATE", "token-healing: decode \(output.prefix(24).debugDescription) contradicts typed fragment \(heal.expected.debugDescription) — abstaining")
+                }
+                let result = healedGate(output)
+                // Logprob confidence gate: abstain on a low-confidence first word. 0×
+                // extra decode (lp is already captured). Base only by construction —
+                // the instruct plan never sets it, as the calibration doesn't hold there.
+                // Healed suggestions bypass the gate: τ is calibrated on word-boundary
+                // next-word logprobs, but under healing lp is the fragment path of the
+                // CURRENT word (forced tokens under constrained decode) — a different
+                // scale that the word-boundary τ mostly rejects, while fragment-match
+                // already holds healed precision at ~77% (mid3, ANALYTICS §6в′).
+                if let thr = gateTau, result != nil, heal == nil, let lp, lp < thr {
+                    DebugLog.shared.log("GATE", "logprob-gate: first-word \(String(format: "%.2f", lp)) < \(thr) — abstaining")
+                    return nil
+                }
+                return result
+            }
         )
-        if prefillOnly { return nil }
-        try Task.checkCancellation()
-        if let heal, !output.hasPrefix(heal.expected) {
-            DebugLog.shared.log("GATE", "token-healing: decode \(output.prefix(24).debugDescription) contradicts typed fragment \(heal.expected.debugDescription) — abstaining")
-        }
-        let result = healedGate(output)
-        let lp = recording ? logProbSink?.get() : nil
-        // Logprob confidence gate: abstain on a low-confidence first word. 0× extra
-        // decode (lp is already captured above). Base only by construction —
-        // completeBase is never the instruct path, where the calibration doesn't hold.
-        // Healed suggestions bypass the gate: τ is calibrated on word-boundary
-        // next-word logprobs, but under healing lp is the fragment path of the
-        // CURRENT word (forced tokens under constrained decode) — a different
-        // scale that the word-boundary τ mostly rejects, while fragment-match
-        // already holds healed precision at ~77% (mid3, ANALYTICS §6в′).
-        if let thr = gateTau, result != nil, heal == nil, let lp, lp < thr {
-            DebugLog.shared.log("GATE", "logprob-gate: first-word \(String(format: "%.2f", lp)) < \(thr) — abstaining")
-            firstWordLogProbBox.set(nil)
-            return nil
-        }
-        if recording, result != nil { firstWordLogProbBox.set(lp) }
-        return result
     }
 
     /// Persona-aware continuation through the instruct model's chat template:
     /// a "continue, ~N words, match voice" directive + optional author profile,
     /// then the text. The KV cache still applies — the directive/persona are a
     /// constant prefix, so only the new characters re-prefill per keystroke.
-    private func completeInstruct(_ request: CompletionRequest,
-                                  onPartial: (@Sendable (String) -> Void)? = nil,
-                                  prefillOnly: Bool = false) async throws -> String? {
-        guard let task = beginRequest() else { return nil }
-        defer { endRequest() }
-        let container = try await task.value
-        try Task.checkCancellation()
-
-        // Lower floor than the base path: the instruct model is grounded by the
-        // directive + persona, so it stays coherent on short context (e.g. the
-        // first few words of a chat message) instead of going off-language.
-        guard let prepared = prepare(request, midWordFloor: 6, boundaryFloor: 10) else { return nil }
+    /// One caveat for calibration: the first-word logprob here is conditioned
+    /// on the instruct prompt (directive + persona + template), i.e. the
+    /// distribution the live path actually sampled from — deliberately NOT the
+    /// raw-context score `logProbMean` computes offline.
+    private func instructPlan(_ request: CompletionRequest, _ prepared: PreparedPrompt) -> Plan {
         let promptText = prepared.text
 
         // Gemma has no system role, so the directive rides in the user turn.
@@ -1087,20 +1080,9 @@ final class MLXEngine: CompletionEngine {
         // captured `var` crosses a concurrency boundary.
         let directiveText = directive
 
-        // Same first-word confidence capture as the base path (see there). One
-        // caveat for calibration: this logprob is conditioned on the instruct
-        // prompt (directive + persona + template), i.e. the distribution the
-        // live path actually sampled from — deliberately NOT the raw-context
-        // score `logProbMean` computes offline.
-        let recording = !prefillOnly
-        if recording { firstWordLogProbBox.set(nil) }
-        let logProbSink = recording ? LockedValue<Double?>(nil) : nil
-
-        let parameters = completionParameters(for: request)
         let gate = prepared.gate(cleanInstruct: true)
         let promptCache = self.promptCache
-        let output = try await Self.generate(
-            in: container,
+        return Plan(
             makeTokens: { context in
                 // infill already embeds BEFORE/AFTER in the directive.
                 let userContent = infill ? directiveText : "\(directiveText)\n\nText:\n\(promptText)"
@@ -1120,24 +1102,9 @@ final class MLXEngine: CompletionEngine {
                     : try promptCache.templateSplice.tokens(
                         key: directiveText, text: promptText, tokenizer: context.tokenizer, render: render)
             },
-            parameters: parameters,
-            promptCache: promptCache,
-            logProbSink: logProbSink,
-            trimLogProb: recording ? trimLogProbThreshold : nil,
-            trimEntropy: recording ? Self.trimEntropyThreshold : nil,
-            prefillOnly: prefillOnly,
-            // No drafter here: starting the speculative iterator costs ~25 ms
-            // before the first token, and a streamed suggestion is judged by
-            // its first word (measured: first-visible p50 +8 ms, final −5%).
-            // The drafter pays off on the longer, non-streamed fix and reply.
-            onPartial: Self.makeStreamHandler(
-                onPartial, gate: prepared.gate(cleanInstruct: true, logRejects: false))
+            streamGate: prepared.gate(cleanInstruct: true, logRejects: false),
+            finish: { output, _ in gate(output) }
         )
-        if prefillOnly { return nil }
-        try Task.checkCancellation()
-        let result = gate(output)
-        if recording, result != nil { firstWordLogProbBox.set(logProbSink?.get()) }
-        return result
     }
 
     /// Per-keystroke token budget: the length setting, trimmed harder for chat.
@@ -1235,21 +1202,10 @@ final class MLXEngine: CompletionEngine {
     /// nothing, and that path was never measured.
     private func chatGenerate(_ content: String, maxTokens: Int, copiesInput: Bool = false,
                               logRaw: Bool = true) async throws -> String {
-        let primary: Task<ModelContainer, Error>?
-        if fixesOnPrimary {
-            guard let task = beginRequest() else { throw EngineNotReady() }
-            primary = task
-        } else {
-            guard beginSiblingRequest() else { throw EngineNotReady() }
-            primary = nil
-        }
-        defer { if primary == nil { endSiblingRequest() } else { endRequest() } }
-        let container: ModelContainer
-        if let primary {
-            container = try await primary.value
-        } else {
-            container = try await correctionContainer()
-        }
+        let sibling = !fixesOnPrimary
+        guard let task = sibling ? beginSiblingRequest() : beginRequest() else { throw EngineNotReady() }
+        defer { endRequest(sibling: sibling) }
+        let container = try await task.value
         try Task.checkCancellation()
         let messages: [[String: any Sendable]] = [["role": "user", "content": content]]
         return try await Self.generate(
@@ -1264,7 +1220,7 @@ final class MLXEngine: CompletionEngine {
             },
             parameters: GenerateParameters(maxTokens: maxTokens, temperature: 0.0),
             promptCache: nil,
-            drafter: primary != nil ? drafter.get() : correctionDrafter.get(),
+            drafter: sibling ? correctionDrafter.get() : drafter.get(),
             lookup: copiesInput,
             logRaw: logRaw
         )
@@ -1343,13 +1299,7 @@ final class MLXEngine: CompletionEngine {
     /// The sibling `correct` would use — resolved the same way
     /// `correctionLoadTaskOrCreate` resolves it.
     private var correctionModelID: String {
-        ProcessInfo.processInfo.environment["PRETYPE_TEST_FIX_MODEL"]
-            ?? ModelCatalog.option(for: modelID)?.correctionModelID
-            ?? ModelCatalog.options[0].correctionModelID
-    }
-
-    private func correctionContainer() async throws -> ModelContainer {
-        try await correctionLoadTaskOrCreate().value
+        ModelCatalog.option(for: modelID)?.correctionModelID ?? ModelCatalog.options[0].correctionModelID
     }
 
     private func correctionLoadTaskOrCreate() -> Task<ModelContainer, Error> {

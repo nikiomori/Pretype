@@ -8,30 +8,24 @@ import FoundationModels
 final class FoundationModelsEngine: CompletionEngine {
     let name = "Apple Intelligence"
 
-    private let stateBox = LockedValue<EngineState>(.preparing(String(localized: "starting…")))
-    /// Single-flight guard: the session API rejects concurrent requests, so a
-    /// fresh keystroke's request abstains while one is mid-flight (the caller
-    /// cancels the prior task, so latest-wins still holds).
-    private let inFlight = LockedValue<Bool>(false)
+    /// Fixed at init: availability is read once, like a model load.
+    let state: EngineState
     private let lengthBox = LockedValue<CompletionLength>(.medium)
     private let instructionsBox = LockedValue<String>("")
 
     static let greedy = LockedValue<Bool>(false)
 
-    var state: EngineState { stateBox.get() }
-
     var statusLine: String? {
-        switch stateBox.get() {
-        case .preparing(let detail): return "Apple Intelligence: \(detail)"
+        switch state {
         case .ready: return String(localized: "Apple Intelligence: ready (system model)")
-        case .failed(let detail): return "Apple Intelligence: \(detail)"
+        case .preparing(let detail), .failed(let detail): return "Apple Intelligence: \(detail)"
         }
     }
 
     /// Fix and reply are explicit requests: an unavailable model is said so
     /// (the status line carries why), never answered with "nothing to fix".
     private func requireReady() throws {
-        guard case .ready = stateBox.get() else {
+        guard case .ready = state else {
             throw EngineNotReady(message: String(localized: "Apple Intelligence isn't available — see the menu"))
         }
     }
@@ -39,7 +33,7 @@ final class FoundationModelsEngine: CompletionEngine {
     init() {
         switch SystemLanguageModel.default.availability {
         case .available:
-            stateBox.set(.ready)
+            state = .ready
             // Warm the system model so the first keystroke doesn't pay.
             let session = LanguageModelSession(instructions: CompletionRequest.continuationDirective)
             session.prewarm()
@@ -53,29 +47,15 @@ final class FoundationModelsEngine: CompletionEngine {
             case .modelNotReady: why = String(localized: "Apple Intelligence is still downloading — retry in a few minutes")
             @unknown default: why = String(localized: "Apple Intelligence is unavailable (\(String(describing: reason)))")
             }
-            stateBox.set(.failed(why))
+            state = .failed(why)
         }
     }
 
     private let silentScripts = ModelCatalog.silentScripts(for: ModelCatalog.appleIntelligenceID)
 
     func complete(_ request: CompletionRequest) async throws -> String? {
-        guard case .ready = stateBox.get() else { return nil }
+        guard case .ready = state else { return nil }
         if let script = GateScript.of(request.textBeforeCaret), silentScripts.contains(script) { return nil }
-        // Atomic single-flight: test-and-set in one locked op so two concurrent
-        // callers can't both acquire. Wait up to 200ms if a request is already
-        // running (e.g. during cancellation cleanup of the previous task).
-        // Re-setting true while the holder still runs is a harmless no-op.
-        var limit = 0
-        while inFlight.exchange(true) {
-            try Task.checkCancellation()
-            try await Task.sleep(for: .milliseconds(10))
-            limit += 1
-            if limit > 20 {
-                return nil
-            }
-        }
-        defer { inFlight.set(false) }
 
         // Lower the floor mid-word: a partial word ("apprecia…") is a strong,
         // safe constraint, so offer its completion even on short context — that
@@ -85,7 +65,9 @@ final class FoundationModelsEngine: CompletionEngine {
         let turn = request.continuationTurn(prepared.text, instructions: instructionsBox.get())
 
         // A fresh session per request: autocomplete must not accumulate a
-        // multi-turn transcript.
+        // multi-turn transcript, and separate sessions take overlapping
+        // requests (a cancelled keystroke's still winding down) — probed
+        // 2026-10-16: 3 and 6 at once all answered.
         let session = LanguageModelSession(instructions: turn.system)
         do {
             let response = try await session.respond(to: turn.user, options: generationOptions())

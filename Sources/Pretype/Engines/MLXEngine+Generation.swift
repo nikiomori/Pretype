@@ -188,23 +188,18 @@ extension MLXEngine {
         private let cache: [KVCache]
         private let prompt: [Int]
         private let maxTokens: Int
-        private let maxDraft: Int
         /// Tokens the next forward must feed before any draft: the unread
         /// prompt tail at first, then the last sampled token.
         private var feed: [Int]
         private var emitted: [Int] = []
         private var pending: ArraySlice<Int> = []
-        private(set) var drafted = 0
-        private(set) var accepted = 0
 
-        init(input: [Int], prompt: [Int], model: any LanguageModel, cache: [KVCache],
-             maxTokens: Int, maxDraft: Int = MLXEngine.lookupDraft) {
+        init(input: [Int], prompt: [Int], model: any LanguageModel, cache: [KVCache], maxTokens: Int) {
             self.feed = input
             self.prompt = prompt
             self.model = model
             self.cache = cache
             self.maxTokens = maxTokens
-            self.maxDraft = maxDraft
         }
 
         mutating func next() -> Int? {
@@ -218,7 +213,7 @@ extension MLXEngine {
         private mutating func round() {
             // Drafts past the token budget would only be thrown away.
             var draft = Self.draft(after: prompt + emitted, promptCount: prompt.count,
-                                   max: min(maxDraft, maxTokens - emitted.count - 1))
+                                   max: min(lookupDraft, maxTokens - emitted.count - 1))
             if !draft.isEmpty, !cache.allSatisfy({ $0.isTrimmable(after: feed.count + draft.count) }) {
                 draft = []
             }
@@ -230,8 +225,6 @@ extension MLXEngine {
             while agreed < draft.count, draft[agreed] == picks[agreed] { agreed += 1 }
             if agreed < draft.count { trimPromptCache(cache, numTokens: draft.count - agreed) }
             let out = Array(draft[..<agreed]) + [picks[agreed]]
-            drafted += draft.count
-            accepted += agreed
             emitted += out
             pending = ArraySlice(out)
             feed = [picks[agreed]]
@@ -309,51 +302,39 @@ extension MLXEngine {
 
     // MARK: First-word confidence (live decode-loop capture)
 
-    /// Records, for every sampled token, log P(token) under the (processed)
-    /// logits it was sampled from — the raw material for the journal's
-    /// `firstWordLogProb`, the logprob gate and the confidence trim. No extra
-    /// forward passes and no extra GPU sync: each step's value is a LAZY scalar
-    /// built next to the sampled token, which the decode loop evaluates in the
-    /// same `asyncEval` as the token — so it is already materialized when the
-    /// token is, and the loop can act on it (early stop) without stalling the
-    /// pipeline. Created and consumed entirely inside `container.perform` (not
+    /// Records, for every sampled token, log P(token) under the logits it was
+    /// sampled from, and that distribution's entropy — the raw material for
+    /// the journal's `firstWordLogProb`, the logprob gate and the confidence
+    /// trim. No extra forward passes and no extra GPU sync: each step's value
+    /// is a LAZY scalar built next to the sampled token, which the decode loop
+    /// evaluates in the same `asyncEval` as the token — so it is already
+    /// materialized when the token is, and the loop can act on it (early
+    /// stop) without stalling the pipeline. Created and consumed entirely inside `container.perform` (not
     /// Sendable, like the other processors here).
     final class LogProbRecorder: LogitProcessor {
-        private var inner: LogitProcessor?
         private var last: MLXArray?
-        private let recordsEntropy: Bool
         /// One lazy scalar per sampled token, index-aligned with sampling order.
         private(set) var pending: [MLXArray] = []
         /// The entropy (nats) of the distribution each token was sampled from,
-        /// index-aligned with `pending`; empty unless `recordsEntropy`.
+        /// index-aligned with `pending`.
         private(set) var entropies: [MLXArray] = []
 
-        init(inner: LogitProcessor?, recordsEntropy: Bool = false) {
-            self.inner = inner
-            self.recordsEntropy = recordsEntropy
-        }
-
-        func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
+        func prompt(_ prompt: MLXArray) {}
 
         func process(logits: MLXArray) -> MLXArray {
-            let processed = inner?.process(logits: logits) ?? logits
-            last = processed
-            return processed
+            last = logits
+            return logits
         }
 
         func didSample(token: MLXArray) {
-            if let row = last?.reshaped([-1]) {
-                let picked = takeAlong(row, token.reshaped([1]).asType(.int32), axis: 0)
-                // logSumExp in the logits' own dtype, difference in float32 —
-                // bit-for-bit the arithmetic the τ thresholds were calibrated on.
-                pending.append((picked.asType(.float32) - row.logSumExp().asType(.float32)).reshaped([]))
-                if recordsEntropy {
-                    // H = logΣe^x − Σ softmax(x)·x, in float32.
-                    let x = row.asType(.float32)
-                    entropies.append((x.logSumExp() - (softmax(x) * x).sum()).reshaped([]))
-                }
-            }
-            inner?.didSample(token: token)
+            guard let row = last?.reshaped([-1]) else { return }
+            let picked = takeAlong(row, token.reshaped([1]).asType(.int32), axis: 0)
+            // logSumExp in the logits' own dtype, difference in float32 —
+            // bit-for-bit the arithmetic the τ thresholds were calibrated on.
+            pending.append((picked.asType(.float32) - row.logSumExp().asType(.float32)).reshaped([]))
+            // H = logΣe^x − Σ softmax(x)·x, in float32.
+            let x = row.asType(.float32)
+            entropies.append((x.logSumExp() - (softmax(x) * x).sum()).reshaped([]))
         }
     }
 
@@ -538,8 +519,8 @@ extension MLXEngine {
         /// are skipped on this path (the iterator exposes no per-token logits).
         drafter: (any MTPDrafterModel)? = nil,
         /// Copy-heavy output (fix, tidy-up): draft from the prompt
-        /// itself (`PromptLookupIterator`) instead of the drafter. Greedy and
-        /// processor-free generations only; anything else decodes as usual.
+        /// itself (`PromptLookupIterator`) instead of the drafter.
+        /// Processor-free generations only; anything else decodes as usual.
         lookup: Bool = false,
         /// False when the generated text is not ours to print: the dictation
         /// tidy-up pass hands this path a SPOKEN sentence, and the debug buffer
@@ -645,13 +626,13 @@ extension MLXEngine {
                 return ""
             }
 
-            var processor: LogitProcessor? = parameters.processor()
-            // Outermost, so it sees the logits the sampler actually samples from
-            // (post-penalties) — that distribution is what "the
-            // engine's confidence in what it showed" means.
+            // The logit-processor chain. No penalties (greedy, see
+            // `completionParameters`): the recorder sees the logits the sampler
+            // samples from — "the engine's confidence in what it showed".
+            var processor: LogitProcessor?
             var recorder: LogProbRecorder?
             if logProbSink != nil || trimLogProb != nil || trimEntropy != nil || gateLogProb != nil {
-                let r = LogProbRecorder(inner: processor, recordsEntropy: trimEntropy != nil)
+                let r = LogProbRecorder()
                 processor = r
                 recorder = r
             }
@@ -690,8 +671,7 @@ extension MLXEngine {
             var copier: PromptLookupIterator?
             // A recurrent layer (Qwen3.5) can't rewind a rejected draft; there
             // the unpipelined rounds would only be slower than plain decoding.
-            if lookup, processor == nil, parameters.temperature == 0,
-               cache.allSatisfy(\.isTrimmable) {
+            if lookup, processor == nil, cache.allSatisfy(\.isTrimmable) {
                 copier = PromptLookupIterator(
                     input: Array(fullTokens[splitAt...]), prompt: fullTokens, model: context.model,
                     cache: cache, maxTokens: maxTokens)
@@ -832,17 +812,13 @@ extension MLXEngine {
                 prefillSeconds > 0 ? Double(prefilled) / prefillSeconds : 0,
                 generated.count, decodeSeconds * 1000,
                 decodeSeconds > 0 ? Double(generated.count) / decodeSeconds : 0,
-                checkpoint?.tokens.count ?? 0,
-                copier.map { " lookup=\($0.accepted)/\($0.drafted)" } ?? ""
+                checkpoint?.tokens.count ?? 0
             )
             DebugLog.shared.log(
                 "GEN", summary,
                 detail: logRaw
                     ? "raw: \(text.debugDescription)"
                     : "\(text.count) chars — redacted from log")
-            if Self.debugLogging.get() {
-                print("[gen] \(summary) raw=\(logRaw ? text.debugDescription : "<redacted>")")
-            }
             return text
         }
     }

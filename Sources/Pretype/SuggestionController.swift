@@ -474,7 +474,8 @@ final class SuggestionController: NSObject {
     private var isOwnUIFrontmost: Bool { NSApp.isActive }
 
     func makeRequest(text: String, after: String = "") -> CompletionRequest {
-        var request = CompletionRequest(textBeforeCaret: text, textAfterCaret: after, context: typingContext)
+        var request = CompletionRequest(textBeforeCaret: text, textAfterCaret: after, appBundleID: typingContext.bundleID,
+                                        appName: typingContext.appName, site: typingContext.site)
         if AppPolicy.allowsScreenContext(typingContext) {
             request.screenSummary = screenSummary
             // Same app gate as the OCR: clipboard in a terminal/code editor is
