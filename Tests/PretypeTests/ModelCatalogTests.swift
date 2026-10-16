@@ -470,10 +470,23 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(minicpm[.arabic], -0.38)
         XCTAssertEqual(minicpm[.hebrew], -0.77)
         XCTAssertNil(ModelCatalog.recommended(for: "mlx-community/gemma-4-e4b-8bit").scriptGateTau[.han])
-        // Japanese is silent everywhere, Apple Intelligence included, gate or not.
-        for id in mlx + [ModelCatalog.appleIntelligenceID] {
+        // Japanese is silent everywhere, gate or not; Apple Intelligence also
+        // in Chinese and Korean (no logprob to gate them on).
+        for id in mlx {
             XCTAssertEqual(ModelCatalog.silentScripts(for: id), [.kana], id)
         }
+        XCTAssertEqual(ModelCatalog.silentScripts(for: ModelCatalog.appleIntelligenceID), [.kana, .han, .hangul])
+        // Chinese and Korean keep a τ with the gate off: the script's, else the model's.
+        let qwen = ModelCatalog.alwaysOnGateTau(for: "nikimori/Qwen3.5-2B-Base-6bit")
+        XCTAssertEqual(qwen, [.han: -1.18, .hangul: -0.57])
+        XCTAssertEqual(ModelCatalog.alwaysOnGateTau(for: ModelCatalog.appleIntelligenceID), [:])
+        // gate off → the floor; hand-tuned looser τ → raised to it; stricter stays.
+        let floor: [GateScript: Double] = [.han: -0.94]
+        XCTAssertEqual(MLXEngine.gateTau(base: nil, script: .han, scriptTau: [:], floor: floor), -0.94)
+        XCTAssertNil(MLXEngine.gateTau(base: nil, script: nil, scriptTau: [:], floor: floor))
+        XCTAssertEqual(MLXEngine.gateTau(base: -1.5, script: .han, scriptTau: [:], floor: floor), -0.94)
+        XCTAssertEqual(MLXEngine.gateTau(base: -1.5, script: nil, scriptTau: [:], floor: floor), -1.5)
+        XCTAssertEqual(MLXEngine.gateTau(base: -0.94, script: .han, scriptTau: [.han: -0.5], floor: floor), -0.5)
         // Stricter only: no override may loosen the model's own τ.
         for id in mlx {
             let r = ModelCatalog.recommended(for: id)

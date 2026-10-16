@@ -56,6 +56,8 @@ final class MLXEngine: CompletionEngine {
     let scriptGateTau: [GateScript: Double]
     /// Scripts with no suggestions at all, gate on or off (`ModelCatalog.silentScripts`).
     let silentScripts: Set<GateScript>
+    /// The τ floor per script, gate on or off (`ModelCatalog.alwaysOnGateTau`).
+    let alwaysOnGateTau: [GateScript: Double]
     /// Confidence trim: cut the shown suggestion just before the first decode
     /// token whose logprob < this (never inside the first word). Same live
     /// recorder as the logprob gate — 0× extra decode; unlike the gate it trims
@@ -232,6 +234,7 @@ final class MLXEngine: CompletionEngine {
             self.scriptGateTau = [:]
         }
         self.silentScripts = ModelCatalog.silentScripts(for: modelID)
+        self.alwaysOnGateTau = ModelCatalog.alwaysOnGateTau(for: modelID)
         self.trimLogProbThreshold = env["PRETYPE_TRIM_LOGPROB"].map { Float($0) } ?? -1.5
 
         // Instruct style runs completion *and* correction on the instruct
@@ -829,6 +832,15 @@ final class MLXEngine: CompletionEngine {
         try await run(request)
     }
 
+    /// One request's τ: with the gate on, the script's override of the model
+    /// τ; then raised to the script's always-on floor (nil = no gate).
+    static func gateTau(base: Double?, script: GateScript?, scriptTau: [GateScript: Double],
+                        floor: [GateScript: Double]) -> Double? {
+        let on = base.map { b in script.flatMap { scriptTau[$0] } ?? b }
+        guard let f = script.flatMap({ floor[$0] }) else { return on }
+        return max(on ?? -.infinity, f)
+    }
+
     /// The completion path for this engine's style.
     private func run(_ request: CompletionRequest, onPartial: (@Sendable (String) -> Void)? = nil,
                      prefillOnly: Bool = false) async throws -> String? {
@@ -970,7 +982,8 @@ final class MLXEngine: CompletionEngine {
         }
         let healedGate = healed(prepared.gate(cleanInstruct: false))
         // The script of what the user typed — the text the table was calibrated on.
-        let gateTau = logprobGateThreshold.map { GateScript.of(request.textBeforeCaret).flatMap { scriptGateTau[$0] } ?? $0 }
+        let gateTau = Self.gateTau(base: logprobGateThreshold, script: GateScript.of(request.textBeforeCaret),
+                                   scriptTau: scriptGateTau, floor: alwaysOnGateTau)
         let generationText = heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
             ?? prepared.generationText
         let promptCache = self.promptCache

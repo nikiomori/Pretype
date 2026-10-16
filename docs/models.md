@@ -55,6 +55,12 @@ Pretype does not show suggestions in Japanese. On the 280 held-out Japanese rows
 
 The typo fix, the reply and dictation still operate in Japanese.
 
+### Chinese and Korean
+
+When all suggestions show, Chinese and Korean suggestions cost more time than they save on every model (2026-10-16). Thus the confidence gate always operates in these two languages, also when you set it off. It uses the threshold of the model. With this threshold, the result is near zero or better.
+
+Apple Intelligence has no confidence value to gate on, and its first word is correct for 2–3% of its suggestions. Thus Apple Intelligence does not suggest in Chinese and Korean.
+
 ### Qwen3.5 2B uses its Base build
 
 Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is our own MLX conversion: [nikimori/Qwen3.5-2B-Base-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-Base-6bit).

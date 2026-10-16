@@ -210,6 +210,10 @@ trim. This diagram shows the checks in base style:
   suggestions that save more time than they cost. Thus the local models and
   Apple Intelligence do not suggest in Japanese, also when the gate is off.
   The typo fix, the reply and dictation still operate.
+* **Chinese and Korean are always gated.** The threshold of the model (or
+  its stricter script τ) applies also when the gate is off
+  (`ModelCatalog.alwaysOnGateTau`). Apple Intelligence does not suggest in
+  these languages.
 * **Token healing bypasses the gate.** Healing repairs mid-word completions.
   The match with the typed fragment is already a sufficient filter.
 * **Confidence trim.** It operates by default. It cuts the low-confidence tail

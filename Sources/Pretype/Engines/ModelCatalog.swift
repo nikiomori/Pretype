@@ -343,10 +343,11 @@ enum ModelCatalog {
         if id == appleIntelligenceID {
             // System model: short is its sweet spot (weak on long / Russian
             // tails); style is moot; no base path for the gate.
-            // Japanese: 0 of 229 shown suggestions had the right first word
-            // (runs-2026-10-15-rebook fm-real) — never suggest there.
+            // First word right on 0 of 229 shown Japanese suggestions, 2–3% in
+            // Chinese and Korean (runs-2026-10-15-rebook fm-real), and no
+            // logprob to gate on — never suggest there.
             return Recommendation(style: .instruct, length: .short, logprobGateTau: nil,
-                                  scriptGateTau: [.kana: .infinity])
+                                  scriptGateTau: [.kana: .infinity, .han: .infinity, .hangul: .infinity])
         }
         // MiniCPM5: base continuation only — instruct answers instead of
         // continuing (eval-v2 first-word ~0%), so auto mode must never route
@@ -399,6 +400,18 @@ enum ModelCatalog {
         let pin = ProcessInfo.processInfo.environment["PRETYPE_LOGPROB_GATE"]
         guard pin == nil || pin == "recommended" else { return [] }
         return Set(recommended(for: id).scriptGateTau.filter { $0.value.isInfinite }.keys)
+    }
+
+    /// The τ that holds in Chinese and Korean with the gate off too: the
+    /// script's own τ, else the model τ. Every suggestion shown there loses on
+    /// every measured model (−0.24…−0.56 chars per prompt at λ=1.25; under
+    /// the model τ −0.16…+0.04, runs-2026-10-16-gate). Empty under a
+    /// PRETYPE_LOGPROB_GATE pin, like `silentScripts(for:)`.
+    static func alwaysOnGateTau(for id: String) -> [GateScript: Double] {
+        let pin = ProcessInfo.processInfo.environment["PRETYPE_LOGPROB_GATE"]
+        let r = recommended(for: id)
+        guard pin == nil || pin == "recommended", let tau = r.logprobGateTau else { return [:] }
+        return [.han: r.scriptGateTau[.han] ?? tau, .hangul: r.scriptGateTau[.hangul] ?? tau]
     }
 
     /// Whether Instruct style continues the text on `id`. Elsewhere the
