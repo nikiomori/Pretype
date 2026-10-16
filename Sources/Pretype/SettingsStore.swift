@@ -670,13 +670,24 @@ final class SettingsStore {
             self?.quietly { self?.dictation = false }
             let alert = NSAlert()
             alert.messageText = String(localized: "Pretype needs the microphone")
-            alert.informativeText = String(localized: """
-            Dictation transcribes what you say on this Mac and types it into the field \
-            you're in. Nothing is recorded to disk and nothing leaves your computer.
+            // The same split as the toggle's subtitle: "nothing leaves your
+            // computer" is false the moment a hosted speech API is on.
+            let audio = Settings.apiAudio
+            alert.informativeText = audio.enabled && !audio.isLocal
+                ? String(localized: """
+                Dictation types what you say into the field you're in, transcribed by \
+                your API provider. Nothing is recorded to disk.
 
-            Allow Pretype under System Settings → Privacy & Security → Microphone, \
-            then switch dictation on again.
-            """)
+                Allow Pretype under System Settings → Privacy & Security → Microphone, \
+                then switch dictation on again.
+                """)
+                : String(localized: """
+                Dictation transcribes what you say on this Mac and types it into the field \
+                you're in. Nothing is recorded to disk and nothing leaves your computer.
+
+                Allow Pretype under System Settings → Privacy & Security → Microphone, \
+                then switch dictation on again.
+                """)
             alert.addButton(withTitle: String(localized: "Open System Settings"))
             alert.addButton(withTitle: String(localized: "Cancel"))
             Self.present(alert) {

@@ -516,7 +516,7 @@ struct GeneralTab: View {
                             }
                             .help(dictationSilence == 0
                                 ? Text("Runs until you press the chord again, or for ten minutes.")
-                                : Text("Types what it has and stops, so a forgotten chord isn't an open microphone. The clock starts after your first word."))
+                                : Text("Types what it has and stops, so a forgotten chord isn't an open microphone. Before your first word, it waits 30 seconds."))
                         }
                         Picker(selection: $store.dictationInput) {
                             Text("Automatic").tag("auto")

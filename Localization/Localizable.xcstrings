@@ -14792,6 +14792,106 @@
         }
       }
     },
+    "Dictation types what you say into the field you're in, transcribed by your API provider. Nothing is recorded to disk.\n\nAllow Pretype under System Settings → Privacy & Security → Microphone, then switch dictation on again." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diktování vepisuje, co říkáte, do pole, ve kterém jste. Přepis zajišťuje váš poskytovatel API. Nic se neukládá na disk.\n\nPovolte Pretype v „Nastavení systému“ → „Soukromí a zabezpečení“ → „Mikrofon“ a pak diktování znovu zapněte."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Diktat tippt, was Sie sagen, in das aktuelle Feld. Die Umwandlung in Text übernimmt Ihr API-Anbieter. Nichts wird auf der Festplatte gespeichert.\n\nErlauben Sie Pretype unter Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon und schalten Sie das Diktat dann wieder ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El dictado escribe lo que dices en el campo en el que estás; lo transcribe tu proveedor de API. No se graba nada en el disco.\n\nPermite Pretype en Ajustes del Sistema → Privacidad y seguridad → Micrófono y vuelve a activar el dictado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La dictée saisit ce que vous dites dans le champ actif ; la transcription est faite par votre fournisseur d’API. Rien n’est enregistré sur le disque.\n\nAutorisez Pretype dans Réglages Système → Confidentialité et sécurité → Micro, puis réactivez la dictée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La dettatura inserisce ciò che dici nel campo in cui ti trovi; la trascrizione è affidata al tuo fornitore API. Nulla viene registrato su disco.\n\nConsenti Pretype in Impostazioni di Sistema → Privacy e sicurezza → Microfono, poi riattiva la dettatura."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声入力では、話した内容をAPIプロバイダが文字に変換し、入力中のフィールドに入力します。ディスクには何も記録されません。\n\n「システム設定」→「プライバシーとセキュリティ」→「マイク」でPretypeを許可してから、音声入力をもう一度オンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "받아쓰기는 말한 내용을 API 제공업체가 텍스트로 변환해 현재 필드에 입력합니다. 디스크에 아무것도 녹음되지 않습니다.\n\n‘시스템 설정’ → ‘개인정보 보호 및 보안’ → ‘마이크’에서 Pretype을 허용한 다음 받아쓰기를 다시 켜세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dicteren typt wat je zegt in het veld waarin je bent; je API-aanbieder zet het om in tekst. Er wordt niets op schijf bewaard.\n\nSta Pretype toe via Systeeminstellingen → Privacy en beveiliging → Microfoon en schakel dicteren daarna weer in."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dyktowanie wpisuje to, co mówisz, w bieżące pole; mowę na tekst zamienia Twój dostawca API. Nic nie jest zapisywane na dysku.\n\nZezwól na dostęp dla Pretype w „Ustawienia systemowe” → „Prywatność i ochrona” → „Mikrofon”, a następnie ponownie włącz dyktowanie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O ditado digita o que você fala no campo em que você está; a transcrição é feita pelo seu provedor de API. Nada é gravado no disco.\n\nPermita o Pretype em Ajustes do Sistema → Privacidade e Segurança → Microfone e ative o ditado novamente."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dictarea introduce ce spuneți în câmpul în care vă aflați; transcrierea o face furnizorul dvs. de API. Nimic nu este înregistrat pe disc.\n\nPermiteți Pretype în Configurări sistem → Confidențialitate și securitate → Microfon, apoi activați din nou dictarea."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диктовка вводит вашу речь в поле, где вы находитесь; распознаёт её ваш API-провайдер. Ничего не записывается на диск.\n\nРазрешите доступ для Pretype в разделе «Системные настройки» → «Конфиденциальность и безопасность» → «Микрофон», затем снова включите диктовку."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diktering skriver in det du säger i fältet du är i; din API-leverantör transkriberar det. Inget sparas på disk.\n\nTillåt Pretype under Systeminställningar → Integritet och säkerhet → Mikrofon och slå sedan på diktering igen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dikte, söylediklerinizi bulunduğunuz alana yazar; yazıya dökme işini API sağlayıcınız yapar. Diske hiçbir şey kaydedilmez.\n\nSistem Ayarları → Gizlilik ve Güvenlik → Mikrofon bölümünde Pretype’a izin verin, sonra dikteyi yeniden açın."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диктування вводить ваше мовлення в поле, де ви перебуваєте; розпізнає його ваш API-провайдер. Нічого не записується на диск.\n\nДозвольте доступ для Pretype у розділі «Системні параметри» → «Приватність і безпека» → «Мікрофон», потім знову ввімкніть диктування."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听写会将你说的话输入到当前文本栏中，由你的 API 提供商转录。不会将任何内容录制到磁盘。\n\n请在“系统设置”→“隐私与安全性”→“麦克风”中允许 Pretype，然后重新打开听写。"
+          }
+        }
+      }
+    },
     "Disable Pretype Here" : {
       "localizations" : {
         "cs" : {
@@ -47539,7 +47639,108 @@
         }
       }
     },
+    "Types what it has and stops, so a forgotten chord isn't an open microphone. Before your first word, it waits 30 seconds." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vepíše, co má, a zastaví se, aby zapomenutá zkratka nenechala mikrofon zapnutý. Před prvním slovem čeká 30 sekund."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippt das Erkannte und stoppt, damit eine vergessene Kombination kein offenes Mikrofon bedeutet. Vor Ihrem ersten Wort wartet es 30 Sekunden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe lo que tiene y se detiene, para que un atajo olvidado no deje el micrófono abierto. Antes de tu primera palabra, espera 30 segundos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisit ce qu’il a et s’arrête, pour qu’un raccourci oublié ne laisse pas le micro ouvert. Avant votre premier mot, il attend 30 secondes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisce ciò che ha e si ferma, così una combinazione dimenticata non lascia il microfono aperto. Prima della prima parola, attende 30 secondi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "それまでの内容を入力して停止するため、ショートカットを押し忘れてもマイクがオンのままになりません。最初の単語までは30秒待ちます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "들은 내용까지 입력하고 멈추므로, 단축키를 잊어도 마이크가 계속 켜져 있지 않습니다. 첫 단어 전까지는 30초 기다립니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Typt wat het heeft en stopt, zodat een vergeten combinatie geen open microfoon is. Voor je eerste woord wacht het 30 seconden."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wpisuje rozpoznany tekst i się zatrzymuje, żeby zapomniany skrót nie zostawił włączonego mikrofonu. Przed pierwszym słowem czeka 30 sekund."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digita o que tem e para, para que um atalho esquecido não deixe o microfone aberto. Antes da sua primeira palavra, espera 30 segundos."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce ce are și se oprește, ca o combinație uitată să nu lase microfonul deschis. Înainte de primul cuvânt, așteaptă 30 de secunde."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вводит распознанное и останавливается, чтобы забытое сочетание не оставило микрофон включённым. До первого слова ждёт 30 секунд."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skriver det den har och stoppar, så att ett bortglömt kortkommando inte blir en öppen mikrofon. Före ditt första ord väntar den 30 sekunder."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elindekini yazar ve durur; böylece unutulan bir kısayol mikrofonu açık bırakmaz. İlk sözcüğünüzden önce 30 saniye bekler."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вводить розпізнане й зупиняється, щоб забута комбінація не залишила мікрофон увімкненим. До першого слова чекає 30 секунд."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入已识别的内容后停止，以免忘记按快捷键时麦克风一直开着。说出第一个词之前，会等待 30 秒。"
+          }
+        }
+      }
+    },
     "Types what it has and stops, so a forgotten chord isn't an open microphone. The clock starts after your first word." : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {

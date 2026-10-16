@@ -387,11 +387,11 @@ struct ModelRow: View {
                     HStack(spacing: 16) {
                         if let la = langAccuracy {
                             MetricBar(label: String(localized: "Accuracy"), fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
-                                      text: "\(la.pct)%",
+                                      text: String(localized: "\(la.pct)%"),
                                       color: .green,
                                       help: String(localized: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other."))
                         } else {
-                            MetricBar(label: String(localized: "Accuracy"), fraction: Bounds.accuracy(m), text: "\(m.firstWordPct)%",
+                            MetricBar(label: String(localized: "Accuracy"), fraction: Bounds.accuracy(m), text: String(localized: "\(m.firstWordPct)%"),
                                       color: .green,
                                       help: String(localized: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). English and Russian are pooled here; pick either as the axis to see it alone."))
                         }
@@ -984,7 +984,7 @@ struct ModelMapView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(m.shortName).font(.caption.weight(.bold))
                 HStack(spacing: 10) {
-                    stat(String(localized: "ACC"), "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%", .green)
+                    stat(String(localized: "ACC"), String(localized: "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%"), .green)
                     stat(String(localized: "SPEED"), latencyLabel(ms: m.p50Ms), .blue)
                     stat(String(localized: "MEM"), gbLabel(m.ramGB), .teal)
                 }
