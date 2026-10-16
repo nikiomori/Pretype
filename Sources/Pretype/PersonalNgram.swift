@@ -55,9 +55,9 @@ final class PersonalNgram: @unchecked Sendable {
             lock.lock()
             defer { lock.unlock() }
             guard epoch == startEpoch else { return }   // reset() raced the build
-            for (key, inner) in bi { for (w, c) in inner { bigram[key, default: [:]][w, default: 0] += c } }
-            for (key, inner) in tri { for (w, c) in inner { trigram[key, default: [:]][w, default: 0] += c } }
-            for (key, inner) in uni { for (w, c) in inner { unigram[key, default: [:]][w, default: 0] += c } }
+            bigram.merge(bi) { $0.merging($1, uniquingKeysWith: +) }
+            trigram.merge(tri) { $0.merging($1, uniquingKeysWith: +) }
+            unigram.merge(uni) { $0.merging($1, uniquingKeysWith: +) }
             prepared = true
         }
     }

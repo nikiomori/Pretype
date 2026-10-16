@@ -225,11 +225,7 @@ enum AXText {
     private static func selectionRect(for range: CFRange, in element: AXUIElement) -> CGRect? {
         let frame = elementFrame(element)
         func validated(_ axRect: CGRect?) -> CGRect? {
-            guard let r = axRect, r != .zero, r.height >= 4 else { return nil }
-            if let frame, frame != .zero,
-               !frame.insetBy(dx: -24, dy: -24).contains(CGPoint(x: r.midX, y: r.midY)) {
-                return nil  // selection reported outside its own field → garbage
-            }
+            guard let r = axRect, r != .zero, r.height >= 4, centerInField(r, frame: frame) else { return nil }
             return onScreen(flipped(r))
         }
         return validated(bounds(forRange: range, in: element)) ?? validated(webCaretBounds(element))
@@ -636,6 +632,13 @@ enum AXText {
 
     // MARK: - Caret geometry
 
+    /// False when an AX rect's center sits outside its own field (±24 pt of
+    /// slack) — reported there, it is garbage. No usable frame: can't tell.
+    private static func centerInField(_ rect: CGRect, frame: CGRect?) -> Bool {
+        guard let frame, frame != .zero else { return true }
+        return frame.insetBy(dx: -24, dy: -24).contains(CGPoint(x: rect.midX, y: rect.midY))
+    }
+
     /// A caret rect only when AX gives plausible geometry that sits inside the
     /// field. Electron returns x=0 / off-field garbage, which we reject here so
     /// the caller can fall back to anchoring on the field box.
@@ -646,11 +649,8 @@ enum AXText {
                 reported: rect,
                 prevChar: bounds(forRange: CFRange(location: caret - 1, length: 1), in: element))
         }
-        guard var r = rect, r != .zero, r.height >= 4, r.height <= 200 else { return nil }
-        if let frame, frame != .zero,
-           !frame.insetBy(dx: -24, dy: -24).contains(CGPoint(x: r.midX, y: r.midY)) {
-            return nil  // caret reported outside its own field → garbage
-        }
+        guard var r = rect, r != .zero, r.height >= 4, r.height <= 200,
+              centerInField(r, frame: frame) else { return nil }
         // A caret is a hairline. Apps that answer a zero-length range with the
         // next character's full advance width report one many points wide, and
         // the inline ghost starts at the caret's RIGHT edge — so it would sit a

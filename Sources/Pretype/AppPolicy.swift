@@ -71,7 +71,8 @@ enum AppPolicy {
     /// Menu-bar "Disable/Enable on <site>": the exact host, and on the way back
     /// every entry that covered it — same contract as `toggleUserBlacklist`.
     static func toggleUserBlacklist(site host: String) {
-        toggle(siteEntry(host), hits: Settings.userBlacklist.filter { site(host, matches: $0) })
+        toggle(siteEntry(host), hits: Settings.userBlacklist.filter { site(host, matches: $0) },
+               in: &Settings.userBlacklist)
     }
 
     static func isBlacklisted(_ bundleID: String?) -> Bool {
@@ -94,15 +95,15 @@ enum AppPolicy {
     /// off drops every marker that covered it, so one click always reverses the
     /// previous one even when the block came from a hand-typed fragment.
     static func toggleUserBlacklist(_ bundleID: String) {
-        toggle(bundleID.lowercased(), hits: userBlacklistEntries(for: bundleID))
+        toggle(bundleID.lowercased(), hits: userBlacklistEntries(for: bundleID), in: &Settings.userBlacklist)
     }
 
-    /// Nothing hit → block with `entry`; else drop every entry that hit.
-    private static func toggle(_ entry: String, hits: [String]) {
+    /// Nothing hit → add `entry` to `list`; else drop every entry that hit.
+    private static func toggle(_ entry: String, hits: [String], in list: inout [String]) {
         if hits.isEmpty {
-            Settings.userBlacklist.append(entry)
+            list.append(entry)
         } else {
-            Settings.userBlacklist.removeAll { hits.contains($0) }
+            list.removeAll { hits.contains($0) }
         }
     }
 
@@ -145,12 +146,7 @@ enum AppPolicy {
     /// does, or unchecking on one site of a browser added whole would not stick.
     static func toggleDictationSend(_ context: TypingContext) {
         guard let entry = dictationSendEntry(context) else { return }
-        let hits = dictationSendHits(context)
-        if hits.isEmpty {
-            Settings.dictationSendApps.append(entry)
-        } else {
-            Settings.dictationSendApps.removeAll { hits.contains($0) }
-        }
+        toggle(entry, hits: dictationSendHits(context), in: &Settings.dictationSendApps)
     }
 
     /// Screen OCR and clipboard context for this app and website: not where

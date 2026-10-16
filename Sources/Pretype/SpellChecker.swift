@@ -32,16 +32,9 @@ enum SpellChecker {
         guard word.count >= 3, word.count <= 40, word.allSatisfy(\.isWordChar) else { return nil }
 
         let language = self.language(for: word, context: context)
+        // Is it actually misspelled?
+        guard !spelled(word, language: language) else { return nil }
         let range = NSRange(location: 0, length: (word as NSString).length)
-
-        // Is it actually misspelled? Must pass the language explicitly — the
-        // language-less check silently skips Cyrillic words (they look fine to
-        // the English dictionary), so Russian typos slipped through.
-        let misspelled = checker.checkSpelling(
-            of: word, startingAt: 0, language: language, wrap: false,
-            inSpellDocumentWithTag: 0, wordCount: nil
-        )
-        guard misspelled.location != NSNotFound else { return nil }
 
         // If the text is still a valid prefix of real words, the user is probably
         // mid-typing one — don't nag with a correction yet (e.g. "recei" is on

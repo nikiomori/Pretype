@@ -40,10 +40,7 @@ enum Stats {
         // Archive the day that just ended before its counters are cleared.
         if let previous {
             var history = savedByDay
-            history[previous] = max(
-                0,
-                defaults.integer(forKey: "stats.acceptedChars") - defaults.integer(forKey: "stats.accepted")
-            )
+            history[previous] = netSavedUnrolled
             let cutoff = day(-7)
             defaults.set(history.filter { $0.key >= cutoff }, forKey: historyKey)
         }
@@ -69,7 +66,7 @@ enum Stats {
         defaults.set(defaults.integer(forKey: key) + amount, forKey: key)
     }
 
-    static func recordShown(app: String? = nil) {
+    static func recordShown(app: String?) {
         bump("stats.shown")
         bumpApp(app, shown: 1)
     }
@@ -131,11 +128,15 @@ enum Stats {
         )
     }
 
-    /// Lifetime accept count — the UI uses it to retire tutoring hints once
-    /// accepting is muscle memory.
-    static var lifetimeAccepted: Int {
+    private static var lifetimeAccepted: Int {
         defaults.integer(forKey: "stats.lifetimeAccepted")
     }
+
+    /// Still new to accepting: the accept key is spelled out next to the
+    /// suggestion — in the panel AND inline, where a bare grey continuation
+    /// gave no clue that a key takes it — and in the status menu, until
+    /// accepting is muscle memory.
+    static var tutorsAccept: Bool { lifetimeAccepted < 20 }
 
     static func recordCorrection() {
         bump("stats.corrections")
@@ -187,7 +188,13 @@ enum Stats {
     /// isn't — and this is the number the menu turns into minutes.
     static var netSavedToday: Int {
         rollDayIfNeeded()
-        return max(0, defaults.integer(forKey: "stats.acceptedChars") - defaults.integer(forKey: "stats.accepted"))
+        return netSavedUnrolled
+    }
+
+    /// The day counters as they stand — `rollDayIfNeeded` archives this for
+    /// the day it is closing, so it must not roll first.
+    private static var netSavedUnrolled: Int {
+        max(0, defaults.integer(forKey: "stats.acceptedChars") - defaults.integer(forKey: "stats.accepted"))
     }
 
     static var netSavedTotal: Int {

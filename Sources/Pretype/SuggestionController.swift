@@ -4,7 +4,7 @@ import AppKit
 /// ghost overlay → Tab acceptance → text injection. Also handles
 /// fix-selection (⌥Tab) and feeds the menu with diagnostics and context.
 @MainActor
-final class SuggestionController: NSObject {
+final class SuggestionController {
     private let focusTracker = FocusTracker()
     private let keyTap = KeyTap()
     let window = SuggestionWindow()
@@ -159,15 +159,17 @@ final class SuggestionController: NSObject {
     var lastEvent = "waiting for typing"
     private var onboardingWindow: OnboardingWindow?
 
-    override init() {
-        super.init()
+    init() {
         // A model/style/gate rebuild drops the suggestion that belonged to the
         // old engine.
         engineCoordinator.onRebuild = { [weak self] in self?.dismiss() }
         window.presentation = Settings.suggestionPresentation
         window.onVisibilityChange = { [weak self] in self?.updateScrollMonitoring() }
         dictationController.owner = self
-        focusTracker.delegate = self
+        focusTracker.onFocusChange = { [weak self] in self?.focusDidChange() }
+        focusTracker.onTextChange = { [weak self] valueChanged in self?.focusedTextDidChange(valueChanged: valueChanged) }
+        focusTracker.onResignActiveApp = { [weak self] in self?.focusedAppDidResign() }
+        focusTracker.onViewportChange = { [weak self] in self?.dropOverlay(why: "the window moved or resized") }
         keyTap.handler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
         }
@@ -263,7 +265,7 @@ final class SuggestionController: NSObject {
     /// Close the pending journal record with its outcome. Idempotent — the
     /// first resolution wins; later calls (e.g. the `dismiss()` that follows an
     /// Escape) find nothing pending.
-    private func resolveJournal(_ outcome: SuggestionJournal.Outcome, typed: String? = nil) {
+    private func resolveJournal(_ outcome: SuggestionJournal.Outcome) {
         guard let (shown, shownAt) = pendingJournal else { return }
         pendingJournal = nil
         // The counters are booked HERE, not where the ghost was drawn: what makes
@@ -289,7 +291,6 @@ final class SuggestionController: NSObject {
             entry.consumedChars = Self.consumedChars(outcome: outcome, offered: entry.suggestion,
                                                      remaining: active.text)
         }
-        entry.typed = typed.map { String($0.prefix(20)) }
         entry.shownForMs = shownForMs
         // Read at resolve, not show: the engine publishes the value only
         // after the generation completes, which is after the first streamed
@@ -301,8 +302,8 @@ final class SuggestionController: NSObject {
     }
 
     /// Resolve the shown suggestion with `outcome` and take it off screen.
-    private func retire(_ outcome: SuggestionJournal.Outcome, typed: String? = nil) {
-        resolveJournal(outcome, typed: typed)
+    private func retire(_ outcome: SuggestionJournal.Outcome) {
+        resolveJournal(outcome)
         active = nil
         // The query behind this ghost may still be streaming; once its ghost
         // is gone the same text must re-query, not ride the dedupe in
@@ -733,7 +734,7 @@ final class SuggestionController: NSObject {
                 }
                 // The typed delta doesn't extend the ghost: either the user typed
                 // it out in full themselves, or they went another way.
-                retire(delta.hasPrefix(current.text) ? .typedThrough : .diverged, typed: delta)
+                retire(delta.hasPrefix(current.text) ? .typedThrough : .diverged)
             } else {
                 // Context jumped (backspace, caret move, programmatic edit).
                 retire(.abandoned)
@@ -787,7 +788,7 @@ final class SuggestionController: NSObject {
             let partial = SpellChecker.trailingWord(of: text)
             if let remainder = PersonalNgram.shared.completeWord(partial: partial) {
                 prediction = remainder
-            } else if SpellChecker.endsOnCompleteWord(before: text, after: after) == true,
+            } else if SpellChecker.endsOnCompleteWord(before: text, after: after),
                       let word = PersonalNgram.shared.nextWord(after: text) {
                 prediction = " " + word
             } else {
@@ -1032,7 +1033,7 @@ final class SuggestionController: NSObject {
                 style: Settings.completionStyle.rawValue,
                 personalization: Settings.personalizationLevel.rawValue,
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
-                outcome: .abandoned, acceptedChars: 0, typed: nil, shownForMs: 0,
+                outcome: .abandoned, acceptedChars: 0, shownForMs: 0,
                 screen: screenSummary != nil
                     && AppPolicy.allowsScreenContext(typingContext)),
                 shownAt: Date())
@@ -1336,6 +1337,7 @@ final class SuggestionController: NSObject {
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
+        let keyEvent = NSEvent(cgEvent: event)
 
         // Exact ⌘Z undoes the last accepted chunk. The cached-text check decides
         // consume vs pass-through synchronously (no AX read inside the tap): a
@@ -1344,7 +1346,7 @@ final class SuggestionController: NSObject {
         // and the bottom of this function clears `lastAcceptedChunk`.
         if let accepted = lastAcceptedChunk, let expected = lastAcceptedSnapshot,
            Self.isPlainCommandZ(keyCode: keyCode,
-                                key: NSEvent(cgEvent: event)?.charactersIgnoringModifiers?.lowercased(),
+                                key: keyEvent?.charactersIgnoringModifiers?.lowercased(),
                                 flags: flags),
            latestTextBeforeCaret == expected {
             lastAcceptedChunk = nil
@@ -1421,7 +1423,7 @@ final class SuggestionController: NSObject {
         // that window would re-inject characters the OS already typed
         // (duplicating them). Worst in Electron apps, where AX notifications
         // are unreliable and the timer is the only update path.
-        narrowActive(with: event, flags: flags)
+        narrowActive(typed: keyEvent?.characters ?? "", flags: flags)
 
         // AX change notifications are unreliable in some apps (notably
         // Electron), so every keystroke also schedules a context re-read.
@@ -1433,9 +1435,9 @@ final class SuggestionController: NSObject {
     }
 
     /// Synchronously shrinks (or drops) the live suggestion to match a
-    /// pass-through keystroke, using the characters carried by the event
-    /// itself — no AX round-trip, so it can't block on a hung target app.
-    private func narrowActive(with event: CGEvent, flags: CGEventFlags) {
+    /// pass-through keystroke, using the characters `typed` carried by the
+    /// event itself — no AX round-trip, so it can't block on a hung target app.
+    private func narrowActive(typed: String, flags: CGEventFlags) {
         // Command/control chords carry no typed text but can mutate the field
         // arbitrarily (⌘V, ⌘X, the app's own ⌘Z): both the synchronous cache
         // and the ghost stop being trustworthy — invalidate them and let the
@@ -1445,7 +1447,6 @@ final class SuggestionController: NSObject {
             if active != nil { retire(.abandoned) }
             return
         }
-        let typed = Self.typedCharacters(event)
         guard !typed.isEmpty else { return }   // dead keys, bare modifiers
         let isControl = Self.isControlInput(typed)
         // Keep the cache marker truthful for EVERY pass-through keystroke,
@@ -1472,7 +1473,7 @@ final class SuggestionController: NSObject {
                 // The keystroke completed the remaining suggestion unaided.
                 retire(.typedThrough)
             } else {
-                retire(.diverged, typed: typed)
+                retire(.diverged)
             }
             return
         }
@@ -1548,14 +1549,6 @@ final class SuggestionController: NSObject {
         typed.unicodeScalars.contains {
             $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
         }
-    }
-
-    /// The characters this key event will insert, as reported by the event.
-    private static func typedCharacters(_ event: CGEvent) -> String {
-        var length = 0
-        var chars = [UniChar](repeating: 0, count: 8)
-        event.keyboardGetUnicodeString(maxStringLength: 8, actualStringLength: &length, unicodeString: &chars)
-        return String(utf16CodeUnits: chars, count: min(length, 8))
     }
 
     /// `keystrokeFallback`: only the keystroke's own re-read, for apps whose
@@ -1648,7 +1641,6 @@ final class SuggestionController: NSObject {
                 suggestion: accepted,
                 outcome: .undone,
                 acceptedChars: -accepted.count,
-                typed: nil,
                 shownForMs: 0,
                 screen: false))
         }
@@ -1913,13 +1905,15 @@ final class SuggestionController: NSObject {
 
 }
 
-extension SuggestionController: FocusTrackerDelegate {
-    func focusTrackerDidChangeFocus(_ tracker: FocusTracker) {
+// MARK: - Focus tracking (wired to `FocusTracker`'s handlers in `init`)
+
+extension SuggestionController {
+    private func focusDidChange() {
         // Apps fire the focus notification in duplicate bursts; identical
         // context + identical element means nothing actually changed.
-        let newContext = tracker.typingContext
+        let newContext = focusTracker.typingContext
         let sameElement: Bool
-        switch (tracker.focusedTextElement, lastFocusedElement) {
+        switch (focusTracker.focusedTextElement, lastFocusedElement) {
         case let (new?, old?): sameElement = CFEqual(new, old)
         case (nil, nil): sameElement = true
         default: sameElement = false
@@ -1927,7 +1921,7 @@ extension SuggestionController: FocusTrackerDelegate {
         if newContext == trackedContext, sameElement { return }
 
         focusGeneration += 1
-        lastFocusedElement = tracker.focusedTextElement
+        lastFocusedElement = focusTracker.focusedTextElement
         lastCaretRect = nil
         lastHostStyle = HostTextStyle()
         // The overlay's remembered field style and the probe's pixel verdict
@@ -1972,7 +1966,7 @@ extension SuggestionController: FocusTrackerDelegate {
         // should still have context before the first keystroke lands.
         // Paused (or on battery), blacklisted or quiet: no reload, no
         // indicator, no screenshot.
-        if let element = tracker.focusedTextElement, Settings.enabled,
+        if let element = focusTracker.focusedTextElement, Settings.enabled,
            !AppPolicy.pausedForBattery, AppPolicy.allowsCompletions(typingContext),
            !Stats.isUnproductive(typingContext.bundleID) {
             // Entered a text field — start reloading the model now (no-op unless
@@ -2009,7 +2003,7 @@ extension SuggestionController: FocusTrackerDelegate {
     /// One edit posts two notifications ~0.1 ms apart (selection, then
     /// value) and the main queue drains between them: one short wait answers
     /// both with a single read instead of two identical ones.
-    func focusTrackerTextDidChange(_ tracker: FocusTracker, valueChanged: Bool) {
+    private func focusedTextDidChange(valueChanged: Bool) {
         if valueChanged { axSeenSinceKey.value = true } else { axSeenSinceKey.selection = true }
         guard !axRefreshScheduled else { return }
         axRefreshScheduled = true
@@ -2025,7 +2019,7 @@ extension SuggestionController: FocusTrackerDelegate {
         }
     }
 
-    func focusTrackerDidResignActiveApp(_ tracker: FocusTracker) {
+    private func focusedAppDidResign() {
         // Left the app we were typing in — drop any ghost/indicator left at its
         // caret. A returning keystroke re-queries from the live context, so this
         // can't strand a still-wanted suggestion.
@@ -2038,10 +2032,6 @@ extension SuggestionController: FocusTrackerDelegate {
         // Settings field. After `dropOverlay`, which would strip its notice's
         // protection and fade it at once.
         dictationController.invalidate()
-    }
-
-    func focusTrackerViewportDidChange(_ tracker: FocusTracker) {
-        dropOverlay(why: "the window moved or resized")
     }
 }
 

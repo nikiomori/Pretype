@@ -9,38 +9,27 @@ import Foundation
 enum EmojiShortcodes {
     /// The closed shortcode sitting just before the caret, colons included, or
     /// nil. Mid-typing (":shru") stays silent by construction: only a trailing
-    /// ":" starts the walk.
+    /// ":" counts.
     static func trailingShortcode(in text: String) -> String? {
         guard text.hasSuffix(":") else { return nil }
-        var body: [Character] = []
-        var iter = text.dropLast().reversed().makeIterator()
-        var opened = false
-        // The character before the opening colon, once we find one.
-        var preceding: Character?
-        while let ch = iter.next() {
-            if ch == ":" {
-                opened = true
-                preceding = iter.next()
-                break
-            }
-            guard ch.isLetter || ch.isNumber || ch == "_" || ch == "+" || ch == "-" else { return nil }
-            // Longest real Gemoji name is 30-odd chars; past that it's prose
-            // between two colons, not a shortcode.
-            guard body.count < 32 else { return nil }
-            body.append(ch)
-        }
-        // No opening colon at all — a bare ":" or "http:".
-        guard opened, body.count >= 2 else { return nil }
-        let name = String(body.reversed())
+        let head = text.dropLast()
+        // Longest real Gemoji name is 30-odd chars; past 32 it's prose between
+        // two colons, not a shortcode. No opening colon at all — a bare ":" or
+        // "http:" — is nil too.
+        guard let open = head.suffix(33).lastIndex(of: ":") else { return nil }
+        let name = head[head.index(after: open)...]
+        guard name.count >= 2,
+              name.allSatisfy({ $0.isLetter || $0.isNumber || "_+-".contains($0) }) else { return nil }
         // Digits-only bodies are ratios and times, never names. "+1"/"-1" are
         // the two Gemoji codes with no letter in them — the only reason +/- are
         // in the charset above at all.
-        guard body.contains(where: { $0.isLetter }) || name == "+1" || name == "-1" else { return nil }
+        guard name.contains(where: \.isLetter) || name == "+1" || name == "-1" else { return nil }
         // A colon glued to the end of a word or number is a time ("10:30:"), a
         // ratio ("ratio3:4:") or code ("foo:bar:") — all of which must stay quiet.
         // A second colon means C++/Rust scope ("ns::member:"), never a shortcode.
-        if let preceding, preceding.isLetter || preceding.isNumber || preceding == ":" { return nil }
-        return ":" + name + ":"
+        if let preceding = head[..<open].last,
+           preceding.isLetter || preceding.isNumber || preceding == ":" { return nil }
+        return ":\(name):"
     }
 
     /// The emoji for a shortcode, cheapest lookup first: the curated aliases,

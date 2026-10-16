@@ -56,9 +56,8 @@ final class SuggestionJournal: @unchecked Sendable {
         var suggestion: String
         var outcome: Outcome
         /// Characters the user accepted; negative when an accept was undone.
+        /// (Older rows also carry a `typed` key — ignored on decode.)
         var acceptedChars: Int
-        /// What the user typed instead, for `diverged` (first chars only).
-        var typed: String?
         var shownForMs: Int
         /// Whether the prompt also carried OCR screen context (not logged itself).
         var screen: Bool
@@ -106,9 +105,7 @@ final class SuggestionJournal: @unchecked Sendable {
         if let url {
             self.url = url
         } else {
-            let dir = FileManager.default
-                .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("Pretype", isDirectory: true)
+            let dir = URL.applicationSupportDirectory.appending(path: "Pretype", directoryHint: .isDirectory)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             self.url = dir.appendingPathComponent("suggestion-journal.jsonl")
         }
@@ -139,9 +136,8 @@ final class SuggestionJournal: @unchecked Sendable {
     /// Privacy: these are ordinary rows in the ordinary journal file, so the
     /// kill switch and Clear (`reset()`) delete them exactly like typed ones,
     /// and nothing is copied anywhere else — no second store, no side file.
-    static func importEntries(from text: String, source: String,
-                              phraseLimit: Int = 500, maxChars: Int = 2_000_000) -> [Entry] {
-        let text = String(text.prefix(maxChars))
+    static func importEntries(from text: String, source: String, phraseLimit: Int = 500) -> [Entry] {
+        let text = String(text.prefix(2_000_000))
         let ts = timestamp()
         // `engine: "import"` is how the offline replay bench excludes these rows
         // from live-accuracy numbers — cheaper than a new Entry field that every
@@ -170,7 +166,7 @@ final class SuggestionJournal: @unchecked Sendable {
                 // corrupt them (same ceiling the live path already carries).
                 ctx: String(text[..<range.lowerBound].suffix(400)),
                 after: "", suggestion: sentence, outcome: .typedThrough,
-                acceptedChars: 0, typed: nil, shownForMs: 0, screen: false))
+                acceptedChars: 0, shownForMs: 0, screen: false))
             // 500 is load-bearing, not a round number: `loadPhrasesLocked` keeps
             // `loaded.suffix(maxPhrases)` = the LAST 2000 phrases, and imported
             // rows are appended last — so an uncapped import would evict every
@@ -235,8 +231,9 @@ final class SuggestionJournal: @unchecked Sendable {
     /// The accepted phrases most similar to `query`, by IDF-weighted word
     /// overlap (rare shared words — names, project slang — count for much more
     /// than common ones). Requires ≥2 shared index words so a single stop-wordy
-    /// match never surfaces an unrelated example. Deduped by phrase text.
-    func similarAcceptedPhrases(to query: String, limit: Int = 3) -> [AcceptedPhrase] {
+    /// match never surfaces an unrelated example. Deduped by phrase text; the
+    /// best three.
+    func similarAcceptedPhrases(to query: String) -> [AcceptedPhrase] {
         let queryWords = Set(Self.indexWords(query))
         guard queryWords.count >= 2 else { return [] }
         return queue.sync {
@@ -256,7 +253,7 @@ final class SuggestionJournal: @unchecked Sendable {
             return Array(scored.sorted { $0.1 > $1.1 }
                 .map(\.0)
                 .filter { seen.insert($0.ctx + $0.next).inserted }
-                .prefix(limit))
+                .prefix(3))
         }
     }
 
@@ -355,8 +352,7 @@ final class SuggestionJournal: @unchecked Sendable {
 
     /// Lowercased ё-folded letter-runs ≥3 chars — the retrieval vocabulary.
     static func indexWords(_ text: String) -> [String] {
-        text.lowercased().replacingOccurrences(of: "ё", with: "е")
-            .split { !$0.isLetter }.map(String.init).filter { $0.count >= 3 }
+        PersonalNgram.fold(text).split { !$0.isLetter }.map(String.init).filter { $0.count >= 3 }
     }
 
     /// `queue.sync` is not guarding the stat — it is a FLUSH BARRIER. Appends are

@@ -298,6 +298,7 @@ enum KeyCode {
     static let space: Int64 = 49
     static let escape: Int64 = 53
     static let returnKey: Int64 = 36
+    static let delete: Int64 = 51   // backspace
     static let keypadEnter: Int64 = 76
     static let z: Int64 = 6
     static let d: Int64 = 2

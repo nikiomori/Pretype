@@ -259,7 +259,7 @@ final class SuggestionWindow: NSPanel {
                 let room = max(0, (inlineRoom(at: caretRect, rtl: ghostRTL) ?? 0) - 2)
                 // A new user's ghost carries the accept keycap when the line
                 // has room for it and at least a word; otherwise the words win.
-                let keycapWidth = Self.tutorsAccept ? ceil(ghostKeycap().size().width) : 0
+                let keycapWidth = Stats.tutorsAccept ? ceil(ghostKeycap().size().width) : 0
                 var fitted = keycapWidth > 0
                     ? Self.fittingPrefix(of: s, font: ghostFont, width: room - keycapWidth) : ""
                 ghostShowsKeycap = !fitted.isEmpty
@@ -615,7 +615,7 @@ final class SuggestionWindow: NSPanel {
 
     /// The Pretype mark in `color`, leading an engine notice.
     private static func mark(_ state: BrandMark.State, _ color: NSColor) -> NSAttributedString {
-        let template = BrandMark.statusItemImage(state, phase: 2, height: 10)
+        let template = BrandMark.statusItemImage(state, phase: 2)
         let image = NSImage(size: template.size, flipped: false) { rect in
             template.draw(in: rect)
             // sourceIn, not sourceAtop: the colour REPLACES the black template
@@ -798,7 +798,7 @@ final class SuggestionWindow: NSPanel {
         let result = NSMutableAttributedString(attributedString: Self.plain(head))
         let tail = String(s.dropFirst(head.count))
         if !tail.isEmpty { result.append(Self.plain(tail, .secondaryLabelColor)) }
-        guard Self.tutorsAccept else { return result }
+        guard Stats.tutorsAccept else { return result }
         let style = Settings.hotkeyStyle
         let hint = NSFont.systemFont(ofSize: 11)
         result.append(Self.plain("   "))
@@ -808,11 +808,6 @@ final class SuggestionWindow: NSPanel {
         result.append(Self.plain(" " + String(localized: "all"), .secondaryLabelColor, hint))
         return result
     }
-
-    /// New users get the accept key spelled out next to the suggestion — in
-    /// the panel AND inline, where a bare grey continuation gave no clue that
-    /// a key takes it — until accepting is muscle memory.
-    private static var tutorsAccept: Bool { Stats.lifetimeAccepted < 20 }
 
     /// Whether the ghost currently on screen carries the accept keycap — kept
     /// for `advance`, which re-renders the remainder in place.

@@ -33,6 +33,11 @@ final class EmojiShortcodeTests: XCTestCase {
         XCTAssertNil(EmojiShortcodes.trailingShortcode(in: ":shru"))
         XCTAssertNil(EmojiShortcodes.trailingShortcode(in: "type :roc"))
 
+        // The body caps at 32 characters; one more is prose between colons.
+        let body32 = String(repeating: "a", count: 32)
+        XCTAssertEqual(EmojiShortcodes.trailingShortcode(in: "x :\(body32):"), ":\(body32):")
+        XCTAssertNil(EmojiShortcodes.trailingShortcode(in: "x :\(body32)a:"))
+
         // Detected but unknown body → no emoji, so no pill.
         XCTAssertEqual(EmojiShortcodes.trailingShortcode(in: ":asdfqwer:"), ":asdfqwer:")
         XCTAssertNil(EmojiShortcodes.emoji(for: ":asdfqwer:"))

@@ -443,7 +443,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             ? String(localized: "Hold \(Settings.dictationGesture.shortLabel)") : nil
         let latch = Settings.dictationEnabled && Settings.dictationLatch != .off
             ? Settings.dictationLatch.label : nil
-        guard Stats.lifetimeAccepted < 20 else {
+        guard Stats.tutorsAccept else {
             // One cap per key: three chords in one cap read as a single combo.
             // Dictation stays in the short form too — it may be switched on
             // long after the 20th accept, and then it would never be hinted.

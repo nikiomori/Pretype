@@ -1,20 +1,6 @@
 import AppKit
 import ApplicationServices
 
-@MainActor
-protocol FocusTrackerDelegate: AnyObject {
-    func focusTrackerDidChangeFocus(_ tracker: FocusTracker)
-    /// `valueChanged`: the text itself changed, not just the selection.
-    func focusTrackerTextDidChange(_ tracker: FocusTracker, valueChanged: Bool)
-    /// The app being typed in just stopped being frontmost. Fires even when the
-    /// next app reports no AX focus change (same-process window switch, Spaces,
-    /// Electron without notifications) — so a left-behind overlay can be dropped.
-    func focusTrackerDidResignActiveApp(_ tracker: FocusTracker)
-    /// The window holding the caret moved or resized: the line is no longer
-    /// where the overlay was placed, and a resize reflows the text on top of it.
-    func focusTrackerViewportDidChange(_ tracker: FocusTracker)
-}
-
 /// Everything we know about where the user is typing. Snapshotted on focus
 /// change so the prompt header stays stable across keystrokes (KV-cache).
 struct TypingContext: Equatable {
@@ -37,9 +23,18 @@ private let axObserverCallback: AXObserverCallback = { _, element, notification,
 }
 
 /// Follows the frontmost application and its focused text element via the
-/// Accessibility API, reporting focus and text changes to its delegate.
+/// Accessibility API, reporting focus and text changes through its handlers.
 final class FocusTracker {
-    weak var delegate: FocusTrackerDelegate?
+    var onFocusChange: (@MainActor () -> Void)?
+    /// `valueChanged`: the text itself changed, not just the selection.
+    var onTextChange: (@MainActor (_ valueChanged: Bool) -> Void)?
+    /// The app being typed in just stopped being frontmost. Fires even when the
+    /// next app reports no AX focus change (same-process window switch, Spaces,
+    /// Electron without notifications) — so a left-behind overlay can be dropped.
+    var onResignActiveApp: (@MainActor () -> Void)?
+    /// The window holding the caret moved or resized: the line is no longer
+    /// where the overlay was placed, and a resize reflows the text on top of it.
+    var onViewportChange: (@MainActor () -> Void)?
 
     /// Hard ceiling on any single synchronous AX query. Every `AXText` read runs
     /// on the main thread (the event tap dispatches there), so a target app that
@@ -85,7 +80,7 @@ final class FocusTracker {
                   let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   app.processIdentifier == self.observedPID else { return }
             Task { @MainActor in
-                self.delegate?.focusTrackerDidResignActiveApp(self)
+                self.onResignActiveApp?()
             }
         }
         if let app = NSWorkspace.shared.frontmostApplication {
@@ -102,14 +97,14 @@ final class FocusTracker {
 
         var created: AXObserver?
         guard AXObserverCreate(pid, axObserverCallback, &created) == .success, let obs = created else {
-            // Can't track this app, but the delegate must not keep the previous
+            // Can't track this app, but the owner must not keep the previous
             // app's context (blacklist/persona would evaluate the wrong bundle).
             // Nothing was committed above, so observedPID stays 0 and
             // re-activating the app retries.
             typingContext = TypingContext(appName: app.localizedName, bundleID: app.bundleIdentifier,
                                           windowTitle: nil, fieldLabel: nil)
             Task { @MainActor in
-                delegate?.focusTrackerDidChangeFocus(self)
+                onFocusChange?()
             }
             return
         }
@@ -148,10 +143,7 @@ final class FocusTracker {
             if let appEl = appElement {
                 AXObserverRemoveNotification(obs, appEl, kAXFocusedUIElementChangedNotification as CFString)
             }
-            if let focused = focusedTextElement, elementNotificationsAdded {
-                AXObserverRemoveNotification(obs, focused, kAXValueChangedNotification as CFString)
-                AXObserverRemoveNotification(obs, focused, kAXSelectedTextChangedNotification as CFString)
-            }
+            unobserveFocusedElement(obs)
             observeWindow(nil)
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
         }
@@ -178,12 +170,12 @@ final class FocusTracker {
             if let focused = focusedTextElement, CFEqual(element, focused) {
                 let valueChanged = name == kAXValueChangedNotification
                 Task { @MainActor in
-                    delegate?.focusTrackerTextDidChange(self, valueChanged: valueChanged)
+                    onTextChange?(valueChanged)
                 }
             }
         case kAXWindowMovedNotification, kAXWindowResizedNotification:
             Task { @MainActor in
-                delegate?.focusTrackerViewportDidChange(self)
+                onViewportChange?()
             }
         default:
             break
@@ -194,10 +186,7 @@ final class FocusTracker {
         guard let appEl = appElement, let obs = observer else { return }
         let refcon = Unmanaged.passUnretained(self).toOpaque()
 
-        if let old = focusedTextElement, elementNotificationsAdded {
-            AXObserverRemoveNotification(obs, old, kAXValueChangedNotification as CFString)
-            AXObserverRemoveNotification(obs, old, kAXSelectedTextChangedNotification as CFString)
-        }
+        unobserveFocusedElement(obs)
         focusedTextElement = nil
         elementNotificationsAdded = false
 
@@ -222,8 +211,15 @@ final class FocusTracker {
             site: focusedTextElement.flatMap { AXText.pageHost(for: $0) }
         )
         Task { @MainActor in
-            delegate?.focusTrackerDidChangeFocus(self)
+            onFocusChange?()
         }
+    }
+
+    /// Unregister the value/selection notifications on the focused field.
+    private func unobserveFocusedElement(_ obs: AXObserver) {
+        guard let focused = focusedTextElement, elementNotificationsAdded else { return }
+        AXObserverRemoveNotification(obs, focused, kAXValueChangedNotification as CFString)
+        AXObserverRemoveNotification(obs, focused, kAXSelectedTextChangedNotification as CFString)
     }
 
     /// Watch the window holding the caret for moves and resizes — the overlay is

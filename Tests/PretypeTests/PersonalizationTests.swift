@@ -31,7 +31,7 @@ final class PersonalizationTests: XCTestCase {
                 ts: SuggestionJournal.timestamp(), app: "com.test", engine: "MLX",
                 ctx: "привет, как", after: "", suggestion: suggestion, outcome: outcome,
                 acceptedChars: outcome == .accepted ? suggestion.count : 0,
-                typed: nil, shownForMs: 250, screen: false)
+                shownForMs: 250, screen: false)
         }
 
         journal.append(entry(" дела", .accepted))
@@ -82,7 +82,7 @@ final class PersonalizationTests: XCTestCase {
         var stamped = SuggestionJournal.Entry(
             ts: "t", app: "com.test", engine: "MLX",
             ctx: "привет, как", after: "", suggestion: " дела", outcome: .accepted,
-            acceptedChars: 5, typed: nil, shownForMs: 250, screen: false)
+            acceptedChars: 5, shownForMs: 250, screen: false)
         stamped.model = "gemma-4-e2b-8bit"
         stamped.style = "base"
         stamped.personalization = "subtle"
@@ -99,7 +99,7 @@ final class PersonalizationTests: XCTestCase {
         let bare = SuggestionJournal.Entry(
             ts: "t", app: nil, engine: nil,
             ctx: "c", after: "", suggestion: "x", outcome: .diverged,
-            acceptedChars: 0, typed: nil, shownForMs: 0, screen: false)
+            acceptedChars: 0, shownForMs: 0, screen: false)
         let json = try XCTUnwrap(String(data: JSONEncoder().encode(bare), encoding: .utf8))
         XCTAssertFalse(json.contains("firstWordLogProb"))
         XCTAssertFalse(json.contains("\"model\""))
@@ -121,7 +121,7 @@ final class PersonalizationTests: XCTestCase {
             SuggestionJournal.Entry(
                 ts: SuggestionJournal.timestamp(), app: "com.test", engine: "MLX",
                 ctx: ctx, after: "", suggestion: suggestion, outcome: outcome,
-                acceptedChars: 0, typed: nil, shownForMs: 100, screen: false)
+                acceptedChars: 0, shownForMs: 100, screen: false)
         }
 
         let writer = SuggestionJournal(url: url)
@@ -168,7 +168,7 @@ final class PersonalizationTests: XCTestCase {
             SuggestionJournal.Entry(
                 ts: SuggestionJournal.timestamp(), app: app, engine: "MLX",
                 ctx: ctx, after: "", suggestion: " x", outcome: .diverged,
-                acceptedChars: 0, typed: nil, shownForMs: 100, screen: false)
+                acceptedChars: 0, shownForMs: 100, screen: false)
         }
         journal.append(entry(app: "mail", ctx: "привет как дела"))
         journal.append(entry(app: "slack", ctx: "другой чат про работу"))
