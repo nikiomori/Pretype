@@ -3,7 +3,7 @@
 We measure every model in the catalog on the same held-out eval. The Apple Intelligence system model is in the eval too. The eval measures first-word accuracy on real human text. If a model stays silent, the eval counts a miss. We ran the full eval again on 2026-10-15, on the engine as it ships.
 
 <div align="center">
-<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English the eight downloadable models of the 2026-10-15 run score 26-29% first-word accuracy, a tie, and Apple Intelligence 22%; averaged over 16 other languages they fan out from 22.8% (Gemma 4 E4B) down to 8.0% (Apple Intelligence)" />
+<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English the nine downloadable models score 26-29% first-word accuracy, a tie, and Apple Intelligence 22%; averaged over 16 other languages they fan out from 22.8% (Gemma 4 E4B) down to 8.0% (Apple Intelligence)" />
 </div>
 
 ## Which model to use
@@ -16,7 +16,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 
 | Situation | Model | Evidence |
 |---|---|---|
-| You type in English | Any downloadable model. For speed, MiniCPM5 1B. | No downloadable model is measurably better than another. The eight models of the 2026-10-15 run score between 26% and 29%. That is inside the ±5 pp of a single-language cell. Qwen3.5 2B M40 came later. It has no English figure here. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
+| You type in English | Any downloadable model. For speed, MiniCPM5 1B. | No downloadable model is measurably better than another. The nine models score between 26% and 29%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
 | You type in English and have little free memory | Qwen2.5 0.5B | It runs in ≈1 GB. On English, its accuracy is equal to the other models. |
 | You type in another language | The default | Outside English, the tie stops. The Gemma 4 tiers lose 4–9 points. MiniCPM5, Bonsai and Qwen 0.5B lose more than half of their English score. |
 | You type in another language on an 8 GB Mac | Qwen3.5 2B (Base), the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). |
