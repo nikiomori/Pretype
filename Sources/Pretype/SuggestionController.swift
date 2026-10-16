@@ -51,6 +51,9 @@ final class SuggestionController {
     private struct Active {
         /// Text before the caret at the moment the suggestion became valid.
         var anchor: String
+        /// Text after the caret when it was shown (typing at the caret leaves
+        /// it be) — with `anchor`, the field a ⎋ declines (`declinedKey`).
+        var after = ""
         /// Remaining (not yet accepted) suggestion text.
         var text: String
         /// Already counted as an accepted suggestion, so accepting word-by-word
@@ -64,6 +67,12 @@ final class SuggestionController {
 
     private var active: Active? { didSet { updateScrollMonitoring(canStop: false) } }
     var hasActiveSuggestion: Bool { active != nil }
+    /// The field (before/after the caret) whose ghost ⎋ dropped. Nothing is
+    /// offered there again until it changes: an AX notification that leaves
+    /// the text alone (React re-setting the value, a mention popup closing)
+    /// re-runs `textDidChange`, which re-drew the declined ghost from the
+    /// n-gram and queried the model for it again.
+    private var declinedKey: (before: String, after: String)?
 
     /// Journal record for the currently shown suggestion, opened when it first
     /// appears and written out with its outcome when it resolves. Everything is
@@ -688,6 +697,10 @@ final class SuggestionController {
             injectionSettleDeadline = nil
         }
         latestTextBeforeCaret = text
+        // Any edit, or a caret move, ends a ⎋ decline.
+        if let declined = declinedKey, declined.before != text || declined.after != ctx.textAfterCaret {
+            declinedKey = nil
+        }
         contextReads &+= 1
         lastCaretRect = ctx.caretRect
         lastHostStyle = ctx.host
@@ -759,6 +772,11 @@ final class SuggestionController {
         // shortcodes cost nothing, completions are the GPU bursts it's about.
         if AppPolicy.pausedForBattery {
             lastEvent = "paused on battery"
+            return
+        }
+        // ⎋ declined this exact field: neither the n-gram nor the model.
+        if declinedKey != nil {
+            lastEvent = "dismissed — waiting for an edit"
             return
         }
 
@@ -1012,7 +1030,7 @@ final class SuggestionController {
         // re-showing it is a fresh offer too: with no record open it would be
         // shown — and acceptable — with nothing booked against it.
         let opensRecord = countShown || pendingJournal == nil
-        active = Active(anchor: current, text: suggestion,
+        active = Active(anchor: current, after: ctx.textAfterCaret, text: suggestion,
                         accepted: opensRecord ? false : (active?.accepted ?? false),
                         trimToLine: trimToLine)
         activeIsInstant = instant
@@ -1416,6 +1434,7 @@ final class SuggestionController {
                 // dialog, clear a field) — it isn't ours to swallow.
                 resolveJournal(.dismissed)
                 dismiss()
+                declinedKey = (current.anchor, current.after)
                 lastAcceptedChunk = nil
                 return false
             }
@@ -1954,6 +1973,7 @@ extension SuggestionController {
         // glued onto it.
         latestTextBeforeCaret = nil
         injectionSettleDeadline = nil
+        declinedKey = nil
         // Examples anchored to the previous app's text go stale too; the next
         // keystroke in the new field re-retrieves immediately.
         personalExamples = []
