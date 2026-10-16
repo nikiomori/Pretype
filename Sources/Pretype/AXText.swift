@@ -254,6 +254,15 @@ enum AXText {
         caret <= maxChars ? 0 : (caret - maxChars) / 512 * 512
     }
 
+    /// What the web fallback reads when `AXValue` is empty: the window before
+    /// the caret — the end of the field for a stuck-at-0 caret — plus the
+    /// after-text, a few units early so a split character can be stepped over.
+    static func webReadRange(caret: Int, total: Int, maxChars: Int) -> CFRange {
+        let end = caret > 0 && caret < total ? caret : total
+        let from = max(0, windowStart(caret: end, maxChars: maxChars) - 16)
+        return CFRange(location: from, length: min(total, end + 192) - from)
+    }
+
     /// `text` from `from` on, moved forward off a split surrogate pair or
     /// composed character — a snapped start can land inside either.
     static func substring(_ text: NSString, from: Int) -> String {
@@ -402,8 +411,15 @@ enum AXText {
         // field — right for typing at the end of a chat input (the common case).
         guard let frame, frame.width > 20, frame.height > 0 else { return nil }
         var read: String? = attribute(element, kAXValueAttribute)
+        // Where `read` starts in the field. A ranged read takes the window
+        // before the caret (the end, for a stuck-at-0 one — see below) plus
+        // the after-text, not the field's first `maxChars` units: past those,
+        // the model was continuing the middle of the draft at the real caret.
+        var offset = 0
         if read?.isEmpty ?? true, let total: Int = attribute(element, kAXNumberOfCharactersAttribute), total > 0 {
-            read = string(forRange: CFRange(location: 0, length: min(total, maxChars)), in: element)
+            let range = webReadRange(caret: caret, total: total, maxChars: maxChars)
+            offset = range.location
+            read = string(forRange: range, in: element)
         }
         var value = read ?? ""
         // Some Electron inputs (Claude Desktop) expose their placeholder as the AX
@@ -456,11 +472,12 @@ enum AXText {
         // non-empty field is indistinguishable from the stuck-at-0 breakage,
         // so it keeps the end-of-field assumption.
         let ns = value as NSString
-        let caretLoc = (caret > 0 && caret < ns.length) ? caret : ns.length
+        let caretLoc = (caret > 0 && caret - offset > 0 && caret - offset < ns.length) ? caret - offset : ns.length
         let beforeCaret = ns.substring(to: caretLoc)
-        let window = substring(beforeCaret as NSString, from: windowStart(caret: caretLoc, maxChars: maxChars))
+        let window = substring(beforeCaret as NSString,
+                               from: windowStart(caret: offset + caretLoc, maxChars: maxChars) - offset)
         let afterCaret = String(ns.substring(from: caretLoc).prefix(192))
-        var host = attributedStyle(of: element, atIndex: max(0, caretLoc - 1))
+        var host = attributedStyle(of: element, atIndex: max(0, offset + caretLoc - 1))
         let hostFont = host.font
         host.fieldRect = cocoaFieldRect(frame)
         host.textFollowsCaret = linePopulatedAfterCaret(afterCaret)

@@ -26,6 +26,22 @@ final class AXTextTests: XCTestCase {
         XCTAssertEqual(AXText.substring("ae\u{301}x", from: 2), "x")    // inside e + combining acute
     }
 
+    // The web fallback's ranged read covers the caret's window, not the
+    // field's first `maxChars` units — past those, the model was continuing
+    // the middle of a long draft at the real caret.
+    func testWebFallbackReadsTheWindowAtTheCaret() {
+        func covers(_ range: CFRange, _ units: ClosedRange<Int>) -> Bool {
+            range.location <= units.lowerBound && units.upperBound <= range.location + range.length
+        }
+        let mid = AXText.webReadRange(caret: 5_000, total: 6_000, maxChars: 1_200)
+        XCTAssertTrue(covers(mid, 3_800 ... 5_192), "\(mid)")
+        XCTAssertEqual(mid.location, AXText.windowStart(caret: 5_000, maxChars: 1_200) - 16)
+        let stuck = AXText.webReadRange(caret: 0, total: 6_000, maxChars: 1_200)   // stuck at 0 = the end
+        XCTAssertTrue(covers(stuck, 4_800 ... 6_000), "\(stuck)")
+        XCTAssertEqual(AXText.webReadRange(caret: 0, total: 300, maxChars: 1_200).location, 0)
+        XCTAssertEqual(AXText.webReadRange(caret: 0, total: 300, maxChars: 1_200).length, 300)
+    }
+
     // Inline ghost text may only draw where the line is empty; mid-line it lands
     // on top of the user's own words.
     func testLinePopulatedAfterCaret() {
