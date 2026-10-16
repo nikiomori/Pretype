@@ -80,6 +80,69 @@ enum CorrectionGates {
         return fixed
     }
 
+    /// ⌥⇥ with no selection: fix the word just typed. Alone, a word is fixed
+    /// half as often as the same typo inside its sentence (eval-correct-word,
+    /// 2026-10-16: every fix model, p≤4e-4) — so `fix` gets the sentence the
+    /// word ends, and only the word is replaced. nil = the word stays.
+    static func fixLastWord(_ word: String, before: String,
+                            fix: (String) async throws -> String?) async throws -> String? {
+        let context = lastWordContext(before)
+        guard context.count > word.count, context.hasSuffix(word) else { return try await fix(word) }
+        guard let fixed = try await fix(context),
+              let replacement = lastWordReplacement(context: context, word: word, fixed: fixed)
+        else { return nil }
+        return replacement == word ? nil : replacement
+    }
+
+    /// The sentence `before` ends in: from the last sentence end on the
+    /// current line (correct() takes one line), at most 200 characters, cut
+    /// at a space.
+    static func lastWordContext(_ before: String) -> String {
+        let line = before.split(separator: "\n", omittingEmptySubsequences: false).last ?? ""
+        var start = line.startIndex
+        var i = line.startIndex
+        while i < line.endIndex {
+            let next = line.index(after: i)
+            if "。！？".contains(line[i])
+                || (".!?…".contains(line[i]) && next < line.endIndex && line[next].isWhitespace) {
+                start = next
+            }
+            i = next
+        }
+        var text = line[start...].drop(while: \.isWhitespace)
+        if text.count > 200 {
+            text = text.suffix(200).drop { !$0.isWhitespace }.drop(while: \.isWhitespace)
+        }
+        return String(text)
+    }
+
+    /// What the sentence fix put where `word` ended `context`: the text after
+    /// the untouched prefix ("alot" → "a lot"), else the last word when the
+    /// word count held (the model also fixed an earlier word — not this
+    /// hotkey's business). nil when that is unclear or runs on past one more
+    /// word (the model continued the sentence).
+    static func lastWordReplacement(context: String, word: String, fixed: String) -> String? {
+        // A sentence end the model added after the word is not the user's.
+        let core = String(fixed.reversed().drop { !$0.isWordChar }.reversed())
+        let prefix = context.dropLast(word.count)
+        let words = { (s: Substring) in s.split(whereSeparator: \.isWhitespace) }
+        let replacement: Substring
+        if core.hasPrefix(prefix) {
+            replacement = core.dropFirst(prefix.count)
+        } else if words(Substring(core)).count == words(Substring(context)).count,
+                  let last = words(Substring(core)).last, let typed = words(Substring(context)).last {
+            // What shares the word's token ("l’" in "l’atcion") must come back
+            // as typed, or which part is the word is unclear.
+            let lead = typed.dropLast(word.count)
+            guard last.hasPrefix(lead) else { return nil }
+            replacement = last.dropFirst(lead.count).drop { !$0.isWordChar }
+        } else {
+            return nil
+        }
+        guard !replacement.isEmpty, words(replacement).count <= 2 else { return nil }
+        return String(replacement)
+    }
+
     /// Voice command mode on any engine: `selection` rewritten the way the
     /// spoken `instruction` asks; nil when nothing new came back.
     static func rewrite(_ selection: String, instruction: String,

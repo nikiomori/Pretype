@@ -291,11 +291,17 @@ final class CorrectionController {
 
         owner.clearActiveCompletion()
         owner.lastCaretRect = rect
+        let before = ctx.textBeforeCaret
         runFix(
             selectionText: word,
-            request: owner.makeRequest(text: ctx.textBeforeCaret),
+            request: owner.makeRequest(text: before),
             makePending: { PendingFix(original: word, replacement: $0, deleteCount: word.count) },
-            proposedEvent: "last-word fix proposed — ⏎ to apply, esc to keep"
+            proposedEvent: "last-word fix proposed — ⏎ to apply, esc to keep",
+            perform: { engine, request in
+                try await CorrectionGates.fixLastWord(word, before: before) {
+                    try await engine.correct(selection: $0, request: request)
+                }
+            }
         )
     }
 

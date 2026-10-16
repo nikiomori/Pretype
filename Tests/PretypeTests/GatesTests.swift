@@ -123,4 +123,38 @@ final class GatesTests: XCTestCase {
         XCTAssertEqual(CorrectionGates.trimRunOn("彼は「終わった。」ごみ", original: "彼は「終わった。」"),
                        "彼は「終わった。」")
     }
+
+    // ⌥⇥ on the last word: the sentence goes to the model, only the word comes back.
+    func testLastWordFix() async throws {
+        XCTAssertEqual(CorrectionGates.lastWordContext("Hi. I went to the stor"), "I went to the stor")
+        XCTAssertEqual(CorrectionGates.lastWordContext("Dear Ann,\nThanks for teh"), "Thanks for teh")
+        XCTAssertEqual(CorrectionGates.lastWordContext("v1.2 is ot"), "v1.2 is ot")      // no space after the dot
+        XCTAssertEqual(CorrectionGates.lastWordContext("今日は。天気が"), "天気が")
+        let long = String(repeating: "word ", count: 60) + "endd"
+        XCTAssertEqual(CorrectionGates.lastWordContext(long).count <= 200, true)
+        XCTAssertTrue(CorrectionGates.lastWordContext(long).hasPrefix("word "))
+        let r = { (c: String, w: String, f: String) in CorrectionGates.lastWordReplacement(context: c, word: w, fixed: f) }
+        XCTAssertEqual(r("I went to the stor", "stor", "I went to the store."), "store")
+        XCTAssertEqual(r("I like it alot", "alot", "I like it a lot"), "a lot")
+        XCTAssertEqual(r("i went to teh", "teh", "I went to the"), "the")          // an earlier fix too
+        XCTAssertEqual(r("I dont", "dont", "I don't"), "don't")
+        // The token's lead changed (’ → '): which part is the word is unclear.
+        XCTAssertNil(r("passent à l’atcion", "atcion", "Passent à l'action"))
+        XCTAssertEqual(r("passent à l’atcion", "atcion", "Passent à l’action."), "action")
+        XCTAssertNil(r("I went to the stor", "stor", "I went to the store and bought some milk"))
+        XCTAssertNil(r("I went to the stor", "stor", "We visited a shop"))
+        // The model sees the sentence; a word that stays is no fix.
+        var seen: [String] = []
+        let fixed = try await CorrectionGates.fixLastWord("stor", before: "Hi. I went to the stor") {
+            seen.append($0); return "I went to the store."
+        }
+        XCTAssertEqual(fixed, "store")
+        XCTAssertEqual(seen, ["I went to the stor"])
+        let kept = try await CorrectionGates.fixLastWord("store", before: "the store") { _ in "The store" }
+        XCTAssertNil(kept)
+        // The first word of a line has no sentence to add: the word goes alone.
+        let alone = try await CorrectionGates.fixLastWord("teh", before: "teh") { seen.append($0); return "the" }
+        XCTAssertEqual(alone, "the")
+        XCTAssertEqual(seen.last, "teh")
+    }
 }
