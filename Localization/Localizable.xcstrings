@@ -35591,6 +35591,206 @@
         }
       }
     },
+    "Qwen3.5 2B M40 — one model for typing and fixes" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — jeden model pro psaní i opravy"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 – ein Modell für Tippen und Korrigieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — un modelo para escribir y corregir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — un seul modèle pour écrire et corriger"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — un modello per scrivere e correggere"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — 入力と修正を1モデルで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — 입력과 교정을 한 모델로"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 – één model voor typen en corrigeren"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — jeden model do pisania i poprawek"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — um modelo para digitar e corrigir"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — un singur model pentru scris și corecturi"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — одна модель для набора и исправлений"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — en modell för skrivande och rättning"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — yazma ve düzeltme için tek model"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — одна модель для набору й виправлень"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B M40 — 输入与纠错同一个模型"
+          }
+        }
+      }
+    },
+    "Qwen3.5 2B with part of its post-trained build blended in, so one 1.5 GB model both types and fixes — no second download. Completions tie the Base build (18.5 vs 18.9% on 17 languages, p=0.06). The fix chord restores more typos than the Base pick's sibling (41 vs 33%) and changes clean lines far less often (10 vs 28%), both p<0.001." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B s částí své dotrénované verze vmíchanou do vah, takže jeden model o 1,5 GB píše i opravuje — bez druhého stahování. Doplňování je nastejno s verzí Base (18,5 vs 18,9 % v 17 jazycích, p=0.06). Oprava (fix) obnoví víc překlepů než sourozenec volby Base (41 vs 33 %) a čisté řádky mění mnohem méně často (10 vs 28 %), obojí p<0.001."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B mit einem Teil seiner nachtrainierten Version eingemischt: ein 1,5-GB-Modell schreibt und korrigiert – ohne zweiten Download. Vervollständigungen gleichauf mit dem Base-Build (18,5 vs. 18,9 % über 17 Sprachen, p=0.06). Die Korrektur stellt mehr Tippfehler wieder her als das Geschwistermodell der Base-Wahl (41 vs. 33 %) und ändert fehlerfreie Zeilen weit seltener (10 vs. 28 %), beides p<0.001."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B con parte de su versión post-entrenada mezclada, así que un solo modelo de 1,5 GB escribe y corrige, sin segunda descarga. Las sugerencias empatan con la versión Base (18,5 vs 18,9 % en 17 idiomas, p=0.06). La corrección restaura más erratas que el hermano de la opción Base (41 vs 33 %) y cambia líneas correctas con mucha menos frecuencia (10 vs 28 %), ambos p<0.001."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B mêlé à une partie de sa version post-entraînée : un seul modèle de 1,5 Go écrit et corrige, sans second téléchargement. Les complétions font jeu égal avec la version Base (18,5 vs 18,9 % sur 17 langues, p=0.06). La correction rétablit plus de fautes de frappe que le modèle frère du choix Base (41 vs 33 %) et modifie bien plus rarement une ligne sans faute (10 vs 28 %), les deux p<0.001."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B con una parte della sua versione post-addestrata miscelata nei pesi: un solo modello da 1,5 GB scrive e corregge, senza un secondo download. I completamenti sono alla pari con la versione Base (18,5 vs 18,9% su 17 lingue, p=0.06). La correzione ripristina più refusi del modello gemello della scelta Base (41 vs 33%) e modifica righe corrette molto più di rado (10 vs 28%), entrambi p<0.001."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B に事後学習版の一部を混ぜた重みで、1.5 GB の1モデルが入力補完と修正の両方をこなします。追加のダウンロードは不要です。補完は Base 版と同等（17言語で 18.5% 対 18.9%、p=0.06）。修正は Base 選択時の兄弟モデルより多くの誤字を正確に戻し（41% 対 33%）、誤りのない行を書き換える頻度ははるかに低くなります（10% 対 28%）。いずれも p<0.001。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B에 사후 학습 버전 일부를 섞은 가중치로, 1.5 GB 모델 하나가 입력 완성과 교정을 모두 맡습니다. 두 번째 다운로드가 없습니다. 완성은 Base 버전과 동률입니다(17개 언어에서 18.5% 대 18.9%, p=0.06). 교정은 Base 선택의 형제 모델보다 오타를 더 많이 정확히 되돌리고(41% 대 33%), 오류 없는 줄을 바꾸는 일은 훨씬 적습니다(10% 대 28%). 둘 다 p<0.001."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B met een deel van de nagetrainde versie erdoorheen gemengd: één model van 1,5 GB typt en corrigeert – geen tweede download. Aanvullingen staan gelijk met de Base-versie (18,5 vs 18,9% over 17 talen, p=0.06). De correctie herstelt meer typfouten dan het zustermodel van de Base-keuze (41 vs 33%) en wijzigt foutloze regels veel minder vaak (10 vs 28%), beide p<0.001."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B z domieszką swojej wersji po dotrenowaniu: jeden model 1,5 GB podpowiada i poprawia — bez drugiego pobierania. Podpowiedzi na równi z wersją Base (18,5 vs 18,9% w 17 językach, p=0.06). Poprawka przywraca więcej literówek niż model siostrzany wyboru Base (41 vs 33%) i znacznie rzadziej zmienia poprawne wiersze (10 vs 28%), oba p<0.001."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B com parte da versão pós-treinada misturada aos pesos: um único modelo de 1,5 GB sugere e corrige, sem segundo download. As sugestões empatam com a versão Base (18,5 vs 18,9% em 17 idiomas, p=0.06). A correção restaura mais erros de digitação que o modelo irmão da opção Base (41 vs 33%) e altera linhas corretas com muito menos frequência (10 vs 28%), ambos p<0.001."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B cu o parte din versiunea sa post-antrenată amestecată în ponderi: un singur model de 1,5 GB completează și corectează — fără a doua descărcare. Completările sunt la egalitate cu versiunea Base (18,5 vs 18,9% pe 17 limbi, p=0.06). Corectura restabilește mai multe greșeli de tastare decât modelul-pereche al alegerii Base (41 vs 33%) și modifică rânduri corecte mult mai rar (10 vs 28%), ambele p<0.001."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B с примесью своей дообученной версии: одна модель на 1,5 ГБ и дописывает, и исправляет — без второй загрузки. Подсказки наравне с версией Base (18,5 против 18,9% на 17 языках, p=0.06). Исправление восстанавливает больше опечаток, чем модель-напарник у выбора Base (41 против 33%), и гораздо реже меняет строки без ошибок (10 против 28%), оба p<0.001."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B med en del av sin eftertränade version inblandad: en enda modell på 1,5 GB både föreslår och rättar — ingen andra nedladdning. Kompletteringarna står jämnt med Base-versionen (18,5 mot 18,9 % på 17 språk, p=0.06). Rättningen återställer fler stavfel än syskonmodellen till Base-valet (41 mot 33 %) och ändrar felfria rader betydligt mer sällan (10 mot 28 %), båda p<0.001."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B'nin ağırlıklarına sonradan eğitilmiş sürümünden bir kısım karıştırıldı: 1,5 GB'lık tek model hem tamamlar hem düzeltir, ikinci indirme yok. Tamamlamalar Base sürümüyle başa baş (17 dilde %18,5'e karşı %18,9, p=0.06). Düzeltme, Base seçiminin kardeş modelinden daha çok yazım hatasını geri getirir (%41'e karşı %33) ve hatasız satırları çok daha seyrek değiştirir (%10'a karşı %28), ikisi de p<0.001."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen3.5 2B з домішкою своєї дотренованої версії: одна модель на 1,5 ГБ і дописує, і виправляє — без другого завантаження. Підказки нарівні з версією Base (18,5 проти 18,9% на 17 мовах, p=0.06). Виправлення відновлює більше одруківок, ніж модель-напарник вибору Base (41 проти 33%), і значно рідше змінює рядки без помилок (10 проти 28%), обидва p<0.001."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Qwen3.5 2B 中混入部分后训练版本的权重：一个 1.5 GB 的模型同时负责补全和纠错，无需第二次下载。补全与 Base 版本持平（17 种语言上 18.5% 对 18.9%，p=0.06）。纠错能准确还原的错字多于 Base 选项的配套模型（41% 对 33%），改动无误文本的频率也低得多（10% 对 28%），两者均 p<0.001。"
+          }
+        }
+      }
+    },
     "Qwen3.5 2B — best small multilingual" : {
       "localizations" : {
         "cs" : {

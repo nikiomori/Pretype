@@ -69,6 +69,20 @@ Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is o
 * Since 2026-10-14, the build is 6-bit. It gets 19% of all rows, against 17% for the 4-bit build (p<0.001). An 8-bit build is not better (19%, 1.9 GB).
 * Size: 1.5 GB.
 
+### Qwen3.5 2B M40: one model for text and chords
+
+Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimori/Qwen3.5-2B-M40-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-M40-6bit). It is not a default. Select it in Settings.
+
+* The weights are a mix: 60% of the Base build and 40% of the post-trained build. The build is 6-bit.
+* One model completes text and runs the fix and reply chords. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
+* Completion: 18.5% of all rows, against 18.9% for the Base build. This difference is not significant (p=0.06).
+* Fix: it restores 41% of the typo rows, against 33% for the post-trained sibling of the Base build (p<0.001).
+* Fix on clean text: it proposes a change on 10% of clean lines, against 28% (p<0.001).
+* Reply: 56% of its replies are on topic, against 37% for the post-trained sibling (p<0.001). Qwen3.8 27B rated both.
+* Size: 1.5 GB in total. The Base build with its sibling uses 1.5 GB + 1.7 GB.
+
+The two fix results have different causes. The post-trained build at the same 6 bits restores 39% and changes 24% of clean lines. Thus 6-bit gives the higher fix rate, and the Base half of the mix gives the lower rate of false fixes. Mixes with more of the post-trained build (60% and 80%) lose completion accuracy outside English and Russian.
+
 ### MiniCPM5 1B uses an 8-bit build
 
 Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it used the bf16 weights from the hub. This build is our own MLX conversion: [nikimori/MiniCPM5-1B-Base-8bit](https://huggingface.co/nikimori/MiniCPM5-1B-Base-8bit).
@@ -163,6 +177,7 @@ We measured the chords on 2026-10-15, each on its own held-out set:
 | Gemma E4B-it 6-bit | Gemma E4B 8-bit and 6-bit | **69%** [65–73] | 18% | 0.17 s | **90%** [86–92] | 0.41 s |
 | Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 20% | 0.24 s | 87% [83–90] | 0.24 s |
 | Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [46–54] | 30% | 0.10 s | 83% [79–86] | 0.09 s |
+| Qwen3.5 2B M40 (itself) | Qwen3.5 2B M40 | 41% [37–45] | 10% | 0.17 s | 56% [50–60]¹ | 0.16 s |
 | Qwen3.5 2B (post-trained) | Qwen3.5 2B Base — the 8 GB default; MiniCPM5 1B | 33% [29–37] | 28% | 0.13 s | 35% [30–40] | 0.14 s |
 | Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.20 s | 22% [18–27] | 0.21 s |
 | Qwen2.5 0.5B-it | Qwen2.5 0.5B | 11% [9–14] | 19% | 0.03 s | 3% [2–6] | 0.08 s |
@@ -178,6 +193,7 @@ Read these notes before you use the table as a ranking:
 * **"On topic" comes from an independent judge.** GPT-6 Luna rates each reply from 1 to 5. A reply with 3 or more is on topic.
   * The threshold comes only from two baselines: the real next line of the conversation, and a line from a different conversation. The judge accepts 71% of the real lines and 20% of the random lines.
   * Four judges from four model families (GPT-6 Luna, DeepSeek V4.1 Flash, Claude Haiku 5.5, Gemma E4B-it) put all siblings in the same order. A judge from the Gemma family gives higher values to Gemma replies, but not a different order.
+  * ¹ Qwen3.8 27B rated the M40 row (2026-10-16). It is the judge with the best separation of the two baselines (AUC 0.825). On the same replies, it agrees with GPT-6 Luna within 3 pp on every sibling. In the same run, it rates the post-trained Qwen3.5 sibling at 37% [32–42] (paired p=2.5×10⁻⁸).
 * **"Touches clean text" is the cost of the fix chord.** If you select a line that is already correct, the sibling can still propose a change. This occurs on 12–30% of clean lines across the catalog. The figures include the app's minimal-edit gate. Press <kbd>Esc</kbd> to keep your original text.
 
 <sub>**Method.**</sub>
@@ -241,6 +257,7 @@ On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one ti
 |---|---|
 | MiniCPM5 | ≈1.6 GB (the post-trained Qwen3.5 build) |
 | Qwen3.5 | ≈1.6 GB (its post-trained build) |
+| Qwen3.5 M40 | None. M40 corrects with itself. |
 | A Gemma tier in Base style | up to ≈5.6 GB (E4B-it 6-bit on the E4B tiers) |
 | Bonsai | None. Bonsai corrects with itself. |
 | Gemma E4B, if it used Instruct style before 2026-10-15 | None. The fix sibling is the instruct build that the install already has. |

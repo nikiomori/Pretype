@@ -77,6 +77,13 @@ struct ModelMetrics {
                      firstWordPct: 30, ci: 27...33, coveragePct: 81,
                      logProbPerChar: -0.942, p50Ms: 32, ramGB: 1.5,
                      note: String(localized: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; ties MiniCPM5 on English (28 vs 28), leads it on Russian (21 vs 17, a trend: p=0.018), and on Russian is level with the lightest Gemma (21 vs 22, p=0.19). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there.")),
+        // The Base↔post-trained merge, booked 2026-10-16 with the 10-15 rules
+        // (Eval/runs-2026-10-16-m1/rebook: book.py, calib-live.py); p50 = the
+        // Base row's 32 ms × the interleaved same-binary ratio 36/36 ms.
+        ModelMetrics(id: "nikimori/Qwen3.5-2B-M40-6bit", shortName: "Qwen3.5 2B M40",
+                     firstWordPct: 29, ci: 27...32, coveragePct: 80,
+                     logProbPerChar: -0.937, p50Ms: 32, ramGB: 1.5,
+                     note: String(localized: "Qwen3.5 2B with part of its post-trained build blended in, so one 1.5 GB model both types and fixes — no second download. Completions tie the Base build (18.5 vs 18.9% on 17 languages, p=0.06). The fix chord restores more typos than the Base pick's sibling (41 vs 33%) and changes clean lines far less often (10 vs 28%), both p<0.001.")),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 24...29, coveragePct: 82,
                      logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1,
@@ -124,6 +131,7 @@ struct ModelMetrics {
         "nikimori/MiniCPM5-1B-Base-8bit": (19, 53, 45...61),
         "mlx-community/Qwen2.5-0.5B-bf16": (27, 41, 35...48),
         "nikimori/Qwen3.5-2B-Base-6bit": (21, 53, 45...60),
+        "nikimori/Qwen3.5-2B-M40-6bit": (23, 49, 42...57),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42, 35...49),
     ]
 
@@ -158,6 +166,9 @@ struct ModelMetrics {
             ["ar": 6, "cs": 6, "de": 14, "en": 27, "es": 23, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 6, "nl": 12, "pl": 12, "pt": 18, "ro": 10, "ru": 16, "sv": 5, "tr": 6, "uk": 6, "zh": 10],
         "nikimori/Qwen3.5-2B-Base-6bit":
             ["ar": 8, "cs": 11, "de": 20, "en": 28, "es": 28, "fr": 26, "he": 13, "it": 21, "ja": 3, "ko": 7, "nl": 21, "pl": 19, "pt": 24, "ro": 23, "ru": 21, "sv": 19, "tr": 9, "uk": 17, "zh": 9],
+        // Booked 2026-10-16 on the same rules (runs-2026-10-16-m1/rebook/book.py).
+        "nikimori/Qwen3.5-2B-M40-6bit":
+            ["ar": 7, "cs": 12, "de": 20, "en": 27, "es": 26, "fr": 24, "he": 13, "it": 21, "ja": 2, "ko": 8, "nl": 21, "pl": 19, "pt": 24, "ro": 22, "ru": 20, "sv": 19, "tr": 9, "uk": 16, "zh": 9],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
             ["ar": 4, "cs": 5, "de": 16, "en": 27, "es": 23, "fr": 21, "he": 8, "it": 14, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 12, "ru": 16, "sv": 9, "tr": 5, "uk": 8, "zh": 5],
         "system.apple-intelligence":
@@ -185,6 +196,8 @@ struct ModelMetrics {
             ["ar": 69, "cs": 64, "de": 88, "en": 88, "es": 91, "fr": 82, "he": 70, "it": 81, "ja": 72, "ko": 51, "nl": 79, "pl": 73, "pt": 89, "ro": 65, "ru": 76, "sv": 72, "tr": 63, "uk": 60, "zh": 55],
         "nikimori/Qwen3.5-2B-Base-6bit":
             ["ar": 71, "cs": 79, "de": 89, "en": 87, "es": 87, "fr": 85, "he": 75, "it": 85, "ja": 72, "ko": 58, "nl": 85, "pl": 80, "pt": 90, "ro": 79, "ru": 78, "sv": 89, "tr": 76, "uk": 75, "zh": 53],
+        "nikimori/Qwen3.5-2B-M40-6bit":
+            ["ar": 69, "cs": 77, "de": 89, "en": 86, "es": 87, "fr": 84, "he": 75, "it": 86, "ja": 71, "ko": 58, "nl": 85, "pl": 79, "pt": 91, "ro": 79, "ru": 75, "sv": 86, "tr": 74, "uk": 74, "zh": 53],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
             ["ar": 59, "cs": 63, "de": 85, "en": 87, "es": 85, "fr": 82, "he": 65, "it": 82, "ja": 73, "ko": 49, "nl": 76, "pl": 68, "pt": 83, "ro": 71, "ru": 76, "sv": 75, "tr": 63, "uk": 62, "zh": 55],
         "system.apple-intelligence":
@@ -379,7 +392,7 @@ struct ModelMetrics {
     /// pinned empty, MTP drafters and prompt-lookup on as shipped, slim
     /// re-packs, draft rows out of the reply denominator; those reply dumps
     /// judged 2026-10-16. p50s are the run's own, measured straight.
-    static let taskSource = "eval-correct 2026-10-15 · eval-reply judged by GPT-6 Luna 2026-10-16"
+    static let taskSource = "eval-correct 2026-10-15 · eval-reply judged by GPT-6 Luna 2026-10-16 (Qwen3.5 2B M40: Qwen3.8 27B)"
 
     static let tasks: [String: TaskMetrics] = [
         "mlx-community/gemma-4-e4b-it-6bit": TaskMetrics(
@@ -394,6 +407,15 @@ struct ModelMetrics {
         "mlx-community/Qwen3.5-2B-4bit": TaskMetrics(
             fixPct: 33, fixCI: 29...37, falseFixPct: 28, fixP50Ms: 134,
             replyPct: 35, replyCI: 30...40, replyP50Ms: 137),
+        // Its own chords (Eval/runs-2026-10-16-m1, same binary as a re-run of
+        // the Qwen3.5 sibling above): replies judged by Qwen3.8 27B, the
+        // best-validated judge (AUC 0.825), not Luna — on the 10-15 dumps the
+        // two agree within 3 pp on every sibling (Qwen3.5 37 vs 35%), and on
+        // this run the sibling scores 37% [32–42] against the merge's 56%
+        // (paired p=2.5e-8).
+        "nikimori/Qwen3.5-2B-M40-6bit": TaskMetrics(
+            fixPct: 41, fixCI: 37...45, falseFixPct: 10, fixP50Ms: 173,
+            replyPct: 56, replyCI: 50...60, replyP50Ms: 156),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
             fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 33,
             replyPct: 3, replyCI: 2...6, replyP50Ms: 78),
@@ -409,6 +431,7 @@ struct ModelMetrics {
         "mlx-community/gemma-4-e4b-it-4bit": "Gemma E4B-it 4-bit",
         "mlx-community/gemma-4-e2b-it-4bit": "Gemma E2B-it 4-bit",
         "mlx-community/Qwen3.5-2B-4bit": "Qwen3.5 2B",
+        "nikimori/Qwen3.5-2B-M40-6bit": "Qwen3.5 2B M40",
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "Qwen2.5 0.5B-it",
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": "Bonsai 4B",
     ]

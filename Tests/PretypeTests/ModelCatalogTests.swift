@@ -397,6 +397,13 @@ final class ModelCatalogTests: XCTestCase {
         let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .base)
         XCTAssertEqual(bonsai?.m.fixPct, 19)
         XCTAssertEqual(bonsai?.m.replyPct, 22)
+        // So does the M40 merge: one pinned download serves completion and
+        // both chords, with figures measured on the merge itself.
+        let m40ID = "nikimori/Qwen3.5-2B-M40-6bit"
+        let m40 = ModelMetrics.taskMetrics(for: m40ID, style: .base)
+        XCTAssertEqual(m40?.measuredID, m40ID)
+        XCTAssertEqual(m40?.m.fixPct, 41)
+        XCTAssertNotNil(ModelCatalog.pinnedRevisions[m40ID])
         // Not measured: only the system model.
         XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
     }

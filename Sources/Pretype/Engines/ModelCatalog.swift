@@ -121,6 +121,20 @@ enum ModelCatalog {
             correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
             instructModelID: "mlx-community/Qwen3.5-2B-4bit"
         ),
+        // One model for completion AND chords (2026-10-16, Eval/runs-2026-10-16-m1):
+        // Qwen3.5 2B Base and its post-trained build interpolated 0.6/0.4, our
+        // 6-bit conversion. Completion ties the Base build (18.5 vs 18.9% of all
+        // rows, p=0.06); the fix chord beats the post-trained sibling (41 vs 33%
+        // restored, p<0.001) and proposes a change on a clean line far less (10
+        // vs 28%, p<0.001 — the Base half's doing: the post-trained build at the
+        // same 6-bit stays at 24%). No second download: fixes run on the primary
+        // (`MLXEngine.fixesOnPrimary`). An alternative, not the 8 GB default.
+        ModelOption(
+            id: "nikimori/Qwen3.5-2B-M40-6bit",
+            title: String(localized: "Qwen3.5 2B M40 — one model for typing and fixes"),
+            correctionModelID: "nikimori/Qwen3.5-2B-M40-6bit",
+            instructModelID: "nikimori/Qwen3.5-2B-M40-6bit"
+        ),
         ModelOption(
             id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             title: String(localized: "Ternary Bonsai 4B — 1 GB base"),  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
@@ -279,6 +293,7 @@ enum ModelCatalog {
         "nikimori/MiniCPM5-1B-Base-8bit": "5ccc5190f40e2a2d23caf12283d949d581f6fb16",
         "nikimori/Qwen3.5-2B-Base-4bit": "9254a84e0f65f6d4cd97e70cd0957bf66d59a663",
         "nikimori/Qwen3.5-2B-Base-6bit": "03abc6421ac277c0a4ea27aa2d594db5143a168b",
+        "nikimori/Qwen3.5-2B-M40-6bit": "3ab2486bae9ec5f8d44247c553a2f7cf563a712d",
         "nikimori/gemma-4-e2b-4bit-slim": "305acaa7d45feb640158ea6344cee719578e989f",
         "nikimori/gemma-4-e2b-8bit-slim": "ab7d6c423cd7bdd54354d0715ac5f2dfe94dd78a",
         "nikimori/gemma-4-e2b-it-4bit-slim": "151cd44c28f88c48f00ac698c28e7acd78352c36",
@@ -374,6 +389,8 @@ enum ModelCatalog {
             return Recommendation(style: .base, length: .short, logprobGateTau: -1.15,
                                   scriptGateTau: [.han: -0.56, .kana: .infinity, .hangul: -0.42])
         }
+        // Also the M40 merge: its own live-scale Q4 edge is −1.16, and −1.18
+        // passes the same 25% of its odd half (runs-2026-10-16-m1/rebook).
         if id.contains("Qwen3.5-2B") {
             return Recommendation(style: .base, length: .short, logprobGateTau: -1.18,
                                   scriptGateTau: [.kana: .infinity, .hangul: -0.57])
