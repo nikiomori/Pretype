@@ -24,8 +24,8 @@ extension Color {
 struct RequirementRow: View {
     let met: Bool
     let text: String
-    var fixTitle: String?
-    var fix: (() -> Void)?
+    let fixTitle: String
+    let fix: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -37,7 +37,7 @@ struct RequirementRow: View {
             Text(text)
                 .font(.caption)
                 .foregroundStyle(met ? Color.secondary : Color.primary)
-            if !met, let fixTitle, let fix {
+            if !met {
                 // .mini is a ~14pt target on the one button whose job is
                 // rescuing a blocked state — .small is the smallest honest size.
                 Button(fixTitle, action: fix)
@@ -415,9 +415,6 @@ struct GeneralTab: View {
                         .help("How strongly the ghost text stands out from your own. 70% measured most readable over real app backgrounds — 45% was near-invisible.")
                     }
                 }
-                OverlayPreview(presentation: store.presentation,
-                               opacity: ghostOpacity,
-                               hotkey: store.hotkeyStyle)
             }
 
             Section {
@@ -631,22 +628,17 @@ struct GeneralTab: View {
                     BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }
                 }
                 HStack(spacing: 10) {
-                    Button {
-                        store.addBlacklistApp()
-                    } label: {
-                        Label("Add App…", systemImage: "plus")
-                    }
-                    .controlSize(.small)
+                    Button("Add App…", systemImage: "plus") { store.addBlacklistApp() }
                     TextField("", text: $blacklistDraft, prompt: Text("or type part of a bundle ID"))
                         .labelsHidden()
                         .textFieldStyle(.roundedBorder)
-                        .controlSize(.small)
                         .help("A fragment like “slack” covers Slack everywhere. ⏎ adds it.")
                         .onSubmit {
                             store.addBlacklistEntry(blacklistDraft)
                             blacklistDraft = ""
                         }
                 }
+                .controlSize(.small)
             }
 
             Section {
@@ -659,7 +651,8 @@ struct GeneralTab: View {
                 }
                 .onChange(of: language) { AppLanguage.override = language.isEmpty ? nil : language }
                 if (language.isEmpty ? AppLanguage.systemChoice : language) != AppLanguage.running {
-                    if AppLanguage.canRelaunch {
+                    // Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
+                    if MicrophoneAccess.isBundled {
                         LabeledContent {
                             Button("Relaunch") { AppLanguage.relaunch() }
                         } label: {
@@ -717,12 +710,8 @@ private struct DictationSendList: View {
 
     var body: some View {
         LabeledContent {
-            Button {
-                store.addDictationSendApp()
-            } label: {
-                Label("Add App…", systemImage: "plus")
-            }
-            .controlSize(.small)
+            Button("Add App…", systemImage: "plus") { store.addDictationSendApp() }
+                .controlSize(.small)
         } label: {
             Text("Press Return after dictation")
             Text("Sends the message in these apps.")
@@ -838,45 +827,13 @@ private struct PerAppInstructionRow: View {
     }
 }
 
-/// Live preview of the overlay exactly as configured — the current presentation
-/// mode, ghost opacity and hotkey — over a light AND a dark host background,
-/// mirroring the background-probe behavior at the caret.
-struct OverlayPreview: View {
-    let presentation: SuggestionPresentation
-    let opacity: Double
-    let hotkey: HotkeyStyle
-
-    var body: some View {
-        HStack(spacing: 1) {
-            half(light: true)
-            half(light: false)
-        }
-        .frame(height: 58)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8)
-            .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
-    }
-
-    private func half(light: Bool) -> some View {
-        ZStack(alignment: .leading) {
-            (light ? Color.white : Color(white: 0.09))
-            SuggestionLineMock(presentation: presentation, opacity: opacity, hotkey: hotkey.label,
-                               ink: light ? .black : .white)
-                .padding(.horizontal, 14)
-        }
-        // Each half is its own appearance, so the keycaps' semantic colours
-        // resolve against the page they sit on, not the Settings window.
-        .environment(\.colorScheme, light ? .light : .dark)
-    }
-}
-
 /// The sample line at the caret — the inline ghost, or the panel pill above
-/// the line — drawn by the live preview and by the presentation cards.
+/// the line — drawn by the presentation cards.
 struct SuggestionLineMock: View {
     let presentation: SuggestionPresentation
     let opacity: Double
     let hotkey: String
-    var ink: Color = .primary
+    private let ink = Color.primary
 
     var body: some View {
         // The slider dims inline ghost text; the panel pill is an opaque HUD and
@@ -921,7 +878,7 @@ struct SuggestionLineMock: View {
         .font(.system(size: 13))
         .lineLimit(1)
         // One description for VoiceOver instead of the sample sentence read
-        // word by word (and twice, once per half).
+        // word by word.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(presentation == .inline
             ? Text("Preview: grey suggestion text continues the line after the cursor")
@@ -939,7 +896,7 @@ private struct PresentationCard: View {
     let isSelected: Bool
     /// The chosen accept key, shown in the mockup so it matches the live
     /// overlay instead of a hardcoded ⇥.
-    var hotkeyLabel: String = "Tab"
+    let hotkeyLabel: String
     /// The configured ghost opacity, so the inline mockup dims like the caret.
     let ghost: Double
     let action: () -> Void
@@ -1169,27 +1126,15 @@ struct PersonalTab: View {
                 HStack(spacing: 10) {
                     if !suggestions.isEmpty {
                         let names = suggestions.map { resolveApp($0.bundleID).name }.joined(separator: ", ")
-                        Button {
+                        Button("Fill In Suggested", systemImage: "sparkles") {
                             store.addSuggestedPerAppInstructions()
-                        } label: {
-                            Label("Fill In Suggested", systemImage: "sparkles")
                         }
-                        .controlSize(.small)
                         .help("Ready-made styles for \(names). Every line stays editable.")
                     }
-                    Button {
-                        store.addPerAppInstructionApp()
-                    } label: {
-                        Label("Add App…", systemImage: "plus")
-                    }
-                    .controlSize(.small)
-                    Button {
-                        store.addPerSiteInstruction()
-                    } label: {
-                        Label("Add Website…", systemImage: "globe")
-                    }
-                    .controlSize(.small)
+                    Button("Add App…", systemImage: "plus") { store.addPerAppInstructionApp() }
+                    Button("Add Website…", systemImage: "globe") { store.addPerSiteInstruction() }
                 }
+                .controlSize(.small)
             }
 
             // Instant n-gram suggestions come from the controller, so learning
@@ -1239,13 +1184,9 @@ struct PersonalTab: View {
                     }
                 }
                 LabeledContent {
-                    Button {
-                        store.importTextFiles()
-                    } label: {
-                        Label("Import Text…", systemImage: "text.book.closed")
-                    }
-                    .controlSize(.small)
-                    .disabled(!store.journalEnabled || store.importing)
+                    Button("Import Text…", systemImage: "text.book.closed") { store.importTextFiles() }
+                        .controlSize(.small)
+                        .disabled(!store.journalEnabled || store.importing)
                 } label: {
                     Text("Learn from your writing")
                     if store.journalEnabled {

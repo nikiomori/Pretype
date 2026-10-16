@@ -32,8 +32,8 @@ struct ImpactRailView: View {
         // of offering "Click to apply" over identical figures.
         let previewsRuntime = store.previewedConfig
             .map { !$0.sameRuntime(as: store.committedConfig) } ?? false
-        let target = previewsRuntime ? store.previewedProjection : nil
-        let deltas = previewsRuntime ? store.previewDeltas : []
+        let target = previewsRuntime ? store.previewedConfig.map(ConfigProjection.project) : nil
+        let deltas = target.map { ConfigProjection.deltas(from: base, to: $0) } ?? []
 
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {

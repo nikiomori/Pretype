@@ -5,19 +5,6 @@ import SwiftUI
 
 // MARK: - Store
 
-/// Hover previews change many times a second as the pointer moves. They live
-/// on their own observable so that hovering re-renders only the surfaces that
-/// draw previews (map, rail, delta strips) — never the scrolling Form around
-/// them, which visibly hitched wheel/trackpad scrolling over the model list
-/// back when the store was one ObservableObject and any set invalidated every
-/// tab. `@Observable` tracks per property now; the split still keeps the
-/// hottest property out of the store's way.
-@MainActor
-@Observable
-final class HoverState {
-    var preview: ProjectionConfig.Change?
-}
-
 /// Observable bridge between the SwiftUI settings surface and the live
 /// pipeline. Every mutation forwards to the same `SuggestionController` entry
 /// points the old AppKit panel used; `sync()` re-reads Settings after any
@@ -284,12 +271,9 @@ final class SettingsStore {
 
     /// Control being hovered right now — the Live Impact rail, the delta
     /// strips and the model map preview its effect before anything commits.
-    /// On `HoverState`, not the store, so hovering never re-renders the Form.
-    private let hoverState = HoverState()
-    var preview: ProjectionConfig.Change? {
-        get { hoverState.preview }
-        set { hoverState.preview = newValue }
-    }
+    /// `@Observable` tracks per property, so a hover re-renders only the views
+    /// that read it — never the scrolling Form around them.
+    var preview: ProjectionConfig.Change?
 
     func setHover(_ change: ProjectionConfig.Change, _ hovering: Bool) {
         if hovering {
@@ -425,15 +409,6 @@ final class SettingsStore {
     /// The hovered change applied to the committed config, cascades included.
     var previewedConfig: ProjectionConfig? {
         preview.map(committedConfig.applying)
-    }
-    /// What the hovered change would measure to.
-    var previewedProjection: ConfigProjection? {
-        previewedConfig.map(ConfigProjection.project)
-    }
-    /// Differences hovered − committed, for the delta chips.
-    var previewDeltas: [ConfigProjection.MetricDelta] {
-        guard let target = previewedProjection else { return [] }
-        return ConfigProjection.deltas(from: projection, to: target)
     }
 
     /// "MiniCPM5 1B · Base · Short · Confident-only" — what is running now.

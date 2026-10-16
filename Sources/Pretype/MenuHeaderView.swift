@@ -17,9 +17,6 @@ struct MenuHeaderView: View {
     /// instantly — so the light variant is darkened rather than dropped.
     static let gain = Color.green.legible
 
-    /// Keycap fill, the same weight as the suggestion pill's own keycaps.
-    static let keycapFill = Color.primary.opacity(0.08)
-
     let statusColor: Color
     let statusText: String
     /// Green: the engine is working, so the status is plumbing and stays quiet.
@@ -183,7 +180,8 @@ struct MenuHintsView: View {
             .fixedSize()
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
-            .background(MenuHeaderView.keycapFill, in: RoundedRectangle(cornerRadius: 4))
+            // The same fill weight as the suggestion pill's own keycaps.
+            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
             .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
     }
 }

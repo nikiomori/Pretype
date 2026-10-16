@@ -130,7 +130,6 @@ struct OnboardingCardView: View {
     let card: OnboardingCard
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let readySubtitle = String(localized: "Type in any app — Pretype lives in the menu bar")
     private static let width: CGFloat = 340
 
     private var failure: String? {
@@ -156,7 +155,7 @@ struct OnboardingCardView: View {
         case .preparing(let detail):
             return detail.contains("%") ? String(localized: "One-time model download") : String(localized: "Loading the model")
         case .failed: return String(localized: "The completion engine couldn't start")
-        case .ready: return Self.readySubtitle
+        case .ready: return String(localized: "Type in any app — Pretype lives in the menu bar")
         }
     }
 

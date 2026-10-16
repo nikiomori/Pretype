@@ -500,27 +500,18 @@ enum Settings {
     @Pref("perAppInstructions", [:]) static var perAppInstructions: [String: String]
 
     /// The per-app addition for the app being typed in, or nil when none is
-    /// configured (or it's blank).
-    static func perAppInstructions(for bundleID: String?) -> String? {
-        guard let id = bundleID?.lowercased(),
-              let text = perAppInstructions[id]?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !text.isEmpty else { return nil }
-        return text
-    }
-
-    /// A website's own lines win over its browser's: in Chrome, Gmail and
-    /// Slack want different voices, and the app entry can't tell them apart.
-    /// The most specific matching site entry is the one used.
+    /// configured (or it's blank). A website's own lines win over its
+    /// browser's: in Chrome, Gmail and Slack want different voices, and the
+    /// app entry can't tell them apart. The most specific matching site entry
+    /// is the one used.
     static func perAppInstructions(for bundleID: String?, site host: String?) -> String? {
-        if let host {
-            let best = perAppInstructions
+        let site = host.flatMap { host in
+            perAppInstructions
                 .filter { AppPolicy.site(host, matches: $0.key) }
-                .max { $0.key.count < $1.key.count }
-            if let text = best?.value.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-                return text
-            }
+                .max { $0.key.count < $1.key.count }?.value
         }
-        return perAppInstructions(for: bundleID)
+        let app = bundleID.flatMap { perAppInstructions[$0.lowercased()] }
+        return [site, app].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
     }
 
     @Pref("mlxModelID", ModelCatalog.defaultID) static var mlxModelID: String

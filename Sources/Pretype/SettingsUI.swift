@@ -159,9 +159,6 @@ enum AppLanguage {
         return name.prefix(1).uppercased(with: locale) + name.dropFirst()
     }
 
-    /// Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
-    static var canRelaunch: Bool { MicrophoneAccess.isBundled }
-
     /// Quits and opens the app again — the one way a running process picks up
     /// a new language. A shell waits for this process to exit, then reopens
     /// the bundle (opening it any earlier would just activate the old one).

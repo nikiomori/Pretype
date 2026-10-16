@@ -309,15 +309,15 @@ struct ModelRow: View {
     let title: String
     let isSelected: Bool
     let select: () -> Void
-    var hover: ((Bool) -> Void)?
+    let hover: (Bool) -> Void
     /// When the list is ranked for one language: that language's "of all"
     /// accuracy and the best catalog value in it (for bar normalization).
     var langAccuracy: (pct: Int, max: Int)?
     /// Deletable bytes this model's weights hold in the local cache; nil (the
     /// selected model, its siblings, nothing downloaded) hides the affordance.
     var diskBytes: Int64?
-    var delete: (() -> Void)?
-    var deleteDisabled = false
+    let delete: () -> Void
+    let deleteDisabled: Bool
     /// GB a click downloads first (nil: already on this Mac).
     var downloadGB: Double?
     /// GB a click keeps resident, when that is heavy for this Mac.
@@ -363,7 +363,7 @@ struct ModelRow: View {
                             .help("Not on this Mac yet — picking it downloads about \(size) first, and suggestions pause until it's ready.")
                             .accessibilityLabel("Not downloaded, \(size)")
                     }
-                    if let diskBytes, let delete {
+                    if let diskBytes {
                         let size = ByteCountFormatter.string(fromByteCount: diskBytes, countStyle: .file)
                         Text("\(size) on disk")
                             .font(.caption2.monospacedDigit())
@@ -429,7 +429,7 @@ struct ModelRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-        .onHover { hovering = $0; hover?($0) }
+        .onHover { hovering = $0; hover($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
@@ -489,7 +489,7 @@ private struct PriorityCard: View {
     let acc: Int?
     let isActive: Bool
     let apply: () -> Void
-    var hover: ((Bool) -> Void)?
+    let hover: (Bool) -> Void
     /// Local hover for the card highlight — kept off the store the Form
     /// observes, unlike the rail-preview `hover` callback below.
     @State private var hovering = false
@@ -559,7 +559,7 @@ private struct PriorityCard: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .help(priority.goal)
-        .onHover { hovering = $0; hover?($0) }
+        .onHover { hovering = $0; hover($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
@@ -583,7 +583,7 @@ enum MapLens {
 /// completion-only and hides.
 struct ModelMapView: View {
     @Bindable var store: SettingsStore
-    var lens: MapLens = .completion
+    let lens: MapLens
     /// Hovered sibling bubble on the chord lenses. Local @State: sibling ids
     /// aren't models the Live Impact rail can preview, so they never touch
     /// the shared hover store.
