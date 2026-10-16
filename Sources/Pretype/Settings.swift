@@ -569,6 +569,12 @@ enum Settings {
     /// RAM, the model waits out a longer pause instead. A picked value always wins.
     @Pref("idleUnloadMinutes", ModelCatalog.machineRamGB >= 32 ? 15 : 5) static var idleUnloadMinutes: Int
 
+    /// Serve Gemma's per-layer embedding table from the model file instead of
+    /// memory (`HostPLE`): −1.3 GB on E2B, −1.5 GB on E4B, identical outputs,
+    /// a few ms more per suggestion (decode −10…16% on M4 Max, 2026-10-16).
+    /// On by default where that memory is scarce; a picked value always wins.
+    @Pref("pleFromDisk", ModelCatalog.machineRamGB <= 16) static var pleFromDisk: Bool
+
     /// Which measured axis the Model tab's accuracy surfaces show: "*" =
     /// equal-weight average over all measured languages (the multilingual
     /// default), "core" = the EN+RU *pooled* booking — English and Russian

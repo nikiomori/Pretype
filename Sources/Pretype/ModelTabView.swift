@@ -14,6 +14,7 @@ struct ModelTab: View {
     /// changes on a click and resets to completions with the window.
     @State private var mapLens = MapLens.completion
     @AppStorage("idleUnloadMinutes") private var idleUnloadMinutes = Settings.idleUnloadMinutes
+    @AppStorage("pleFromDisk") private var pleFromDisk = Settings.pleFromDisk
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
@@ -127,10 +128,19 @@ struct ModelTab: View {
                 } label: {
                     Text("Free memory when idle")
                     if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
-                        Text("Frees about \(oneDecimal(store.selectedRamGB)) GB while unused.")
+                        // Less what the table on disk already freed.
+                        let onDisk = pleFromDisk ? HostPLE.savingGB(for: store.modelID) ?? 0 : 0
+                        Text("Frees about \(oneDecimal(store.selectedRamGB - onDisk)) GB while unused.")
                     }
                 }
                 .help("The next keystroke reloads the model from disk; switching to a text field pre-warms it.")
+                if let savingGB = HostPLE.savingGB(for: store.modelID) {
+                    Toggle(isOn: $pleFromDisk) {
+                        Text("Reduce memory use")
+                        Text("Frees about \(oneDecimal(savingGB)) GB; suggestions come a few milliseconds later.")
+                    }
+                    .help("Reads one of the model's tables from disk instead of keeping it in memory. Suggestions stay exactly the same. On by default on Macs with 16 GB of memory or less.")
+                }
             }
 
         }

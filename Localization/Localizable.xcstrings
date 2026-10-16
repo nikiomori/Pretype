@@ -20192,6 +20192,106 @@
         }
       }
     },
+    "Frees about %@ GB; suggestions come a few milliseconds later." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uvolní asi %@ GB; návrhy přijdou o pár milisekund později."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gibt etwa %@ GB frei; Vorschläge kommen ein paar Millisekunden später."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libera unos %@ GB; las sugerencias llegan unos milisegundos más tarde."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libère environ %@ Go ; les suggestions arrivent quelques millisecondes plus tard."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libera circa %@ GB; i suggerimenti arrivano qualche millisecondo dopo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "約%@ GBを解放します。候補の表示は数ミリ秒遅くなります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "약 %@ GB를 확보합니다. 제안이 몇 밀리초 늦게 표시됩니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maakt ongeveer %@ GB vrij; suggesties komen een paar milliseconden later."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwalnia ok. %@ GB; podpowiedzi pojawiają się o kilka milisekund później."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libera cerca de %@ GB; as sugestões chegam alguns milissegundos depois."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliberează circa %@ GB; sugestiile apar cu câteva milisecunde mai târziu."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Освобождает около %@ ГБ; подсказки появляются на несколько миллисекунд позже."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frigör cirka %@ GB; förslagen kommer några millisekunder senare."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yaklaşık %@ GB boşaltır; öneriler birkaç milisaniye geç gelir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Звільняє близько %@ ГБ; підказки з’являються на кілька мілісекунд пізніше."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "释放约 %@ GB；建议会晚几毫秒出现。"
+          }
+        }
+      }
+    },
     "Gemma 4 E2B 8-bit — small but precise" : {
       "localizations" : {
         "cs" : {
@@ -36093,6 +36193,106 @@
         }
       }
     },
+    "Reads one of the model's tables from disk instead of keeping it in memory. Suggestions stay exactly the same. On by default on Macs with 16 GB of memory or less." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Čte jednu z tabulek modelu z disku, místo aby ji držel v paměti. Návrhy zůstávají úplně stejné. Ve výchozím stavu zapnuto na Macích s 16 GB paměti nebo méně."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liest eine der Tabellen des Modells von der Festplatte, statt sie im Speicher zu halten. Die Vorschläge bleiben genau gleich. Standardmäßig an auf Macs mit 16 GB Speicher oder weniger."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lee una de las tablas del modelo desde el disco en lugar de mantenerla en memoria. Las sugerencias son exactamente las mismas. Activado por omisión en Macs con 16 GB de memoria o menos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lit l’une des tables du modèle depuis le disque au lieu de la garder en mémoire. Les suggestions restent exactement les mêmes. Activé par défaut sur les Mac dotés de 16 Go de mémoire ou moins."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legge una delle tabelle del modello dal disco invece di tenerla in memoria. I suggerimenti restano esattamente gli stessi. Attivo per impostazione predefinita sui Mac con 16 GB di memoria o meno."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルのテーブルの1つをメモリに保持せず、ディスクから読み込みます。候補はまったく同じです。メモリ16 GB以下のMacでは標準でオンです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델의 테이블 하나를 메모리에 두지 않고 디스크에서 읽습니다. 제안은 완전히 동일합니다. 메모리가 16GB 이하인 Mac에서는 기본으로 켜져 있습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leest een van de tabellen van het model van schijf in plaats van die in het geheugen te houden. Suggesties blijven precies hetzelfde. Standaard aan op Macs met 16 GB geheugen of minder."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odczytuje jedną z tabel modelu z dysku zamiast trzymać ją w pamięci. Podpowiedzi pozostają dokładnie takie same. Domyślnie włączone na Macach z 16 GB pamięci lub mniej."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lê uma das tabelas do modelo do disco em vez de mantê-la na memória. As sugestões continuam exatamente iguais. Ativado por padrão em Macs com 16 GB de memória ou menos."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Citește unul dintre tabelele modelului de pe disc în loc să-l țină în memorie. Sugestiile rămân exact aceleași. Activat implicit pe Mac-urile cu 16 GB de memorie sau mai puțin."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читает одну из таблиц модели с диска вместо того, чтобы держать её в памяти. Подсказки остаются точно такими же. По умолчанию включено на Mac с 16 ГБ памяти или меньше."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Läser en av modellens tabeller från disken i stället för att hålla den i minnet. Förslagen blir exakt desamma. På som standard på Mac-datorer med 16 GB minne eller mindre."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelin tablolarından birini bellekte tutmak yerine diskten okur. Öneriler tamamen aynı kalır. 16 GB veya daha az belleğe sahip Mac’lerde varsayılan olarak açıktır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читає одну з таблиць моделі з диска замість того, щоб тримати її в пам’яті. Підказки залишаються точно такими самими. Типово ввімкнено на Mac із 16 ГБ пам’яті або менше."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从磁盘读取模型的一张表，而不是常驻内存。建议完全相同。内存为 16 GB 或更少的 Mac 默认开启。"
+          }
+        }
+      }
+    },
     "Reads the focused window on this Mac." : {
       "localizations" : {
         "cs" : {
@@ -36689,6 +36889,106 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重做"
+          }
+        }
+      }
+    },
+    "Reduce memory use" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snížit využití paměti"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicherbedarf senken"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reducir el uso de memoria"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réduire l’utilisation de la mémoire"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riduci l’uso di memoria"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリ使用量を減らす"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 사용량 줄이기"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geheugengebruik verminderen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zmniejsz zużycie pamięci"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reduzir o uso de memória"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redu utilizarea memoriei"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экономить память"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minska minnesanvändningen"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bellek kullanımını azalt"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заощаджувати пам’ять"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "减少内存占用"
           }
         }
       }

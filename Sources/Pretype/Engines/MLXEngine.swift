@@ -114,6 +114,12 @@ final class MLXEngine: CompletionEngine {
     private let drafter = LockedValue<(any MTPDrafterModel)?>(nil)
     private let correctionDrafter = LockedValue<(any MTPDrafterModel)?>(nil)
 
+    /// The `HostPLE.enabled` the resident Gemma models loaded with, nil when
+    /// none is: flipping the setting unloads them, and the next use reloads
+    /// them the other way (see `applyMemorySetting`).
+    private let loadedPLEFromDisk = LockedValue<Bool?>(nil)
+    private var defaultsObserver: NSObjectProtocol?
+
     /// How to rebuild each unloaded model without the build leak, by repo —
     /// see `keepBlueprint`.
     private let blueprints = LockedValue<[String: Blueprint]>([:])
@@ -262,6 +268,7 @@ final class MLXEngine: CompletionEngine {
         let tokenizers = self.tokenizers
         let blueprints = self.blueprints
         let drafterBox = self.drafter
+        let loadedPLEFromDisk = self.loadedPLEFromDisk
         let drafterID = style == .instruct ? ModelCatalog.mtpDrafterID(for: id) : nil
         stateBox.set(.preparing(String(localized: "loading…")))
         return Task { [weak self] in
@@ -272,6 +279,7 @@ final class MLXEngine: CompletionEngine {
                     Self.configuration(for: repo), repo: repo, drafterID: drafterID, into: drafterBox,
                     tokenizers: tokenizers, blueprints: blueprints,
                     progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
+                if let mode = await HostPLE.install(in: loaded, repo: repo) { loadedPLEFromDisk.set(mode) }
                 ModelStorage.noteLoad(repo: repo, succeeded: true)
                 // Retired mid-load (a model switch, `shutdown`): don't warm up
                 // weights nobody will use next to the replacement's.
@@ -584,6 +592,14 @@ final class MLXEngine: CompletionEngine {
                                 biases: biases.map(zeros), groupSize: groupSize, bits: bits, mode: mode)
             })
         }
+        // Served from the file, but the rebuild loads it as the table it was.
+        if let host = module as? HostPLE {
+            let (tensors, groupSize, bits, mode) = (host.tensors.map { ($0.shape, $0.dtype) }, host.groupSize, host.bits, host.mode)
+            return (path, {
+                QuantizedEmbedding(weight: zeros(tensors[0]), scales: zeros(tensors[1]), biases: zeros(tensors[2]),
+                                   groupSize: groupSize, bits: bits, mode: mode)
+            })
+        }
         if type(of: module) == QuantizedEmbedding.self, let layer = module as? QuantizedEmbedding, layer.globalScale == nil {
             let (weight, scales, biases) = (spec(layer.weight), spec(layer.scales), layer.biases.map(spec))
             let (groupSize, bits, mode) = (layer.groupSize, layer.bits, layer.mode)
@@ -728,6 +744,7 @@ final class MLXEngine: CompletionEngine {
         // buffer pool, and it then sat at its 64 MB cap for the whole idle.
         Memory.clearCache()
         if reason == "memory pressure" { tokenizers.clear() }
+        loadedPLEFromDisk.set(nil)
         // A failure stays on screen until a retry replaces it.
         if case .failed = primary {} else { stateBox.set(.preparing(String(localized: "idle — model unloaded"))) }
         modelLock.unlock()
@@ -796,15 +813,31 @@ final class MLXEngine: CompletionEngine {
             } else {
                 if limit > 0 { self.unloadSibling(idleFor: limit) }
                 if !busy, idle >= 60 { self.trimWhileIdle() }
+                self.applyMemorySetting()  // a flip a request was holding up
             }
         }
         timer.resume()
         idleTimer = timer
+
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.maintenanceQueue.async { self?.applyMemorySetting() }
+        }
+    }
+
+    /// Unloads Gemma models that loaded with the other `pleFromDisk` setting:
+    /// the next keystroke reloads them the way it now says. Skipped while a
+    /// request runs; the idle timer's next tick retries.
+    private func applyMemorySetting() {
+        guard let loaded = loadedPLEFromDisk.get(), loaded != HostPLE.enabled else { return }
+        unload(reason: "memory setting changed", force: true)
     }
 
     deinit {
         idleTimer?.cancel()
         memoryPressureSource?.cancel()
+        defaultsObserver.map(NotificationCenter.default.removeObserver)
     }
 
     // MARK: - Completion
@@ -1254,6 +1287,7 @@ final class MLXEngine: CompletionEngine {
     func shutdown() {
         idleTimer?.cancel(); idleTimer = nil
         memoryPressureSource?.cancel(); memoryPressureSource = nil
+        defaultsObserver.map(NotificationCenter.default.removeObserver); defaultsObserver = nil
         modelLock.withLock {
             // A late `warmPrompt` or prewarm on this retired engine must not
             // rebuild a whole model next to the replacement's.
@@ -1314,6 +1348,7 @@ final class MLXEngine: CompletionEngine {
             let tokenizers = self.tokenizers
             let blueprints = self.blueprints
             let drafterBox = self.correctionDrafter
+            let loadedPLEFromDisk = self.loadedPLEFromDisk
             // Set under the lock, before the task runs, so `unload` can't cancel
             // a load that hasn't reported itself yet.
             status.set(String(localized: "loading fix model…"))
@@ -1328,6 +1363,7 @@ final class MLXEngine: CompletionEngine {
                             status.set(Self.downloadStatus(progress, fixModel: true))
                         }
                     )
+                    if let mode = await HostPLE.install(in: container, repo: repo) { loadedPLEFromDisk.set(mode) }
                     ModelStorage.noteLoad(repo: repo, succeeded: true)
                     status.set(nil)
                     // Whatever the disk probe thought, the weights are provably
