@@ -251,6 +251,15 @@ The resident figure is the memory that a model uses *while you type*. The model 
 * The model loads again at your next keystroke.
 * If macOS reports memory pressure, the model unloads earlier.
 
+### Reduce memory use (Gemma)
+
+A Gemma model keeps a large table, but each word of a suggestion reads only one row of it. The table is 1.3 GB on E2B and 1.6 GB on E4B. With **Model → Runtime → Reduce memory use**, Pretype reads this table from disk and does not keep it in memory.
+
+* The suggestions are the same, row for row.
+* Each suggestion comes a few milliseconds later (5–7 ms on an M4 Max).
+* The setting is on by default on Macs with 16 GB of memory or less.
+* A change applies at your next keystroke.
+
 ### The fix chord can add a download
 
 On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one time:
