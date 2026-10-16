@@ -10,9 +10,25 @@
 #   - no such certificate -> ad-hoc signature; recipients clear Gatekeeper
 #     once (see the printed steps).
 #
+# A release sets PRETYPE_VERSION=X.Y.Z (docs/RELEASING.md). Then there is no
+# ad-hoc fallback, and this script builds the app itself through make-app.sh,
+# whose release guard refuses a dirty tree or a HEAD that isn't tag vX.Y.Z.
+#
 # Intel Macs are not supported — Pretype needs Apple Silicon (MLX).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+if [ -n "${PRETYPE_VERSION:-}" ]; then
+    # An ad-hoc release is blocked by Gatekeeper, and its new signature
+    # silently voids every user's Accessibility grant. Checked before the build.
+    if [ -z "$IDENTITY" ]; then
+        echo "Refusing a release: no \"Developer ID Application\" identity in the keychain."
+        exit 1
+    fi
+    # Built here, never taken from whatever build/Pretype.app a dev build left.
+    ./Scripts/make-app.sh
+fi
 
 test -d build/Pretype.app || { echo "build/Pretype.app not found — run ./Scripts/make-app.sh first."; exit 1; }
 
@@ -21,7 +37,6 @@ rm -rf "$DIST"; mkdir -p "$DIST"
 cp -R build/Pretype.app "$DIST/Pretype.app"
 rm -f build/Pretype.app.zip
 
-IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Developer ID Application/ {print $2; exit}')
 if [ -n "$IDENTITY" ]; then
     # Hardened runtime + secure timestamp are notarization requirements.
     # Single binary + resource-only bundles, so there is no nested code to sign.

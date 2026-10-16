@@ -2,7 +2,7 @@
 
 The repository has no signing secrets. Thus CI cannot make the build that users download. The maintainer builds, signs and notarizes the release on a Mac. Then the maintainer attaches the zip to a draft release, verifies it, and publishes it.
 
-> **WARNING:** Do not attach an ad-hoc signed zip. `Scripts/dist.sh` makes one when the "Developer ID Application" certificate is not in the keychain. Gatekeeper blocks it. Its signature is also different from the Developer ID build. After users update to that zip, their Accessibility grant stops working, and macOS shows no message.
+> **WARNING:** Do not attach an ad-hoc signed zip. Without `PRETYPE_VERSION`, `Scripts/dist.sh` makes one when the "Developer ID Application" certificate is not in the keychain. Gatekeeper blocks it. Its signature is also different from the Developer ID build. After users update to that zip, their Accessibility grant stops working, and macOS shows no message.
 
 <div align="center">
 <img src="diagram-release-flow.svg" width="340" alt="Release flow. On the maintainer's Mac: 1, push the tag vX.Y.Z; 2, build from the tag with make-app.sh, then sign, notarize and staple with dist.sh. On GitHub and Homebrew: 3, create a draft release with the zip; 4, download and verify it with spctl and stapler; 5, publish the draft; 6, bump the Homebrew cask version and sha256." />
@@ -18,10 +18,21 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
 
 2. **Build locally from the tag.** You need the "Developer ID Application" certificate in the keychain. You also need the notary profile. Create the profile one time with `xcrun notarytool store-credentials pretype`.
 
+   1. Check out the tag. The working tree must be clean: `git status --short` must show nothing.
+   2. Run `dist.sh` with `PRETYPE_VERSION`. It builds the app with `make-app.sh`, then signs, notarizes and staples it.
+   3. Go back to `main`.
+
    ```sh
-   PRETYPE_VERSION=X.Y.Z ./Scripts/make-app.sh
-   ./Scripts/dist.sh   # hardened-runtime sign, notarize (--keychain-profile pretype), staple
+   git switch --detach vX.Y.Z
+   git status --short                         # must show nothing
+   PRETYPE_VERSION=X.Y.Z ./Scripts/dist.sh    # make-app.sh, hardened-runtime sign, notarize (--keychain-profile pretype), staple
+   git switch main
    ```
+
+   With `PRETYPE_VERSION`, the scripts stop before the build in these conditions:
+   * The working tree has a change or an untracked file.
+   * `HEAD` is not at the tag `vX.Y.Z`.
+   * The "Developer ID Application" certificate is not in the keychain.
 
    > **NOTE:** `notarytool --wait` can stop after a short network failure. The submission continues on the server. Do not submit again. Check the status with `xcrun notarytool history --keychain-profile pretype`.
 

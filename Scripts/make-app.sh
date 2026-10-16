@@ -8,6 +8,25 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# A release (PRETYPE_VERSION set — docs/RELEASING.md) must be exactly its tag:
+# the bundle is compiled from the working tree, so an uncommitted edit, an
+# untracked file or another checked-out commit would ship code the tag doesn't
+# have. Checked first, before minutes of xcodebuild. Dev and CI builds don't
+# set PRETYPE_VERSION and skip this.
+if [ -n "${PRETYPE_VERSION:-}" ]; then
+    dirty=$(git status --porcelain)
+    if [ -n "$dirty" ]; then
+        echo "Refusing a release build: the working tree is not clean:"
+        echo "$dirty"
+        exit 1
+    fi
+    tag="v$PRETYPE_VERSION"
+    if [ "$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)" != "$(git rev-parse HEAD)" ]; then
+        echo "Refusing a release build: HEAD is not at tag $tag. Run: git switch --detach $tag"
+        exit 1
+    fi
+fi
+
 if ! xcrun metal --version >/dev/null 2>&1; then
     echo "Metal Toolchain is missing (needed to compile MLX shaders)."
     echo "Install it once with: xcodebuild -downloadComponent MetalToolchain"
