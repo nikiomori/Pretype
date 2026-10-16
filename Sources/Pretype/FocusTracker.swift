@@ -51,7 +51,6 @@ final class FocusTracker {
     private var observer: AXObserver?
     private var appElement: AXUIElement?
     private(set) var observedPID: pid_t = 0
-    private var elementNotificationsAdded = false
     private var observedWindow: AXUIElement?
     private var activationToken: NSObjectProtocol?
     private var deactivationToken: NSObjectProtocol?
@@ -150,7 +149,6 @@ final class FocusTracker {
         observer = nil
         appElement = nil
         focusedTextElement = nil
-        elementNotificationsAdded = false
         observedPID = 0
         observedApp = nil
     }
@@ -167,7 +165,7 @@ final class FocusTracker {
         case kAXFocusedUIElementChangedNotification:
             refreshFocusedElement()
         case kAXValueChangedNotification, kAXSelectedTextChangedNotification:
-            if let focused = focusedTextElement, CFEqual(element, focused) {
+            if element == focusedTextElement {
                 let valueChanged = name == kAXValueChangedNotification
                 Task { @MainActor in
                     onTextChange?(valueChanged)
@@ -188,7 +186,6 @@ final class FocusTracker {
 
         unobserveFocusedElement(obs)
         focusedTextElement = nil
-        elementNotificationsAdded = false
 
         var fieldLabel: String?
         if let element = AXText.element(appEl, kAXFocusedUIElementAttribute) {
@@ -198,7 +195,6 @@ final class FocusTracker {
                 focusedTextElement = element
                 AXObserverAddNotification(obs, element, kAXValueChangedNotification as CFString, refcon)
                 AXObserverAddNotification(obs, element, kAXSelectedTextChangedNotification as CFString, refcon)
-                elementNotificationsAdded = true
             }
         }
         let window = AXText.element(appEl, kAXFocusedWindowAttribute)
@@ -217,7 +213,7 @@ final class FocusTracker {
 
     /// Unregister the value/selection notifications on the focused field.
     private func unobserveFocusedElement(_ obs: AXObserver) {
-        guard let focused = focusedTextElement, elementNotificationsAdded else { return }
+        guard let focused = focusedTextElement else { return }
         AXObserverRemoveNotification(obs, focused, kAXValueChangedNotification as CFString)
         AXObserverRemoveNotification(obs, focused, kAXSelectedTextChangedNotification as CFString)
     }
@@ -230,7 +226,7 @@ final class FocusTracker {
     private func observeWindow(_ window: AXUIElement?) {
         guard let obs = observer else { return }
         if let old = observedWindow {
-            if let window, CFEqual(old, window) { return }
+            if old == window { return }
             AXObserverRemoveNotification(obs, old, kAXWindowMovedNotification as CFString)
             AXObserverRemoveNotification(obs, old, kAXWindowResizedNotification as CFString)
         }

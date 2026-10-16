@@ -64,12 +64,8 @@ enum TextInjector {
         return presses
     }
 
-    /// One ⏎ — "send" after a dictation, where the user asked for it.
-    static func pressReturn() {
-        press(KeyCode.returnKey, times: 1)
-    }
-
-    private static func press(_ key: Int64, times count: Int) {
+    /// Posts `count` presses of `key`, tagged so the key tap ignores them.
+    static func press(_ key: Int64, times count: Int) {
         guard count > 0 else { return }
         let source = CGEventSource(stateID: .hidSystemState)
         for _ in 0..<count {

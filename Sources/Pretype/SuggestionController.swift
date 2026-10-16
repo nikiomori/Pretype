@@ -455,7 +455,7 @@ final class SuggestionController {
         guard let element = AXText.systemFocusedTextElement(knownEditable: fallbackSiteElement) else { return nil }
         // The tracker missed this field, so its site was never read and a
         // site switched off would fall through to the app check. Once per field.
-        if fallbackSiteElement.map({ !CFEqual($0, element) }) ?? true {
+        if fallbackSiteElement != element {
             fallbackSiteElement = element
             fallbackSite = trackedContext.site == nil ? AXText.pageHost(for: element) : nil
         }
@@ -937,14 +937,16 @@ final class SuggestionController {
     /// keystroke, and every keystroke advances or invalidates
     /// `latestTextBeforeCaret` synchronously, so the equality gate below
     /// catches typing mid-stream. `nil` ⇒ read AX now.
+    ///
+    /// `reply`: a composed reply — capped at 400 characters, not 120, reads an
+    /// empty field as a real (empty) context, and is never trimmed to the line.
     @discardableResult
     private func apply(_ result: String?, requestText: String,
                        cachedContext: TextContext? = nil, countShown: Bool = true,
-                       instant: Bool = false, maxChars: Int = 120,
-                       allowEmpty: Bool = false, trimToLine: Bool = true) -> Bool {
+                       instant: Bool = false, reply: Bool = false) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
-        var suggestion = result.map { sanitize($0, maxChars: maxChars) } ?? ""
+        var suggestion = result.map { sanitize($0, maxChars: reply ? 400 : 120) } ?? ""
         guard !suggestion.isEmpty else {
             // nil/empty is an abstain — or a mid-stream RETRACT ("" from the
             // engine when its final gate rejected what the partials already
@@ -972,7 +974,7 @@ final class SuggestionController {
         if let cachedContext, cachedContext.textBeforeCaret == latestTextBeforeCaret {
             ctx = cachedContext
         } else if let element = currentTextElement(),
-                  let fresh = AXText.context(for: element, allowEmpty: allowEmpty) {
+                  let fresh = AXText.context(for: element, allowEmpty: reply) {
             // The host hasn't caught up with a key the tap already saw ("hel"
             // read, "hell" cached): anchoring here would let ⇥ type the "l"
             // twice. Wait for the keystroke's own refresh instead.
@@ -1038,7 +1040,7 @@ final class SuggestionController {
         let opensRecord = countShown || pendingJournal == nil
         active = Active(anchor: current, after: ctx.textAfterCaret, text: suggestion,
                         accepted: opensRecord ? false : (active?.accepted ?? false),
-                        trimToLine: trimToLine)
+                        trimToLine: !reply)
         activeIsInstant = instant
         if opensRecord {
             // A fresh suggestion opens a journal record; an unresolved one at
@@ -1179,8 +1181,7 @@ final class SuggestionController {
             }
             guard engine.isCorrectionReady else { return stop("the reply model isn't loaded") }
         }
-        lastCaretRect = rect
-        lastHostStyle = ctx.host
+        noteCaret(rect: rect, host: ctx.host)
         // We just read the field — make that the cache marker, so the result
         // lands on the cached context instead of paying for another AX read
         // (and so an accept advances from the right place).
@@ -1254,8 +1255,7 @@ final class SuggestionController {
                 // empty field as a real (empty) context, and never trimmed to
                 // the line: a reply cut to its first 70 chars lost the rest.
                 let shown = self.apply(reply, requestText: ctx.textBeforeCaret,
-                                       cachedContext: ctx, maxChars: 400, allowEmpty: true,
-                                       trimToLine: false)
+                                       cachedContext: ctx, reply: true)
                 DebugLog.shared.log("REPLY", shown ? "shown" : "dropped — \(self.lastEvent)")
             case .success(nil):
                 // Two different silences: nothing readable on screen, or the
@@ -1823,7 +1823,7 @@ final class SuggestionController {
         // to be before the caret is gone and there is nothing for ⌘Z to take back.
         let sends = !inLauncher && AppPolicy.sendsAfterDictation(typingContext)
         if sends {
-            TextInjector.pressReturn()
+            TextInjector.press(KeyCode.returnKey, times: 1)
             latestTextBeforeCaret = nil
         }
         if before != nil, !inLauncher, !sends {
@@ -1944,13 +1944,7 @@ extension SuggestionController {
         // Apps fire the focus notification in duplicate bursts; identical
         // context + identical element means nothing actually changed.
         let newContext = focusTracker.typingContext
-        let sameElement: Bool
-        switch (focusTracker.focusedTextElement, lastFocusedElement) {
-        case let (new?, old?): sameElement = CFEqual(new, old)
-        case (nil, nil): sameElement = true
-        default: sameElement = false
-        }
-        if newContext == trackedContext, sameElement { return }
+        if newContext == trackedContext, focusTracker.focusedTextElement == lastFocusedElement { return }
 
         focusGeneration += 1
         lastFocusedElement = focusTracker.focusedTextElement

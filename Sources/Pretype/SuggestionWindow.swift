@@ -36,9 +36,6 @@ private final class GhostTextView: NSView {
         didSet { needsDisplay = true }
     }
 
-    override var isFlipped: Bool { false }
-    override var isOpaque: Bool { false }
-
     /// Tight size of the current text; height is the font's full line box.
     var measuredSize: NSSize {
         let s = attributed.size()
@@ -68,7 +65,6 @@ private final class PillTextView: NSView {
                                                    .truncatesLastVisibleLine]
 
     override var isFlipped: Bool { true }
-    override var isOpaque: Bool { false }
 
     /// The text's laid-out size within `maxWidth`, at most `maxHeight` tall.
     func fittingSize(maxWidth: CGFloat, maxHeight: CGFloat) -> NSSize {

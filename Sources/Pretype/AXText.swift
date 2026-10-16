@@ -63,9 +63,9 @@ enum AXText {
         let systemWide = AXUIElementCreateSystemWide()
         AXUIElementSetMessagingTimeout(systemWide, FocusTracker.axMessagingTimeout)
         guard let element = Self.element(systemWide, kAXFocusedUIElementAttribute) else { return nil }
-        if let known, CFEqual(known, element) { return known }
+        if let known, known == element { return known }
         AXUIElementSetMessagingTimeout(element, FocusTracker.axMessagingTimeout)
-        return isEditableTextElement(element) ? element : nil
+        return editableTextLabel(element) != nil ? element : nil
     }
 
     /// AX roles that actually hold editable text. Electron/Chromium sometimes
@@ -179,10 +179,6 @@ enum AXText {
     /// mask glyphs when the AX value is exposed at all. Never treat that as text.
     static func looksMasked(_ text: String) -> Bool {
         text.count >= 3 && text.allSatisfy { "•●∙*".contains($0) }
-    }
-
-    static func isEditableTextElement(_ element: AXUIElement) -> Bool {
-        editableTextLabel(element) != nil
     }
 
     /// An editable text element's label (see `fieldLabel`) — `.some(nil)` for
@@ -326,7 +322,7 @@ enum AXText {
     private static let lastKind = LockedValue<(element: AXUIElement, kind: FieldKind)?>(nil)
 
     private static func kind(of element: AXUIElement) -> FieldKind {
-        if let hit = lastKind.get(), CFEqual(hit.element, element) { return hit.kind }
+        if let hit = lastKind.get(), hit.element == element { return hit.kind }
         var ref: CFTypeRef?
         let read = AXUIElementCopyAttributeValue(element, "AXDOMClassList" as CFString, &ref)
         let kind: FieldKind
@@ -536,7 +532,7 @@ enum AXText {
     /// `AgentPrompt` to find an input box — at two AX reads a row.
     private static func xtermContext(_ helper: AXUIElement) -> TextContext? {
         guard let cursor = elementFrame(helper), cursor.height >= 4 else { return nil }
-        var nodes = xtermNodes.get().flatMap { CFEqual($0.helper, helper) ? $0 : nil }
+        var nodes = xtermNodes.get().flatMap { $0.helper == helper ? $0 : nil }
         var rows = nodes.flatMap { attribute($0.tree, kAXChildrenAttribute) as [AXUIElement]? }
         if rows == nil {
             nodes = findXtermNodes(helper)
@@ -780,7 +776,7 @@ enum AXText {
             extra += " markerCaret=\(fmt(webCaretBounds(element)))"
             if let inner = Self.element(element, kAXFocusedUIElementAttribute) {
                 let innerRole: String = attribute(inner, kAXRoleAttribute) ?? "?"
-                let innerSame = CFEqual(inner, element)
+                let innerSame = inner == element
                 extra += " inner=\(innerRole)\(innerSame ? "(self)" : "")/\(fmt(elementFrame(inner)))"
             } else {
                 extra += " inner=none"
@@ -818,7 +814,7 @@ enum AXText {
     /// What `context(for:)` actually computes for the focused element — verifies
     /// the live pipeline (incl. the Electron marker path) end to end.
     private static func probeContextLine(_ element: AXUIElement) -> String {
-        guard isEditableTextElement(element) else { return "ctx: focus not editable" }
+        guard editableTextLabel(element) != nil else { return "ctx: focus not editable" }
         guard let ctx = context(for: element, maxChars: 200) else { return "ctx: nil" }
         let font = ctx.host.font.map { "\($0.fontName) \(Int($0.pointSize))pt" } ?? "nil"
         return "ctx: text=\"…\(ctx.textBeforeCaret.suffix(16))\" caret=\(fmt(ctx.caretRect)) "
