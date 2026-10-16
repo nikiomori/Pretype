@@ -112,16 +112,19 @@ struct ModelMetrics {
     /// suggestion, and first-word accuracy of those (Wilson 95%). Measured per
     /// model on 2026-10-15 (runs-2026-10-15-rebook, calib-live.py), after τ
     /// moved to the live recorder's scale: the offline-calibrated τ passed
-    /// only 15–22% of suggestions where its calibration said 25%.
+    /// only 15–22% of suggestions where its calibration said 25%. Booked on
+    /// the ODD half only (n=724): τ is the even half's Q4 edge, so the even
+    /// rows would score the threshold on its own calibration data. The
+    /// per-script τ don't touch these rows — en/ru keep the model τ.
     static let gated: [String: (shownPct: Int, firstWordPct: Int, ci: ClosedRange<Int>)] = [
-        "mlx-community/gemma-4-e4b-8bit": (19, 58, 52...64),
-        "mlx-community/gemma-4-e4b-6bit": (19, 56, 50...62),
-        "mlx-community/gemma-4-e2b-8bit": (19, 57, 51...63),
-        "mlx-community/gemma-4-e2b-4bit": (20, 52, 46...58),
-        "nikimori/MiniCPM5-1B-Base-8bit": (20, 51, 45...56),
-        "mlx-community/Qwen2.5-0.5B-bf16": (27, 42, 37...47),
-        "nikimori/Qwen3.5-2B-Base-6bit": (21, 50, 44...56),
-        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42, 37...47),
+        "mlx-community/gemma-4-e4b-8bit": (18, 60, 52...68),
+        "mlx-community/gemma-4-e4b-6bit": (18, 56, 48...64),
+        "mlx-community/gemma-4-e2b-8bit": (19, 55, 47...64),
+        "mlx-community/gemma-4-e2b-4bit": (20, 53, 45...61),
+        "nikimori/MiniCPM5-1B-Base-8bit": (19, 53, 45...61),
+        "mlx-community/Qwen2.5-0.5B-bf16": (27, 41, 35...48),
+        "nikimori/Qwen3.5-2B-Base-6bit": (21, 53, 45...60),
+        "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42, 35...49),
     ]
 
     // MARK: - Per-language breakdown

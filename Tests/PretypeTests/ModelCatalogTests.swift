@@ -93,8 +93,8 @@ final class ModelCatalogTests: XCTestCase {
 
         // Logprob gate: each model's own measured trade, no scaling.
         let gated = cfg(mini, .base, logprob: true)
-        XCTAssertEqual(gated.accuracyText, "51%")
-        XCTAssertEqual(gated.coveragePct, 20)
+        XCTAssertEqual(gated.accuracyText, "53%")
+        XCTAssertEqual(gated.coveragePct, 19)
         XCTAssertEqual(gated.p50Ms, 18)
         let gatedE4B = cfg(e4b6, .base, logprob: true)
         XCTAssertEqual(gatedE4B.accuracyPct, 56)
