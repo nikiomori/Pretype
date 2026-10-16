@@ -109,9 +109,13 @@ final class DictationController {
             // The status item mirrors the microphone: only the open/closed
             // flip matters there, not every partial-transcript repaint.
             guard Self.isListening(oldValue) != Self.isListening(phase) else { return }
-            owner?.onDictationActivity?()
+            onActivity?()
         }
     }
+
+    /// Fires on the open/closed flip of the microphone, so the status item can
+    /// show a mic while a capture is live. Set by `StatusMenuController.bind`.
+    var onActivity: (() -> Void)?
 
     /// True while a capture is live or being finalized — the completion
     /// pipeline stands down and the overlay belongs to us.
@@ -137,7 +141,7 @@ final class DictationController {
     /// never delivered is the same wedge, and there it discards, because there
     /// is nothing heard to keep. A var only so tests can shorten it; nothing
     /// in the app writes it.
-    static var maxCaptureSeconds: TimeInterval = 120
+    var maxCaptureSeconds: TimeInterval = 120
 
     /// The same ceiling for a latched capture, where it means something else
     /// entirely. Nothing was ever going to arrive to end a hands-free capture —
@@ -146,11 +150,11 @@ final class DictationController {
     /// past any dictation anyone sits through and still short enough that a
     /// forgotten latch is not an open microphone for the afternoon. (Silence
     /// normally gets there first; this covers the room that is never quiet.)
-    static var maxLatchedSeconds: TimeInterval = 600
+    var maxLatchedSeconds: TimeInterval = 600
 
     /// The ceiling this capture is running under.
     private var ceilingSeconds: TimeInterval {
-        trigger == .latch ? Self.maxLatchedSeconds : Self.maxCaptureSeconds
+        trigger == .latch ? maxLatchedSeconds : maxCaptureSeconds
     }
 
     /// Internal, not private: tests shorten `hold.threshold` so driving the
@@ -227,9 +231,9 @@ final class DictationController {
     /// One line for the Diagnostics menu: the same conditions `begin()` checks,
     /// in the same order, read from the APP's own TCC identity. A feature whose
     /// refusals are (deliberately) quiet has to be answerable without a
-    /// rebuild — and running the probe binary from a terminal reads the
-    /// terminal's microphone grant, not Pretype's, so this is the only place
-    /// that can state it truthfully.
+    /// rebuild — and a binary run from a terminal reads the terminal's
+    /// microphone grant, not Pretype's, so this is the only place that can
+    /// state it truthfully.
     var statusLine: String {
         guard Settings.dictationEnabled else { return "off" }
         guard MicrophoneAccess.isBundled else { return "unavailable — not running as an .app" }
@@ -611,13 +615,7 @@ final class DictationController {
                           notice: .error(String(localized: "allow the microphone in Settings")), at: rect)
         }
 
-        owner.clearActiveCompletion()
-        // An ⌥⇥ fix still in flight would land its preview mid-capture — both
-        // guarded only by focus generation, which starting to dictate in the
-        // same field does not bump — and the window would ping-pong between
-        // the preview and the listening pill on every partial.
-        owner.cancelPendingFix()
-        owner.stopProgressIndicator()
+        owner.prepareForDictation()
         restarts = 0
         firstRestartAt = Date()
         focusGeneration = owner.focusGeneration
@@ -648,7 +646,7 @@ final class DictationController {
         // minutes of "starting dictation…" is ten minutes with the completion
         // pipeline suppressed behind `isBusy`. The capture re-arms itself at the
         // full ceiling once it is actually listening.
-        armCeiling(Self.maxCaptureSeconds, generation: gen)
+        armCeiling(maxCaptureSeconds, generation: gen)
 
         // Built here, not inside the task below: a closure written inside a
         // `[weak self]` task captures the task's optional `self` *variable*,
@@ -775,7 +773,7 @@ final class DictationController {
         // whereas re-arming from the tick makes "no owner left to check"
         // terminate the clock for free.
         silenceTimer = Timer.scheduledTimer(
-            withTimeInterval: Self.silenceTick, repeats: false
+            withTimeInterval: silenceTick, repeats: false
         ) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.generation == gen else { return }
@@ -797,7 +795,7 @@ final class DictationController {
         // pause gets would break the feature for exactly the long-form
         // dictation it exists for. (Nothing heard by the end of it finishes
         // anyway, and an empty transcript says "nothing heard".)
-        let budget = meter.heardVoice ? Settings.dictationSilence : Self.openingSilenceSeconds
+        let budget = meter.heardVoice ? Settings.dictationSilence : openingSilenceSeconds
         guard quiet >= budget else { return armSilenceWatch() }
         Self.note("hands-free capture heard nothing for \(Int(quiet))s — finishing")
         finish()
@@ -922,7 +920,7 @@ final class DictationController {
             Task { @MainActor in await self?.deviceChanged(generation: gen, epoch: epoch) }
         }
         try await capture.start(
-            deviceUID: Self.inputDevice()?.uid,
+            deviceUID: AudioDevices.current(preference: .init(stored: Settings.dictationInput))?.uid,
             outputFormat: session.audioFormat, onDeviceChange: onDeviceChange
         ) { buffer in
             session.feed(buffer)
@@ -958,6 +956,7 @@ final class DictationController {
         let targetFocus = focusGeneration
         let inLauncher = startedInLauncher
         let focusHeld = { owner.focusGeneration == targetFocus && owner.focusIsInLauncher == inLauncher }
+        let deadline = session.finishDeadline ?? finalizeSeconds
         sessionTask = Task { @MainActor [weak self] in
             do {
                 // Behind a deadline, because `finish` awaits the analyzer's own
@@ -968,8 +967,7 @@ final class DictationController {
                 // ceiling's audio — this is a watchdog, not a budget. A
                 // session that re-transcribes or uploads the whole take asks
                 // for longer, growing with the take (`finishDeadline`).
-                let raw = try await Self.withDeadline(
-                    seconds: session.finishDeadline ?? Self.finalizeSeconds) {
+                let raw = try await Self.withDeadline(seconds: deadline) {
                     try await session.finish()
                 }
                 guard let self else { return }
@@ -1058,10 +1056,9 @@ final class DictationController {
         if queued == .hold, !hold.isActive {
             if noticeIfMissed, let owner {
                 Self.note("queued hold released before the microphone could open")
-                let rect = caretRect ?? owner.fallbackCaretRect ?? Self.pointerAnchor()
                 owner.showTransientOverlay(
                     .hint(String(localized: "wasn't listening yet — hold and say that again")),
-                    at: rect, host: hostStyle)
+                    at: noticeRect, host: hostStyle)
             }
             return
         }
@@ -1092,7 +1089,7 @@ final class DictationController {
             // The same abandon-not-await race as the finalize watchdog: an
             // `engine.correct` mid-model-reload does not observe cancellation,
             // and a task group would wait for it anyway.
-            fixed = try await Self.withDeadline(seconds: Self.polishSeconds) { @MainActor in
+            fixed = try await Self.withDeadline(seconds: polishSeconds) { @MainActor in
                 await owner.tidyDictation(text, before: context)
             }
         } catch {
@@ -1118,16 +1115,16 @@ final class DictationController {
 
     /// See `polish` — how long the tidy-up may hold the transcript. A var only
     /// so tests can shorten it; nothing in the app writes it.
-    static var polishSeconds: TimeInterval = 3
+    var polishSeconds: TimeInterval = 3
     /// See `finish` — the watchdog on the analyzer's own finalization. A var
     /// for the same reason.
-    static var finalizeSeconds: TimeInterval = 10
+    var finalizeSeconds: TimeInterval = 10
     /// How often `checkSilence` reads the meter. Fine enough that the capture
     /// ends within a blink of the budget, coarse enough to be nothing next to
     /// the audio it is watching. Vars, again only so tests can shorten them.
-    static var silenceTick: TimeInterval = 0.25
+    var silenceTick: TimeInterval = 0.25
     /// The silence budget BEFORE anything has been said — see `checkSilence`.
-    static var openingSilenceSeconds: TimeInterval = 30
+    var openingSilenceSeconds: TimeInterval = 30
 
     /// `body` raced against a deadline. NOT a task group, deliberately: a
     /// group's scope awaits its children even after `cancelAll()`, so a body
@@ -1214,13 +1211,11 @@ final class DictationController {
         // race a transient shown a line later against its own fade-out.
         if let owner {
             if let notice {
-                // The same fallback chain `refuse()` uses, pointer included:
-                // fields that publish no caret (web/Electron inputs before
-                // their first keystroke) are exactly where dictation still
-                // runs, and a notice quietly skipped there is the
-                // silent-vanish bug all over again.
-                let rect = caretRect ?? owner.fallbackCaretRect ?? Self.pointerAnchor()
-                owner.showTransientOverlay(notice, at: rect, host: hostStyle)
+                // `noticeRect`, pointer included: fields that publish no
+                // caret (web/Electron inputs before their first keystroke) are
+                // exactly where dictation still runs, and a notice quietly
+                // skipped there is the silent-vanish bug all over again.
+                owner.showTransientOverlay(notice, at: noticeRect, host: hostStyle)
             } else {
                 owner.hideOverlay()
             }
@@ -1241,10 +1236,7 @@ final class DictationController {
         // first keystroke and again whenever the app replaces the focused node
         // — are exactly where someone reaches for dictation. Reported from real
         // use: the second sentence recorded fine but showed nothing at all,
-        // only the menu-bar dot. Same ladder a refusal notice uses: this
-        // capture's own caret, then the last one this field drew at, then the
-        // pointer.
-        let rect = caretRect ?? owner.fallbackCaretRect ?? Self.pointerAnchor()
+        // only the menu-bar dot. Hence `noticeRect`, pointer and all.
         let mode: SuggestionDisplayMode
         switch phase {
         case .idle:
@@ -1257,20 +1249,13 @@ final class DictationController {
         case .working:
             mode = .status(String(localized: "writing it down…"))
         }
-        owner.showOverlay(mode, at: rect, host: hostStyle)
+        owner.showOverlay(mode, at: noticeRect, host: hostStyle)
     }
 
-    /// The microphone this capture should open, or nil for the system default
-    /// input.
-    ///
-    /// nil when the answer IS the default input — which is every Mac without a
-    /// headset doubling as both ends: the capture then follows whatever macOS
-    /// calls the microphone without this code naming one.
-    static func inputDevice() -> AudioDevices.Device? {
-        let chosen = AudioDevices.current(
-            preference: AudioDevices.Preference(stored: Settings.dictationInput))
-        guard let chosen, chosen.uid != AudioDevices.defaultInput()?.uid else { return nil }
-        return chosen
+    /// Where this capture draws: its own caret, then the last one the field
+    /// drew at, then the pointer — the same ladder a refusal notice uses.
+    private var noticeRect: CGRect {
+        caretRect ?? owner?.fallbackCaretRect ?? Self.pointerAnchor()
     }
 
     /// Where to draw a notice that has no caret to belong to: a one-point box

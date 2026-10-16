@@ -156,8 +156,6 @@ final class CloudAPITests: XCTestCase {
         XCTAssertEqual(session.finishDeadline, 10)
         for _ in 0 ..< 60 { session.feed(silence(seconds: 1)) }
         XCTAssertEqual(session.finishDeadline ?? 0, 13, accuracy: 0.001)
-        let fixed = RecordedTranscription(preview: false, onPartial: { _ in }, transcribe: { _, _ in "" })
-        XCTAssertNil(fixed.finishDeadline, "no base → the controller's own watchdog")
     }
 
     func testHTTPErrorCarriesProviderMessage() async {

@@ -41,10 +41,6 @@ final class SuggestionController {
     /// `insertDictated`, which is the same injection path an accept takes.
     let dictationController = DictationController()
 
-    /// Fired when the microphone opens or closes, so the status item can show
-    /// a mic while a capture is live. Set by `StatusMenuController.bind`.
-    var onDictationActivity: (() -> Void)?
-
     private struct Active {
         /// Text before the caret at the moment the suggestion became valid.
         var anchor: String
@@ -2038,9 +2034,8 @@ extension SuggestionController {
 // What dictation is allowed to see of this controller — the protocol keeps the
 // capture state machine testable without an AX tree or a window server, and
 // keeps `DictationController` from growing casual reach into the completion
-// pipeline. `insertDictated`, `clearActiveCompletion`, `noteCaret`,
-// `typingContext`, `focusGeneration`, `lastEvent` and `onDictationActivity`
-// already satisfy their requirements above.
+// pipeline. `insertDictated`, `noteCaret`, `typingContext`, `focusGeneration`
+// and `lastEvent` already satisfy their requirements above.
 extension SuggestionController: DictationHost {
     var fallbackCaretRect: CGRect? { lastCaretRect }
     var fallbackHostStyle: HostTextStyle { lastHostStyle }
@@ -2065,7 +2060,11 @@ extension SuggestionController: DictationHost {
         dictationElement().map(AXText.hasMarkedText) ?? false
     }
 
-    func cancelPendingFix() { correctionController.reset() }
+    func prepareForDictation() {
+        clearActiveCompletion()
+        correctionController.reset()
+        indicator.stop()
+    }
 
     func dictationAnchor() -> DictationAnchor? {
         guard let ctx = dictationFieldContext() else { return nil }
@@ -2101,8 +2100,6 @@ extension SuggestionController: DictationHost {
         guard let fresh = AXText.systemFocusedTextElement() else { return nil }
         return read(fresh)
     }
-
-    func stopProgressIndicator() { indicator.stop() }
 
     func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle) {
         // A live capture's own pill outranks a protected notice: the

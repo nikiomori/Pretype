@@ -1,5 +1,4 @@
 import AVFoundation
-import CoreAudio
 import CoreGraphics
 import XCTest
 @testable import Pretype
@@ -68,7 +67,6 @@ private final class MockDictationHost: DictationHost {
     var focusIsInLauncher = false
     var fallbackCaretRect: CGRect?
     var fallbackHostStyle = HostTextStyle()
-    var onDictationActivity: (() -> Void)?
 
     var hasField = true
     var composing = false
@@ -80,19 +78,17 @@ private final class MockDictationHost: DictationHost {
     private(set) var transientNotices: [SuggestionDisplayMode] = []
     private(set) var shownModes: [SuggestionDisplayMode] = []
     private(set) var hideCount = 0
-    private(set) var cancelledFixes = 0
+    private(set) var prepares = 0
     var tidy: ((String) -> String?)?
     var tidyDelay: TimeInterval = 0
 
     func hasFocusedTextField() -> Bool { hasField }
     func isComposingInFocusedField() -> Bool { composing }
-    func cancelPendingFix() { cancelledFixes += 1 }
+    func prepareForDictation() { prepares += 1 }
     private(set) var prewarms = 0
     func prewarmTidy() { prewarms += 1 }
     func dictationBusyChanged() {}
     func dictationAnchor() -> DictationAnchor? { anchor }
-    func clearActiveCompletion() {}
-    func stopProgressIndicator() {}
     func noteCaret(rect: CGRect, host: HostTextStyle) {}
     func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle) {
         shownModes.append(mode)
@@ -127,12 +123,6 @@ final class DictationControllerTests: XCTestCase {
     private var savedPolish = false
     private var savedLatch = DictationLatch.off
     private var savedSilence: TimeInterval = 0
-    private var savedLatchCeiling: TimeInterval = 0
-    private var savedSilenceTick: TimeInterval = 0
-    private var savedOpeningSilence: TimeInterval = 0
-    private var savedCaptureCeiling: TimeInterval = 0
-    private var savedPolishSeconds: TimeInterval = 0
-    private var savedFinalizeSeconds: TimeInterval = 0
 
     override func setUp() {
         super.setUp()
@@ -142,12 +132,6 @@ final class DictationControllerTests: XCTestCase {
         savedPolish = Settings.dictationPolish
         savedLatch = Settings.dictationLatch
         savedSilence = Settings.dictationSilence
-        savedLatchCeiling = DictationController.maxLatchedSeconds
-        savedSilenceTick = DictationController.silenceTick
-        savedOpeningSilence = DictationController.openingSilenceSeconds
-        savedCaptureCeiling = DictationController.maxCaptureSeconds
-        savedPolishSeconds = DictationController.polishSeconds
-        savedFinalizeSeconds = DictationController.finalizeSeconds
         Settings.enabled = true
         Settings.dictationEnabled = true
         Settings.dictationGesture = .option
@@ -167,12 +151,6 @@ final class DictationControllerTests: XCTestCase {
         Settings.dictationPolish = savedPolish
         Settings.dictationLatch = savedLatch
         Settings.dictationSilence = savedSilence
-        DictationController.maxLatchedSeconds = savedLatchCeiling
-        DictationController.silenceTick = savedSilenceTick
-        DictationController.openingSilenceSeconds = savedOpeningSilence
-        DictationController.maxCaptureSeconds = savedCaptureCeiling
-        DictationController.polishSeconds = savedPolishSeconds
-        DictationController.finalizeSeconds = savedFinalizeSeconds
         super.tearDown()
     }
 
@@ -488,9 +466,9 @@ final class DictationControllerTests: XCTestCase {
     }
 
     func testPolishPastBudgetFallsBackToRawTranscript() async {
-        DictationController.polishSeconds = 0.05
         Settings.dictationPolish = true
         let rig = makeRig()
+        rig.controller.polishSeconds = 0.05
         rig.host.tidy = { _ in "Polished." }
         rig.host.tidyDelay = 0.5
         await startCapture(rig)
@@ -544,8 +522,8 @@ final class DictationControllerTests: XCTestCase {
     }
 
     func testHungFinalizeTripsWatchdog() async {
-        DictationController.finalizeSeconds = 0.1
         let rig = makeRig { $0.finishDelay = 5 }
+        rig.controller.finalizeSeconds = 0.1
         await startCapture(rig)
         await hear("x", in: rig)
         await release(rig.controller)
@@ -557,8 +535,8 @@ final class DictationControllerTests: XCTestCase {
     }
 
     func testHungFinalizeWithNothingHeardSurfacesTheTimeout() async {
-        DictationController.finalizeSeconds = 0.1
         let rig = makeRig { $0.finishDelay = 5 }
+        rig.controller.finalizeSeconds = 0.1
         await startCapture(rig)
         await release(rig.controller)
         await pump(until: { rig.controller.phase == .idle })
@@ -592,8 +570,8 @@ final class DictationControllerTests: XCTestCase {
     }
 
     func testWatchdogAbandonsUncancellableFinalize() async {
-        DictationController.finalizeSeconds = 0.1
         let rig = makeRig { $0.uncancellableFinishDelay = 1.0 }
+        rig.controller.finalizeSeconds = 0.1
         await startCapture(rig)
         await hear("x", in: rig)
         await release(rig.controller)
@@ -632,8 +610,8 @@ final class DictationControllerTests: XCTestCase {
         // The ceiling clock starts inside `begin`, racing the same hops
         // `startCapture` waits out. 0.6 s lost that race on a loaded Mac (the
         // ceiling hit `.preparing` and discarded); 3 s costs 3 s, never a flake.
-        DictationController.maxCaptureSeconds = 3
         let rig = makeRig()
+        rig.controller.maxCaptureSeconds = 3
         await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
         rig.session.onPartial?("still talking")
@@ -649,8 +627,8 @@ final class DictationControllerTests: XCTestCase {
     /// while suppressing the completion pipeline. Nothing was heard, so this
     /// one discards — with a notice.
     func testPreparingCeilingDiscardsAHungStart() async {
-        DictationController.maxCaptureSeconds = 0.15
         let rig = makeRig()
+        rig.controller.maxCaptureSeconds = 0.15
         rig.controller.gates.startSession = { _, _ in
             // Far past the wait below, so only the ceiling can end it (the
             // discard cancels this sleep).
@@ -710,13 +688,13 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(notice.contains("composing"), notice)
     }
 
-    /// Starting a capture cancels an in-flight ⌥⇥ fix: its preview would land
-    /// mid-capture and fight the listening pill for the window.
-    func testBeginCancelsPendingFix() async {
+    /// Starting a capture prepares the host, which cancels an in-flight ⌥⇥
+    /// fix: its preview would land mid-capture and fight the listening pill.
+    func testBeginPreparesTheHost() async {
         let rig = makeRig()
         await holdDown(rig.controller)
-        await pump(until: { rig.host.cancelledFixes == 1 })
-        XCTAssertEqual(rig.host.cancelledFixes, 1)
+        await pump(until: { rig.host.prepares == 1 })
+        XCTAssertEqual(rig.host.prepares, 1)
     }
 
     /// A hold that queued behind a finalize and was released before it
@@ -928,8 +906,8 @@ final class DictationControllerTests: XCTestCase {
     /// because they paused too long is the worst possible answer.
     func testSilenceEndsAHandsFreeCaptureAndTypesWhatItHeard() async {
         Settings.dictationSilence = 0.15
-        DictationController.silenceTick = 0.02
         let rig = makeRig()
+        rig.controller.silenceTick = 0.02
         await startLatched(rig)
         // A partial is what tells the meter someone spoke — without it the
         // capture is still inside the far longer opening budget.
@@ -945,9 +923,9 @@ final class DictationControllerTests: XCTestCase {
     /// feature for the long-form dictation it exists for.
     func testSilenceBeforeTheFirstWordGetsTheLongerBudget() async {
         Settings.dictationSilence = 0.05
-        DictationController.silenceTick = 0.02
-        DictationController.openingSilenceSeconds = 5
         let rig = makeRig()
+        rig.controller.silenceTick = 0.02
+        rig.controller.openingSilenceSeconds = 5
         await startLatched(rig)
         await pump(0.3)
         XCTAssertEqual(rig.controller.phase, .listening(""),
@@ -959,8 +937,8 @@ final class DictationControllerTests: XCTestCase {
     /// about.
     func testAHeldCaptureIsNeverCutShortBySilence() async {
         Settings.dictationSilence = 0.05
-        DictationController.silenceTick = 0.02
         let rig = makeRig()
+        rig.controller.silenceTick = 0.02
         await startCapture(rig)
         await hear("mid sentence", in: rig)
         await pump(0.3)
@@ -976,9 +954,9 @@ final class DictationControllerTests: XCTestCase {
         // 0.6 for the same reason `testCaptureCeilingFinishesInsteadOfDiscarding`
         // picks it: the short bound still covers `.preparing`, so anything
         // tighter races the two awaits before `.listening` on a loaded runner.
-        DictationController.maxCaptureSeconds = 0.6
-        DictationController.maxLatchedSeconds = 5
         let rig = makeRig()
+        rig.controller.maxCaptureSeconds = 0.6
+        rig.controller.maxLatchedSeconds = 5
         await startLatched(rig)
         await hear("a long one", in: rig)
         await pump(1.0)
@@ -990,8 +968,8 @@ final class DictationControllerTests: XCTestCase {
     /// arrive to end a forgotten latch, so this is the only bound on it — and
     /// like the hold's, it finishes rather than discarding.
     func testAForgottenLatchStillHitsItsOwnCeiling() async {
-        DictationController.maxLatchedSeconds = 0.15
         let rig = makeRig()
+        rig.controller.maxLatchedSeconds = 0.15
         await startLatched(rig)
         await hear("left running", in: rig)
         await pump(until: { !rig.host.inserted.isEmpty })
@@ -1086,11 +1064,11 @@ final class DictationControllerTests: XCTestCase {
     /// ends the capture as "nothing heard".
     func testTheOpeningSilenceBudgetStartsWhenTheMicrophoneDoes() async {
         Settings.dictationSilence = 5
-        DictationController.silenceTick = 0.02
+        let rig = makeRig()
+        rig.controller.silenceTick = 0.02
         // The wait outlasts the budget, and the check after it sits 0.8 s
         // inside the budget, so a slow runner can't spend it for the speaker.
-        DictationController.openingSilenceSeconds = 1.0
-        let rig = makeRig()
+        rig.controller.openingSilenceSeconds = 1.0
         slowStart(rig, seconds: 1.2)
         rig.controller.toggleLatch()
         await pump(until: { rig.controller.phase == .listening("") })
@@ -1159,9 +1137,9 @@ final class DictationControllerTests: XCTestCase {
     /// dictation…" on screen for ten minutes with the completion pipeline
     /// suppressed behind `isBusy` the whole time.
     func testAHungHandsFreeStartGivesUpOnTheShortCeiling() async {
-        DictationController.maxCaptureSeconds = 0.15
-        DictationController.maxLatchedSeconds = 30
         let rig = makeRig()
+        rig.controller.maxCaptureSeconds = 0.15
+        rig.controller.maxLatchedSeconds = 30
         rig.controller.gates.startSession = { _, _ in
             // Far past the wait below, so only the short ceiling can end it.
             try await Task.sleep(nanoseconds: 60_000_000_000)

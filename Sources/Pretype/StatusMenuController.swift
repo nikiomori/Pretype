@@ -109,7 +109,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         suggestionController = controller
         // Push, not poll: a capture lasts seconds, and the 1 s status timer
         // would show the mic late — or, for a short sentence, never.
-        controller.onDictationActivity = { [weak self] in self?.updateStatusIcon() }
+        controller.dictationController.onActivity = { [weak self] in self?.updateStatusIcon() }
     }
 
     /// Status + a single diagnostics submenu; every setting lives in the

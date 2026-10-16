@@ -106,8 +106,12 @@ enum AudioDevices {
     }
 
     /// From CoreAudio: the capture side has no notion of an output device.
+    /// UID only — `resolve` compares hardware, never the output's name or
+    /// transport.
     static func defaultOutput() -> Device? {
-        device(id: defaultDeviceID(kAudioHardwarePropertyDefaultOutputDevice))
+        let id = defaultDeviceID(kAudioHardwarePropertyDefaultOutputDevice)
+        guard id != kAudioObjectUnknown, let uid = string(id, kAudioDevicePropertyDeviceUID) else { return nil }
+        return Device(uid: uid, name: uid, transport: kAudioDeviceTransportTypeUnknown)
     }
 
     /// The device a capture should open right now, resolved from the setting.
@@ -119,14 +123,6 @@ enum AudioDevices {
     private static func device(_ capture: AVCaptureDevice) -> Device {
         Device(uid: capture.uniqueID, name: capture.localizedName,
                transport: UInt32(bitPattern: capture.transportType))
-    }
-
-    private static func device(id: AudioDeviceID) -> Device? {
-        guard id != kAudioObjectUnknown,
-              let uid = string(id, kAudioDevicePropertyDeviceUID) else { return nil }
-        return Device(uid: uid,
-                      name: string(id, kAudioObjectPropertyName) ?? uid,
-                      transport: uint32(id, kAudioDevicePropertyTransportType))
     }
 
     private static func property(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
@@ -150,13 +146,5 @@ enum AudioDevices {
         guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr,
               let value else { return nil }
         return value.takeRetainedValue() as String
-    }
-
-    private static func uint32(_ id: AudioDeviceID, _ selector: AudioObjectPropertySelector) -> UInt32 {
-        var address = property(selector)
-        var value: UInt32 = 0
-        var size = UInt32(MemoryLayout<UInt32>.size)
-        AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value)
-        return value
     }
 }

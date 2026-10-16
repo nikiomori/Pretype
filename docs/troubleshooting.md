@@ -84,13 +84,13 @@ First, open **Settings → General → Dictation**. That section shows the name 
 If dictation still does not operate:
 
 1. Read the `Dictation:` line in **Diagnostics**. It shows the status of dictation in one line.
-2. Run the built binary with `--dictation-probe`:
+2. If the line says "ready" but the key does nothing, run the built binary with `--dictation-probe`:
 
    ```bash
    ./build/Pretype.app/Contents/MacOS/Pretype --dictation-probe
    ```
 
-   The probe prints the environment. Then it prints each change of a modifier key, with the hold state that the change caused. When a hold completes, it prints each condition that the capture checks. Thus a refusal shows its cause.
+   The probe prints each change of a modifier key, with the hold state that the change caused. If your keyboard sends a key that the gesture does not accept, the probe tells you.
 
 ### What does it cost in battery and memory?
 

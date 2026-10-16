@@ -338,16 +338,16 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
     /// with the take, and a ten-minute latch must not time out where a
     /// one-minute take would not.
     var finishDeadline: TimeInterval? {
-        deadline.map { $0 + perAudioSecond * Double(samples.get().count) / 16_000 }
+        deadline + perAudioSecond * Double(samples.get().count) / 16_000
     }
 
-    private let deadline: TimeInterval?
+    private let deadline: TimeInterval
     private let perAudioSecond: TimeInterval
     private let transcribe: @Sendable (_ audio: [Float], _ final: Bool) async throws -> String
     private let samples = LockedValue<[Float]>([])
     private let previewTask = LockedValue<Task<Void, Never>?>(nil)
 
-    init(preview: Bool, finishDeadline: TimeInterval? = nil, perAudioSecond: TimeInterval = 0,
+    init(preview: Bool, finishDeadline: TimeInterval, perAudioSecond: TimeInterval,
          onPartial: @escaping @Sendable (String) -> Void,
          transcribe: @escaping @Sendable (_ audio: [Float], _ final: Bool) async throws -> String) {
         self.deadline = finishDeadline

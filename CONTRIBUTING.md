@@ -70,7 +70,7 @@ The app binary has two diagnostic flags. With a flag, the binary prints to the t
 | Flag | What it does |
 |---|---|
 | `--ax-probe` | Prints what Accessibility shows for the focused text field: the role, the caret position and the caret rectangle. It prints every 0.8 seconds for 25 seconds. Use it when the suggestion shows at the wrong position in an app, for example in an Electron app. |
-| `--dictation-probe` | Prints the dictation settings and status one time. Then it prints each change of a modifier key, with the hold state that the change caused. When a hold completes, it prints each condition that a capture checks. Use it when the dictation key does nothing. The probe only observes. It does not record and does not type. |
+| `--dictation-probe` | Prints each change of a modifier key, with the hold state that the change caused. Use it when the dictation key does nothing. The probe only observes. It does not record and does not type. |
 
 Run a flag on the built app bundle:
 
@@ -81,7 +81,7 @@ Run a flag on the built app bundle:
 
 Both probes need the Accessibility permission. If the binary does not have it, `--ax-probe` shows the system prompt and stops. Grant the permission, then run the probe again.
 
-> **NOTE:** Run from a terminal, `--dictation-probe` shows the microphone permission of the terminal, not of Pretype. To see the permission of Pretype, open the Pretype menu and read **Diagnostics → Dictation**.
+> **NOTE:** The dictation settings and the microphone permission are not in the probe. Open the Pretype menu and read **Diagnostics → Dictation**. A binary that you start from a terminal gets the microphone permission of the terminal, not of Pretype.
 
 The quality CLI and the eval harness are not in the repository. See *Quality eval* below.
 

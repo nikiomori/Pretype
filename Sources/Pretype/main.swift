@@ -27,44 +27,19 @@ MainActor.assumeIsolated {
         RunLoop.main.run()
     }
 
-    // Diagnostic: why holding the dictation key does nothing. Prints the
-    // environment once, then every modifier edge with the hold state it
-    // produced — and, when a hold completes, each condition `begin()` checks,
-    // so a silent refusal (blacklisted app, our own window frontmost, no
-    // readable caret) names itself instead of looking like a dead feature.
+    // Diagnostic: why holding the dictation key does nothing. Prints every
+    // modifier edge with the hold state it produced, so a key the gesture
+    // rejects names itself. The settings and the checks a capture makes are
+    // in the app's own menu: Diagnostics → Dictation.
     // `Pretype --dictation-probe`; observes only, injects nothing.
     if CommandLine.arguments.contains("--dictation-probe") {
         _ = NSApplication.shared
         setvbuf(stdout, nil, _IOLBF, 0)
-        print("bundled:            \(MicrophoneAccess.isBundled)")
-        // The caveat is load-bearing: TCC answers for the RESPONSIBLE process,
-        // and a probe launched from a shell inherits the terminal's microphone
-        // grant, not Pretype's. Only Diagnostics → Dictation, read inside the
-        // running app, states Pretype's own grant truthfully.
-        print("microphone auth:    \(MicrophoneAccess.status.rawValue) (3 = authorized)"
-            + " — run from a terminal this is the TERMINAL's grant;"
-            + " Pretype's own is in its menu under Diagnostics → Dictation")
-        print("transcription:      \(Transcription.isSupported ? "available" : "UNAVAILABLE")")
-        print("dictation enabled:  \(Settings.dictationEnabled)")
-        print("gesture:            \(Settings.dictationGesture.label)")
-        // The probe traces modifier edges only, so say plainly that the other
-        // half of the feature is out of its view — otherwise a user whose
-        // hands-free chord is the one misbehaving reads a clean trace as proof
-        // nothing is wrong.
-        print("hands-free chord:   \(Settings.dictationLatch.label)"
-            + " (not traced below — the probe watches modifier edges only)")
-        print("stop after silence: "
-            + (Settings.dictationSilence > 0 ? "\(Int(Settings.dictationSilence))s" : "never")
-            + " — hands-free captures only")
-        let locale = Settings.resolvedDictationLocale
-        Task { @MainActor in
-            print("language:           \(Transcription.name(of: locale)) — \(await Transcription.support(for: locale))")
-        }
         guard AXIsProcessTrusted() else {
-            print("\nAccessibility is NOT granted for this binary — no key events can be seen.")
+            print("Accessibility is NOT granted for this binary — no key events can be seen.")
             exit(0)
         }
-        print("\nHold the dictation key now. Ctrl-C to stop.\n")
+        print("Hold the dictation key (\(Settings.dictationGesture.label)) now. Ctrl-C to stop.\n")
         let tap = KeyTap()
         var hold = ModifierHold()
         tap.handler = { _ in false }   // observe only, swallow nothing
@@ -96,20 +71,11 @@ MainActor.assumeIsolated {
         }
         tap.start()
         print(tap.isActive ? "key tap: active" : "key tap: FAILED TO START")
+        // The hold only turns into a `.begin` (and its release into `.end`)
+        // when ticked past the threshold, as the app's arm timer does.
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             Task { @MainActor in
-                guard hold.tick(now: Date()) == .begin else { return }
-                print("[hold]  threshold passed — what begin() would check:")
-                let front = NSWorkspace.shared.frontmostApplication
-                print("        our own window frontmost: \(NSApp.isActive) (must be false)")
-                print("        front app: \(front?.bundleIdentifier ?? "?")"
-                    + " — blacklisted: \(AppPolicy.isBlacklisted(front?.bundleIdentifier))")
-                let element = AXText.systemFocusedTextElement()
-                let ctx = element.flatMap {
-                    AXText.context(for: $0, maxChars: 200, allowEmpty: true)
-                }
-                print("        text element: \(element == nil ? "NONE" : "found")"
-                    + ", caret rect: \(ctx?.caretRect.map { "\($0)" } ?? "NONE")")
+                if hold.tick(now: Date()) == .begin { print("[hold]  threshold passed → begin") }
             }
         }
         RunLoop.main.run()

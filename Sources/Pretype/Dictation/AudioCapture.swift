@@ -14,12 +14,11 @@ enum MicrophoneAccess {
 
     static var status: AVAuthorizationStatus { AVCaptureDevice.authorizationStatus(for: .audio) }
 
-    /// Prompts only on `.notDetermined` — a previous refusal is answered from
-    /// the cached status, because macOS never re-prompts and a silent `false`
-    /// would read as a broken button.
+    /// Prompts only on `.notDetermined`: once answered, `requestAccess`
+    /// returns the cached status without a prompt, because macOS never
+    /// re-prompts.
     static func request() async -> Bool {
         guard isBundled else { return false }
-        guard status != .authorized else { return true }
         return await AVCaptureDevice.requestAccess(for: .audio)
     }
 
@@ -194,8 +193,7 @@ final class AudioCapture {
             },
         ]
         // Names only — no audio, nothing private.
-        DictationController.note("microphone: \(device.localizedName)"
-            + (deviceUID == nil ? " (system default)" : ""))
+        DictationController.note("microphone: \(device.localizedName)")
         // The device-open block happens on the session queue; the main actor
         // only suspends. The session reference rides into the closure so a
         // `stop()` landing mid-open can release ours without pulling the rug.

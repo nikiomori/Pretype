@@ -1,6 +1,5 @@
 import AVFoundation
 import AppKit
-import CoreAudio
 
 /// Where a capture's words will be shown and, eventually, typed. The caret
 /// geometry and host style ride together because they come out of one AX read.
@@ -45,8 +44,6 @@ protocol DictationHost: AnyObject {
     /// capture never got far enough to read a caret of its own.
     var fallbackCaretRect: CGRect? { get }
     var fallbackHostStyle: HostTextStyle { get }
-    /// Fires on the open/closed flip of the microphone (status-item redraw).
-    var onDictationActivity: (() -> Void)? { get }
 
     /// An editable text element has keyboard focus — the one hard requirement:
     /// typing into a window with no text focus fires shortcuts, not sentences.
@@ -56,15 +53,15 @@ protocol DictationHost: AnyObject {
     /// it, IME-dependent — so a capture must not start over one, and a finished
     /// transcript must not be typed into one.
     func isComposingInFocusedField() -> Bool
-    /// Cancel any in-flight ⌥⇥ fix: its preview lands whenever the engine
-    /// returns, and over a live capture it would fight the listening pill for
-    /// the window.
-    func cancelPendingFix()
+    /// A capture is starting: drop the ghost, stop the progress indicator, and
+    /// cancel any in-flight ⌥⇥ fix — its preview lands whenever the engine
+    /// returns (focus generation alone does not stop it: dictating in the same
+    /// field bumps nothing), and over a live capture it would fight the
+    /// listening pill for the window on every partial.
+    func prepareForDictation()
     /// The focused field's caret and context, or nil when it publishes none.
     /// Advisory either way — dictation needs no coordinates to type.
     func dictationAnchor() -> DictationAnchor?
-    func clearActiveCompletion()
-    func stopProgressIndicator()
     /// Remember this caret as the live one (feeds `fallbackCaretRect`).
     func noteCaret(rect: CGRect, host: HostTextStyle)
     func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle)
