@@ -169,6 +169,9 @@ final class CloudAPITests: XCTestCase {
         } catch {
             XCTFail("\(error)")
         }
+        let forbidden = APIError.http(status: 403, message: "flagged")
+        XCTAssertFalse(forbidden.isAuth, "a 403 is often moderation or region, not the key")
+        XCTAssertEqual(forbidden.localizedDescription, "HTTP 403: flagged")
     }
 
     func testTranscriptionUploadsWAV() async throws {

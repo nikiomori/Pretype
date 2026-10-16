@@ -151,13 +151,16 @@ enum APIError: LocalizedError {
         switch self {
         case .setup(let why): return why
         case .http(let status, let message):
-            if status == 401 || status == 403 { return String(localized: "the API key was rejected (\(status))") }
+            if isAuth { return String(localized: "the API key was rejected (\(status))") }
             return "HTTP \(status)" + (message.isEmpty ? "" : ": \(message)")
         }
     }
 
+    /// 401 only. Providers also send 403 for a moderation-flagged input, a
+    /// region or a model the account can't use — one such keystroke must not
+    /// latch the engine off for the session, or blame the key.
     var isAuth: Bool {
-        if case .http(let status, _) = self { return status == 401 || status == 403 }
+        if case .http(let status, _) = self { return status == 401 }
         return false
     }
 }
