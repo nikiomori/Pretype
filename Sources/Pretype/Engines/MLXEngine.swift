@@ -781,20 +781,20 @@ final class MLXEngine: CompletionEngine {
         memoryPressureSource = pressure
 
         // The idle timer always runs; the timeout is read live so the Settings
-        // control takes effect without an engine reload (0 minutes = disabled).
+        // control takes effect without an engine reload (0 minutes = never
+        // unload — the idle trim still runs).
         let timer = DispatchSource.makeTimerSource(queue: maintenanceQueue)
         timer.schedule(deadline: .now() + 60, repeating: 60, leeway: .seconds(10))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            let minutes = Settings.idleUnloadMinutes
-            guard minutes > 0 else { return }
+            let limit = TimeInterval(Settings.idleUnloadMinutes) * 60
             let (idle, busy) = self.modelLock.withLock {
                 (Date().timeIntervalSince(self.lastActivity), self.inFlightCount > 0)
             }
-            if !busy, idle >= TimeInterval(minutes) * 60 {
+            if limit > 0, !busy, idle >= limit {
                 self.unload(reason: "idle \(Int(idle))s")
             } else {
-                self.unloadSibling(idleFor: TimeInterval(minutes) * 60)
+                if limit > 0 { self.unloadSibling(idleFor: limit) }
                 if !busy, idle >= 60 { self.trimWhileIdle() }
             }
         }
@@ -1356,7 +1356,15 @@ final class TokenizerCache: TokenizerLoader, @unchecked Sendable {
     func load(from directory: URL) async throws -> any MLXLMCommon.Tokenizer {
         if let hit = byDirectory.get()[directory] { return hit }
         let tokenizer = try await #huggingFaceTokenizerLoader().load(from: directory)
-        byDirectory.mutate { $0[directory] = tokenizer }
+        // A superseded build's (~100 MB): another snapshot of this repo, or
+        // a directory gone from disk (the original a re-pack replaced).
+        let snapshots = directory.deletingLastPathComponent()
+        byDirectory.mutate { cache in
+            cache = cache.filter {
+                $0.key.deletingLastPathComponent() != snapshots && FileManager.default.fileExists(atPath: $0.key.path)
+            }
+            cache[directory] = tokenizer
+        }
         return tokenizer
     }
 
