@@ -13,7 +13,11 @@ final class FoundationModelsEngine: CompletionEngine {
     private let lengthBox = LockedValue<CompletionLength>(.medium)
     private let instructionsBox = LockedValue<String>("")
 
-    static let greedy = LockedValue<Bool>(false)
+    /// Greedy, the decoder every booked Apple Intelligence number was measured
+    /// with (`ModelMetrics`, the kana/han/hangul silence). Apple's default
+    /// sampler picked a less likely word some of the time — worse for
+    /// predicting what the user types next, and no figure described it.
+    static let greedy = LockedValue<Bool>(true)
 
     var statusLine: String? {
         switch state {
@@ -86,8 +90,7 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
-    /// Decoding options: greedy for eval determinism, else Apple's default
-    /// sampler. FM tokens run shorter than MLX's, so the budget carries a
+    /// Decoding options: greedy (`greedy`), else Apple's default sampler. FM tokens run shorter than MLX's, so the budget carries a
     /// little headroom.
     private func generationOptions() -> GenerationOptions {
         let maxTokens = lengthBox.get().maxTokens + 8
