@@ -24,4 +24,4 @@ body:
     attributes:
       label: Scope
       options:
-        - label: I've checked the Roadmap in the README and this isn't already planned.
+        - label: I've searched the existing issues and this isn't already requested.

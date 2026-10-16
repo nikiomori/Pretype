@@ -8,6 +8,10 @@ body:
         Thanks for filing a bug! The menu-bar **Diagnostics** submenu and
         **Debug Console…** are the fastest way to capture what went wrong —
         please include their output where relevant.
+
+        **This issue is public.** Debug Console lines contain text that you
+        typed: suggestions, accepted words, corrections and model output.
+        Remove or replace private text before you paste them.
   - type: textarea
     id: what-happened
     attributes:
@@ -36,7 +40,7 @@ body:
     id: macos
     attributes:
       label: macOS version
-      placeholder: e.g. 14.5 / 26.0
+      placeholder: e.g. 26.0 / 27.0.1
     validations:
       required: true
   - type: input
@@ -51,12 +55,18 @@ body:
     attributes:
       label: Which model was selected?
       options:
-        - Gemma 4 E4B 8-bit
-        - Gemma 4 E4B 6-bit
-        - Gemma 4 E2B 8-bit
-        - Gemma 4 E4B 4-bit
-        - Gemma 4 E2B 4-bit
-        - Apple Intelligence
+        - Gemma 4 E4B 8-bit — best quality
+        - Gemma 4 E4B 6-bit — lighter, near-best
+        - Gemma 4 E2B 8-bit — small but precise
+        - Gemma 4 E2B — for 8–16 GB Macs
+        - MiniCPM5 1B — fastest, English & Russian
+        - Qwen2.5 0.5B — smallest footprint
+        - Qwen3.5 2B — best small multilingual
+        - Qwen3.5 2B M40 — one model for typing and fixes
+        - Ternary Bonsai 4B — 1 GB base
+        - Apple Intelligence — system model
+        - Cloud API (Settings → API)
+        - Other
         - Not sure
     validations:
       required: true
@@ -67,10 +77,12 @@ body:
       description: >
         From the menu bar: the Diagnostics submenu lines, plus any relevant
         Debug Console events (focus, GATE/GEN, errors). This is the single most
-        useful thing for triage.
+        useful thing for triage. WARNING: this issue is public, and GATE/GEN
+        lines contain fragments of text that you typed and model output.
+        Remove or replace private text before you paste.
       render: text
   - type: input
     id: version
     attributes:
       label: Pretype version / commit
-      placeholder: e.g. 0.1.0 or a git SHA
+      placeholder: e.g. 2.7.0 or a git SHA
