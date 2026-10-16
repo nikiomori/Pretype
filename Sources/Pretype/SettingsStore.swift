@@ -241,6 +241,14 @@ final class SettingsStore {
     /// `setOpenAtLogin`, so no didSet here.
     var loginStatus = LoginItem.status
 
+    /// Gemma's per-layer table from disk (`HostPLE`). Read when the engine
+    /// loads, so a flip rebuilds it.
+    var pleFromDisk = Settings.pleFromDisk {
+        didSet { guard !syncing, oldValue != pleFromDisk else { return }
+            Settings.pleFromDisk = pleFromDisk
+            controller?.engineCoordinator.rebuild() }
+    }
+
     /// Selection flows through `selectModel`, not a binding didSet.
     var modelID = ModelCatalog.defaultID
 

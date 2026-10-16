@@ -52,55 +52,42 @@ final class HostPLE: Embedding {
                            groupSize: groupSize, bits: bits, mode: mode).reshaped(x.shape + [-1])
     }
 
-    /// Whether loads serve the table from disk: `Settings.pleFromDisk`, or
-    /// `PRETYPE_HOST_PLE=on|off` pinning it (the A/B arms).
-    static var enabled: Bool {
-        switch ProcessInfo.processInfo.environment["PRETYPE_HOST_PLE"] {
-        case "on": true
-        case "off": false
-        default: Settings.pleFromDisk
-        }
-    }
-
     /// What serving the table from disk frees on `modelID` — the table's size
     /// (262144 rows × layers × 256, 4-bit) — or nil for a model without one.
     static func savingGB(for modelID: String) -> Double? {
         modelID.contains("gemma-4-e2b") ? 1.3 : modelID.contains("gemma-4-e4b") ? 1.6 : nil
     }
 
-    /// When `enabled`, swaps the loaded model's PLE table for one served from
-    /// its snapshot files and frees the GPU copy. Leaves any other model, a
-    /// layout it doesn't recognize, or rows that don't match the loaded ones
-    /// alone. Returns the mode it was loaded for (`enabled`, even when the
-    /// swap couldn't happen — a retry would fail the same way), nil without a table.
-    @discardableResult
-    static func install(in container: ModelContainer, repo: String) async -> Bool? {
-        let enabled = enabled
+    /// With `Settings.pleFromDisk` on, swaps the loaded model's PLE table for
+    /// one served from its snapshot files and frees the GPU copy. Leaves any
+    /// other model, a layout it doesn't recognize, or rows that don't match
+    /// the loaded ones alone. The setting applies from the next load: flipping
+    /// it rebuilds the engine.
+    static func install(in container: ModelContainer, repo: String) async {
+        guard Settings.pleFromDisk else { return }
         let directory = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
-        let (installed, hasTable) = await container.perform { (context: ModelContext) -> (Bool, Bool) in
+        let installed = await container.perform { (context: ModelContext) -> Bool in
             guard case let (path, module)? = context.model.leafModules().flattened()
                     .first(where: { $0.0.hasSuffix("embed_tokens_per_layer") }),
-                  type(of: module) == QuantizedEmbedding.self, let layer = module as? QuantizedEmbedding
-            else { return (false, false) }
-            guard enabled, let directory, let biases = layer.biases, layer.globalScale == nil, layer.mode == .affine,
+                  type(of: module) == QuantizedEmbedding.self, let layer = module as? QuantizedEmbedding,
+                  let directory, let biases = layer.biases, layer.globalScale == nil, layer.mode == .affine,
                   let host = map(directory, matching: [layer.weight, layer.scales, biases], of: layer)
-            else { return (false, true) }
+            else { return false }
             // The mapped rows must be the loaded ones: first, last and a middle row.
             let probe = MLXArray([0, Int32(layer.weight.dim(0) / 2), Int32(layer.weight.dim(0) - 1)])
             guard host(probe).arrayEqual(layer(probe)).item(Bool.self) else {
                 DebugLog.shared.log("MLX", "PLE rows in the file differ from the loaded table — kept on the GPU")
-                return (false, true)
+                return false
             }
             do {
                 try context.model.update(modules: ModuleChildren.unflattened([(path, host)]), verify: [.none])
-                return (true, true)
+                return true
             } catch {
                 DebugLog.shared.log("MLX", "PLE swap failed: \(error.localizedDescription)")
-                return (false, true)
+                return false
             }
         }
         if installed { Memory.clearCache() }
-        return hasTable ? enabled : nil
     }
 
     /// Maps the file range that holds `loaded`'s three tensors, if the
