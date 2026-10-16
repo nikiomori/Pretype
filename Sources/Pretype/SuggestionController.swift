@@ -1311,9 +1311,11 @@ final class SuggestionController {
         guard AppPolicy.allowsCompletions(typingContext) else { return false }
         // Our own Settings window: `begin` refuses while we are frontmost, so
         // swallowing here would take a keystroke out of our own text fields to
-        // do nothing with it. A launcher holding the keys: same, `begin`
-        // finds no field of ours there.
-        return !isOwnUIFrontmost && !keyboardFocusIsElsewhere
+        // do nothing with it. A launcher holding the keys is not excluded:
+        // `begin` types into its field (`dictationElement`), as it does for a
+        // hold — and a hands-free capture still running under a launcher
+        // opened mid-take has no other way to stop that keeps its words.
+        return !isOwnUIFrontmost
     }
 
     private func handleKeyDown(_ event: CGEvent) -> Bool {
@@ -1356,11 +1358,13 @@ final class SuggestionController {
         // armed through them opens the microphone in the middle of a chord.
         // Idle this costs a cleared date. Escape is the explicit "forget that"
         // while listening, so it is ours to swallow — but only when a capture
-        // was live as it arrived, which the call below is what ends.
+        // was live as it arrived, which the call below is what ends. Not in a
+        // launcher: its ⎋ is also "close", and swallowed it left Spotlight
+        // open over the field the capture was for.
         let wasDictating = dictationController.isBusy
         let isEscape = keyCode == KeyCode.escape
         dictationController.keyPressed(isEscape: isEscape)
-        if wasDictating, isEscape { return true }
+        if wasDictating, isEscape, !keyboardFocusIsElsewhere { return true }
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
