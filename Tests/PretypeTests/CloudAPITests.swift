@@ -158,6 +158,31 @@ final class CloudAPITests: XCTestCase {
         XCTAssertEqual(session.finishDeadline ?? 0, 13, accuracy: 0.001)
     }
 
+    /// The take's one upload is retried once on a transient failure — with the
+    /// same audio, not the emptied buffer — and never on a rejected key.
+    func testTakeUploadRetriesATransientFailureOnce() async throws {
+        var config = APIConfig(provider: .custom, kind: .audio)
+        config.baseURL = "https://speech.example.com/v1"
+        config.model = "whisper-1"
+        StubProtocol.responses = [(503, Data()), (200, Data(#"{"text":"hi"}"#.utf8))]
+        StubProtocol.bodies = []
+        let flaky = try CloudTranscription.start(config, locale: Locale(identifier: "en")) { _ in }
+        flaky.feed(silence(seconds: 1))
+        let text = try await flaky.finish()
+        XCTAssertEqual(text, "hi")
+        XCTAssertEqual(StubProtocol.bodies.count, 2)
+
+        StubProtocol.responses = [(401, Data()), (200, Data(#"{"text":"hi"}"#.utf8))]
+        StubProtocol.bodies = []
+        let rejected = try CloudTranscription.start(config, locale: Locale(identifier: "en")) { _ in }
+        rejected.feed(silence(seconds: 1))
+        do {
+            _ = try await rejected.finish()
+            XCTFail("a rejected key fails the same way twice")
+        } catch {}
+        XCTAssertEqual(StubProtocol.bodies.count, 1)
+    }
+
     func testHTTPErrorCarriesProviderMessage() async {
         StubProtocol.response = (401, Data(#"{"error":{"message":"Incorrect API key"}}"#.utf8))
         do {

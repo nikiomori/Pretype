@@ -21,8 +21,10 @@ enum CloudTranscription {
         // An upload is not a local finalization: a long take over a slow link
         // legitimately takes longer than the controller's ten seconds. The WAV
         // is 32 KB per audio second, ~0.26 s each over a 1 Mbit/s uplink.
-        return RecordedTranscription(preview: config.isLocal, finishDeadline: 60, perAudioSecond: uploadPerSecond,
-                                     onPartial: onPartial) { audio, final in
+        // Doubled: `finish` retries a failed upload once, so the watchdog
+        // spans two full requests and the second's one-second wait.
+        return RecordedTranscription(preview: config.isLocal, finishDeadline: 2 * 60,
+                                     perAudioSecond: 2 * uploadPerSecond, onPartial: onPartial) { audio, final in
             // Under a tenth of a second is a key tap, not speech — and most
             // servers refuse a clip that short.
             guard audio.count >= 1_600 else { return "" }

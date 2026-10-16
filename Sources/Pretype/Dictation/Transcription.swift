@@ -400,11 +400,36 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
         }
         let audio = samples.exchange([])
         guard !audio.isEmpty else { return "" }
-        return try await transcribe(audio, true)
+        do {
+            return try await transcribe(audio, true)
+        } catch where Self.isTransient(error) {
+            // The whole take rides on this one pass — on a hosted API, one
+            // upload of what may be minutes of speech. A dropped connection,
+            // a timeout, a 5xx or a 429 gets one more try with the same audio,
+            // a second later; the watchdog leaves room for it
+            // (`CloudTranscription.start`). Parakeet throws none of these.
+            DebugLog.shared.log("DICTATE", "upload failed (\(error.localizedDescription)) — retrying once")
+            try await Task.sleep(for: .seconds(1))
+            // Discarded meanwhile (⎋, a focus change): nothing more is sent.
+            guard !cancelled.get() else { throw CancellationError() }
+            return try await transcribe(audio, true)
+        }
     }
 
     func cancel() {
+        cancelled.set(true)
         previewTask.exchange(nil)?.cancel()
         samples.set([])
+    }
+
+    private let cancelled = LockedValue(false)
+
+    /// Worth one more try: the network dropped or timed out, or the server is
+    /// down or rate-limited. Any other 4xx is about the key or the request,
+    /// and answers the same way twice.
+    private static func isTransient(_ error: Error) -> Bool {
+        if case APIError.http(let status, _) = error { return status == 429 || status >= 500 }
+        guard let error = error as? URLError else { return false }
+        return [.timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost].contains(error.code)
     }
 }
