@@ -44,7 +44,6 @@ final class MLXEngine: CompletionEngine {
     /// Live-tunable from the menu without a reload.
     private let lengthBox: LockedValue<CompletionLength>
     private let instructionsBox: LockedValue<String>
-    private let personalizationBox: LockedValue<PersonalizationLevel>
     /// Logprob confidence gate (base only): abstain when the shown suggestion's
     /// first-word logprob < this. nil = off. Fixed at init; enabled via
     /// Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode — the value
@@ -207,7 +206,6 @@ final class MLXEngine: CompletionEngine {
         self.style = config.style
         self.lengthBox = LockedValue(config.length)
         self.instructionsBox = LockedValue(config.instructions)
-        self.personalizationBox = LockedValue(config.personalization)
         let env = ProcessInfo.processInfo.environment
         // A SET env var pins the knob regardless of Settings — non-numeric
         // ("off") disables. Falling back to Settings on a set-but-non-numeric
@@ -992,10 +990,6 @@ final class MLXEngine: CompletionEngine {
             makeTokens: { promptCache.encoder.encode(generationText, with: $0.tokenizer) },
             parameters: parameters,
             promptCache: promptCache,
-            // Under healing the first decoded word is the CURRENT word being
-            // re-generated, not the next one — the next-word bias would
-            // fight the fragment match.
-            bias: heal == nil ? ngramBias(for: prepared) : nil,
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
             trimEntropy: recording ? Self.trimEntropyThreshold : nil,
@@ -1127,9 +1121,6 @@ final class MLXEngine: CompletionEngine {
                         key: directiveText, text: promptText, tokenizer: context.tokenizer, render: render)
             },
             parameters: parameters,
-            // No first-token boost: instruct answers flush, so the space-led
-            // boost tokens can't match — personalization rides the directive
-            // (persona + RAG examples) here instead.
             promptCache: promptCache,
             logProbSink: logProbSink,
             trimLogProb: recording ? trimLogProbThreshold : nil,
@@ -1178,33 +1169,6 @@ final class MLXEngine: CompletionEngine {
     func updateCompletion(length: CompletionLength, instructions: String) {
         lengthBox.set(length)
         instructionsBox.set(instructions)
-    }
-
-    func updatePersonalization(_ level: PersonalizationLevel) {
-        personalizationBox.set(level)
-    }
-
-    /// Context-conditioned personal boost for the first generated token: the
-    /// words the user has typed after this very context (personal n-gram),
-    /// weighted by evidence — level.bias × `PersonalNgram.fusionBoost` (measured
-    /// directionally positive, discordants 3/0), at zero extra decode cost. Replaces the flat
-    /// favored-word bias, which measured null (p=1.0): context-free frequent
-    /// words are already probable, so biasing them moves nothing. nil when
-    /// personalization is off or the context is unseen.
-    private func ngramBias(for prepared: PreparedPrompt) -> [String: Float]? {
-        let level = personalizationBox.get()
-        guard level.bias > 0 else { return nil }
-        // An unfinished word at the caret: a next-word boost could truncate it.
-        if prepared.endsMidWord, !prepared.endsCompleteWord { return nil }
-        let counts = PersonalNgram.shared.continuations(after: prepared.text)
-        guard !counts.isEmpty else { return nil }
-        // ponytail: top-32 by evidence — bounds the per-generation tokenizer
-        // encodes in makeBiasProcessor (a frequent context word can carry
-        // hundreds of continuations); raise if a measured win ever wants more.
-        let top = counts.sorted { $0.value > $1.value }.prefix(32)
-        return Dictionary(uniqueKeysWithValues: top.map {
-            ($0.key, level.bias * Float(PersonalNgram.fusionBoost(count: $0.value)))
-        })
     }
 
     /// True when the recent text is majority-Cyrillic — used to widen the token

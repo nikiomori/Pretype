@@ -63,8 +63,7 @@ final class PersonalNgram: @unchecked Sendable {
     }
 
     /// Folded lookup context of `text`: the last word plus, when two words are
-    /// present, the "prev2 prev1" trigram key — the ONE place the context
-    /// convention lives, so the three read paths below can never drift apart.
+    /// present, the "prev2 prev1" trigram key.
     private static func lookupContext(_ text: String) -> (last: String, triKey: String?)? {
         // The tail, not all ~1,200 chars into ~200 Strings per keystroke; with
         // three words in it, the one the cut may split isn't among the two.
@@ -86,30 +85,6 @@ final class PersonalNgram: @unchecked Sendable {
             return hit
         }
         return Self.confident(bigram[context.last], minCount: 3)
-    }
-
-    /// Every next word the user has typed after `text`, with its evidence
-    /// count (max of the trigram and bigram tallies). Unthresholded, unlike
-    /// `nextWord` — fuel for the greedy first-token boost, where weak evidence
-    /// nudges the ranking instead of gating it.
-    func continuations(after text: String) -> [String: Int] {
-        guard let context = Self.lookupContext(text) else { return [:] }
-        lock.lock()
-        defer { lock.unlock() }
-        var out = bigram[context.last] ?? [:]
-        if let triKey = context.triKey, let tri = trigram[triKey] {
-            for (word, count) in tri { out[word] = max(out[word] ?? 0, count) }
-        }
-        return out
-    }
-
-    /// Fusion boost from raw n-gram evidence: ln(1+count), count capped so the
-    /// prior stays bounded (~+3 logits at the cap ≈ 20× odds) — unbounded
-    /// counts would eventually force a habitual word over a better-fitting
-    /// one. The one home of the measured formula (the greedy first-token
-    /// bias).
-    static func fusionBoost(count: Int) -> Double {
-        log1p(Double(min(count, 20)))
     }
 
     /// Complete the partial word at the caret from the personal vocabulary:

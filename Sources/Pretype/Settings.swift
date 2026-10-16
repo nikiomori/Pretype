@@ -56,7 +56,7 @@ enum CompletionLength: String, CaseIterable {
     }
 }
 
-/// Whether to bias the model toward the user's previously-accepted words.
+/// Whether to learn and suggest the user's own words (the personal n-gram).
 /// Collection only happens while on.
 enum PersonalizationLevel: String {
     case off
@@ -65,12 +65,6 @@ enum PersonalizationLevel: String {
     /// Builds before 2026-10 stored a strength (subtle/medium/strong); every
     /// one of them reads as on.
     init?(rawValue: String) { self = rawValue == "off" ? .off : .on }
-
-    /// β in the first-token n-gram boost: β × ln(1+count) logits on a personal
-    /// next-word candidate's start token — the former "subtle" strength, the
-    /// shipped default. Kept modest — too high favors a habitual word over a
-    /// better-fitting one; the stronger levels measured no different.
-    var bias: Float { self == .on ? 0.6 : 0 }
 }
 
 /// How a completion is shown at the caret.
@@ -314,13 +308,11 @@ enum HotkeyStyle: String, CaseIterable {
 
 /// The completion knobs, resolved with environment overrides winning over
 /// stored settings so the `--eval` / `--complete` harness can A/B them without
-/// touching the UI (PRETYPE_COMPLETION_STYLE / _LENGTH / _CUSTOM_INSTRUCTIONS /
-/// _PERSONALIZATION).
+/// touching the UI (PRETYPE_COMPLETION_STYLE / _LENGTH / _CUSTOM_INSTRUCTIONS).
 struct CompletionConfig {
     var style: CompletionStyle
     var length: CompletionLength
     var instructions: String
-    var personalization: PersonalizationLevel
 
     static func resolved() -> CompletionConfig {
         let env = ProcessInfo.processInfo.environment
@@ -329,12 +321,7 @@ struct CompletionConfig {
         let length = env["PRETYPE_COMPLETION_LENGTH"].flatMap(CompletionLength.init(rawValue:))
             ?? Settings.completionLength
         let instructions = env["PRETYPE_CUSTOM_INSTRUCTIONS"] ?? Settings.customInstructions
-        let personalization = env["PRETYPE_PERSONALIZATION"].flatMap(PersonalizationLevel.init(rawValue:))
-            ?? Settings.personalizationLevel
-        return CompletionConfig(
-            style: style, length: length,
-            instructions: instructions, personalization: personalization
-        )
+        return CompletionConfig(style: style, length: length, instructions: instructions)
     }
 }
 
@@ -651,9 +638,8 @@ enum Settings {
     /// Instructions"). Ships with a generic default; the user can edit or clear it.
     @Pref("customInstructions", defaultInstructions) static var customInstructions: String
 
-    /// The personal n-gram: the first-token boost AND the personal n-gram
-    /// fast-path. On by default; everything stays on-device. Off disables
-    /// learning too.
+    /// The personal n-gram fast-path. On by default; everything stays
+    /// on-device. Off disables learning too.
     @Pref("personalizationLevel", PersonalizationLevel.on) static var personalizationLevel: PersonalizationLevel
 
     /// Inline ghost text vs a floating panel beside the caret.

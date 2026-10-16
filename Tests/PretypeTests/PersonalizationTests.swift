@@ -209,27 +209,8 @@ final class PersonalizationTests: XCTestCase {
         XCTAssertEqual(ngram.completeWord(partial: "ник"), "ите")
         XCTAssertEqual(ngram.wordCount, 12)
 
-        // First-token-boost evidence: unthresholded counts, trigram beats
-        // bigram when both hit; unseen → nothing.
-        XCTAssertEqual(ngram.continuations(after: "ну спасибо за быстрый ")["ответ"], 3)
-        XCTAssertEqual(ngram.continuations(after: "завтра передай ")["Никите"], 3)
-        XCTAssertEqual(ngram.continuations(after: "я иду в ")["кино"], 2)   // below nextWord's dominance bar, still counted
-        XCTAssertTrue(ngram.continuations(after: "совсем другой контекст ").isEmpty)
-
         ngram.reset()
         XCTAssertNil(ngram.nextWord(after: "ну спасибо за быстрый "))
-    }
-
-    // Fuel for the greedy first-token boost: every continuation with its
-    // evidence count, unthresholded, trigram/bigram max.
-    func testPersonalNgramContinuations() {
-        let ngram = PersonalNgram()
-        for _ in 0..<3 { ngram.learn("спасибо за быстрый ответ") }
-        ngram.learn("спасибо за быстрый отклик")
-        let counts = ngram.continuations(after: "и снова спасибо за быстрый ")
-        XCTAssertEqual(counts["ответ"], 3)
-        XCTAssertEqual(counts["отклик"], 1)
-        XCTAssertTrue(ngram.continuations(after: "…—…").isEmpty)
     }
 
     // Live learning on the resolve path: the first ctx snapshot per app only
@@ -259,7 +240,7 @@ final class PersonalizationTests: XCTestCase {
         XCTAssertEqual(ngram.nextWord(after: "завтра передай "), "Никите")
         // A different app starts from its own cursor — no cross-app delta.
         ngram.observe(ctx: "совсем другое поле", app: "slack")
-        XCTAssertNil(ngram.continuations(after: "совсем другое ")["поле"])
+        XCTAssertEqual(ngram.wordCount, 3)   // передай, Никите, привет — nothing from slack
     }
 
     // Imported text must feed BOTH consumers off the one file: the n-gram's ctx

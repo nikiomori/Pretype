@@ -307,63 +307,6 @@ extension MLXEngine {
         }
     }
 
-    // MARK: Personalization (n-gram first-token boost)
-
-    /// Builds a logit processor that keeps the parameters' penalties (repetition
-    /// etc.) and boosts each candidate word's *start* token on the FIRST decode
-    /// step only — the step that picks the next word; later steps just spell it.
-    /// Returns nil if nothing resolves to a token.
-    private static func makeBiasProcessor(
-        _ bias: [String: Float], context: ModelContext, inner: LogitProcessor?
-    ) -> LogitProcessor? {
-        // encode() prepends BOS (e.g. " appreciate" → [2, 14756]); bias the first
-        // real content token (the "▁word" start), never BOS. Related surface
-        // forms sharing a start token keep the max boost, not the sum.
-        let bosID = context.tokenizer.convertTokenToId("<bos>")
-        var boosts: [Int: Float] = [:]
-        for (word, weight) in bias {
-            let tokens = context.tokenizer.encode(text: " " + word)
-            if let id = tokens.first(where: { $0 != bosID }) {
-                boosts[id] = max(boosts[id] ?? 0, weight)
-            }
-        }
-        guard !boosts.isEmpty else { return nil }
-        return PersonalizationProcessor(inner: inner, boosts: boosts)
-    }
-
-    /// Runs the default penalty processor, then adds the per-token boosts to
-    /// the first decode step's logits; later steps pass through untouched.
-    private final class PersonalizationProcessor: LogitProcessor {
-        private var inner: LogitProcessor?
-        private let boosts: [Int: Float]
-        private var step = 0
-
-        init(inner: LogitProcessor?, boosts: [Int: Float]) {
-            self.inner = inner
-            self.boosts = boosts
-        }
-
-        func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
-
-        func process(logits: MLXArray) -> MLXArray {
-            let processed = inner?.process(logits: logits) ?? logits
-            guard step == 0 else { return processed }
-            // Scatter the ≤32 boosts on the GPU — a vocab-sized host array
-            // (262k floats for Gemma) per keystroke was pure overhead.
-            let vocab = logits.shape.last ?? 0
-            let valid = boosts.filter { $0.key >= 0 && $0.key < vocab }
-            guard !valid.isEmpty else { return processed }
-            let delta = MLXArray.zeros(processed.shape, dtype: processed.dtype)
-            delta[0..., MLXArray(valid.map { Int32($0.key) })] = MLXArray(valid.map { $0.value }).asType(processed.dtype)
-            return processed + delta
-        }
-
-        func didSample(token: MLXArray) {
-            step += 1
-            inner?.didSample(token: token)
-        }
-    }
-
     // MARK: First-word confidence (live decode-loop capture)
 
     /// Records, for every sampled token, log P(token) under the (processed)
@@ -575,9 +518,6 @@ extension MLXEngine {
         makeTokens: @Sendable @escaping (ModelContext) throws -> [Int],
         parameters: GenerateParameters,
         promptCache: PromptCache?,
-        /// Personal next-word candidates → additive logit boost on the first
-        /// decode step (see `MLXEngine.ngramBias`).
-        bias: [String: Float]? = nil,
         logProbSink: LockedValue<Double?>? = nil,
         trimLogProb: Float? = nil,
         /// Entropy trim (nats): see `confidenceTrimmed`. nil = off.
@@ -593,8 +533,8 @@ extension MLXEngine {
         prefillOnly: Bool = false,
         /// A Gemma 4 MTP drafter: decode speculatively (`MTPSpeculativeTokenIterator`,
         /// greedy-verified by the target) instead of token by token. Used only
-        /// when nothing needs per-token logits — no healing or bias, and no
-        /// logprob gate; the confidence trim and the first-word logprob
+        /// when nothing needs per-token logits — no healing and no logprob
+        /// gate; the confidence trim and the first-word logprob
         /// are skipped on this path (the iterator exposes no per-token logits).
         drafter: (any MTPDrafterModel)? = nil,
         /// Copy-heavy output (fix, tidy-up): draft from the prompt
@@ -705,13 +645,9 @@ extension MLXEngine {
                 return ""
             }
 
-            // Compose the logit-processor chain: penalties → personal first-token boost.
             var processor: LogitProcessor? = parameters.processor()
-            if let bias, let biased = makeBiasProcessor(bias, context: context, inner: processor) {
-                processor = biased
-            }
             // Outermost, so it sees the logits the sampler actually samples from
-            // (post-penalties, post-bias) — that distribution is what "the
+            // (post-penalties) — that distribution is what "the
             // engine's confidence in what it showed" means.
             var recorder: LogProbRecorder?
             if logProbSink != nil || trimLogProb != nil || trimEntropy != nil || gateLogProb != nil {
@@ -759,7 +695,7 @@ extension MLXEngine {
                 copier = PromptLookupIterator(
                     input: Array(fullTokens[splitAt...]), prompt: fullTokens, model: context.model,
                     cache: cache, maxTokens: maxTokens)
-            } else if let drafter, healExpected == nil, bias == nil, gateLogProb == nil {
+            } else if let drafter, healExpected == nil, gateLogProb == nil {
                 mtp = try MTPSpeculativeTokenIterator(
                     input: LMInput(tokens: firstInput), mainModel: context.model, drafter: drafter,
                     mainCache: cache, parameters: parameters, blockSize: mtpBlock)

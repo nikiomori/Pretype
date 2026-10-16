@@ -1215,22 +1215,19 @@ struct PersonalTab: View {
                 }
             }
 
-            // The n-gram boost never reaches Apple Intelligence (FoundationModelsEngine
-            // takes the no-op updatePersonalization — it has no logits to boost), so
-            // learning would collect words it can never apply. On-device models only.
-            if !store.isAppleIntelligence {
-                Section("Learning") {
-                    Toggle(isOn: $store.personalization) {
-                        Text("Learn my words")
-                        if store.learnedWords > 0 {
-                            Text("\(store.learnedWords) words learned from your typing.")
-                        } else {
-                            Text("Boosts words you often type.")
-                        }
+            // Instant n-gram suggestions come from the controller, so learning
+            // works the same on every engine, Apple Intelligence included.
+            Section("Learning") {
+                Toggle(isOn: $store.personalization) {
+                    Text("Learn my words")
+                    if store.learnedWords > 0 {
+                        Text("\(store.learnedWords) words learned from your typing.")
+                    } else {
+                        Text("Boosts words you often type.")
                     }
-                    .help("Learned from your suggestion journal, only while on. Clear the journal to forget them.")
                 }
-            }  // end Learning (hidden for Apple Intelligence)
+                .help("Learned from your suggestion journal, only while on. Clear the journal to forget them.")
+            }
 
             Section("Journal") {
                 Toggle(isOn: Binding(

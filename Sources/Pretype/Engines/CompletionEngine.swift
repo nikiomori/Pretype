@@ -381,9 +381,6 @@ protocol CompletionEngine: AnyObject {
     /// Style/model changes rebuild the engine instead; these don't.
     func updateCompletion(length: CompletionLength, instructions: String)
 
-    /// Live update of the personal n-gram boost strength.
-    func updatePersonalization(_ level: PersonalizationLevel)
-
     /// Flush state before the engine is released or the app quits.
     func shutdown()
 
@@ -416,7 +413,6 @@ extension CompletionEngine {
     func correct(selection: String, request: CompletionRequest) async throws -> String? {
         try await correct(selection: selection, request: request, redactLog: false)
     }
-    func updatePersonalization(_ level: PersonalizationLevel) {}
     func rewrite(selection: String, instruction: String,
                  request: CompletionRequest) async throws -> String? { nil }
     func shutdown() {}

@@ -67,11 +67,6 @@ final class EngineCoordinator {
         engine.updateCompletion(length: Settings.completionLength, instructions: instructions)
     }
 
-    func setPersonalization(_ level: PersonalizationLevel) {
-        Settings.personalizationLevel = level
-        engine.updatePersonalization(level)
-    }
-
     private static func makeEngine(modelID: String) -> CompletionEngine {
         let engine: CompletionEngine
         if Settings.apiText.enabled {
@@ -83,7 +78,6 @@ final class EngineCoordinator {
         }
         let config = CompletionConfig.resolved()
         engine.updateCompletion(length: config.length, instructions: config.instructions)
-        engine.updatePersonalization(config.personalization)
         return engine
     }
 }

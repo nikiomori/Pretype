@@ -212,7 +212,7 @@ final class SettingsStore {
     }
     var personalization = false {
         didSet { guard !syncing, oldValue != personalization else { return }
-            controller?.engineCoordinator.setPersonalization(personalization ? .on : .off)
+            Settings.personalizationLevel = personalization ? .on : .off
             // Enabling mid-session must start the journal build right away —
             // otherwise live learning stays inert until the next keystroke.
             if personalization { PersonalNgram.shared.prepareIfNeeded() }
