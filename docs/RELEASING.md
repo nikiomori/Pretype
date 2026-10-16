@@ -2,8 +2,6 @@
 
 The repository has no signing secrets. Thus CI cannot make the build that users download. The maintainer builds, signs and notarizes the release on a Mac. Then the maintainer attaches the zip to a draft release, verifies it, and publishes it.
 
-> **WARNING:** Do not attach an ad-hoc signed zip. Without `PRETYPE_VERSION`, `Scripts/dist.sh` makes one when the "Developer ID Application" certificate is not in the keychain. Gatekeeper blocks it. Its signature is also different from the Developer ID build. After users update to that zip, their Accessibility grant stops working, and macOS shows no message.
-
 <div align="center">
 <img src="diagram-release-flow.svg" width="340" alt="Release flow. On the maintainer's Mac: 1, push the tag vX.Y.Z; 2, build from the tag with make-app.sh, then sign, notarize and staple with dist.sh. On GitHub and Homebrew: 3, create a draft release with the zip; 4, download and verify it with spctl and stapler; 5, publish the draft; 6, bump the Homebrew cask version and sha256." />
 </div>
