@@ -24,8 +24,8 @@ env:
 # `swift test` catches compile regressions on every PR. It does NOT exercise
 # Scripts/make-app.sh — the xcodebuild/Metal path that produces the shipped
 # bundle — so that runs on pushes to main only: cheap enough per merge, and it
-# means the packaging path can't first break on a tag push, where the only
-# symptom is a broken draft release.
+# means the packaging path can't first break in the maintainer's release build
+# (docs/RELEASING.md).
 jobs:
   build:
     name: swift test (macOS)
@@ -82,10 +82,10 @@ jobs:
       - name: Check strings
         run: Scripts/sync-strings.py --check
 
-      # The release build is the first thing that ever runs make-app.sh, and a
-      # broken bundle there only shows up as a bad download. Same script, same
-      # runner, one merge earlier. PRs skip it: an xcodebuild Release of MLX is
-      # minutes, and a compile break already reddens `swift test` above.
+      # Releases are built locally with this same script (docs/RELEASING.md);
+      # this catches a broken bundle one merge earlier. PRs skip it: an
+      # xcodebuild Release of MLX is minutes, and a compile break already
+      # reddens `swift test` above.
       - name: Package app bundle
         if: github.event_name == 'push'
         run: ./Scripts/make-app.sh

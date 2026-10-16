@@ -1,20 +1,14 @@
-%% Release flow: CI makes a draft; the maintainer replaces its zip with a notarized build.
+%% Release flow: the maintainer builds and notarizes on a Mac, then attaches that zip to a draft release.
 flowchart TB
-  subgraph ci["GitHub Actions"]
-    direction LR
-    tag["1. Push tag vX.Y.Z"] --> draft["Draft release<br/>ad-hoc signed zip"]
-  end
   subgraph mac["Maintainer's Mac"]
     direction LR
-    build["2. Build from the tag<br/>make-app.sh"] --> notar["Sign, notarize, staple<br/>dist.sh"]
+    tag["1. Push tag vX.Y.Z"] --> build["2. Build from the tag<br/>make-app.sh"]
+    build --> notar["Sign, notarize, staple<br/>dist.sh"]
   end
   subgraph pub["GitHub and Homebrew"]
     direction LR
-    up["3. Upload zip<br/>--clobber"] --> verify["4. Download and verify<br/>spctl, stapler"]
+    draft["3. Create a draft release<br/>with the zip"] --> verify["4. Download and verify<br/>spctl, stapler"]
     verify --> publish["5. Publish the draft"]
     publish --> cask["6. Bump the Homebrew cask<br/>version + sha256"]
   end
-  draft --> build
-  notar --> up
-  classDef warn fill:#fff1f0,stroke:#ff3b30,color:#1d1d1f
-  class draft warn
+  notar --> draft

@@ -67,16 +67,15 @@ fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-# Version: PRETYPE_VERSION wins (CI passes the pushed git tag); otherwise derive
-# from the latest local tag, else a dev fallback. CFBundleVersion is a monotonic
-# build number (CI passes the run number; locally it's the commit count).
+# Version: PRETYPE_VERSION wins (a release passes it, see docs/RELEASING.md);
+# otherwise derive from the latest local tag, else a dev fallback.
+# CFBundleVersion is a monotonic build number: the commit count.
 # `|| true`: on CI's shallow, tagless checkout `git describe` exits 128, and
 # pipefail would kill the whole script right after BUILD SUCCEEDED — the
-# 0.1.0 fallback below exists precisely for that clone (release.yml passes
-# PRETYPE_VERSION, so a real release never takes this path).
+# 0.1.0 fallback below exists precisely for that clone.
 VERSION="${PRETYPE_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)}"
 VERSION="${VERSION:-0.1.0}"
-BUILD="${PRETYPE_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
+BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 
 cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
