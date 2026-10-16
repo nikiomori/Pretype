@@ -239,13 +239,7 @@ struct ModelMetrics {
 
     /// Coverage on one axis, matching whatever `axisAccuracy` reports there.
     static func axisCoverage(for id: String, axis: String) -> Int? {
-        switch axis {
-        case "core": return metrics(for: id)?.coveragePct
-        case "*":
-            guard let t = perLangCoverage[id], !t.isEmpty else { return nil }
-            return Int((Double(t.values.reduce(0, +)) / Double(t.count)).rounded())
-        default: return perLangCoverage[id]?[axis]
-        }
+        axisValue(axis, core: metrics(for: id)?.coveragePct, perLanguage: perLangCoverage[id])
     }
 
     /// The languages the eval set measures, alphabetical.
@@ -257,12 +251,18 @@ struct ModelMetrics {
     /// mean of the per-language values, else one language's cell (the last
     /// two are "of all": staying silent counts as a miss).
     static func axisAccuracy(for id: String, axis: String) -> Int? {
+        axisValue(axis, core: metrics(for: id)?.firstWordPct, perLanguage: perLangOfAll[id])
+    }
+
+    /// One axis of a figure: the core value, the equal-weight per-language
+    /// mean, or one language's cell.
+    private static func axisValue(_ axis: String, core: Int?, perLanguage: [String: Int]?) -> Int? {
         switch axis {
-        case "core": return metrics(for: id)?.firstWordPct
+        case "core": return core
         case "*":
-            guard let t = perLangOfAll[id], !t.isEmpty else { return nil }
+            guard let t = perLanguage, !t.isEmpty else { return nil }
             return Int((Double(t.values.reduce(0, +)) / Double(t.count)).rounded())
-        default: return perLangOfAll[id]?[axis]
+        default: return perLanguage?[axis]
         }
     }
 

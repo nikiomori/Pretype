@@ -187,13 +187,22 @@ enum ModelCatalog {
     /// download, not a dead engine. Re-tier on purpose (24 GB now fits E4B
     /// 6-bit) and on the evals.
     static func defaultID(forRamGB ram: Double) -> String {
-        switch ram {
-        case 27.2...: return "mlx-community/gemma-4-e4b-6bit"
-        case 20...: return "mlx-community/gemma-4-e2b-8bit"
-        case 14...: return "mlx-community/gemma-4-e2b-4bit"
-        default: return "nikimori/Qwen3.5-2B-Base-6bit"
-        }
+        (ramLadder.first { ram >= $0.minRam } ?? ramLadder[ramLadder.count - 1]).id
     }
+
+    /// The tiers `defaultID(forRamGB:)` climbs, best first: the least physical
+    /// memory (GiB) each needs, and why it was picked — kept with the tier so
+    /// the RECOMMENDED tooltip never tells the wrong tier's story.
+    private static let ramLadder: [(minRam: Double, id: String, why: String)] = [
+        (27.2, "mlx-community/gemma-4-e4b-6bit",
+         String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory.")),
+        (20, "mlx-community/gemma-4-e2b-8bit",
+         String(localized: "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 87% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less.")),
+        (14, "mlx-community/gemma-4-e2b-4bit",
+         String(localized: "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%.")),
+        (0, "nikimori/Qwen3.5-2B-Base-6bit",
+         String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")),
+    ]
 
     /// The fit rule `defaultID` sizes on, for any resident size: past about a
     /// quarter of physical memory the model crowds out what else the Mac runs.
@@ -201,21 +210,9 @@ enum ModelCatalog {
         residentGB * 4 > ramGB
     }
 
-    /// Why the current `defaultID` was picked — keyed to the resolved default
-    /// so the RECOMMENDED tooltip never tells the wrong tier's story.
+    /// Why the current `defaultID` was picked (see `ramLadder`).
     static var defaultRationale: String {
-        switch defaultID {
-        case "mlx-community/gemma-4-e4b-6bit":
-            return String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory.")
-        case "mlx-community/gemma-4-e2b-8bit":
-            return String(localized: "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 87% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less.")
-        case "mlx-community/gemma-4-e2b-4bit":
-            return String(localized: "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%.")
-        case "nikimori/Qwen3.5-2B-Base-6bit":
-            return String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")
-        default:
-            return String(localized: "Auto-picked for this Mac.")
-        }
+        ramLadder.first { $0.id == defaultID }?.why ?? ""
     }
 
     /// Google's multi-token-prediction drafter for a Gemma 4 instruct model
@@ -328,9 +325,11 @@ enum ModelCatalog {
 
     /// Eval-backed completion settings recommended for a given model, so each
     /// model runs in the configuration it measured best in (see Eval/BASELINE.md).
+    /// Length is not part of it: short on every model (first-word accuracy is
+    /// length-independent, and each longer step lost word-F1 and doubled
+    /// latency — see the MiniCPM5 sweep below).
     struct Recommendation {
         let style: CompletionStyle
-        let length: CompletionLength
         /// Logprob-gate τ calibrated PER MODEL: the same mean first-word logprob
         /// means different confidence on different tokenizers/models — split-half
         /// Q4 edges span −0.94 (E4B) … −1.34 (Qwen0.5B) across the catalog, so one
@@ -350,7 +349,7 @@ enum ModelCatalog {
         var scriptGateTau: [GateScript: Double] = [:]
         /// One-line human summary for the settings UI, e.g. "Instruct · Short".
         var summary: String {
-            [style.label, length.label].joined(separator: " · ")
+            [style.label, CompletionLength.short.label].joined(separator: " · ")
         }
     }
 
@@ -361,7 +360,7 @@ enum ModelCatalog {
             // First word right on 0 of 229 shown Japanese suggestions, 2–3% in
             // Chinese and Korean (runs-2026-10-15-rebook fm-real), and no
             // logprob to gate on — never suggest there.
-            return Recommendation(style: .instruct, length: .short, logprobGateTau: nil,
+            return Recommendation(style: .instruct, logprobGateTau: nil,
                                   scriptGateTau: [.kana: .infinity, .han: .infinity, .hangul: .infinity])
         }
         // MiniCPM5: base continuation only — instruct answers instead of
@@ -374,7 +373,7 @@ enum ModelCatalog {
         if id.contains("MiniCPM5") {
             // Its byte-level scores run high on Arabic/Hebrew: τ −1.21 showed
             // 46–48% of prompts at 7–12% first-word right there.
-            return Recommendation(style: .base, length: .short, logprobGateTau: -1.21,
+            return Recommendation(style: .base, logprobGateTau: -1.21,
                                   scriptGateTau: [.kana: .infinity, .hangul: -0.48, .arabic: -0.38, .hebrew: -0.77])
         }
         // Small base-continuation picks from the 07-15 sweep (Qwen2.5-0.5B,
@@ -382,17 +381,17 @@ enum ModelCatalog {
         // (first-word is length-independent here). The logprob gate still
         // works (monotone calibration).
         if id.contains("Qwen2.5-0.5B") {
-            return Recommendation(style: .base, length: .short, logprobGateTau: -1.34,
+            return Recommendation(style: .base, logprobGateTau: -1.34,
                                   scriptGateTau: [.kana: .infinity, .hangul: -0.65, .arabic: -0.85])
         }
         if id.contains("Ternary-Bonsai") {
-            return Recommendation(style: .base, length: .short, logprobGateTau: -1.15,
+            return Recommendation(style: .base, logprobGateTau: -1.15,
                                   scriptGateTau: [.han: -0.56, .kana: .infinity, .hangul: -0.42])
         }
         // Also the M40 merge: its own live-scale Q4 edge is −1.16, and −1.18
         // passes the same 25% of its odd half (runs-2026-10-16-m1/rebook).
         if id.contains("Qwen3.5-2B") {
-            return Recommendation(style: .base, length: .short, logprobGateTau: -1.18,
+            return Recommendation(style: .base, logprobGateTau: -1.18,
                                   scriptGateTau: [.kana: .infinity, .hangul: -0.57])
         }
         // Gemma E-series: base, short. Instruct + persona wins on text you
@@ -401,10 +400,10 @@ enum ModelCatalog {
         // 2026-10-15 (it-6bit 15% vs 23% of all rows on 17 languages, p=5e-53;
         // en 21 vs 29, ru 16 vs 24 — runs-2026-10-15-rebook).
         if !id.contains("e4b"), id.contains("4bit") {
-            return Recommendation(style: .base, length: .short, logprobGateTau: -1.07,
+            return Recommendation(style: .base, logprobGateTau: -1.07,
                                   scriptGateTau: [.han: -0.75, .kana: .infinity])
         }
-        return Recommendation(style: .base, length: .short, logprobGateTau: id.contains("e4b") ? -0.94 : -0.96,
+        return Recommendation(style: .base, logprobGateTau: id.contains("e4b") ? -0.94 : -0.96,
                               scriptGateTau: [.kana: .infinity])
     }
 

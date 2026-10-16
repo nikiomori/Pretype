@@ -41,10 +41,9 @@ struct ProjectionConfig: Equatable {
         switch change {
         case .model(let id):
             c.modelID = id
-            let rec = ModelCatalog.recommended(for: id)
             if c.useRecommended {
-                c.style = rec.style
-                c.length = rec.length
+                c.style = ModelCatalog.recommended(for: id).style
+                c.length = .short
                 c.logprobGate = false
             }
             // A switch to a base-only model never keeps the measured-broken
@@ -64,9 +63,8 @@ struct ProjectionConfig: Equatable {
         case .useRecommended(let on):
             c.useRecommended = on
             if on {
-                let rec = ModelCatalog.recommended(for: c.modelID)
-                c.style = rec.style
-                c.length = rec.length
+                c.style = ModelCatalog.recommended(for: c.modelID).style
+                c.length = .short
                 c.logprobGate = false
             }
         case .preset(let id):
@@ -76,8 +74,7 @@ struct ProjectionConfig: Equatable {
             // state (every MLX model since 2026-10-15).
             c.style = .base
             c.length = .short
-            let rec = ModelCatalog.recommended(for: id)
-            c.useRecommended = rec.style == .base && rec.length == .short
+            c.useRecommended = ModelCatalog.recommended(for: id).style == .base
         case .config(let target):
             c = target
         }

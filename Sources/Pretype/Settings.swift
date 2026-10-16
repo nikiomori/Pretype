@@ -631,8 +631,7 @@ enum Settings {
     static var completionStyle: CompletionStyle
 
     /// How long a single completion may be.
-    @Pref("completionLength", ModelCatalog.recommended(for: ModelCatalog.defaultID).length)
-    static var completionLength: CompletionLength
+    @Pref("completionLength", CompletionLength.short) static var completionLength: CompletionLength
 
     /// Free-text persona/voice used in instruct mode (Cotypist's "Custom AI
     /// Instructions"). Ships with a generic default; the user can edit or clear it.
