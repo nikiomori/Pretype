@@ -64,7 +64,10 @@ struct MenuHeaderView: View {
         .padding(.horizontal, 14)
         .padding(.top, 9)
         .padding(.bottom, 5)
-        .frame(width: Self.width, alignment: .leading)
+        // Sized at `width`, but stretches when a longer title widens the menu
+        // (Russian "Pause on Battery") — a fixed frame left the sparkline
+        // stranded short of the right edge. The host is width-sizable.
+        .frame(minWidth: Self.width, idealWidth: Self.width, maxWidth: .infinity, alignment: .leading)
         // One stop for VoiceOver, which would otherwise land on a bare figure
         // and then on seven unlabelled bars.
         .accessibilityElement(children: .ignore)

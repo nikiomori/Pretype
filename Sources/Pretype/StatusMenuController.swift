@@ -120,6 +120,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // three-line status text instead of clipping it.
         headerHost = NSHostingView(rootView: headerView())
         headerHost.sizingOptions = .intrinsicContentSize
+        // NSMenu widens a width-sizable item view to the menu's own width.
+        headerHost.autoresizingMask = .width
         resize(headerHost)
         let headerItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         headerItem.view = headerHost
