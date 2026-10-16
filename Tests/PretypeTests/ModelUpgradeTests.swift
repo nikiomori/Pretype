@@ -106,9 +106,13 @@ final class ModelUpgradeTests: XCTestCase {
         let have: Set = [id, slim]
         let isFetched = { (repo: String) in have.contains(repo) && !ModelStorage.loadFailed(repo: repo) }
         XCTAssertEqual(ModelCatalog.repo(for: id, isFetched: isFetched), slim)
+        ModelStorage.noteLoad(repo: slim, succeeded: true)  // a load on an earlier launch
+        XCTAssertTrue(ModelStorage.hasLoaded(repo: slim))
         ModelStorage.noteLoad(repo: slim, succeeded: false)
         defer { ModelStorage.noteLoad(repo: slim, succeeded: true) }
         XCTAssertTrue(ModelStorage.loadFailed(repo: slim))
+        XCTAssertFalse(ModelStorage.hasLoaded(repo: slim),
+                       "an earlier launch's load must not license deleting the build in use now")
         XCTAssertEqual(ModelCatalog.repo(for: id, isFetched: isFetched), id)
         // Originals are never marked: there is nothing behind them to fall back to.
         ModelStorage.noteLoad(repo: id, succeeded: false)

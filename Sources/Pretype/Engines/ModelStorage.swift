@@ -255,8 +255,11 @@ enum ModelStorage {
 
     static func loadFailed(repo: String) -> Bool { failedLoads.get().contains(repo) }
 
-    private static func hasLoaded(repo: String) -> Bool {
-        UserDefaults.standard.stringArray(forKey: loadedKey)?.contains(repo) ?? false
+    /// Proven to load, and not failing now. A load that worked on an earlier
+    /// launch says nothing about this one: while the replacement is failing,
+    /// the original is the build the engine fell back to.
+    static func hasLoaded(repo: String) -> Bool {
+        !loadFailed(repo: repo) && UserDefaults.standard.stringArray(forKey: loadedKey)?.contains(repo) ?? false
     }
 
     /// Moves an install that downloaded an original Gemma build before the
