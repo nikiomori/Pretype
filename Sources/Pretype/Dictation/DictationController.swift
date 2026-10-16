@@ -393,11 +393,20 @@ final class DictationController {
         // …and a latched capture that has heard something is finished, not
         // discarded: `finish` sees the focus moved and hands the transcript
         // to `rescueDictated` instead of typing it into the wrong field.
-        if spoken, case .listening(let partial) = phase, !partial.isEmpty {
+        if spoken, heardSomething {
             Self.note("focus moved mid hands-free capture — finishing to the clipboard")
             return finish()
         }
         discard(notice: spoken ? .hint(String(localized: "dictation stopped — the focus moved")) : nil)
+    }
+
+    /// The live capture has words worth finishing rather than discarding. The
+    /// preview is not enough on its own: a hosted API sends none, so its
+    /// minutes of speech sit behind an empty `.listening("")` — the level
+    /// meter is what knows someone spoke there.
+    private var heardSomething: Bool {
+        guard case .listening(let partial) = phase else { return false }
+        return !partial.isEmpty || meter?.heardVoice == true
     }
 
     /// The latch chord, pressed. Starts a hands-free capture, or ends the one
@@ -828,7 +837,7 @@ final class DictationController {
               isCapturing, let session else { return }
         func end() {
             _ = hold.interrupt()
-            if case .listening(let partial) = phase, !partial.isEmpty {
+            if heardSomething {
                 finish()
             } else {
                 fail(AudioCapture.Failure.deviceChanged)

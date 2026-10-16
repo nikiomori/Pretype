@@ -42,6 +42,7 @@ private final class FakeAudioCapture: AudioCapturing {
     private(set) var startCount = 0
     private(set) var stopCount = 0
     private(set) var onDeviceChange: (@Sendable () -> Void)?
+    private(set) var onBuffer: (@Sendable (AVAudioPCMBuffer) -> Void)?
 
     func start(
         deviceUID: String?,
@@ -52,6 +53,7 @@ private final class FakeAudioCapture: AudioCapturing {
         if failStart { throw AudioCapture.Failure.noInputDevice }
         startCount += 1
         self.onDeviceChange = onDeviceChange
+        self.onBuffer = onBuffer
     }
 
     func stop() { stopCount += 1 }
@@ -756,6 +758,26 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.inserted.isEmpty)
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// A hosted API sends no preview, so its take stays `.listening("")` to
+    /// the end. Speech the meter heard is still speech: a focus change or a
+    /// lost microphone finishes it instead of throwing the take away.
+    func testATakeWithoutAPreviewStillFinishesWhenItHeardVoice() async {
+        let moved = makeRig()
+        await startLatched(moved)
+        moved.capture.onBuffer?(toneBuffer(amplitude: 0.25))
+        moved.host.focusGeneration += 1
+        moved.controller.invalidate()
+        await pump(until: { !moved.host.rescued.isEmpty })
+        XCTAssertEqual(moved.host.rescued, ["hello world"])
+
+        let unplugged = makeRig()
+        await startCapture(unplugged)
+        unplugged.capture.onBuffer?(toneBuffer(amplitude: 0.25))
+        unplugged.capture.onDeviceChange?()
+        await pump(until: { !unplugged.host.inserted.isEmpty })
+        XCTAssertEqual(unplugged.host.inserted, ["hello world"])
     }
 
     /// A launcher (Spotlight) closed during the capture fires no focus change,
