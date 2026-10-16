@@ -470,6 +470,10 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(minicpm[.arabic], -0.38)
         XCTAssertEqual(minicpm[.hebrew], -0.77)
         XCTAssertNil(ModelCatalog.recommended(for: "mlx-community/gemma-4-e4b-8bit").scriptGateTau[.han])
+        // Japanese is silent everywhere, Apple Intelligence included, gate or not.
+        for id in mlx + [ModelCatalog.appleIntelligenceID] {
+            XCTAssertEqual(ModelCatalog.silentScripts(for: id), [.kana], id)
+        }
         // Stricter only: no override may loosen the model's own τ.
         for id in mlx {
             let r = ModelCatalog.recommended(for: id)

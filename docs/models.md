@@ -49,6 +49,12 @@ We measure these two languages on a separate set: 560 held-out rows (first run 2
 
 Inline typo fixes do not work in these two languages. macOS lists them as spell-check languages, but it has no dictionary for them.
 
+### Japanese
+
+Pretype does not show suggestions in Japanese. On the 280 held-out Japanese rows (2026-10-15), the first word is correct for 4–7% of the suggestions of the downloadable models, and for 0 of 229 suggestions of Apple Intelligence. To read a wrong suggestion costs more time than a correct one saves. This is true for every model, also with the confidence gate on.
+
+The typo fix, the reply and dictation still operate in Japanese.
+
 ### Qwen3.5 2B uses its Base build
 
 Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is our own MLX conversion: [nikimori/Qwen3.5-2B-Base-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-Base-6bit).

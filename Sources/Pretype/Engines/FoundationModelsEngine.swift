@@ -57,8 +57,11 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
+    private let silentScripts = ModelCatalog.silentScripts(for: ModelCatalog.appleIntelligenceID)
+
     func complete(_ request: CompletionRequest) async throws -> String? {
         guard case .ready = stateBox.get() else { return nil }
+        if let script = GateScript.of(request.textBeforeCaret), silentScripts.contains(script) { return nil }
         // Atomic single-flight: test-and-set in one locked op so two concurrent
         // callers can't both acquire. Wait up to 200ms if a request is already
         // running (e.g. during cancellation cleanup of the previous task).

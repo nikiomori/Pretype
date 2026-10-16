@@ -54,6 +54,8 @@ final class MLXEngine: CompletionEngine {
     /// recommended settings only: an env pin or a hand-tuned threshold applies
     /// to every script as-is.
     let scriptGateTau: [GateScript: Double]
+    /// Scripts with no suggestions at all, gate on or off (`ModelCatalog.silentScripts`).
+    let silentScripts: Set<GateScript>
     /// Confidence trim: cut the shown suggestion just before the first decode
     /// token whose logprob < this (never inside the first word). Same live
     /// recorder as the logprob gate — 0× extra decode; unlike the gate it trims
@@ -229,6 +231,7 @@ final class MLXEngine: CompletionEngine {
             self.logprobGateThreshold = nil
             self.scriptGateTau = [:]
         }
+        self.silentScripts = ModelCatalog.silentScripts(for: modelID)
         self.trimLogProbThreshold = env["PRETYPE_TRIM_LOGPROB"].map { Float($0) } ?? -1.5
 
         // Instruct style runs completion *and* correction on the instruct
@@ -829,6 +832,11 @@ final class MLXEngine: CompletionEngine {
     /// The completion path for this engine's style.
     private func run(_ request: CompletionRequest, onPartial: (@Sendable (String) -> Void)? = nil,
                      prefillOnly: Bool = false) async throws -> String? {
+        // Every style: a script this model never pays off in costs no decode.
+        if let script = GateScript.of(request.textBeforeCaret), silentScripts.contains(script) {
+            if !prefillOnly { DebugLog.shared.log("GATE", "no suggestions in this script for this model — not querying it") }
+            return nil
+        }
         switch style {
         case .base: return try await completeBase(request, onPartial: onPartial, prefillOnly: prefillOnly)
         case .instruct: return try await completeInstruct(request, onPartial: onPartial, prefillOnly: prefillOnly)

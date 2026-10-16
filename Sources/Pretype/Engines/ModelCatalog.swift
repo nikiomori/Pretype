@@ -330,7 +330,8 @@ enum ModelCatalog {
         /// journal's λ=1.25, a cell adopted only when 2-fold cross-fitting holds
         /// at p<0.01 and it does not lose with IME-priced CJK chars or λ=0.4
         /// (runs-2026-10-16-gate/script-tau.py). Japanese pays on no model
-        /// (first word right 6–18% of shown) → `.infinity`, never suggest.
+        /// (first word right 6–18% of shown) → `.infinity`, never suggest —
+        /// with the gate off too (`silentScripts(for:)`).
         var scriptGateTau: [GateScript: Double] = [:]
         /// One-line human summary for the settings UI, e.g. "Instruct · Short".
         var summary: String {
@@ -342,7 +343,10 @@ enum ModelCatalog {
         if id == appleIntelligenceID {
             // System model: short is its sweet spot (weak on long / Russian
             // tails); style is moot; no base path for the gate.
-            return Recommendation(style: .instruct, length: .short, logprobGateTau: nil)
+            // Japanese: 0 of 229 shown suggestions had the right first word
+            // (runs-2026-10-15-rebook fm-real) — never suggest there.
+            return Recommendation(style: .instruct, length: .short, logprobGateTau: nil,
+                                  scriptGateTau: [.kana: .infinity])
         }
         // MiniCPM5: base continuation only — instruct answers instead of
         // continuing (eval-v2 first-word ~0%), so auto mode must never route
@@ -384,6 +388,17 @@ enum ModelCatalog {
         }
         return Recommendation(style: .base, length: .short, logprobGateTau: id.contains("e4b") ? -0.94 : -0.96,
                               scriptGateTau: [.kana: .infinity])
+    }
+
+    /// Scripts `id` never suggests in, gate or no gate: its `scriptGateTau`
+    /// entries at `.infinity` — a suggestion there costs more than it saves on
+    /// every measured model, so the opt-in gate is not what should stop it.
+    /// Empty under a PRETYPE_LOGPROB_GATE pin, so ranking evals still score
+    /// those rows.
+    static func silentScripts(for id: String) -> Set<GateScript> {
+        let pin = ProcessInfo.processInfo.environment["PRETYPE_LOGPROB_GATE"]
+        guard pin == nil || pin == "recommended" else { return [] }
+        return Set(recommended(for: id).scriptGateTau.filter { $0.value.isInfinite }.keys)
     }
 
     /// Whether Instruct style continues the text on `id`. Elsewhere the

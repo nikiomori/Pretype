@@ -206,6 +206,10 @@ trim. This diagram shows the checks in base style:
   writing systems. Some models get a stricter τ for Chinese, Korean, Arabic
   or Hebrew. The script comes from the last 64 characters before the caret.
   Latin and Cyrillic text keeps the τ of the model.
+* **No suggestions in Japanese.** No on-device model gives Japanese
+  suggestions that save more time than they cost. Thus the local models and
+  Apple Intelligence do not suggest in Japanese, also when the gate is off.
+  The typo fix, the reply and dictation still operate.
 * **Token healing bypasses the gate.** Healing repairs mid-word completions.
   The match with the typed fragment is already a sufficient filter.
 * **Confidence trim.** It operates by default. It cuts the low-confidence tail
