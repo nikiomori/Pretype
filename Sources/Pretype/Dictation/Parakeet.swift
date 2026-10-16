@@ -79,8 +79,8 @@ enum Parakeet {
                 }
                 if !Parakeet.isDownloaded(.ultra) {
                     DebugLog.shared.log("DICTATE", "downloading the Parakeet speech model…")
-                    Transcription.isDownloading.set(true)
-                    defer { Transcription.isDownloading.set(false) }
+                    Transcription.downloading.set(.parakeet)
+                    defer { Transcription.downloading.set(nil) }
                     try await AsrModels.download(version: .ultra)
                 }
                 let manager = try await Parakeet.load(.ultra)

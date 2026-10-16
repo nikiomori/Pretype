@@ -611,8 +611,9 @@ final class DictationController {
         }
         // A released capture's language-pack download is still running (see
         // `discard`). A second session start now would race it for the same
-        // install and reservation, so wait it out with the same words.
-        guard !Transcription.isDownloading.get() else {
+        // install and reservation, so wait it out with the same words — but
+        // only a download this capture's engine would wait on.
+        guard !Transcription.isDownloading(for: Settings.resolvedDictationLocale) else {
             return refuse("the language pack is still downloading",
                           notice: .hint(String(localized: "getting the dictation model ready…")), at: rect)
         }
@@ -961,7 +962,7 @@ final class DictationController {
             // fast one. Otherwise it was only the microphone opening (a
             // Bluetooth input negotiates for 0.5–2 s), and "getting the model
             // ready" would send the user waiting for a download that isn't.
-            discard(notice: .hint(Transcription.isDownloading.get()
+            discard(notice: .hint(Transcription.isDownloading(for: Settings.resolvedDictationLocale)
                 ? String(localized: "getting the dictation model ready…")
                 : String(localized: "too quick — the microphone was still opening")))
             return
@@ -1208,7 +1209,7 @@ final class DictationController {
         capture.stop()
         session?.cancel()
         session = nil
-        if phase != .preparing || !Transcription.isDownloading.get() {
+        if phase != .preparing || !Transcription.isDownloading(for: Settings.resolvedDictationLocale) {
             sessionTask?.cancel()
             sessionTask = nil
         }

@@ -190,16 +190,32 @@ enum Transcription {
         return Array(picked.reversed().filter { seen.insert($0.lowercased()).inserted }.prefix(50))
     }
 
-    /// A language pack is downloading — the one `.preparing` wait worth
-    /// sitting through, and the one a discard must not cancel (the next press
-    /// would start it over). A plain microphone open is the other, short one.
-    static let isDownloading = LockedValue(false)
+    /// What is downloading: a system language pack, or Parakeet's model (for
+    /// a capture, or for the Settings toggle's prefetch). The one `.preparing`
+    /// wait worth sitting through, and the one a discard must not cancel (the
+    /// next press would start it over). A plain microphone open is the other,
+    /// short one.
+    enum Download { case languagePack, parakeet }
+    static let downloading = LockedValue<Download?>(nil)
+
+    /// A download is running that a capture in `locale` would wait on — and
+    /// only that one. Parakeet's 610 MB prefetch is nothing to a capture
+    /// going to a hosted API or to Apple's model, and one global flag held
+    /// every one of them up for the length of it.
+    /// ponytail: "Parakeet serves it" skips `start`'s async "Apple's newer
+    /// model has it" test, so an English capture with Parakeet on still waits
+    /// out Parakeet's one-time download; resolve the engine at `begin` if
+    /// that ever matters.
+    static func isDownloading(for locale: Locale) -> Bool {
+        guard let download = downloading.get(), !Settings.apiAudio.enabled else { return false }
+        return download == .languagePack || (Settings.dictationParakeet && Parakeet.covers(locale))
+    }
 
     private static func install(_ module: any SpeechModule, locale: Locale) async throws {
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             DebugLog.shared.log("DICTATE", "downloading the \(name(of: locale)) speech model…")
-            isDownloading.set(true)
-            defer { isDownloading.set(false) }
+            downloading.set(.languagePack)
+            defer { downloading.set(nil) }
             try await request.downloadAndInstall()
         }
         // Installed is not enough: macOS also wants the locale *allocated* to

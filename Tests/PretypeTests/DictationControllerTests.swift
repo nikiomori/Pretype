@@ -461,8 +461,8 @@ final class DictationControllerTests: XCTestCase {
         slowStart(rig, seconds: 0.2)
         rig.controller.modifierChanged(modifierEvent(down: true))
         await pump(until: { rig.controller.phase == .preparing })
-        Transcription.isDownloading.set(true)
-        defer { Transcription.isDownloading.set(false) }
+        Transcription.downloading.set(.languagePack)
+        defer { Transcription.downloading.set(nil) }
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .idle)
         guard case .hint(let notice)? = rig.host.transientNotices.last else {
@@ -472,6 +472,34 @@ final class DictationControllerTests: XCTestCase {
         await pump(until: { session.cancelCount == 1 })
         XCTAssertEqual(session.cancelCount, 1)
         XCTAssertEqual(rig.capture.startCount, 0)
+    }
+
+    /// Parakeet's 610 MB download (the Settings toggle's prefetch, say) holds
+    /// up only the captures Parakeet would serve. One global flag refused
+    /// every capture for the length of it — Apple's model and a hosted API
+    /// included, neither of which touches Parakeet.
+    func testParakeetsDownloadHoldsUpOnlyParakeetCaptures() async {
+        let saved = (Settings.dictationParakeet, Settings.dictationLanguage)
+        Settings.dictationLanguage = "ru"
+        Transcription.downloading.set(.parakeet)
+        defer {
+            Transcription.downloading.set(nil)
+            (Settings.dictationParakeet, Settings.dictationLanguage) = saved
+        }
+        Settings.dictationParakeet = false
+        let other = makeRig()
+        await startCapture(other)
+        XCTAssertEqual(other.controller.phase, .listening(""), "this capture never touches Parakeet")
+
+        Settings.dictationParakeet = true
+        let waits = makeRig()
+        await holdDown(waits.controller)
+        await pump(until: { !waits.host.transientNotices.isEmpty })
+        XCTAssertEqual(waits.capture.startCount, 0)
+        guard case .hint(let notice)? = waits.host.transientNotices.last else {
+            return XCTFail("a capture waiting on its own model's download should say so")
+        }
+        XCTAssertTrue(notice.contains("getting the dictation model ready"), notice)
     }
 
     func testSecureInputRefusesBeforeOpeningMic() async {
