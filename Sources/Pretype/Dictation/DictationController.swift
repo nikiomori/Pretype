@@ -89,18 +89,32 @@ final class DictationController {
     /// `.working` is out of it, equally deliberately. Once the chord has been
     /// pressed again and the words are being written down there is no speech
     /// left to protect, and a click in that window has just moved the caret the
-    /// transcript is about to be typed at — the hazard the "dictation dropped —
-    /// the caret moved" notice was written for, whatever started the capture.
+    /// transcript is about to be typed at — so it goes to the clipboard
+    /// instead (`rescueOnInterrupt`), whatever started the capture.
     private var isLatchedAndLive: Bool {
         trigger == .latch && isBusy && phase != .working
     }
 
-    /// Finishing a transcript that can no longer be typed where it was
-    /// captured: the focus moved, so it is headed for the clipboard
-    /// (`rescueDictated`), not the caret — a later click or keystroke can't
-    /// put it behind anything, and must not throw it away.
-    private var isRescueBound: Bool {
-        phase == .working && owner.map { $0.focusGeneration != focusGeneration } == true
+    /// A keystroke or click landed while this take was being written down:
+    /// the caret it was headed for has moved, so `finish` hands it to
+    /// `rescueDictated` instead of typing it behind whatever was just typed or
+    /// clicked. Reset by `begin`.
+    private var caretMoved = false
+
+    /// A keystroke or click while the take is being written down. Dropping
+    /// it there threw away a finished sentence over one stray key — and on a
+    /// hosted API `.working` is the whole upload, so that sentence could be
+    /// ten minutes of speech. It can't be typed either, the caret has moved:
+    /// it finishes to the clipboard, as a focus change does, and later
+    /// interrupts leave it be. A hold queued behind it was a chord, and goes.
+    /// false when there is nothing to rescue — not writing yet, or a voice
+    /// command, whose selection is what just moved — and the caller drops it
+    /// as before.
+    private func rescueOnInterrupt() -> Bool {
+        guard phase == .working, commandSelection == nil else { return false }
+        if hold.interrupt() != nil, pendingBegin == .hold { pendingBegin = nil }
+        caretMoved = true
+        return true
     }
 
     private(set) var phase: Phase = .idle {
@@ -314,17 +328,16 @@ final class DictationController {
             discard(notice: .hint(String(localized: "dictation cancelled")))
             return
         }
+        // Release-then-keep-typing is the most natural gesture there is: a
+        // take being written down goes to the clipboard, not away. ⎋ is still
+        // a cancel — Settings promises "⎋ discards one already running".
+        if !isEscape, rescueOnInterrupt() { return }
         if let event = hold.keyPressed() { return apply(event) }
-        // A capture already being finalized has no hold left to cancel, but a
-        // keystroke still says the user has moved on: dropping the transcript
-        // beats typing it in behind whatever they just wrote. WITH a notice,
-        // unlike the other silent interrupts — release-then-keep-typing is the
-        // most natural gesture there is, and a sentence that vanishes without
-        // a word is indistinguishable from the feature being broken. ⎋ gets
-        // its own wording: Settings promises "⎋ discards one already running",
-        // and answering a deliberate cancel with "you kept typing" reads as
-        // the app misreading the gesture.
-        if !isEscape, isRescueBound { return }
+        // What is left mid-write is ⎋ or a voice command, and both are
+        // dropped WITH a notice, unlike the other silent interrupts: a take
+        // that vanishes without a word is indistinguishable from the feature
+        // being broken. ⎋ gets its own wording — answering a deliberate
+        // cancel with "you kept typing" reads as the app misreading it.
         let wasWorking = phase == .working
         discard(notice: wasWorking
             ? .hint(isEscape ? String(localized: "dictation cancelled") : String(localized: "dictation dropped — you kept typing"))
@@ -347,12 +360,12 @@ final class DictationController {
     /// about. Fully idle stays a cheap early return, because both ride global
     /// monitors that see every click and every scroll on the system.
     ///
-    /// Mid-`.working` the interrupt earns a notice, same reasoning as
-    /// `keyPressed`: the sentence is already finished, the finalize-plus-tidy
-    /// window is seconds long, and users click things while they wait — a
-    /// sentence that evaporates without a word is indistinguishable from the
-    /// feature being broken. A click during `.listening` stays silent: the
-    /// pill vanishing under the click IS the explanation there.
+    /// Mid-`.working` the sentence is already finished, the finalize-plus-tidy
+    /// window is seconds long (a whole upload, on a hosted API), and users
+    /// click things while they wait — so it goes to the clipboard, same as
+    /// `keyPressed`. A voice command dropped there earns a notice. A click
+    /// during `.listening` stays silent: the pill vanishing under the click IS
+    /// the explanation there.
     private func pointerInterrupted() {
         // Both of these exist because a held modifier is ambiguous — ⌥-click
         // and ⌃-scroll are ordinary gestures that happen to look like a hold.
@@ -361,7 +374,7 @@ final class DictationController {
         // precisely what hands-free is for.
         guard !isLatchedAndLive else { return }
         guard isBusy || hold.isArmed else { return }
-        guard !isRescueBound else { return }
+        guard !rescueOnInterrupt() else { return }
         _ = hold.interrupt()
         let wasWorking = phase == .working
         discard(notice: wasWorking ? .hint(String(localized: "dictation dropped — the caret moved")) : nil)
@@ -628,6 +641,7 @@ final class DictationController {
         restarts = 0
         firstRestartAt = Date()
         focusGeneration = owner.focusGeneration
+        caretMoved = false
         startedInLauncher = owner.focusIsInLauncher
         caretRect = rect
         hostStyle = anchor?.host ?? HostTextStyle()
@@ -971,7 +985,7 @@ final class DictationController {
                 // Behind a deadline, because `finish` awaits the analyzer's own
                 // finalization: a hung `finalizeAndFinishThroughEndOfInput`
                 // would otherwise leave the pill saying "writing it down…"
-                // forever, with every keystroke silently discarding. Ten
+                // forever, with the completion pipeline suppressed. Ten
                 // seconds is far past any real finalization of a two-minute
                 // ceiling's audio — this is a watchdog, not a budget. A
                 // session that re-transcribes or uploads the whole take asks
@@ -1018,11 +1032,11 @@ final class DictationController {
                 self.phase = .idle
                 self.session = nil
                 owner.hideOverlay()
-                if focusHeld() {
+                if focusHeld(), !self.caretMoved {
                     owner.insertDictated(text)
                 } else {
-                    Self.note("rescued \(text.count) chars to the clipboard — focus changed")
-                    owner.rescueDictated(text, because: .focusMoved)
+                    Self.note("rescued \(text.count) chars to the clipboard — \(self.caretMoved ? "the caret moved" : "focus changed")")
+                    owner.rescueDictated(text, because: focusHeld() ? .caretMoved : .focusMoved)
                 }
                 self.resumePendingHold(noticeIfMissed: true)
             } catch {
@@ -1081,11 +1095,12 @@ final class DictationController {
     /// the transcript exactly as heard.
     ///
     /// On a hard time budget, because the whole `.working` window is hostile
-    /// territory: any keystroke discards the transcript, and a queued next
-    /// hold hasn't opened its microphone yet. The fix is one short generation
-    /// when the model is loaded — but on an idle-unloaded engine it begins
-    /// with a model RELOAD, tens of seconds the sentence must not be hostage
-    /// to. Past the budget the transcript goes in exactly as heard.
+    /// territory: any keystroke sends the transcript to the clipboard instead
+    /// of the caret, and a queued next hold hasn't opened its microphone yet.
+    /// The fix is one short generation when the model is loaded — but on an
+    /// idle-unloaded engine it begins with a model RELOAD, tens of seconds the
+    /// sentence must not be hostage to. Past the budget the transcript goes in
+    /// exactly as heard.
     private func polish(_ text: String) async -> String? {
         guard let owner else { return nil }
         // The shared fix path is defined for a single line of at most 500

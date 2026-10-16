@@ -20,6 +20,8 @@ struct DictationAnchor {
 /// Why a transcript went to the clipboard instead of the field.
 enum DictationRescue {
     case focusMoved
+    /// A keystroke or click landed while the take was being written down.
+    case caretMoved
     case timedOut
 }
 

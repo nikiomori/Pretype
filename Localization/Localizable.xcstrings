@@ -60869,6 +60869,106 @@
         }
       }
     },
+    "the caret moved — dictation copied, ⌘V to paste" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kurzor se posunul — text zkopírován, vložte ⌘V"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cursor wurde bewegt – Diktat kopiert, mit ⌘V einsetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el cursor se ha movido — dictado copiado, ⌘V para pegar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le curseur a bougé — dictée copiée, ⌘V pour coller"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "il cursore si è spostato — dettatura copiata, ⌘V per incollare"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カーソルが移動しました — テキストをコピーしました。⌘Vでペースト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커서 이동 — 받아쓰기 복사됨, ⌘V로 붙여넣기"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de cursor is verplaatst – dictee gekopieerd, plak met ⌘V"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kursor się przesunął — tekst skopiowany, wklej ⌘V"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o cursor se moveu — ditado copiado, ⌘V para colar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cursorul s-a mutat — dictarea s-a copiat, ⌘V pentru lipire"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "курсор сдвинулся — текст скопирован, вставьте ⌘V"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "markören flyttades — dikteringen kopierades, klistra in med ⌘V"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "imleç taşındı — dikte kopyalandı, yapıştırmak için ⌘V"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "курсор зрушив — текст скопійовано, вставте ⌘V"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入点已移动，听写内容已拷贝，按 ⌘V 粘贴"
+          }
+        }
+      }
+    },
     "the microphone format can't be converted" : {
       "localizations" : {
         "cs" : {

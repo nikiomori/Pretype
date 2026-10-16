@@ -2142,6 +2142,9 @@ extension SuggestionController: DictationHost {
         case .focusMoved:
             parkDictation(text, why: "the focus moved",
                           notice: String(localized: "focus moved — dictation copied, ⌘V to paste"))
+        case .caretMoved:
+            parkDictation(text, why: "the caret moved",
+                          notice: String(localized: "the caret moved — dictation copied, ⌘V to paste"))
         case .timedOut:
             parkDictation(text, why: "transcription timed out",
                           notice: String(localized: "transcription timed out — the preview is copied, ⌘V to paste"))

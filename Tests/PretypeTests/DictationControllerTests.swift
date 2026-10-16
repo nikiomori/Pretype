@@ -307,20 +307,41 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.controller.phase, .idle)
     }
 
-    func testKeystrokeDuringFinalizeDiscardsWithNotice() async {
+    /// Release-then-keep-typing: the finished sentence can't be typed at a
+    /// caret that has moved, and must not be thrown away over one keystroke
+    /// either — on a hosted API `.working` is the whole upload.
+    func testKeystrokeDuringFinalizeRescuesToTheClipboard() async {
         let rig = makeRig { $0.finishDelay = 0.3 }
         await startCapture(rig)
-        await hear("about to vanish", in: rig)
+        await hear("about to move", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         rig.controller.keyPressed()
+        XCTAssertEqual(rig.controller.phase, .working, "a keystroke no longer drops the take")
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertTrue(rig.host.inserted.isEmpty, "the caret moved — the transcript must not follow it")
+    }
+
+    /// A voice command has nothing to rescue — its selection is what moved —
+    /// so a keystroke mid-write still drops it, with the notice.
+    func testKeystrokeDuringAVoiceCommandStillDropsIt() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig { $0.finishDelay = 0.3 }
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("make it shorter", in: rig)
+        await release(rig.controller)
+        rig.controller.keyPressed()
         XCTAssertEqual(rig.controller.phase, .idle)
         guard case .hint(let notice)? = rig.host.transientNotices.last else {
-            return XCTFail("a silently vanished sentence reads as a broken feature")
+            return XCTFail("a silently vanished command reads as a broken feature")
         }
         XCTAssertTrue(notice.contains("kept typing"), notice)
         await pump(0.4)
-        XCTAssertTrue(rig.host.inserted.isEmpty)
+        XCTAssertTrue(rig.host.commands.isEmpty)
+        XCTAssertTrue(rig.host.rescued.isEmpty)
     }
 
     func testSecondHoldQueuesBehindFinalize() async {
@@ -648,22 +669,19 @@ final class DictationControllerTests: XCTestCase {
         }
     }
 
-    /// A click mid-`.working` discards a *finished* sentence — that earns the
-    /// same notice a keystroke gets. Mid-`.listening` it stays silent: the
-    /// pill vanishing under the click is its own explanation.
-    func testPointerDuringWorkingShowsNoticeListeningStaysSilent() async {
+    /// A click mid-`.working` moves the caret a *finished* sentence was headed
+    /// for — it goes to the clipboard, the same as after a keystroke.
+    /// Mid-`.listening` it stays silent: the pill vanishing under the click is
+    /// its own explanation.
+    func testPointerDuringWorkingRescuesListeningStaysSilent() async {
         let rig = makeRig { $0.finishDelay = 0.3 }
         await startCapture(rig)
-        await hear("about to vanish", in: rig)
+        await hear("about to move", in: rig)
         await release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .working)
         rig.controller.mouseDown()
-        XCTAssertEqual(rig.controller.phase, .idle)
-        guard case .hint(let notice)? = rig.host.transientNotices.last else {
-            return XCTFail("a clicked-away finished sentence must say where it went")
-        }
-        XCTAssertTrue(notice.contains("caret moved"), notice)
-        await pump(0.4)
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"], "a clicked-away finished sentence is kept")
         XCTAssertTrue(rig.host.inserted.isEmpty)
 
         let quiet = makeRig()
@@ -1136,9 +1154,9 @@ final class DictationControllerTests: XCTestCase {
 
     /// Standing down from the interrupts is about the LISTENING window. Once
     /// the chord has been pressed again and the words are being written down,
-    /// a click has moved the caret they are about to be typed at — which is
-    /// exactly what the pre-existing notice is for, whatever started it.
-    func testAClickWhileWritingAHandsFreeTranscriptDownStillCancels() async {
+    /// a click has moved the caret they are about to be typed at — so they go
+    /// to the clipboard instead, whatever started the capture.
+    func testAClickWhileWritingAHandsFreeTranscriptDownRescuesIt() async {
         let rig = makeRig { $0.finishDelay = 0.4 }
         await startLatched(rig)
         await hear("about to land", in: rig)
@@ -1148,10 +1166,7 @@ final class DictationControllerTests: XCTestCase {
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.inserted.isEmpty,
                       "the caret moved — the transcript must not follow it")
-        guard case .hint(let notice)? = rig.host.transientNotices.last else {
-            return XCTFail("a dropped finished sentence has to say so")
-        }
-        XCTAssertTrue(notice.contains("caret moved"), notice)
+        XCTAssertEqual(rig.host.rescued, ["hello world"], "minutes of speech are kept, not dropped")
     }
 
     /// A latched capture's long ceiling is about how long someone may SPEAK.
