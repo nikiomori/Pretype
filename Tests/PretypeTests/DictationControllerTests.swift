@@ -361,6 +361,25 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.capture.startCount, 2)
     }
 
+    /// A hold queued behind the write that another modifier joins (⌥ held,
+    /// then ⇧) was a chord: only the queued hold goes. The take being written
+    /// down still lands — a modifier moves no caret.
+    func testAChordOnAQueuedHoldLeavesTheTakeBeingWritten() async {
+        let rig = makeRig { $0.finishDelay = 0.3 }
+        await startCapture(rig)
+        await hear("first sentence", in: rig)
+        await release(rig.controller)
+        await holdDown(rig.controller)
+        XCTAssertTrue(rig.controller.hold.isActive, "queued behind the write")
+        rig.controller.modifierChanged(modifierEvent(key: KeyCode.leftShift,
+                                                     flag: [.maskAlternate, .maskShift], down: true))
+        XCTAssertEqual(rig.controller.phase, .working, "the chord must not drop the take")
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertEqual(rig.capture.startCount, 1, "the chord never opens a microphone")
+        XCTAssertTrue(rig.host.transientNotices.isEmpty, "\(rig.host.transientNotices)")
+    }
+
     func testDeviceChangeWithoutPinnedFormatFinishes() async {
         let rig = makeRig()  // audioFormat nil: restart-in-place is unsound
         await startCapture(rig)

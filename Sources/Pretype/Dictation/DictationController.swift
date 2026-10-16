@@ -332,7 +332,9 @@ final class DictationController {
         // take being written down goes to the clipboard, not away. ⎋ is still
         // a cancel — Settings promises "⎋ discards one already running".
         if !isEscape, rescueOnInterrupt() { return }
-        if let event = hold.keyPressed() { return apply(event) }
+        // Mid-write a `.cancel` would only end a queued hold (see `apply`),
+        // and this keystroke ends the take too — below.
+        if let event = hold.keyPressed(), phase != .working { return apply(event) }
         // What is left mid-write is ⎋ or a voice command, and both are
         // dropped WITH a notice, unlike the other silent interrupts: a take
         // that vanishes without a word is indistinguishable from the feature
@@ -467,6 +469,14 @@ final class DictationController {
         switch event {
         case .begin: begin()
         case .end: finish()
+        case .cancel where phase == .working:
+            // Mid-write, the hold a `.cancel` ends is the one QUEUED behind the
+            // take (`begin`): another modifier joined it, so it was a chord.
+            // Only the queue goes — a modifier types nothing, the caret is
+            // still where the take is headed, and it lands there. ⎋ drops the
+            // take itself, in `keyPressed`.
+            if pendingBegin == .hold { pendingBegin = nil }
+            Self.note("queued hold turned into a chord — dropped it, still writing the last one down")
         case .cancel: discard(notice: .hint(String(localized: "dictation cancelled")))
         case nil: break
         }
