@@ -396,7 +396,7 @@ final class ModelCatalogTests: XCTestCase {
         // Bonsai corrects with itself, through its own chat template.
         let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .base)
         XCTAssertEqual(bonsai?.m.fixPct, 19)
-        XCTAssertEqual(bonsai?.m.replyPct, 36)
+        XCTAssertEqual(bonsai?.m.replyPct, 22)
         // Not measured: only the system model.
         XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
     }

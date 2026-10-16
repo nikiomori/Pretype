@@ -285,9 +285,9 @@ struct ChordTaskRows: View {
             }
             .help("Of 510 single-typo sentences in 17 languages, \(t.runsOn) — the model this pick loads for the chord — restored \(t.m.fixPct)% [\(t.m.fixCI.lowerBound)–\(t.m.fixCI.upperBound)] to the exact original; on 170 already-clean lines it still proposed a change \(t.m.falseFixPct)% of the time. Warm median \(t.m.fixP50Ms) ms. \(ModelMetrics.taskSource).")
             LabeledContent("Draft a reply (\(store.hotkeyStyle.replyLabel))") {
-                Text("\(t.m.replyPct)% usable")
+                Text("\(t.m.replyPct)% on topic")
             }
-            .help("Of 380 on-screen conversations in 19 languages, \(t.runsOn) drafted something in the conversation's language without parroting the screen \(t.m.replyPct)% [\(t.m.replyCI.lowerBound)–\(t.m.replyCI.upperBound)] of the time — a floor on usability, not a quality score. Warm median \(t.m.replyP50Ms) ms. \(ModelMetrics.taskSource).")
+            .help("Of 380 on-screen conversations in 19 languages, \(t.runsOn) wrote a reply that an independent model rates as on topic \(t.m.replyPct)% [\(t.m.replyCI.lowerBound)–\(t.m.replyCI.upperBound)] of the time. Warm median \(t.m.replyP50Ms) ms. \(ModelMetrics.taskSource).")
         } else {
             LabeledContent("Fix and reply") {
                 Text("Not measured")
@@ -456,7 +456,7 @@ struct ModelRow: View {
         guard let c = chord else {
             return String(localized: "The fix and reply chords for this model aren't measured by the task eval yet.")
         }
-        return String(localized: "The fix and reply chords run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly [\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(c.m.replyPct)% usable reply drafts [\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. \(ModelMetrics.taskSource).")
+        return String(localized: "The fix and reply chords run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly [\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(c.m.replyPct)% of reply drafts on topic [\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. \(ModelMetrics.taskSource).")
     }
 
     /// Normalization bounds across the measured catalog, so bar lengths are
@@ -766,7 +766,7 @@ struct ModelMapView: View {
         switch lens {
         case .completion: return String(localized: "↑ accuracy · bubble = memory")
         case .fix: return String(localized: "↑ exact fixes, all languages · bubble = memory")
-        case .reply: return String(localized: "↑ usable replies, all languages · bubble = memory")
+        case .reply: return String(localized: "↑ replies on topic, all languages · bubble = memory")
         }
     }
 

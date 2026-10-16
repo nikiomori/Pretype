@@ -332,12 +332,17 @@ struct ModelMetrics {
     /// 170 clean controls, 17 languages; fix% = restored EXACTLY to the clean
     /// line, false-fix% = proposed a change on a line with nothing wrong.
     /// `Eval/eval-reply.jsonl` — the 380 on-screen conversations (19
-    /// languages) that carry no draft; reply% = drafted something in the
-    /// conversation's language without restating the screen — a floor on
-    /// usability, not a quality score. The 190 draft rows are a separate
-    /// slice: a draft hands the model its language, so pooling them inflated
-    /// every model that got the language wrong on its own (EVAL_REVIEW
-    /// 2026-07-29 §2).
+    /// languages) that carry no draft; reply% = drafts an independent judge
+    /// (GPT-6 Luna, 1–5, pass ≥3 — the threshold fixed on the real-next-line
+    /// vs random-line baselines alone) rates as on topic. The earlier
+    /// "contract" (right language, no restated screen) was a floor that a
+    /// line from ANOTHER conversation passed 94% of the time; it overstated
+    /// the small siblings 2–15×. Four judges from four families (Luna,
+    /// DeepSeek, Haiku, E4B-it) give the same order of every sibling
+    /// (Eval/runs-2026-10-16-judge, BASELINE 2026-10-16 (m)(n)). The 190
+    /// draft rows are a separate slice: a draft hands the model its
+    /// language, so pooling them inflated every model that got the language
+    /// wrong on its own (EVAL_REVIEW 2026-07-29 §2).
     /// Booked from `Eval/runs-2026-10-15-rebook/` (run-tasks.sh's dumps, same
     /// harness and sets as `Eval/runs-2026-10-11/`), see `taskSource`.
     /// The 07-25 booking is superseded wholesale: its echo check normalized
@@ -347,13 +352,11 @@ struct ModelMetrics {
     /// Verdicts at the p<0.01 rule, paired over the shared rows: the fix
     /// column is a clean ladder — every adjacent gap (69 > 65 > 50 > 33 > 19
     /// > 11) significant at p<0.001, E4B-it 6-bit ahead of its 4-bit build
-    /// (p=9e-4). On replies the three Gemma siblings tie (95–96%, p≥0.3),
-    /// then Qwen3.5 > Qwen0.5B-it > Bonsai (p<0.001 each) — the small models'
-    /// drafts mostly restate the screen, which `cleanReply` drops. The 10-15
-    /// re-run reproduced every fix output (97–100% identical); replies moved
-    /// only on the small models (Bonsai 39 → 36%, p=0.001: `cleanReply`'s
-    /// later echo filter now drops 14 of its drafts). MiniCPM5's own row
-    /// (fix 4% / reply 35%) left the table on 2026-10-15 with its chords,
+    /// (p=9e-4). On replies E4B-it 6-bit > E2B-it 4-bit (p=0.002; the
+    /// adjacent Gemma gaps n.s.), then a cliff to Qwen3.5 (p=8e-41) > Bonsai
+    /// (p=2e-4) > Qwen0.5B-it (p=1e-14). The 10-15 re-run reproduced every
+    /// fix output (97–100% identical). MiniCPM5's own row (fix 4% / reply
+    /// 34% on topic) left the table on 2026-10-15 with its chords,
     /// which now ride Qwen3.5's sibling — no pick runs it at recommended
     /// settings.
     struct TaskMetrics {
@@ -364,9 +367,8 @@ struct ModelMetrics {
         let falseFixPct: Int
         /// Warm median latency of a fix, ms, on the dev machine (release build).
         let fixP50Ms: Int
-        /// % of reply rows meeting the contract — answered, in the
-        /// conversation's language, not restating it — over the 380 rows
-        /// with no draft (Wilson 95% CI).
+        /// % of reply drafts the judge rates on topic, over the 380 rows
+        /// with no draft (no draft = a miss; Wilson 95% CI).
         let replyPct: Int
         let replyCI: ClosedRange<Int>
         let replyP50Ms: Int
@@ -375,29 +377,29 @@ struct ModelMetrics {
     /// eval-correct / eval-reply, re-run 2026-10-15 on the shipping engine
     /// (`Eval/runs-2026-10-15-rebook`, run-tasks.sh): release build, persona
     /// pinned empty, MTP drafters and prompt-lookup on as shipped, slim
-    /// re-packs, draft rows out of the reply denominator. p50s are this
-    /// run's own, measured straight — no ratio scaling.
-    static let taskSource = "eval-correct/eval-reply, 2026-10-15"
+    /// re-packs, draft rows out of the reply denominator; those reply dumps
+    /// judged 2026-10-16. p50s are the run's own, measured straight.
+    static let taskSource = "eval-correct 2026-10-15 · eval-reply judged by GPT-6 Luna 2026-10-16"
 
     static let tasks: [String: TaskMetrics] = [
         "mlx-community/gemma-4-e4b-it-6bit": TaskMetrics(
             fixPct: 69, fixCI: 65...73, falseFixPct: 18, fixP50Ms: 168,
-            replyPct: 96, replyCI: 94...98, replyP50Ms: 409),
+            replyPct: 90, replyCI: 86...92, replyP50Ms: 409),
         "mlx-community/gemma-4-e4b-it-4bit": TaskMetrics(
             fixPct: 65, fixCI: 61...69, falseFixPct: 20, fixP50Ms: 243,
-            replyPct: 95, replyCI: 92...97, replyP50Ms: 243),
+            replyPct: 87, replyCI: 83...90, replyP50Ms: 243),
         "mlx-community/gemma-4-e2b-it-4bit": TaskMetrics(
             fixPct: 50, fixCI: 46...54, falseFixPct: 30, fixP50Ms: 96,
-            replyPct: 96, replyCI: 94...98, replyP50Ms: 88),
+            replyPct: 83, replyCI: 79...86, replyP50Ms: 88),
         "mlx-community/Qwen3.5-2B-4bit": TaskMetrics(
             fixPct: 33, fixCI: 29...37, falseFixPct: 28, fixP50Ms: 134,
-            replyPct: 72, replyCI: 68...77, replyP50Ms: 137),
+            replyPct: 35, replyCI: 30...40, replyP50Ms: 137),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
             fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 33,
-            replyPct: 49, replyCI: 44...54, replyP50Ms: 78),
+            replyPct: 3, replyCI: 2...6, replyP50Ms: 78),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": TaskMetrics(
             fixPct: 19, fixCI: 16...23, falseFixPct: 12, fixP50Ms: 203,
-            replyPct: 36, replyCI: 32...41, replyP50Ms: 205),
+            replyPct: 22, replyCI: 18...27, replyP50Ms: 205),
     ]
 
     /// Display names for the measured siblings — they are not catalog

@@ -3391,102 +3391,102 @@
         }
       }
     },
-    "%lld%% usable" : {
+    "%lld%% on topic" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% použitelných"
+            "value" : "%lld%% k věci"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% brauchbar"
+            "value" : "%lld%% zum Thema"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% útiles"
+            "value" : "%lld%% pertinentes"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% utilisables"
+            "value" : "%lld%% pertinentes"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% utilizzabili"
+            "value" : "%lld%% pertinenti"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%%使用可能"
+            "value" : "%lld%%が話題に沿う"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% 사용 가능"
+            "value" : "%lld%% 주제에 맞음"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% bruikbaar"
+            "value" : "%lld%% relevant"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% użytecznych"
+            "value" : "%lld%% trafnych"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% úteis"
+            "value" : "%lld%% pertinentes"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% utilizabile"
+            "value" : "%lld%% la subiect"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% годных"
+            "value" : "%lld%% по теме"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld %% användbara"
+            "value" : "%lld %% relevanta"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%%%lld kullanılabilir"
+            "value" : "%%%lld konuyla ilgili"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% придатних"
+            "value" : "%lld%% за темою"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld%% 可用"
+            "value" : "%lld%% 切题"
           }
         }
       }
@@ -9291,102 +9291,102 @@
         }
       }
     },
-    "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 95% usable reply drafts). E4B is the upgrade if this Mac gains memory; the small models spend less." : {
+    "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 87% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vybráno automaticky podle paměti tohoto Macu (~3.4 GB v paměti, po nečinnosti se uvolní): stabilní ve všech 17 hodnocených jazycích a měřitelně před všemi malými modely; zkratky pro opravu a odpověď běží na E4B-it, načteném při prvním použití (65% přesných oprav, 95% použitelných konceptů odpovědí). E4B je krok výš, pokud Mac získá víc paměti; malé modely spotřebují méně."
+            "value" : "Vybráno automaticky podle paměti tohoto Macu (~3.4 GB v paměti, po nečinnosti se uvolní): stabilní ve všech 17 hodnocených jazycích a měřitelně před všemi malými modely; zkratky pro opravu a odpověď běží na E4B-it, načteném při prvním použití (65% přesných oprav, 87% konceptů odpovědí k věci). E4B je krok výš, pokud Mac získá víc paměti; malé modely spotřebují méně."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt (~3,4 GB belegt, im Leerlauf wieder freigegeben): robust in allen 17 getesteten Sprachen und messbar vor jedem kleinen Modell; Korrektur und Antwort laufen über E4B-it, beim ersten Gebrauch geladen (65% exakte Korrekturen, 95% brauchbare Antwortentwürfe). E4B ist das Upgrade, wenn dieser Mac mehr Speicher bekommt; die kleinen Modelle verbrauchen weniger."
+            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt (~3,4 GB belegt, im Leerlauf wieder freigegeben): robust in allen 17 getesteten Sprachen und messbar vor jedem kleinen Modell; Korrektur und Antwort laufen über E4B-it, beim ersten Gebrauch geladen (65% exakte Korrekturen, 87% Antwortentwürfe zum Thema). E4B ist das Upgrade, wenn dieser Mac mehr Speicher bekommt; die kleinen Modelle verbrauchen weniger."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elegido automáticamente según la memoria de este Mac (~3,4 GB residentes, se liberan en reposo): robusto en los 17 idiomas evaluados y claramente por delante de todos los modelos pequeños; los atajos de corrección y respuesta usan E4B-it, que se carga al usarlos por primera vez (65% de restauraciones exactas, 95% de borradores de respuesta útiles). E4B es la mejora si este Mac tiene más memoria; los modelos pequeños gastan menos."
+            "value" : "Elegido automáticamente según la memoria de este Mac (~3,4 GB residentes, se liberan en reposo): robusto en los 17 idiomas evaluados y claramente por delante de todos los modelos pequeños; los atajos de corrección y respuesta usan E4B-it, que se carga al usarlos por primera vez (65% de restauraciones exactas, 87% de borradores de respuesta pertinentes). E4B es la mejora si este Mac tiene más memoria; los modelos pequeños gastan menos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choisi automatiquement selon la mémoire de ce Mac (~3,4 Go résidents, libérés après inactivité) : fiable sur les 17 langues évaluées et nettement devant tous les petits modèles ; ses raccourcis de correction et de réponse utilisent E4B-it, chargé à la première utilisation (65% de restaurations exactes, 95% de brouillons de réponse utilisables). E4B est l’étape suivante si ce Mac gagne de la mémoire ; les petits modèles consomment moins."
+            "value" : "Choisi automatiquement selon la mémoire de ce Mac (~3,4 Go résidents, libérés après inactivité) : fiable sur les 17 langues évaluées et nettement devant tous les petits modèles ; ses raccourcis de correction et de réponse utilisent E4B-it, chargé à la première utilisation (65% de restaurations exactes, 87% de brouillons de réponse pertinents). E4B est l’étape suivante si ce Mac gagne de la mémoire ; les petits modèles consomment moins."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scelto automaticamente in base alla memoria di questo Mac (~3,4 GB residenti, liberati di nuovo quando inattivo): affidabile su tutte le 17 lingue valutate e nettamente davanti a ogni modello piccolo; le combinazioni di correzione e risposta usano E4B-it, caricato al primo uso (65% di correzioni esatte, 95% di bozze di risposta utilizzabili). E4B è il passo successivo se questo Mac avrà più memoria; i modelli piccoli consumano meno."
+            "value" : "Scelto automaticamente in base alla memoria di questo Mac (~3,4 GB residenti, liberati di nuovo quando inattivo): affidabile su tutte le 17 lingue valutate e nettamente davanti a ogni modello piccolo; le combinazioni di correzione e risposta usano E4B-it, caricato al primo uso (65% di correzioni esatte, 87% di bozze di risposta pertinenti). E4B è il passo successivo se questo Mac avrà più memoria; i modelli piccoli consumano meno."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacのメモリに合わせて自動選択（常駐約3.4 GB、アイドル時に解放）：評価した17言語すべてで安定し、どの小型モデルよりも明らかに優れています。修正と返信のショートカットは、初回使用時に読み込まれるE4B-itで動作します（正確な復元65%、使える返信の下書き95%）。メモリを増やすならE4Bが上位の選択肢、小型モデルならメモリを節約できます。"
+            "value" : "このMacのメモリに合わせて自動選択（常駐約3.4 GB、アイドル時に解放）：評価した17言語すべてで安定し、どの小型モデルよりも明らかに優れています。修正と返信のショートカットは、初回使用時に読み込まれるE4B-itで動作します（正確な復元65%、話題に沿った返信の下書き87%）。メモリを増やすならE4Bが上位の選択肢、小型モデルならメモリを節約できます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨(상주 약 3.4 GB, 대기 시 해제): 평가한 17개 언어 모두에서 안정적이며 모든 소형 모델보다 확실히 앞섭니다. 수정 및 답장 단축키는 처음 사용할 때 로드되는 E4B-it에서 실행됩니다(정확한 복원 65%, 사용 가능한 답장 초안 95%). 이 Mac의 메모리가 늘어나면 E4B로 업그레이드할 수 있고, 소형 모델은 메모리를 덜 씁니다."
+            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨(상주 약 3.4 GB, 대기 시 해제): 평가한 17개 언어 모두에서 안정적이며 모든 소형 모델보다 확실히 앞섭니다. 수정 및 답장 단축키는 처음 사용할 때 로드되는 E4B-it에서 실행됩니다(정확한 복원 65%, 주제에 맞는 답장 초안 87%). 이 Mac의 메모리가 늘어나면 E4B로 업그레이드할 수 있고, 소형 모델은 메모리를 덜 씁니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch gekozen voor het geheugen van deze Mac (~3,4 GB in gebruik, weer vrijgegeven bij inactiviteit): robuust in alle 17 geteste talen en meetbaar beter dan elk klein model; correctie en antwoord lopen via E4B-it, geladen bij het eerste gebruik (65% exacte correcties, 95% bruikbare conceptantwoorden). E4B is de upgrade als deze Mac meer geheugen krijgt; de kleine modellen verbruiken minder."
+            "value" : "Automatisch gekozen voor het geheugen van deze Mac (~3,4 GB in gebruik, weer vrijgegeven bij inactiviteit): robuust in alle 17 geteste talen en meetbaar beter dan elk klein model; correctie en antwoord lopen via E4B-it, geladen bij het eerste gebruik (65% exacte correcties, 87% relevante conceptantwoorden). E4B is de upgrade als deze Mac meer geheugen krijgt; de kleine modellen verbruiken minder."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wybrany automatycznie według pamięci tego Maca (~3.4 GB w pamięci, zwalniane po bezczynności): stabilny we wszystkich 17 badanych językach i mierzalnie przed każdym małym modelem; skróty poprawek i odpowiedzi działają na E4B-it, ładowanym przy pierwszym użyciu (65% dokładnych poprawek, 95% użytecznych szkiców odpowiedzi). E4B to krok wyżej, jeśli ten Mac zyska pamięć; małe modele zużywają mniej."
+            "value" : "Wybrany automatycznie według pamięci tego Maca (~3.4 GB w pamięci, zwalniane po bezczynności): stabilny we wszystkich 17 badanych językach i mierzalnie przed każdym małym modelem; skróty poprawek i odpowiedzi działają na E4B-it, ładowanym przy pierwszym użyciu (65% dokładnych poprawek, 87% trafnych szkiców odpowiedzi). E4B to krok wyżej, jeśli ten Mac zyska pamięć; małe modele zużywają mniej."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escolhido automaticamente pela memória deste Mac (~3,4 GB residentes, liberados quando ocioso): robusto nos 17 idiomas avaliados e claramente à frente de todos os modelos pequenos; os atalhos de correção e resposta usam o E4B-it, carregado no primeiro uso (65% de restaurações exatas, 95% de rascunhos de resposta úteis). O E4B é o próximo passo se este Mac ganhar memória; os modelos pequenos gastam menos."
+            "value" : "Escolhido automaticamente pela memória deste Mac (~3,4 GB residentes, liberados quando ocioso): robusto nos 17 idiomas avaliados e claramente à frente de todos os modelos pequenos; os atalhos de correção e resposta usam o E4B-it, carregado no primeiro uso (65% de restaurações exatas, 87% de rascunhos de resposta pertinentes). O E4B é o próximo passo se este Mac ganhar memória; os modelos pequenos gastam menos."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ales automat după memoria acestui Mac (~3.4 GB rezident, eliberat la inactivitate): robust pe toate cele 17 limbi evaluate și măsurabil înaintea tuturor modelelor mici; combinațiile de corectare și răspuns rulează pe E4B-it, încărcat la prima utilizare (65% corecturi exacte, 95% ciorne de răspuns utilizabile). E4B este pasul următor dacă acest Mac primește mai multă memorie; modelele mici consumă mai puțin."
+            "value" : "Ales automat după memoria acestui Mac (~3.4 GB rezident, eliberat la inactivitate): robust pe toate cele 17 limbi evaluate și măsurabil înaintea tuturor modelelor mici; combinațiile de corectare și răspuns rulează pe E4B-it, încărcat la prima utilizare (65% corecturi exacte, 87% ciorne de răspuns la subiect). E4B este pasul următor dacă acest Mac primește mai multă memorie; modelele mici consumă mai puțin."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Выбрана автоматически по памяти этого Mac (~3.4 ГБ в памяти, освобождается в простое): стабильна на всех 17 проверенных языках и заметно опережает все малые модели; сочетания исправления и ответа работают на E4B-it, которая загружается при первом использовании (65% точных исправлений, 95% пригодных черновиков ответа). E4B — шаг вверх для Mac с большей памятью; малые модели расходуют меньше."
+            "value" : "Выбрана автоматически по памяти этого Mac (~3.4 ГБ в памяти, освобождается в простое): стабильна на всех 17 проверенных языках и заметно опережает все малые модели; сочетания исправления и ответа работают на E4B-it, которая загружается при первом использовании (65% точных исправлений, 87% черновиков ответа по теме). E4B — шаг вверх для Mac с большей памятью; малые модели расходуют меньше."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valdes automatiskt efter den här Macens minne (~3.4 GB i minnet, frigörs igen vid inaktivitet): stabil på alla 17 utvärderade språk och mätbart före alla små modeller, med kortkommandona för rättning och svar på E4B-it, som läses in vid första användning (65 % exakta rättningar, 95 % användbara svarsutkast). E4B är uppgraderingen om den här Macen får mer minne; de små modellerna förbrukar mindre."
+            "value" : "Valdes automatiskt efter den här Macens minne (~3.4 GB i minnet, frigörs igen vid inaktivitet): stabil på alla 17 utvärderade språk och mätbart före alla små modeller, med kortkommandona för rättning och svar på E4B-it, som läses in vid första användning (65 % exakta rättningar, 87 % relevanta svarsutkast). E4B är uppgraderingen om den här Macen får mer minne; de små modellerna förbrukar mindre."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu Mac’in belleğine göre otomatik seçildi (bellekte ~3.4 GB, boşta kalınca yeniden boşaltılır): değerlendirilen 17 dilin tümünde sağlam ve tüm küçük modellerin ölçülebilir biçimde önünde; düzeltme ve yanıt kısayolları ilk kullanımda yüklenen E4B-it üzerinde çalışır (%65 birebir onarım, %95 kullanılabilir yanıt taslağı). Bu Mac’in belleği artarsa E4B bir üst adım; küçük modeller daha az harcar."
+            "value" : "Bu Mac’in belleğine göre otomatik seçildi (bellekte ~3.4 GB, boşta kalınca yeniden boşaltılır): değerlendirilen 17 dilin tümünde sağlam ve tüm küçük modellerin ölçülebilir biçimde önünde; düzeltme ve yanıt kısayolları ilk kullanımda yüklenen E4B-it üzerinde çalışır (%65 birebir onarım, %87 konuyla ilgili yanıt taslağı). Bu Mac’in belleği artarsa E4B bir üst adım; küçük modeller daha az harcar."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac (~3.4 ГБ у пам’яті, звільняється під час простою): стабільна на всіх 17 перевірених мовах і помітно випереджає всі малі моделі; комбінації виправлення й відповіді працюють на E4B-it, яка завантажується під час першого використання (65% точних виправлень, 95% придатних чернеток відповіді). E4B — крок угору, якщо пам’яті в Mac стане більше; малі моделі витрачають менше."
+            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac (~3.4 ГБ у пам’яті, звільняється під час простою): стабільна на всіх 17 перевірених мовах і помітно випереджає всі малі моделі; комбінації виправлення й відповіді працюють на E4B-it, яка завантажується під час першого використання (65% точних виправлень, 87% чернеток відповіді за темою). E4B — крок угору, якщо пам’яті в Mac стане більше; малі моделі витрачають менше."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "根据这台 Mac 的内存自动选择（常驻约 3.4 GB，闲置后释放）：在全部 17 种评测语言上表现稳定，明显领先所有小模型；修正和回复快捷键由 E4B-it 处理，首次使用时载入（65% 精确还原，95% 回复草稿可用）。如果这台 Mac 内存更大，可升级到 E4B；小模型占用更少。"
+            "value" : "根据这台 Mac 的内存自动选择（常驻约 3.4 GB，闲置后释放）：在全部 17 种评测语言上表现稳定，明显领先所有小模型；修正和回复快捷键由 E4B-it 处理，首次使用时载入（65% 精确还原，87% 回复草稿切题）。如果这台 Mac 内存更大，可升级到 E4B；小模型占用更少。"
           }
         }
       }
@@ -9491,102 +9491,102 @@
         }
       }
     },
-    "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 72%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
+    "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.6 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vybráno automaticky podle paměti tohoto Macu: nejsilnější model, který se pohodlně vejde — 1.5 GB. V doplňování v angličtině a ruštině je na úrovni nejrychlejších malých modelů, na širší sadě jazyků porazí všechny ostatní modely do 2 GB (p<0.001) a díky dotrénované verzi zachová funkční zkratky pro opravu a odpověď (33% / 72%) — jednorázové stažení 1.6 GB při prvním použití. Na Macu s větší pamětí je přesnější varianta Gemma."
+            "value" : "Vybráno automaticky podle paměti tohoto Macu: nejsilnější model, který se pohodlně vejde — 1.5 GB. V doplňování v angličtině a ruštině je na úrovni nejrychlejších malých modelů, na širší sadě jazyků porazí všechny ostatní modely do 2 GB (p<0.001) a díky dotrénované verzi zachová funkční zkratky pro opravu a odpověď (33% / 35%) — jednorázové stažení 1.6 GB při prvním použití. Na Macu s větší pamětí je přesnější varianta Gemma."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt: das stärkste Modell, das bequem passt – 1,5 GB. Gleichauf mit den schnellsten kleinen Modellen bei Vervollständigungen auf Englisch und Russisch, vor jedem anderen Modell unter 2 GB im breiteren Sprachset (p<0,001) und mit funktionierender Korrektur und Antwort (33% / 72%) über seine nachtrainierte Variante – ein einmaliger Download von 1,6 GB beim ersten Gebrauch. Eine Gemma-Stufe ist das Genauigkeits-Upgrade auf einem Mac mit mehr Speicher."
+            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt: das stärkste Modell, das bequem passt – 1,5 GB. Gleichauf mit den schnellsten kleinen Modellen bei Vervollständigungen auf Englisch und Russisch, vor jedem anderen Modell unter 2 GB im breiteren Sprachset (p<0,001) und mit funktionierender Korrektur und Antwort (33% / 35%) über seine nachtrainierte Variante – ein einmaliger Download von 1,6 GB beim ersten Gebrauch. Eine Gemma-Stufe ist das Genauigkeits-Upgrade auf einem Mac mit mehr Speicher."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elegido automáticamente según la memoria de este Mac: el modelo más potente que cabe con holgura, 1,5 GB. Empata con los modelos pequeños más rápidos en autocompletado en inglés y ruso, supera a todos los demás modelos de menos de 2 GB en el conjunto amplio de idiomas (p<0.001) y mantiene los atajos de corrección y respuesta (33% / 72%) con su versión postentrenada, una descarga única de 1,6 GB al usarla por primera vez. Un nivel Gemma es la mejora de precisión en un Mac con más memoria."
+            "value" : "Elegido automáticamente según la memoria de este Mac: el modelo más potente que cabe con holgura, 1,5 GB. Empata con los modelos pequeños más rápidos en autocompletado en inglés y ruso, supera a todos los demás modelos de menos de 2 GB en el conjunto amplio de idiomas (p<0.001) y mantiene los atajos de corrección y respuesta (33% / 35%) con su versión postentrenada, una descarga única de 1,6 GB al usarla por primera vez. Un nivel Gemma es la mejora de precisión en un Mac con más memoria."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choisi automatiquement selon la mémoire de ce Mac : le modèle le plus performant qui tient à l’aise — 1,5 Go. À égalité avec les petits modèles les plus rapides en complétion anglaise et russe, il bat tous les autres modèles de moins de 2 Go sur l’ensemble de langues élargi (p<0.001) et assure les raccourcis de correction et de réponse (33% / 72%) grâce à sa version post-entraînée, téléchargée une seule fois (1,6 Go) à la première utilisation. Sur un Mac doté de plus de mémoire, une variante Gemma est plus précise."
+            "value" : "Choisi automatiquement selon la mémoire de ce Mac : le modèle le plus performant qui tient à l’aise — 1,5 Go. À égalité avec les petits modèles les plus rapides en complétion anglaise et russe, il bat tous les autres modèles de moins de 2 Go sur l’ensemble de langues élargi (p<0.001) et assure les raccourcis de correction et de réponse (33% / 35%) grâce à sa version post-entraînée, téléchargée une seule fois (1,6 Go) à la première utilisation. Sur un Mac doté de plus de mémoire, une variante Gemma est plus précise."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scelto automaticamente in base alla memoria di questo Mac: il modello più forte che ci sta comodamente, 1,5 GB. Alla pari con i modelli piccoli più veloci nei completamenti in inglese e russo, batte ogni altro modello sotto i 2 GB sull'insieme più ampio di lingue (p<0,001) e mantiene attive le combinazioni di correzione e risposta (33% / 72%) tramite la sua versione post-addestrata, un download unico di 1,6 GB al primo uso. Su un Mac con più memoria, un livello Gemma è più preciso."
+            "value" : "Scelto automaticamente in base alla memoria di questo Mac: il modello più forte che ci sta comodamente, 1,5 GB. Alla pari con i modelli piccoli più veloci nei completamenti in inglese e russo, batte ogni altro modello sotto i 2 GB sull'insieme più ampio di lingue (p<0,001) e mantiene attive le combinazioni di correzione e risposta (33% / 35%) tramite la sua versione post-addestrata, un download unico di 1,6 GB al primo uso. Su un Mac con più memoria, un livello Gemma è più preciso."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacのメモリに合わせて自動選択：無理なく収まる最も強力なモデル（1.5 GB）。英語とロシア語の補完では最速の小型モデルと互角で、より多くの言語では2 GB未満のほかのどのモデルよりも優れています（p<0.001）。修正と返信のショートカットも、追加学習版で動作します（33% / 72%、初回使用時に1.6 GBを一度だけダウンロード）。メモリの多いMacなら、Gemmaで精度が上がります。"
+            "value" : "このMacのメモリに合わせて自動選択：無理なく収まる最も強力なモデル（1.5 GB）。英語とロシア語の補完では最速の小型モデルと互角で、より多くの言語では2 GB未満のほかのどのモデルよりも優れています（p<0.001）。修正と返信のショートカットも、追加学習版で動作します（33% / 35%、初回使用時に1.6 GBを一度だけダウンロード）。メモリの多いMacなら、Gemmaで精度が上がります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨: 여유 있게 들어가는 가장 강력한 모델(1.5 GB)입니다. 영어와 러시아어 완성에서는 가장 빠른 소형 모델과 대등하고, 더 넓은 언어 세트에서는 2 GB 미만의 다른 모든 모델보다 앞서며(p<0.001), 추가 학습된 버전을 통해 수정 및 답장 단축키도 작동합니다(33% / 72%). 이 버전은 처음 사용할 때 1.6 GB를 한 번 다운로드합니다. 메모리가 더 많은 Mac에서는 Gemma 등급이 더 정확합니다."
+            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨: 여유 있게 들어가는 가장 강력한 모델(1.5 GB)입니다. 영어와 러시아어 완성에서는 가장 빠른 소형 모델과 대등하고, 더 넓은 언어 세트에서는 2 GB 미만의 다른 모든 모델보다 앞서며(p<0.001), 추가 학습된 버전을 통해 수정 및 답장 단축키도 작동합니다(33% / 35%). 이 버전은 처음 사용할 때 1.6 GB를 한 번 다운로드합니다. 메모리가 더 많은 Mac에서는 Gemma 등급이 더 정확합니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch gekozen voor het geheugen van deze Mac: het sterkste model dat ruim past – 1,5 GB. Gelijk aan de snelste kleine modellen bij aanvullingen in het Engels en Russisch, beter dan elk ander model onder 2 GB op de bredere talenset (p<0,001) en met werkende correctie en antwoord (33% / 72%) via de nagetrainde variant, een eenmalige download van 1,6 GB bij het eerste gebruik. Een Gemma-variant is de upgrade in nauwkeurigheid op een Mac met meer geheugen."
+            "value" : "Automatisch gekozen voor het geheugen van deze Mac: het sterkste model dat ruim past – 1,5 GB. Gelijk aan de snelste kleine modellen bij aanvullingen in het Engels en Russisch, beter dan elk ander model onder 2 GB op de bredere talenset (p<0,001) en met werkende correctie en antwoord (33% / 35%) via de nagetrainde variant, een eenmalige download van 1,6 GB bij het eerste gebruik. Een Gemma-variant is de upgrade in nauwkeurigheid op een Mac met meer geheugen."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wybrany automatycznie według pamięci tego Maca: najmocniejszy model, który swobodnie się mieści — 1.5 GB. Dorównuje najszybszym małym modelom w uzupełnieniach po angielsku i rosyjsku, wyprzedza wszystkie inne modele poniżej 2 GB na szerszym zestawie języków (p<0.001) i utrzymuje działanie skrótów poprawek i odpowiedzi (33% / 72%) dzięki wersji dotrenowanej — jednorazowe pobranie 1.6 GB przy pierwszym użyciu. Na Macu z większą pamięcią dokładniejszy będzie wariant Gemma."
+            "value" : "Wybrany automatycznie według pamięci tego Maca: najmocniejszy model, który swobodnie się mieści — 1.5 GB. Dorównuje najszybszym małym modelom w uzupełnieniach po angielsku i rosyjsku, wyprzedza wszystkie inne modele poniżej 2 GB na szerszym zestawie języków (p<0.001) i utrzymuje działanie skrótów poprawek i odpowiedzi (33% / 35%) dzięki wersji dotrenowanej — jednorazowe pobranie 1.6 GB przy pierwszym użyciu. Na Macu z większą pamięcią dokładniejszy będzie wariant Gemma."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escolhido automaticamente pela memória deste Mac: o modelo mais forte que cabe com folga, 1,5 GB. Empata com os modelos pequenos mais rápidos no autocompletar em inglês e russo, supera todos os outros modelos abaixo de 2 GB no conjunto amplo de idiomas (p<0.001) e mantém os atalhos de correção e resposta (33% / 72%) com sua versão pós-treinada, um download único de 1,6 GB no primeiro uso. Um nível Gemma é o ganho de precisão em um Mac com mais memória."
+            "value" : "Escolhido automaticamente pela memória deste Mac: o modelo mais forte que cabe com folga, 1,5 GB. Empata com os modelos pequenos mais rápidos no autocompletar em inglês e russo, supera todos os outros modelos abaixo de 2 GB no conjunto amplo de idiomas (p<0.001) e mantém os atalhos de correção e resposta (33% / 35%) com sua versão pós-treinada, um download único de 1,6 GB no primeiro uso. Um nível Gemma é o ganho de precisão em um Mac com mais memória."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ales automat după memoria acestui Mac: cel mai puternic model care încape comod — 1.5 GB. Egalează cele mai rapide modele mici la completări în engleză și rusă, depășește orice alt model sub 2 GB pe setul extins de limbi (p<0.001) și menține funcționale combinațiile de corectare și răspuns (33% / 72%) prin versiunea sa post-antrenată, o descărcare unică de 1.6 GB la prima utilizare. Un nivel Gemma oferă mai multă acuratețe pe un Mac cu mai multă memorie."
+            "value" : "Ales automat după memoria acestui Mac: cel mai puternic model care încape comod — 1.5 GB. Egalează cele mai rapide modele mici la completări în engleză și rusă, depășește orice alt model sub 2 GB pe setul extins de limbi (p<0.001) și menține funcționale combinațiile de corectare și răspuns (33% / 35%) prin versiunea sa post-antrenată, o descărcare unică de 1.6 GB la prima utilizare. Un nivel Gemma oferă mai multă acuratețe pe un Mac cu mai multă memorie."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Выбрана автоматически по памяти этого Mac: самая сильная модель, которая свободно помещается, — 1.5 ГБ. Наравне с самыми быстрыми малыми моделями в дополнениях на английском и русском, опережает все остальные модели до 2 ГБ на расширенном наборе языков (p<0.001) и поддерживает сочетания исправления и ответа (33% / 72%) через дообученную версию — разовая загрузка 1.6 ГБ при первом использовании. На Mac с большей памятью точнее вариант Gemma."
+            "value" : "Выбрана автоматически по памяти этого Mac: самая сильная модель, которая свободно помещается, — 1.5 ГБ. Наравне с самыми быстрыми малыми моделями в дополнениях на английском и русском, опережает все остальные модели до 2 ГБ на расширенном наборе языков (p<0.001) и поддерживает сочетания исправления и ответа (33% / 35%) через дообученную версию — разовая загрузка 1.6 ГБ при первом использовании. На Mac с большей памятью точнее вариант Gemma."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valdes automatiskt efter den här Macens minne: den starkaste modellen som får plats med marginal — 1.5 GB. Den står jämnt med de snabbaste små modellerna på engelska och ryska kompletteringar, slår alla andra modeller under 2 GB på den bredare språkuppsättningen (p<0.001) och håller kortkommandona för rättning och svar igång (33 % / 72 %) via sin eftertränade syskonmodell, en engångshämtning på 1.6 GB vid första användning. En Gemma-nivå ger högre träffsäkerhet på en Mac med mer minne."
+            "value" : "Valdes automatiskt efter den här Macens minne: den starkaste modellen som får plats med marginal — 1.5 GB. Den står jämnt med de snabbaste små modellerna på engelska och ryska kompletteringar, slår alla andra modeller under 2 GB på den bredare språkuppsättningen (p<0.001) och håller kortkommandona för rättning och svar igång (33 % / 35 %) via sin eftertränade syskonmodell, en engångshämtning på 1.6 GB vid första användning. En Gemma-nivå ger högre träffsäkerhet på en Mac med mer minne."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu Mac’in belleğine göre otomatik seçildi: rahatça sığan en güçlü model — 1.5 GB. İngilizce ve Rusça tamamlamalarda en hızlı küçük modellerle başa baş, geniş dil kümesinde 2 GB altındaki diğer tüm modelleri geçer (p<0.001) ve sonradan eğitilmiş kardeş modeliyle düzeltme ve yanıt kısayollarını çalışır tutar (%33 / %72); bu model ilk kullanımda bir kerelik 1.6 GB indirilir. Daha fazla belleği olan bir Mac’te bir Gemma katmanı daha doğrudur."
+            "value" : "Bu Mac’in belleğine göre otomatik seçildi: rahatça sığan en güçlü model — 1.5 GB. İngilizce ve Rusça tamamlamalarda en hızlı küçük modellerle başa baş, geniş dil kümesinde 2 GB altındaki diğer tüm modelleri geçer (p<0.001) ve sonradan eğitilmiş kardeş modeliyle düzeltme ve yanıt kısayollarını çalışır tutar (%33 / %35); bu model ilk kullanımda bir kerelik 1.6 GB indirilir. Daha fazla belleği olan bir Mac’te bir Gemma katmanı daha doğrudur."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac: найсильніша модель, що вільно вміщується, — 1.5 ГБ. Нарівні з найшвидшими малими моделями в доповненнях англійською та російською, випереджає всі інші моделі до 2 ГБ на ширшому наборі мов (p<0.001) і підтримує комбінації виправлення й відповіді (33% / 72%) через дотреновану версію — одноразове завантаження 1.6 ГБ під час першого використання. На Mac з більшою пам’яттю точніший варіант Gemma."
+            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac: найсильніша модель, що вільно вміщується, — 1.5 ГБ. Нарівні з найшвидшими малими моделями в доповненнях англійською та російською, випереджає всі інші моделі до 2 ГБ на ширшому наборі мов (p<0.001) і підтримує комбінації виправлення й відповіді (33% / 35%) через дотреновану версію — одноразове завантаження 1.6 ГБ під час першого використання. На Mac з більшою пам’яттю точніший варіант Gemma."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "根据这台 Mac 的内存自动选择：能宽松容纳的最强模型，1.5 GB。英语和俄语补全与最快的小模型持平，在更广的语言集上胜过其他所有 2 GB 以下的模型（p<0.001），并通过其后训练版本保持修正和回复快捷键可用（33% / 72%），首次使用时一次性下载 1.6 GB。在内存更大的 Mac 上，Gemma 档位的准确率更高。"
+            "value" : "根据这台 Mac 的内存自动选择：能宽松容纳的最强模型，1.5 GB。英语和俄语补全与最快的小模型持平，在更广的语言集上胜过其他所有 2 GB 以下的模型（p<0.001），并通过其后训练版本保持修正和回复快捷键可用（33% / 35%），首次使用时一次性下载 1.6 GB。在内存更大的 Mac 上，Gemma 档位的准确率更高。"
           }
         }
       }
@@ -29491,102 +29491,102 @@
         }
       }
     },
-    "Of 380 on-screen conversations in 19 languages, %@ drafted something in the conversation's language without parroting the screen %lld%% [%lld–%lld] of the time — a floor on usability, not a quality score. Warm median %lld ms. %@." : {
+    "Of 380 on-screen conversations in 19 languages, %@ wrote a reply that an independent model rates as on topic %lld%% [%lld–%lld] of the time. Warm median %lld ms. %@." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Z 380 konverzací na obrazovce v 19 jazycích %@ napsal koncept v jazyce konverzace bez opakování textu z obrazovky v %lld%% [%lld–%lld] případů — jde o spodní hranici použitelnosti, ne o hodnocení kvality. Medián po zahřátí %lld ms. %@."
+            "value" : "Z 380 konverzací na obrazovce v 19 jazycích %@ napsal odpověď, kterou nezávislý model hodnotí jako k věci, v %lld%% [%lld–%lld] případů. Medián po zahřátí %lld ms. %@."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bei 380 Unterhaltungen auf dem Bildschirm in 19 Sprachen entwarf %@ in %lld%% [%lld–%lld] der Fälle etwas in der Sprache der Unterhaltung, ohne den Bildschirm nachzuplappern – eine Untergrenze der Brauchbarkeit, keine Qualitätsnote. Warmer Median %lld ms. %@."
+            "value" : "Bei 380 Unterhaltungen auf dem Bildschirm in 19 Sprachen schrieb %@ eine Antwort, die ein unabhängiges Modell als zum Thema passend bewertet – in %lld%% [%lld–%lld] der Fälle. Warmer Median %lld ms. %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De 380 conversaciones en pantalla en 19 idiomas, %@ redactó algo en el idioma de la conversación sin repetir la pantalla el %lld%% [%lld–%lld] de las veces: un mínimo de utilidad, no una nota de calidad. Mediana en caliente: %lld ms. %@."
+            "value" : "De 380 conversaciones en pantalla en 19 idiomas, %@ escribió una respuesta que un modelo independiente considera pertinente el %lld%% [%lld–%lld] de las veces. Mediana en caliente: %lld ms. %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sur 380 conversations à l’écran dans 19 langues, %@ a rédigé quelque chose dans la langue de la conversation sans répéter l’écran %lld%% [%lld–%lld] du temps — un plancher d’utilisabilité, pas une note de qualité. Médiane à chaud %lld ms. %@."
+            "value" : "Sur 380 conversations à l’écran dans 19 langues, %@ a écrit une réponse qu’un modèle indépendant juge pertinente %lld%% [%lld–%lld] du temps. Médiane à chaud %lld ms. %@."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su 380 conversazioni sullo schermo in 19 lingue, %@ ha scritto una bozza nella lingua della conversazione senza ripetere lo schermo nel %lld%% [%lld–%lld] dei casi: una soglia minima di utilizzabilità, non un punteggio di qualità. Mediana a caldo %lld ms. %@."
+            "value" : "Su 380 conversazioni sullo schermo in 19 lingue, %@ ha scritto una risposta che un modello indipendente giudica pertinente nel %lld%% [%lld–%lld] dei casi. Mediana a caldo %lld ms. %@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "19言語、画面上の380件の会話のうち、%@が画面の内容をそのまま繰り返さずに会話の言語で下書きできた割合は%lld%% [%lld–%lld]です。これは品質スコアではなく、実用性の下限です。ウォーム時の中央値%lld ms。%@。"
+            "value" : "19言語、画面上の380件の会話のうち、%@の返信を独立したモデルが話題に沿っていると評価した割合は%lld%% [%lld–%lld]です。ウォーム時の中央値%lld ms。%@。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "19개 언어로 된 화면 속 대화 380개 중, %@은(는) %lld%% [%lld–%lld]의 경우 화면을 그대로 따라 하지 않고 대화 언어로 초안을 작성했습니다. 이는 품질 점수가 아니라 사용 가능성의 하한선입니다. 워밍업 후 중앙값 %lld ms. %@."
+            "value" : "19개 언어로 된 화면 속 대화 380개 중, 독립된 모델이 %@의 답장을 주제에 맞는다고 평가한 경우는 %lld%% [%lld–%lld]입니다. 워밍업 후 중앙값 %lld ms. %@."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Van 380 gesprekken op het scherm in 19 talen schreef %@ in %lld%% [%lld–%lld] van de gevallen een concept in de taal van het gesprek zonder het scherm na te praten – een ondergrens voor bruikbaarheid, geen kwaliteitsscore. Warme mediaan %lld ms. %@."
+            "value" : "Van 380 gesprekken op het scherm in 19 talen schreef %@ in %lld%% [%lld–%lld] van de gevallen een antwoord dat een onafhankelijk model als relevant beoordeelt. Warme mediaan %lld ms. %@."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Z 380 rozmów na ekranie w 19 językach %@ napisał szkic w języku rozmowy, nie powtarzając tekstu z ekranu, w %lld%% [%lld–%lld] przypadków — to dolna granica użyteczności, a nie ocena jakości. Mediana po rozgrzaniu: %lld ms. %@."
+            "value" : "Z 380 rozmów na ekranie w 19 językach %@ napisał odpowiedź, którą niezależny model ocenia jako trafną, w %lld%% [%lld–%lld] przypadków. Mediana po rozgrzaniu: %lld ms. %@."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De 380 conversas na tela em 19 idiomas, %@ rascunhou algo no idioma da conversa sem repetir a tela em %lld%% [%lld–%lld] das vezes: um piso de utilidade, não uma nota de qualidade. Mediana após aquecimento: %lld ms. %@."
+            "value" : "De 380 conversas na tela em 19 idiomas, %@ escreveu uma resposta que um modelo independente considera pertinente em %lld%% [%lld–%lld] das vezes. Mediana após aquecimento: %lld ms. %@."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Din 380 de conversații de pe ecran în 19 limbi, %@ a scris ceva în limba conversației fără să repete ecranul în %lld%% [%lld–%lld] din cazuri — un prag minim de utilizabilitate, nu un scor de calitate. Mediană după încălzire: %lld ms. %@."
+            "value" : "Din 380 de conversații de pe ecran în 19 limbi, %@ a scris un răspuns pe care un model independent îl consideră la subiect în %lld%% [%lld–%lld] din cazuri. Mediană după încălzire: %lld ms. %@."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Из 380 переписок на экране на 19 языках %@ пишет черновик на языке переписки, не повторяя текст с экрана, в %lld%% [%lld–%lld] случаев — это нижняя граница пригодности, а не оценка качества. Медиана после прогрева — %lld мс. %@."
+            "value" : "Из 380 переписок на экране на 19 языках %@ пишет ответ, который независимая модель считает ответом по теме, в %lld%% [%lld–%lld] случаев. Медиана после прогрева — %lld мс. %@."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Av 380 konversationer på skärmen på 19 språk skrev %@ något på konversationens språk utan att upprepa skärmen %lld %% [%lld–%lld] av gångerna — ett golv för användbarhet, inte ett kvalitetsmått. Median varm %lld ms. %@."
+            "value" : "Av 380 konversationer på skärmen på 19 språk skrev %@ ett svar som en oberoende modell bedömer som relevant %lld %% [%lld–%lld] av gångerna. Median varm %lld ms. %@."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "19 dilde ekrandaki 380 konuşmada %@, ekranı tekrarlamadan konuşmanın dilinde bir taslak yazdı: %%%lld [%lld–%lld] — kalite puanı değil, kullanılabilirliğin alt sınırı. Isınmış ortanca %lld ms. %@."
+            "value" : "19 dilde ekrandaki 380 konuşmada %@, bağımsız bir modelin konuyla ilgili bulduğu bir yanıt yazdı: %%%lld [%lld–%lld]. Isınmış ortanca %lld ms. %@."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Із 380 розмов на екрані 19 мовами %@ пише чернетку мовою розмови, не повторюючи текст з екрана, у %lld%% [%lld–%lld] випадків — це нижня межа придатності, а не оцінка якості. Медіана після прогріву — %lld мс. %@."
+            "value" : "Із 380 розмов на екрані 19 мовами %@ пише відповідь, яку незалежна модель вважає відповіддю за темою, у %lld%% [%lld–%lld] випадків. Медіана після прогріву — %lld мс. %@."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在 19 种语言的 380 段屏幕对话中，%@ 有 %lld%% [%lld–%lld] 的情况用对话语言起草了回复，且未照搬屏幕内容。这是可用性下限，而非质量评分。预热后中位数 %lld 毫秒。%@。"
+            "value" : "在 19 种语言的 380 段屏幕对话中，%@ 写出的回复有 %lld%% [%lld–%lld] 被独立模型评为切题。预热后中位数 %lld 毫秒。%@。"
           }
         }
       }
@@ -44791,102 +44791,102 @@
         }
       }
     },
-    "The fix and reply chords run on %@: %lld%% of noisy lines restored exactly [%lld–%lld] and %lld%% usable reply drafts [%lld–%lld] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. %@." : {
+    "The fix and reply chords run on %@: %lld%% of noisy lines restored exactly [%lld–%lld] and %lld%% of reply drafts on topic [%lld–%lld] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. %@." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zkratky pro opravu a odpověď běží na %@: %lld%% chybových řádků přesně obnoveno [%lld–%lld] a %lld%% použitelných konceptů odpovědí [%lld–%lld] — souhrn za 17/19 jazyků při doporučeném nastavení tohoto modelu; výběr jazyka je neovlivňuje. %@."
+            "value" : "Zkratky pro opravu a odpověď běží na %@: %lld%% chybových řádků přesně obnoveno [%lld–%lld] a %lld%% konceptů odpovědí k věci [%lld–%lld] — souhrn za 17/19 jazyků při doporučeném nastavení tohoto modelu; výběr jazyka je neovlivňuje. %@."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Korrektur und Antwort laufen über %@: %lld%% fehlerhafter Zeilen exakt wiederhergestellt [%lld–%lld] und %lld%% brauchbare Antwortentwürfe [%lld–%lld] – Summen über 17/19 Sprachen bei den empfohlenen Einstellungen dieses Modells; die Sprachauswahl wirkt sich nicht aus. %@."
+            "value" : "Korrektur und Antwort laufen über %@: %lld%% fehlerhafter Zeilen exakt wiederhergestellt [%lld–%lld] und %lld%% Antwortentwürfe zum Thema [%lld–%lld] – Summen über 17/19 Sprachen bei den empfohlenen Einstellungen dieses Modells; die Sprachauswahl wirkt sich nicht aus. %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los atajos de corrección y respuesta usan %@: %lld%% de líneas con errores restauradas exactamente [%lld–%lld] y %lld%% de borradores de respuesta útiles [%lld–%lld], totales en 17/19 idiomas con los ajustes recomendados de este modelo; no dependen del selector de idioma. %@."
+            "value" : "Los atajos de corrección y respuesta usan %@: %lld%% de líneas con errores restauradas exactamente [%lld–%lld] y %lld%% de borradores de respuesta pertinentes [%lld–%lld], totales en 17/19 idiomas con los ajustes recomendados de este modelo; no dependen del selector de idioma. %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les raccourcis de correction et de réponse utilisent %@ : %lld%% des lignes fautives restaurées à l’identique [%lld–%lld] et %lld%% de brouillons de réponse utilisables [%lld–%lld] — totaux sur 17/19 langues avec les réglages recommandés de ce modèle ; ils ne suivent pas le choix de langue. %@."
+            "value" : "Les raccourcis de correction et de réponse utilisent %@ : %lld%% des lignes fautives restaurées à l’identique [%lld–%lld] et %lld%% de brouillons de réponse pertinents [%lld–%lld] — totaux sur 17/19 langues avec les réglages recommandés de ce modèle ; ils ne suivent pas le choix de langue. %@."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le combinazioni di correzione e risposta usano %@: %lld%% delle righe con errori ripristinate esattamente [%lld–%lld] e %lld%% di bozze di risposta utilizzabili [%lld–%lld], totali su 17/19 lingue con le impostazioni consigliate di questo modello; non seguono la lingua scelta. %@."
+            "value" : "Le combinazioni di correzione e risposta usano %@: %lld%% delle righe con errori ripristinate esattamente [%lld–%lld] e %lld%% di bozze di risposta pertinenti [%lld–%lld], totali su 17/19 lingue con le impostazioni consigliate di questo modello; non seguono la lingua scelta. %@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修正と返信のショートカットは%@で実行されます：誤りのある行の正確な復元%lld%% [%lld–%lld]、使える返信の下書き%lld%% [%lld–%lld] — このモデルの推奨設定での17/19言語の合計で、言語の選択には連動しません。%@。"
+            "value" : "修正と返信のショートカットは%@で実行されます：誤りのある行の正確な復元%lld%% [%lld–%lld]、話題に沿った返信の下書き%lld%% [%lld–%lld] — このモデルの推奨設定での17/19言語の合計で、言語の選択には連動しません。%@。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "수정 및 답장 단축키는 %@에서 실행됩니다: 오류가 있는 줄의 정확한 복원 %lld%% [%lld–%lld], 사용 가능한 답장 초안 %lld%% [%lld–%lld] — 이 모델의 권장 설정에서 17/19개 언어를 합산한 값이며, 언어 선택과는 무관합니다. %@."
+            "value" : "수정 및 답장 단축키는 %@에서 실행됩니다: 오류가 있는 줄의 정확한 복원 %lld%% [%lld–%lld], 주제에 맞는 답장 초안 %lld%% [%lld–%lld] — 이 모델의 권장 설정에서 17/19개 언어를 합산한 값이며, 언어 선택과는 무관합니다. %@."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Correctie en antwoord lopen via %@: %lld%% van de foutieve regels exact hersteld [%lld–%lld] en %lld%% bruikbare conceptantwoorden [%lld–%lld] – totalen over 17/19 talen bij de aanbevolen instellingen van dit model; de taalkeuze heeft er geen invloed op. %@."
+            "value" : "Correctie en antwoord lopen via %@: %lld%% van de foutieve regels exact hersteld [%lld–%lld] en %lld%% relevante conceptantwoorden [%lld–%lld] – totalen over 17/19 talen bij de aanbevolen instellingen van dit model; de taalkeuze heeft er geen invloed op. %@."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Skróty poprawek i odpowiedzi działają na %@: %lld%% wierszy z błędami przywróconych dokładnie [%lld–%lld] i %lld%% użytecznych szkiców odpowiedzi [%lld–%lld] — łącznie dla 17/19 języków przy zalecanych ustawieniach tego modelu; wybór języka na nie nie wpływa. %@."
+            "value" : "Skróty poprawek i odpowiedzi działają na %@: %lld%% wierszy z błędami przywróconych dokładnie [%lld–%lld] i %lld%% trafnych szkiców odpowiedzi [%lld–%lld] — łącznie dla 17/19 języków przy zalecanych ustawieniach tego modelu; wybór języka na nie nie wpływa. %@."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Os atalhos de correção e resposta rodam em %@: %lld%% das linhas com erros restauradas exatamente [%lld–%lld] e %lld%% de rascunhos de resposta úteis [%lld–%lld], totais em 17/19 idiomas com os ajustes recomendados deste modelo; não seguem o seletor de idioma. %@."
+            "value" : "Os atalhos de correção e resposta rodam em %@: %lld%% das linhas com erros restauradas exatamente [%lld–%lld] e %lld%% de rascunhos de resposta pertinentes [%lld–%lld], totais em 17/19 idiomas com os ajustes recomendados deste modelo; não seguem o seletor de idioma. %@."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Combinațiile de corectare și răspuns rulează pe %@: %lld%% din rândurile cu greșeli restabilite exact [%lld–%lld] și %lld%% ciorne de răspuns utilizabile [%lld–%lld] — totaluri pe 17/19 limbi la configurările recomandate ale acestui model; nu urmează selectorul de limbă. %@."
+            "value" : "Combinațiile de corectare și răspuns rulează pe %@: %lld%% din rândurile cu greșeli restabilite exact [%lld–%lld] și %lld%% ciorne de răspuns la subiect [%lld–%lld] — totaluri pe 17/19 limbi la configurările recomandate ale acestui model; nu urmează selectorul de limbă. %@."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сочетания исправления и ответа выполняются на %@: %lld%% строк с ошибками восстановлены точно [%lld–%lld] и %lld%% черновиков ответа пригодны [%lld–%lld] — итог по 17/19 языкам при рекомендуемых настройках этой модели; выбор языка на них не влияет. %@."
+            "value" : "Сочетания исправления и ответа выполняются на %@: %lld%% строк с ошибками восстановлены точно [%lld–%lld] и %lld%% черновиков ответа по теме [%lld–%lld] — итог по 17/19 языкам при рекомендуемых настройках этой модели; выбор языка на них не влияет. %@."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kortkommandona för rättning och svar körs på %@: %lld %% av felaktiga rader återställda exakt [%lld–%lld] och %lld %% användbara svarsutkast [%lld–%lld] — totalt över 17/19 språk med modellens rekommenderade inställningar; de följer inte språkväljaren. %@."
+            "value" : "Kortkommandona för rättning och svar körs på %@: %lld %% av felaktiga rader återställda exakt [%lld–%lld] och %lld %% relevanta svarsutkast [%lld–%lld] — totalt över 17/19 språk med modellens rekommenderade inställningar; de följer inte språkväljaren. %@."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Düzeltme ve yanıt kısayolları %@ üzerinde çalışır: hatalı satırlarda %%%lld birebir onarım [%lld–%lld], %%%lld kullanılabilir yanıt taslağı [%lld–%lld] — bu modelin önerilen ayarlarıyla 17/19 dildeki toplamlar; dil seçicisini izlemez. %@."
+            "value" : "Düzeltme ve yanıt kısayolları %@ üzerinde çalışır: hatalı satırlarda %%%lld birebir onarım [%lld–%lld], %%%lld konuyla ilgili yanıt taslağı [%lld–%lld] — bu modelin önerilen ayarlarıyla 17/19 dildeki toplamlar; dil seçicisini izlemez. %@."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Комбінації виправлення й відповіді виконуються на %@: %lld%% рядків з помилками відновлено точно [%lld–%lld] і %lld%% чернеток відповіді придатні [%lld–%lld] — підсумок за 17/19 мовами з рекомендованими налаштуваннями цієї моделі; вибір мови на них не впливає. %@."
+            "value" : "Комбінації виправлення й відповіді виконуються на %@: %lld%% рядків з помилками відновлено точно [%lld–%lld] і %lld%% чернеток відповіді за темою [%lld–%lld] — підсумок за 17/19 мовами з рекомендованими налаштуваннями цієї моделі; вибір мови на них не впливає. %@."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修正和回复快捷键在 %@ 上运行：%lld%% 的带噪文本行被精确还原 [%lld–%lld]，%lld%% 的回复草稿可用 [%lld–%lld]。以上为此模型推荐设置下 17/19 种语言的总计，不随语言选择而变化。%@。"
+            "value" : "修正和回复快捷键在 %@ 上运行：%lld%% 的带噪文本行被精确还原 [%lld–%lld]，%lld%% 的回复草稿切题 [%lld–%lld]。以上为此模型推荐设置下 17/19 种语言的总计，不随语言选择而变化。%@。"
           }
         }
       }
@@ -62668,102 +62668,102 @@
         }
       }
     },
-    "↑ usable replies, all languages · bubble = memory" : {
+    "↑ replies on topic, all languages · bubble = memory" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ použitelné odpovědi, všechny jazyky · bublina = paměť"
+            "value" : "↑ odpovědi k věci, všechny jazyky · bublina = paměť"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ brauchbare Antworten, alle Sprachen · Blase = Speicher"
+            "value" : "↑ Antworten zum Thema, alle Sprachen · Blase = Speicher"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ respuestas útiles, todos los idiomas · burbuja = memoria"
+            "value" : "↑ respuestas pertinentes, todos los idiomas · burbuja = memoria"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ réponses utilisables, toutes langues · bulle = mémoire"
+            "value" : "↑ réponses pertinentes, toutes langues · bulle = mémoire"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ risposte utilizzabili, tutte le lingue · bolla = memoria"
+            "value" : "↑ risposte pertinenti, tutte le lingue · bolla = memoria"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ 使える返信、全言語 · 円 = メモリ"
+            "value" : "↑ 話題に沿った返信、全言語 · 円 = メモリ"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ 사용 가능한 답장, 모든 언어 · 원 = 메모리"
+            "value" : "↑ 주제에 맞는 답장, 모든 언어 · 원 = 메모리"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ bruikbare antwoorden, alle talen · bel = geheugen"
+            "value" : "↑ relevante antwoorden, alle talen · bel = geheugen"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ użyteczne odpowiedzi, wszystkie języki · kółko = pamięć"
+            "value" : "↑ trafne odpowiedzi, wszystkie języki · kółko = pamięć"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ respostas úteis, todos os idiomas · bolha = memória"
+            "value" : "↑ respostas pertinentes, todos os idiomas · bolha = memória"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ răspunsuri utilizabile, toate limbile · bulă = memorie"
+            "value" : "↑ răspunsuri la subiect, toate limbile · bulă = memorie"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ годные ответы, все языки · круг = память"
+            "value" : "↑ ответы по теме, все языки · круг = память"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ användbara svar, alla språk · bubbla = minne"
+            "value" : "↑ relevanta svar, alla språk · bubbla = minne"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ kullanılabilir yanıtlar, tüm diller · balon = bellek"
+            "value" : "↑ konuyla ilgili yanıtlar, tüm diller · balon = bellek"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ придатні відповіді, усі мови · коло = пам’ять"
+            "value" : "↑ відповіді за темою, усі мови · коло = пам’ять"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "↑ 可用回复，所有语言 · 气泡 = 内存"
+            "value" : "↑ 切题回复，所有语言 · 气泡 = 内存"
           }
         }
       }

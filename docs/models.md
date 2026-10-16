@@ -78,7 +78,7 @@ Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it use
 * Speed: about 30% faster per suggestion.
 * A 6-bit build is a little worse, and a 4-bit build is worse (12%, p<0.001).
 
-The fix and reply chords of MiniCPM5 now run on the post-trained Qwen3.5 2B build. MiniCPM5's own instruct build fixed 4% of rows and wrote 35% usable replies. The Qwen3.5 build fixes 33% and writes 72%. It is also smaller: 1.6 GB, against 2.2 GB.
+The fix and reply chords of MiniCPM5 now run on the post-trained Qwen3.5 2B build. MiniCPM5's own instruct build fixed 4% of rows, and 34% of its replies were on topic. The Qwen3.5 build fixes 33%, and 35% of its replies are on topic. It is also smaller: 1.6 GB, against 2.2 GB.
 
 If your install has the bf16 build, Pretype downloads the 8-bit build in the background. When the 8-bit build has loaded, Pretype deletes the bf16 build.
 
@@ -156,40 +156,41 @@ The two chords are: fix the selection (<kbd>⌥Tab</kbd>) and write a reply from
 We measured the chords on 2026-10-15, each on its own held-out set:
 
 * **Fix:** 510 sentences with one typo each, plus 170 clean controls, in 17 languages. The test used the full app pipeline, with the gates.
-* **Reply:** 380 on-screen conversations in 19 languages.
+* **Reply:** 380 on-screen conversations in 19 languages. An independent model rated the replies on 2026-10-16.
 
-| Runs the chords | Loaded by (recommended settings) | Exact fix | Touches clean text | Fix p50 | Usable replies | Reply p50 |
+| Runs the chords | Loaded by (recommended settings) | Exact fix | Touches clean text | Fix p50 | Replies on topic | Reply p50 |
 |---|---|--:|--:|--:|--:|--:|
-| Gemma E4B-it 6-bit | Gemma E4B 8-bit and 6-bit | **69%** [65–73] | 18% | 0.17 s | **96%** [94–98] | 0.41 s |
-| Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 20% | 0.24 s | 95% [92–97] | 0.24 s |
-| Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [46–54] | 30% | 0.10 s | 96% [94–98] | 0.09 s |
-| Qwen3.5 2B (post-trained) | Qwen3.5 2B Base — the 8 GB default; MiniCPM5 1B | 33% [29–37] | 28% | 0.13 s | 72% [68–77] | 0.14 s |
-| Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.20 s | 36% [32–41] | 0.21 s |
-| Qwen2.5 0.5B-it | Qwen2.5 0.5B | 11% [9–14] | 19% | 0.03 s | 49% [44–54] | 0.08 s |
-| MiniCPM5 1B-it | No model since 2026-10-15 (MiniCPM5 1B before; measured 2026-10-11) | 4% [2–6] | 14% | 0.05 s | 35% [31–40] | 0.21 s |
+| Gemma E4B-it 6-bit | Gemma E4B 8-bit and 6-bit | **69%** [65–73] | 18% | 0.17 s | **90%** [86–92] | 0.41 s |
+| Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 20% | 0.24 s | 87% [83–90] | 0.24 s |
+| Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [46–54] | 30% | 0.10 s | 83% [79–86] | 0.09 s |
+| Qwen3.5 2B (post-trained) | Qwen3.5 2B Base — the 8 GB default; MiniCPM5 1B | 33% [29–37] | 28% | 0.13 s | 35% [30–40] | 0.14 s |
+| Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.20 s | 22% [18–27] | 0.21 s |
+| Qwen2.5 0.5B-it | Qwen2.5 0.5B | 11% [9–14] | 19% | 0.03 s | 3% [2–6] | 0.08 s |
+| MiniCPM5 1B-it | No model since 2026-10-15 (MiniCPM5 1B before; measured 2026-10-11) | 4% [2–6] | 14% | 0.05 s | 34% [30–39] | 0.21 s |
 
 Read these notes before you use the table as a ranking:
 
 * **The Gemma siblings are the best on both chords.**
   * Fix: the column is a clean ladder. Every adjacent gap is significant at p<0.001. The 6-bit E4B sibling is better than its 4-bit build (p=9×10⁻⁴).
-  * Reply: the three Gemma siblings tie at 95–96% (p≥0.3). They are much better than Qwen3.5 (p<10⁻²¹).
-  * The reply drafts of the small models usually repeat the conversation and do not answer it. The app now discards these drafts. Thus the reply column of the small models is low.
-* **"Exact fix" is a strict measure. "Usable reply" is a lenient measure.**
-  * A correct fix with different words from the original counts as a miss. Thus real usefulness is higher than the fix column.
-  * A usable reply is a draft in the language of the conversation that does not repeat the screen. This does not measure the quality of the reply.
+  * Reply: E4B-it 6-bit is better than E2B-it 4-bit (p=0.002). The gaps between adjacent Gemma siblings are not significant. Every Gemma sibling is much better than Qwen3.5 (p<10⁻⁴⁰).
+  * The small models often write a reply that does not answer the conversation. Thus the reply column of the small models is low.
+* **"Exact fix" is a strict measure.** A correct fix with different words from the original counts as a miss. Thus real usefulness is higher than the fix column.
+* **"On topic" comes from an independent judge.** GPT-6 Luna rates each reply from 1 to 5. A reply with 3 or more is on topic.
+  * The threshold comes only from two baselines: the real next line of the conversation, and a line from a different conversation. The judge accepts 71% of the real lines and 20% of the random lines.
+  * Four judges from four model families (GPT-6 Luna, DeepSeek V4.1 Flash, Claude Haiku 5.5, Gemma E4B-it) put all siblings in the same order. A judge from the Gemma family gives higher values to Gemma replies, but not a different order.
 * **"Touches clean text" is the cost of the fix chord.** If you select a line that is already correct, the sibling can still propose a change. This occurs on 12–30% of clean lines across the catalog. The figures include the app's minimal-edit gate. Press <kbd>Esc</kbd> to keep your original text.
 
 <sub>**Method.**</sub>
 
 * <sub>Totals over 510 and 380 rows have a tolerance of ±4–5 pp. Per-language cells have 20–30 rows. We use them only to show direction, never for claims.</sub>
-* <sub>Conditions: release build, no persona, warm medians on an M4 Max. The 2026-10-15 run gave the same fix outputs as the 2026-10-11 run (97–100% identical rows). Replies changed only on the small models: the reply filter now discards more echo drafts (Bonsai 39% → 36%, p=0.001).</sub>
+* <sub>Conditions: release build, no persona, warm medians on an M4 Max. The 2026-10-15 run gave the same fix outputs as the 2026-10-11 run (97–100% identical rows).</sub>
+* <sub>Before 2026-10-16, the reply column counted a draft in the correct language that did not repeat the screen. A line from a different conversation passed that test 94% of the time. Thus that column was too high for the small models: Qwen3.5 72%, Qwen2.5 0.5B 49%.</sub>
 * <sub>These figures replace the 2026-07-25 measurement. That measurement had three errors. It counted a reply that joined the lines of the conversation again as a new reply. It added draft rows (where the draft already gives the language) to the denominator. It used the developer's own English persona. With these errors, MiniCPM5 was the best replier and every Gemma sibling was at ~33%.</sub>
 * <sub>Two product fixes came with the new measurement:</sub>
   * <sub>Gemma 4 now stops at its turn marker. Fix p50 on E4B-it went from 1.5 s to 0.24 s. The 07-25 runs also used a debug build.</sub>
   * <sub>The reply prompt now gives the name of the language of the conversation. Before, it said "its language", and an English persona changed the language. E4B-it with a persona went from 6% to 93% usable.</sub>
 * <sub>Fix latency then decreased again. A fix usually types its input again, so the decoder now makes drafts from the selection (prompt lookup). The output is the same. The p50 columns are direct measurements from the 2026-10-15 run.</sub>
-* <sub>Ukrainian is the one weak cell (≈50–70%). A third of the "Ukrainian" dialogues in the set are in Russian. The model correctly answers them in Russian.</sub>
-* <sub>Sets: `eval-correct` has one real typo per sentence, in the Tatoeba register. `eval-reply` has conversations in screen format. A reply must use the correct language and must not repeat the screen.</sub>
+* <sub>Sets: `eval-correct` has one real typo per sentence, in the Tatoeba register. `eval-reply` has conversations in screen format. The app discards a reply in the wrong language or a reply that repeats the screen. Each discarded reply counts as a miss.</sub>
 
 ## What a model costs you
 

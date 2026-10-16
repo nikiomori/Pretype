@@ -81,7 +81,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 | **All text fields** | Native apps, Electron apps (VS Code, Slack, Claude Desktop), and web pages. In Terminal, iTerm2, and the VS Code terminal, only the prompts that you type to an AI agent, for example Claude Code. |
 | **Typo fixes** | A pill shows above a misspelled word. The macOS spell checker finds the error in the language of the text. |
 | **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing. It keeps your tone. The best model fixes 69% of noisy lines exactly. |
-| **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes your next message from the conversation on the screen. The best model writes a usable reply 96% of the time. |
+| **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes your next message from the conversation on the screen. With the best model, 90% of the replies are on topic. An independent model rates them. |
 | **Emoji and symbols** | `:shrug:` gives 🤷, `:rocket:` gives 🚀, `:cmd:` gives ⌘. |
 | **Arithmetic** | `12*7=` gives 84. |
 | **Speed** | A suggestion takes 17–81 ms on the local models. |
