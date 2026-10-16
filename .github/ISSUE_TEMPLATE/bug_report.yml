@@ -50,24 +50,11 @@ body:
       placeholder: e.g. MacBook Pro M3, 48 GB
     validations:
       required: true
-  - type: dropdown
+  - type: input
     id: model
     attributes:
       label: Which model was selected?
-      options:
-        - Gemma 4 E4B 8-bit — best quality
-        - Gemma 4 E4B 6-bit — lighter, near-best
-        - Gemma 4 E2B 8-bit — small but precise
-        - Gemma 4 E2B — for 8–16 GB Macs
-        - MiniCPM5 1B — fastest, English & Russian
-        - Qwen2.5 0.5B — smallest footprint
-        - Qwen3.5 2B — best small multilingual
-        - Qwen3.5 2B M40 — one model for typing and fixes
-        - Ternary Bonsai 4B — 1 GB base
-        - Apple Intelligence — system model
-        - Cloud API (Settings → API)
-        - Other
-        - Not sure
+      placeholder: e.g. Gemma 4 E4B 8-bit
     validations:
       required: true
   - type: textarea
