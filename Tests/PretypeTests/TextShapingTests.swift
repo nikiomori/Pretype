@@ -64,13 +64,27 @@ final class TextShapingTests: XCTestCase {
     // against what it returns.
     func testTextAfterInjection() {
         typealias C = SuggestionController
-        XCTAssertEqual(C.textAfterInjection("lo there", deletingBackward: 0, over: "hel"), "hello there")
-        XCTAssertEqual(C.textAfterInjection("hello", deletingBackward: 4, over: "say helo"), "say hello")
-        XCTAssertEqual(C.textAfterInjection("", deletingBackward: 6, over: "hello there"), "hello")
-        XCTAssertEqual(C.textAfterInjection("🤷", deletingBackward: 7, over: "ok :shrug:"), "ok 🤷")
-        // Unknown stays unknown, and a delete past the known text can't be placed.
-        XCTAssertNil(C.textAfterInjection("x", deletingBackward: 0, over: nil))
-        XCTAssertNil(C.textAfterInjection("x", deletingBackward: 5, over: "abc"))
+        XCTAssertEqual(C.textAfterInjection("lo there", deleting: "", over: "hel"), "hello there")
+        XCTAssertEqual(C.textAfterInjection("hello", deleting: "helo", over: "say helo"), "say hello")
+        XCTAssertEqual(C.textAfterInjection("", deleting: " there", over: "hello there"), "hello")
+        XCTAssertEqual(C.textAfterInjection("🤷", deleting: ":shrug:", over: "ok :shrug:"), "ok 🤷")
+        // Unknown stays unknown, and a delete of text that isn't there can't be placed.
+        XCTAssertNil(C.textAfterInjection("x", deleting: "", over: nil))
+        XCTAssertNil(C.textAfterInjection("x", deleting: "abcde", over: "abc"))
+    }
+
+    // Backspaces delete what AppKit deletes per press: a whole emoji or
+    // Latin letter, one code point of Thai, Arabic, Hebrew or Devanagari.
+    // Counting `Character`s left half a Thai word behind on ⌘Z.
+    @MainActor
+    func testBackspacesFollowAppKitDeletion() {
+        XCTAssertEqual(TextInjector.backspaces(over: "привет"), 6)
+        XCTAssertEqual(TextInjector.backspaces(over: "caf\u{E9}"), 4)
+        XCTAssertEqual(TextInjector.backspaces(over: "cafe\u{301}"), 4)
+        XCTAssertEqual(TextInjector.backspaces(over: "👨‍👩‍👧 🇷🇺👍🏽"), 4)
+        XCTAssertEqual(TextInjector.backspaces(over: "\u{E17}\u{E35}\u{E48}\u{E19}\u{E35}\u{E48}"), 6)  // ที่นี่
+        XCTAssertEqual(TextInjector.backspaces(over: "\u{5E9}\u{5B8}\u{5C1}\u{5DC}\u{5D5}\u{5B9}\u{5DD}"), 7)  // שָׁלוֹם
+        XCTAssertEqual(TextInjector.backspaces(over: "\u{915}\u{93F}\u{924}\u{93E}\u{92C}"), 5)  // किताब
     }
 
     // A space the context already ends with must not be shown or typed twice.

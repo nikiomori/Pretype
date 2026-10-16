@@ -1,4 +1,4 @@
-import CoreGraphics
+import AppKit
 
 /// Inserts text into the focused field by posting synthetic keyboard events.
 /// This is the most app-agnostic insertion path (works in AppKit, Electron,
@@ -35,11 +35,33 @@ enum TextInjector {
         return chunks
     }
 
-    /// Posts `count` Delete (backspace) keypresses — used to remove the
-    /// just-typed last word before re-typing its correction. Tagged so the key
-    /// tap ignores them (they pass straight through to the focused app).
-    static func deleteBackward(_ count: Int) {
-        press(KeyCode.delete, times: count)
+    /// Posts the Delete (backspace) keypresses that remove `text` from just
+    /// before the caret — the just-typed word before its correction, an
+    /// accepted chunk on ⌘Z. Tagged so the key tap ignores them (they pass
+    /// straight through to the focused app).
+    @MainActor static func deleteBackward(over text: String) {
+        press(KeyCode.delete, times: backspaces(over: text))
+    }
+
+    /// How many presses delete `text`, counted the way AppKit deletes — by an
+    /// offscreen text view, not by `Character`s. A press removes a whole emoji
+    /// or accented Latin letter, but one code point of Thai, Arabic, Hebrew or
+    /// Indic text (a vowel sign or mark at a time): `count` there left
+    /// fragments of the word behind. Chromium deletes per code point outside
+    /// emoji, so its count is never lower — these presses can't reach past
+    /// `text` into the user's own words there either; at worst a decomposed
+    /// Latin accent or Hangul jamo is left over.
+    @MainActor static func backspaces(over text: String) -> Int {
+        guard text.unicodeScalars.count != text.count else { return text.count }
+        let view = NSTextView()
+        view.string = text
+        var presses = 0
+        while !view.string.isEmpty, presses < text.unicodeScalars.count {
+            view.setSelectedRange(NSRange(location: (view.string as NSString).length, length: 0))
+            view.deleteBackward(nil)
+            presses += 1
+        }
+        return presses
     }
 
     /// One ⏎ — "send" after a dictation, where the user asked for it.

@@ -25,10 +25,10 @@ final class CorrectionController {
     private struct PendingFix {
         var original: String
         var replacement: String
-        /// 0 → replace the user's active selection (typing over it). N → delete
-        /// the last N characters (the just-typed word) first, then insert — the
+        /// false → replace the user's active selection (typing over it). true →
+        /// delete `original` (the just-typed word) first, then insert — the
         /// last-word fix, where nothing is selected in the app.
-        var deleteCount: Int = 0
+        var deletesOriginal = false
     }
 
     /// How a key event was handled, so the caller knows whether to swallow it.
@@ -108,7 +108,7 @@ final class CorrectionController {
         selection = nil
         // A selection-fix preview ends when the selection is gone; a last-word
         // fix preview is re-validated against the caret context in handleCaret.
-        if pendingFix?.deleteCount == 0 {
+        if pendingFix?.deletesOriginal == false {
             pendingFix = nil
             owner.window.hide()
         }
@@ -123,7 +123,7 @@ final class CorrectionController {
 
         // Keep a last-word fix preview up while that exact word still sits just
         // before the caret; once the user types or moves on, drop it.
-        if let fix = pendingFix, fix.deleteCount > 0 {
+        if let fix = pendingFix, fix.deletesOriginal {
             if let rect = ctx.caretRect,
                ctx.textAfterCaret.first?.isLetter != true,
                SpellChecker.trailingWord(of: text) == fix.original {
@@ -148,10 +148,10 @@ final class CorrectionController {
         // completion — fixing what's written matters more than predicting
         // ahead — but a live ⌥⇥ preview outranks it. A shortcode never reaches
         // the spell-check, or ":asdf:" would put a typo pill on "asdf". Nothing
-        // downstream needs an emoji special case: deleteCount counts BACKSPACE
-        // presses over the ASCII shortcode, so the Character-vs-UTF-16 mismatch
-        // that bites elsewhere can't bite here, and the emoji is only ever
-        // inserted (TextInjector.insert is surrogate-safe).
+        // downstream needs an emoji special case: the backspaces delete the
+        // ASCII shortcode, so the Character-vs-UTF-16 mismatch that bites
+        // elsewhere can't bite here, and the emoji is only ever inserted
+        // (TextInjector.insert is surrogate-safe).
         if pendingFix == nil, ctx.textAfterCaret.first?.isLetter != true,
            tokenAtCaret != dismissedCorrectionWord,
            let caret = ctx.caretRect,
@@ -300,7 +300,7 @@ final class CorrectionController {
         runFix(
             selectionText: word,
             request: owner.makeRequest(text: before),
-            makePending: { PendingFix(original: word, replacement: $0, deleteCount: word.count) },
+            makePending: { PendingFix(original: word, replacement: $0, deletesOriginal: true) },
             proposedEvent: "last-word fix proposed — ⏎ to apply, esc to keep",
             perform: { engine, request in
                 try await CorrectionGates.fixLastWord(word, before: before) {
@@ -399,7 +399,7 @@ final class CorrectionController {
         pendingFix = nil
         selection = nil
         owner.window.hide()
-        let event = "fixed \(fix.deleteCount > 0 ? "last word" : "selection") (\(fix.original.count) chars)"
+        let event = "fixed \(fix.deletesOriginal ? "last word" : "selection") (\(fix.original.count) chars)"
         // The validating AX read must not run inside the event-tap callback (a
         // hung target app would stall the tap); hop off, then validate + inject.
         DispatchQueue.main.async { [weak self] in self?.inject(fix, event: event) }
@@ -418,7 +418,7 @@ final class CorrectionController {
         // Through the shared path, so the settle window covers a fix too: an
         // AX read still showing the typo would re-raise its pill, and a second
         // ⇥ — validated against that same stale read — would apply it twice.
-        owner.inject(fix.replacement, deletingBackward: fix.deleteCount, over: live.textBeforeCaret)
+        owner.inject(fix.replacement, deleting: fix.deletesOriginal ? fix.original : "", over: live.textBeforeCaret)
         Stats.recordCorrection()
         owner.lastEvent = event
         DebugLog.shared.log("FIX", "applied \"\(fix.original)\" → \"\(fix.replacement)\"")
@@ -437,7 +437,7 @@ final class CorrectionController {
     /// lands after one is drawn at its text, not under the pointer.
     private func liveRead(confirming fix: PendingFix) -> LiveRead? {
         guard let element = owner.currentTextElement() else { return nil }
-        if fix.deleteCount > 0 {
+        if fix.deletesOriginal {
             guard let ctx = AXText.context(for: element),
                   ctx.textAfterCaret.first?.isLetter != true,
                   Self.lastToken(of: ctx.textBeforeCaret) == fix.original else { return nil }
@@ -483,7 +483,7 @@ final class CorrectionController {
         activeCorrection = nil
         owner.window.hide()
         let fix = PendingFix(original: correction.word, replacement: correction.fix,
-                             deleteCount: correction.word.count)
+                             deletesOriginal: true)
         let event = "fixed typo \"\(correction.word)\" → \"\(correction.fix)\""
         DispatchQueue.main.async { [weak self] in self?.inject(fix, event: event) }
     }

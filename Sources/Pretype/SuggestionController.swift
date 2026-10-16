@@ -1520,7 +1520,7 @@ final class SuggestionController {
     }
 
     /// The one way text is typed into the host — accept, dictation, ⌘Z undo
-    /// and every fix. Backspaces `deleteCount` characters, types `text`, moves
+    /// and every fix. Backspaces over `deleted`, types `text`, moves
     /// the synchronous cache in step and opens the settle window, so an AX
     /// read that still trails the synthetic keys can't re-offer, resurrect or
     /// re-fix what was just typed (a lagging read of the old typo re-showed its
@@ -1529,11 +1529,11 @@ final class SuggestionController {
     /// being typed over), which leaves the cache unknown too. Returns the
     /// cache after the edit.
     @discardableResult
-    func inject(_ text: String, deletingBackward deleteCount: Int = 0,
+    func inject(_ text: String, deleting deleted: String = "",
                 over before: String?) -> String? {
-        if deleteCount > 0 { TextInjector.deleteBackward(deleteCount) }
+        if !deleted.isEmpty { TextInjector.deleteBackward(over: deleted) }
         if !text.isEmpty { TextInjector.insert(text) }
-        latestTextBeforeCaret = Self.textAfterInjection(text, deletingBackward: deleteCount, over: before)
+        latestTextBeforeCaret = Self.textAfterInjection(text, deleting: deleted, over: before)
         injectionSettleDeadline = Date().addingTimeInterval(0.3)
         return latestTextBeforeCaret
     }
@@ -1558,12 +1558,12 @@ final class SuggestionController {
     }
 
     /// Pure half of `inject` (testable): the text before the caret once
-    /// `deleteCount` backspaces and `text` have landed on `before` — nil when
-    /// that can't be known.
-    nonisolated static func textAfterInjection(_ text: String, deletingBackward deleteCount: Int,
+    /// `deleted` is gone and `text` has landed on `before` — nil when that
+    /// can't be known.
+    nonisolated static func textAfterInjection(_ text: String, deleting deleted: String,
                                                over before: String?) -> String? {
-        guard let before, before.count >= deleteCount else { return nil }
-        return before.dropLast(deleteCount) + text
+        guard let before, before.hasSuffix(deleted) else { return nil }
+        return before.dropLast(deleted.count) + text
     }
 
     /// Pure narrowing decision (testable): the suggestion remainder after the
@@ -1646,7 +1646,7 @@ final class SuggestionController {
         // stream and the advanced cache all still assume the chunk is in the
         // field — a Tab or a streamed partial landing before the 0.09 s AX
         // refresh would re-accept or resurrect the just-undone word.
-        inject("", deletingBackward: accepted.count, over: ctx.textBeforeCaret)
+        inject("", deleting: accepted, over: ctx.textBeforeCaret)
         let wasDictated = lastAcceptedWasDictated
         dismiss()
         // A dictated chunk is a spoken sentence: it may be named by length
