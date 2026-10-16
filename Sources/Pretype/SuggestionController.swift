@@ -21,11 +21,18 @@ final class SuggestionController {
     /// otherwise). Without this the reference lingers after a normal finish and
     /// `isQueryRunning` reads true forever.
     private var refreshSeq = 0
-    /// The text a scheduled completion query was made for — nil for a reply.
+    /// The text a scheduled completion query was made for — nil for a reply,
+    /// and once the query's ghost was retired (`retire`).
     /// One edit reaches `textDidChange` twice (the AX notification, then the
     /// keystroke timer); the second must not restart the debounce, or cancel
     /// the stream, of a query already running for exactly this text.
     private var refreshKey: (before: String, after: String)?
+    /// `refreshTask` is a composed reply, not a completion query. Its own
+    /// flag, not `refreshKey == nil`: that also reads nil after a mid-stream
+    /// retire, and a scroll or click then spared a completion stream as if
+    /// it were a reply — its next partial painted at the moved caret.
+    private var refreshIsReply = false
+    private var replyInFlight: Bool { refreshTask != nil && refreshIsReply }
     /// A completion query is scheduled or streaming (the indicator's dots).
     var isCompleting: Bool { refreshTask != nil }
 
@@ -358,7 +365,6 @@ final class SuggestionController {
     /// the caret. Forgetting the cache and the caret is what forces that read,
     /// and keeps the thinking dots from painting at the pre-scroll spot.
     private func viewScrolled() {
-        let replyInFlight = refreshTask != nil && refreshKey == nil
         guard replyInFlight || correctionController.inFlight else {
             return dropOverlay(why: "the view scrolled")
         }
@@ -377,7 +383,7 @@ final class SuggestionController {
     /// (into the very chat box being answered) must not silently lose it.
     private func dropCompletion(afterUnseenCaretMove why: String, overlay: Bool) {
         latestTextBeforeCaret = nil
-        guard overlay, active != nil || (refreshTask != nil && refreshKey != nil) else { return }
+        guard overlay, active != nil || (refreshTask != nil && !replyInFlight) else { return }
         lastEvent = "dismissed — \(why)"
         clearActiveCompletion()
         if window.showsSuggestion { window.hide() }
@@ -834,6 +840,7 @@ final class SuggestionController {
         refreshSeq += 1
         let refreshID = refreshSeq
         refreshKey = (text, after)
+        refreshIsReply = false
         refreshTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Settings.debounceMs))
             if Task.isCancelled { return }
@@ -1183,6 +1190,7 @@ final class SuggestionController {
         refreshSeq += 1
         let refreshID = refreshSeq
         refreshKey = nil
+        refreshIsReply = true
         refreshTask = Task { [weak self] in
             // A fresh, wider capture — not the 25 s-cached completion context:
             // the message being answered may have landed a second ago. No caret
