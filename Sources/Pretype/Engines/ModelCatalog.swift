@@ -258,10 +258,7 @@ enum ModelCatalog {
     /// absent, so the retry falls back to the build that worked.
     static func repo(
         for id: String,
-        isFetched: (String) -> Bool = {
-            !ModelStorage.loadFailed(repo: $0)
-                && (ModelStorage.cacheDirectory(repo: $0).map(ModelStorage.isFetched(at:)) ?? false)
-        }
+        isFetched: (String) -> Bool = ModelStorage.isUsable(repo:)
     ) -> String {
         if let slim = slimRepos[id] { return isFetched(id) && !isFetched(slim) ? id : slim }
         if !isFetched(id), let previous = previousBuilds[id]?.first(where: isFetched) { return previous }

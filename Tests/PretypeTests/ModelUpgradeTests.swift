@@ -128,12 +128,39 @@ final class ModelUpgradeTests: XCTestCase {
             XCTAssertEqual(pair.keepOriginal, siblings.contains(pair.original), pair.original)
         }
         // As Qwen3.5 Base's previous build it stays (MiniCPM5's and Qwen3.5's
-        // chords load it); only its own re-pack replaces it.
+        // chords load it); only its own re-pack replaces it — and only once
+        // the primary no longer falls back to it (below).
         let qwen = ModelStorage.upgradePairs.filter { $0.original == "mlx-community/Qwen3.5-2B-4bit" }
         XCTAssertEqual(qwen.first { $0.slim == "nikimori/Qwen3.5-2B-Base-6bit" }?.keepOriginal, true)
         XCTAssertEqual(qwen.first { $0.slim == "nikimori/Qwen3.5-2B-4bit-slim" }?.keepOriginal, false)
         let base4 = ModelStorage.upgradePairs.first { $0.original == "nikimori/Qwen3.5-2B-Base-4bit" }
         XCTAssertEqual(base4?.keepOriginal, false)
+    }
+
+    /// An old 8 GB install holding only Qwen3.5's post-trained 4-bit: one pass
+    /// fetched the slim re-pack, a ⌥⇥ loaded it, the 6-bit fetch was declined.
+    /// The original is still the primary, so the next pass must keep it.
+    func testUpgradeKeepsAnOriginalThatStillServesAsAPreviousBuild() {
+        let id = "nikimori/Qwen3.5-2B-Base-6bit"
+        let old = "mlx-community/Qwen3.5-2B-4bit"
+        let slim = "nikimori/Qwen3.5-2B-4bit-slim"
+        func resolving(_ onDisk: [String]) -> (String) -> String {
+            { ModelCatalog.repo(for: $0, isFetched: onDisk.contains) }
+        }
+        XCTAssertTrue(ModelStorage.stillServes(old, selected: id, resolve: resolving([old, slim])))
+        // Once the 6-bit build is usable (on disk and loaded once), the re-pack
+        // alone stands in for the original.
+        XCTAssertFalse(ModelStorage.stillServes(old, selected: id, resolve: resolving([old, slim, id])))
+        // MiniCPM5 borrows only the chord sibling, which the re-pack serves.
+        XCTAssertFalse(ModelStorage.stillServes(
+            old, selected: "nikimori/MiniCPM5-1B-Base-8bit", resolve: resolving([old, slim])))
+        // Every slim original that is also a previous build stays while its new build is missing.
+        for (new, olds) in ModelCatalog.previousBuilds {
+            for original in olds {
+                guard let repack = ModelCatalog.slimRepos[original] else { continue }
+                XCTAssertTrue(ModelStorage.stillServes(original, selected: new, resolve: resolving([original, repack])), original)
+            }
+        }
     }
 
     /// The Gemma tiers' move to base (E2B 2026-10-14, E4B -15) must not turn

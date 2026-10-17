@@ -255,6 +255,12 @@ enum ModelStorage {
 
     static func loadFailed(repo: String) -> Bool { failedLoads.get().contains(repo) }
 
+    /// On disk, and not a build that failed to load this launch — what
+    /// `ModelCatalog.repo(for:)` may hand the engine.
+    static func isUsable(repo: String) -> Bool {
+        !loadFailed(repo: repo) && (cacheDirectory(repo: repo).map(isFetched(at:)) ?? false)
+    }
+
     /// Proven to load, and not failing now. A load that worked on an earlier
     /// launch says nothing about this one: while the replacement is failing,
     /// the original is the build the engine fell back to.
@@ -265,7 +271,8 @@ enum ModelStorage {
     /// Moves an install that downloaded an original Gemma build before the
     /// slim re-packs existed onto them: fetch the re-pack in the background
     /// while the original keeps serving, then — once the re-pack has loaded
-    /// here (`noteLoad`) — delete the original.
+    /// here (`noteLoad`) and nothing in use still loads the original
+    /// (`stillServes`) — delete it.
     /// `ModelCatalog.repo(for:)` prefers a fetched re-pack, so the next load
     /// (idle reload or relaunch) picks it up — the same weights the engine
     /// already held in memory, so all that changes is disk (−0.6…2.7 GB per
@@ -287,7 +294,7 @@ enum ModelStorage {
                 guard isFetched(at: originalDir),
                       await fetchQuietly(repo: slim, sizeHint: bytes(at: originalDir)) else { continue }
             }
-            guard !keepOriginal, hasLoaded(repo: slim) else { continue }
+            guard !keepOriginal, hasLoaded(repo: slim), !stillServes(original, selected: selected) else { continue }
             // An engine holding the original keeps it: its weights are in
             // memory, and an unlinked file stays readable while open.
             // ponytail: a reload resolving the original in the instant before
@@ -295,6 +302,26 @@ enum ModelStorage {
             try? delete(repo: original)
             DebugLog.shared.log("MLX", "replaced \(original) with \(slim)")
         }
+    }
+
+    /// A model `selected` runs still loads `original` (`ModelCatalog.repo(for:)`).
+    /// One original can stand in for two builds: Qwen3.5's post-trained 4-bit
+    /// is the ⌥⇥ sibling its slim re-pack replaces AND Qwen3.5 Base's previous
+    /// build — the primary until the 6-bit build is on disk. The re-pack
+    /// loading for a ⌥⇥ says nothing about that: deleting the original then
+    /// turned the next reload into a forced download, or a dead engine offline.
+    ///
+    /// A new build counts only once it has loaded here, as a re-pack does
+    /// (`hasLoaded`): one fetched but never run may still fail to load, and
+    /// with the original gone there would be nothing to fall back to.
+    static func stillServes(_ original: String, selected: String,
+                            resolve: (String) -> String = { id in
+                                ModelCatalog.repo(for: id) { repo in
+                                    isUsable(repo: repo) && (ModelCatalog.previousBuilds[repo] == nil || hasLoaded(repo: repo))
+                                }
+                            }) -> Bool {
+        guard let option = ModelCatalog.option(for: selected) else { return false }
+        return [option.id, option.correctionModelID, option.instructModelID].contains { resolve($0) == original }
     }
 
     /// What `upgradeToSlim` may replace: each original with its re-pack, each
