@@ -1552,6 +1552,13 @@ final class SuggestionController {
         let accepted = undo.chunk, wasDictated = undo.dictated
         inject("", deleting: accepted, over: ctx.textBeforeCaret)
         dismiss()
+        // The strongest "no" there is: the field is back to exactly the text
+        // the ghost was offered on, and the next refresh would query the same
+        // context and draw the same ghost for ⇥ to type again. Declined like
+        // a ⎋ until the field changes. A spoken chunk was no ghost.
+        if !wasDictated, let before = latestTextBeforeCaret {
+            declinedKey = (before, ctx.textAfterCaret)
+        }
         // A dictated chunk is a spoken sentence: it may be named by length
         // here, never quoted — the debug buffer is exported into bug reports
         // and this message field is not even length-capped on the way out.
