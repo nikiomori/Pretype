@@ -2,7 +2,7 @@
 """Sync Localization/Localizable.xcstrings with the strings in the code.
 
     Scripts/sync-strings.py            # build, merge, report what's untranslated
-    Scripts/sync-strings.py --check    # same, but exit 1 if any key lacks a translation
+    Scripts/sync-strings.py --check    # same on a scratch copy (read-only), exit 1 if any key lacks a translation
 
 The compiler knows every localizable string — SwiftUI literals, String(localized:)
 — with the exact key it looks up ("Now %@", "%lld words"). A build with
@@ -52,8 +52,12 @@ def extract():
 
 
 def main():
-    subprocess.run(["xcrun", "xcstringstool", "sync", CATALOG, "--stringsdata", *extract()], check=True)
-    catalog = json.load(open(CATALOG))
+    check = "--check" in sys.argv
+    stringsdata = extract()
+    # --check never writes the catalog: it syncs a copy in the scratch path.
+    path = shutil.copy(CATALOG, SCRATCH) if check else CATALOG
+    subprocess.run(["xcrun", "xcstringstool", "sync", path, "--stringsdata", *stringsdata], check=True)
+    catalog = json.load(open(path))
     strings = catalog["strings"]
     # Pure placeholders ("%@%@") are Text composition, not words. Written back
     # only when a new one appeared; sync keeps the flag on the ones it has.
@@ -62,7 +66,7 @@ def main():
     if pure:
         for entry in pure:
             entry["shouldTranslate"] = False
-        with open(CATALOG, "w") as f:
+        with open(path, "w") as f:
             json.dump(catalog, f, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", " : "))
 
     languages = sorted({lang for e in strings.values() for lang in e.get("localizations", {})} - {"en"})
@@ -76,7 +80,7 @@ def main():
         print(f"{lang}: {len(ks)} untranslated")
         for k in ks[:20]:
             print(f"    {k!r}")
-    if "--check" in sys.argv and any(missing.values()):
+    if check and any(missing.values()):
         sys.exit(1)
 
 
