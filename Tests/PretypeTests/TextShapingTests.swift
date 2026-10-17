@@ -16,6 +16,18 @@ final class TextShapingTests: XCTestCase {
         XCTAssertEqual(SuggestionController.firstWordChunk(of: "   multiple   words"), "   multiple")
     }
 
+    func testKeystrokesRetypeOnlyTheTail() {
+        let keys = SuggestionController.keystrokes
+        XCTAssertTrue(keys("12*7=", "12*7=84") == ("", "84"))
+        XCTAssertTrue(keys("teh", "the") == ("eh", "he"))
+        XCTAssertTrue(keys(":smile:", "😄") == (":smile:", "😄"))
+        XCTAssertTrue(keys("", "word") == ("", "word"))
+        XCTAssertTrue(keys("word", "") == ("word", ""))
+        // Whole graphemes: a base letter shared with an accented one is not a head.
+        XCTAssertTrue(keys("cafe", "café") == ("e", "é"))
+        XCTAssertTrue(keys("👨‍👩‍👧x", "👨‍👩‍👦x") == ("👨‍👩‍👧x", "👨‍👩‍👦x"))
+    }
+
     func testGhostUpdate() {
         let update = SuggestionController.ghostUpdate
         // Typing the suggestion's head shrinks it.

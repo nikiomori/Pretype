@@ -38,6 +38,16 @@ extension SuggestionController {
         return before.dropLast(deleted.count) + text
     }
 
+    /// What `inject` presses to turn `deleted` into `text`: only the tails
+    /// past their shared head. "12*7=" → "12*7=84" presses no Backspace at
+    /// all, and a typo fix keeps the letters it got right — every synthetic
+    /// delete is one more key that can land somewhere it shouldn't.
+    /// Compared by `Character`, so the cut is a grapheme boundary in both.
+    nonisolated static func keystrokes(replacing deleted: String, with text: String) -> (delete: String, type: String) {
+        let shared = zip(deleted, text).prefix { $0 == $1 }.count
+        return (String(deleted.dropFirst(shared)), String(text.dropFirst(shared)))
+    }
+
     enum GhostUpdate: Equatable {
         case unchanged
         case narrowed(String)

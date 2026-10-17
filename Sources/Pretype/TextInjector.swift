@@ -39,8 +39,14 @@ enum TextInjector {
     /// before the caret — the just-typed word before its correction, an
     /// accepted chunk on ⌘Z. Tagged so the key tap ignores them (they pass
     /// straight through to the focused app).
-    @MainActor static func deleteBackward(over text: String) {
-        press(KeyCode.delete, times: backspaces(over: text))
+    ///
+    /// `perCharacter`: a terminal, where the line editor or an agent's TUI —
+    /// not AppKit — handles the key, and some delete a whole cluster per press
+    /// (zsh with COMBINING_CHARS, Claude Code's prompt). AppKit's count there
+    /// reaches into the user's own text before the chunk; one press per
+    /// `Character` can at worst leave a fragment of it behind.
+    @MainActor static func deleteBackward(over text: String, perCharacter: Bool = false) {
+        press(KeyCode.delete, times: perCharacter ? text.count : backspaces(over: text))
     }
 
     /// How many presses delete `text`, counted the way AppKit deletes — by an

@@ -1495,8 +1495,11 @@ final class SuggestionController {
     @discardableResult
     func inject(_ text: String, deleting deleted: String = "",
                 over before: String?) -> String? {
-        if !deleted.isEmpty { TextInjector.deleteBackward(over: deleted) }
-        if !text.isEmpty { TextInjector.insert(text) }
+        let keys = Self.keystrokes(replacing: deleted, with: text)
+        if !keys.delete.isEmpty {
+            TextInjector.deleteBackward(over: keys.delete, perCharacter: AppPolicy.isTerminal(typingContext.bundleID))
+        }
+        if !keys.type.isEmpty { TextInjector.insert(keys.type) }
         latestTextBeforeCaret = Self.textAfterInjection(text, deleting: deleted, over: before)
         injectionSettleDeadline = Date().addingTimeInterval(0.3)
         return latestTextBeforeCaret
