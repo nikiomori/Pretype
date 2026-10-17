@@ -95,7 +95,7 @@ A capture runs only in these conditions:
 | | Text | Dictation |
 |---|---|---|
 | **What goes to the provider** | The text before the caret (up to 1,200 characters), at each suggestion. The selection for the fix chord and voice commands. The conversation for the reply chord. The screen and clipboard context, if you turned them on. A dictated transcript, if “Tidy up” is on. | The audio of each capture, as one WAV file, when the capture stops. With OpenAI `gpt-transcribe` and Whisper models, also the names and terms that are already in the field. These are spelling hints, as for the on-device recognizer. |
-| **When** | Each time that a suggestion is due. | One time for each capture. |
+| **When** | Each time that a suggestion is due. | When the capture stops. If the upload fails because of the network, a timeout or a server error (HTTP 429 or 5xx), Pretype sends the same audio one more time. A server on this Mac also gets the audio about once a second, for the live preview. |
 | **Never** | Text in password fields, in blacklisted apps, or while macOS reports secure input. | Audio from a capture that you cancel. |
 
 * Pretype keeps each API key in your login keychain. It never writes the key to Settings or to the debug log.

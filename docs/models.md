@@ -125,7 +125,7 @@ Since 2026-07-25, Pretype selects the default from the memory of your Mac. Befor
 | Mac memory | Default | Resident (recommended config) |
 |---|---|--:|
 | 8 GB | Qwen3.5 2B (Base) | ≈1.5 GB |
-| 16–18 GB | Gemma E2B 4-bit | ≈2.5 GB |
+| 16–18 GB | Gemma E2B 4-bit | ≈2.5 GB (≈1.2 GB on 16 GB, see [Reduce memory use](#reduce-memory-use-gemma)) |
 | 24 GB | Gemma E2B 8-bit | ≈3.4 GB |
 | 32 GB and up | Gemma E4B 6-bit | ≈5 GB |
 
@@ -214,7 +214,7 @@ Disk use and memory use increase together.
 
 | Cost | Range |
 |---|---|
-| Memory of the default model, while you type | ≈1.5–5 GB. This is less than a quarter of the memory of the Mac (see the ladder above). |
+| Memory of the default model, while you type | ≈1.2–5 GB. This is less than a quarter of the memory of the Mac (see the ladder above). |
 | Smallest model in the catalog | ≈1 GB |
 | Largest download | Gemma 4 E4B 8-bit, ≈6 GB |
 | Warm completion time, local models | 17–81 ms |

@@ -70,7 +70,7 @@ default.
 | Output | The shared output gates of the local engines. | The same tidy-up pass as a local transcript. |
 | Length | A words hint in the prompt, and a word cap on the result (`CloudEngine.wordCap`). A token budget cannot set the length, because a reasoning model uses tokens before its first word. | One take. OpenAI and Groq accept up to 25 MB, which is ≈13 minutes. |
 | Spelling hints | — | The names and terms in the field. `gpt-transcribe` gets them as `keywords[]`. Whisper models get them as `prompt`. |
-| Failure | A suggestion abstains and logs the reason. A rejected key (401 or 403) sets the engine to failed. The fix and reply chords show the error. | The watchdog waits 60 s, not 10 s, because the take must upload. |
+| Failure | A suggestion abstains and logs the reason. A rejected key (HTTP 401) sets the engine to failed. The fix and reply chords show the error. | Each request stops after 55 s, plus 0.3 s for each audio second. A network error, a timeout, HTTP 429 or a 5xx sends the same take one more time, after 1 s. The watchdog waits 120 s plus 0.6 s for each audio second, not 10 s, because it must include the two uploads. |
 
 * **Two wire formats.** Most providers and local servers use the OpenAI
   format. Anthropic uses its own Messages API, with the `x-api-key` and
@@ -120,7 +120,7 @@ Keyboard layouts do not select the model. They select the persona and the
 per-language nudge in the menu. You select all other models manually in
 **Settings → Model**:
 
-| Model | Download | Why you select it |
+| Model | Memory | Why you select it |
 |---|---|---|
 | Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality. It holds up across all 19 eval languages. It is never the default, because it ties 6-bit. |
 | **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB.* It ties E4B 8-bit (p=0.28) and the download is smaller. Its fix sibling is the best in the catalog. |
@@ -132,7 +132,8 @@ per-language nudge in the menu. You select all other models manually in
 | Qwen3.5 2B M40 | ≈1.5 GB | A mix of the Base and post-trained builds. One model completes text and runs the chords. It ties the Base build on completion, and its fix is better than the post-trained sibling (p<0.001). |
 | Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
 
-The sizes are the download sizes of the catalog (`ModelMetrics.ramGB`).
+The sizes are the measured model memory (`ModelMetrics.ramGB`). A download
+can be a little larger, for example 5.3 GB for E4B 6-bit.
 The Gemma tiers download slim re-packs (`ModelCatalog.slimRepos`). Qwen3.5
 completes text on its Base build, and MiniCPM5 on an 8-bit build. Both are our
 own conversions. On both models, the fix chord (⌥⇥) and the reply draft run on
@@ -146,7 +147,7 @@ families:
 * **E4B below 6-bit collapses.** We removed E4B 4-bit from the catalog. Its
   measurement was a statistical tie with the floor of the field.
 * **E2B at 4-bit has the smallest 4-bit cost that we measured.** It is level
-  with 8-bit on English (27 vs 26) and on Russian (22 vs 23). Across 17
+  with 8-bit on English (28 vs 26) and on Russian (22 vs 25). Across 17
   languages it is about two points behind 8-bit (p<0.001).
 
 To make the footprint smaller, use a smaller model, not fewer bits.
@@ -155,8 +156,8 @@ To make the footprint smaller, use a smaller model, not fewer bits.
 
 We give the figures for each language separately. A pooled "EN/RU" number
 hides the most important split for the small models. MiniCPM5 ties Gemma E2B
-8-bit on English (27 vs 26, p=0.35). On Russian it is 6 points lower (17 vs
-23, p<0.001).
+8-bit on English (28 vs 26, p=0.12). On Russian it is 8 points lower (17 vs
+25, p<0.001).
 
 Each language cell has 280 rows (English 560, Russian 689). That gives
 ±5 pp near 20%. The app shows this tolerance next to each figure. Thus a

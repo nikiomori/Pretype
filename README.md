@@ -141,7 +141,7 @@ Or download [`Pretype.app.zip`](https://github.com/nikiomori/Pretype/releases/la
 3. Wait for the model download to complete. The menu-bar icon shows the progress.
 4. Type in a text field.
 
-The model download is ≈1–5.7 GB. Pretype selects the default model from a fixed table of Mac memory sizes. The default uses less than a quarter of the memory. To use a different model, go to **Settings → Model**. [Choosing a model](docs/models.md) compares the models.
+The download of the default model is ≈1.5–5.3 GB. Pretype selects the default model from a fixed table of Mac memory sizes. The default uses less than a quarter of the memory. To use a different model, go to **Settings → Model**. [Choosing a model](docs/models.md) compares the models.
 
 To build from source, see [Development setup](CONTRIBUTING.md#development-setup).
 
@@ -197,7 +197,7 @@ If Pretype is useful to you, give it a star (⭐). Stars help other people find 
 | [MLX](https://github.com/ml-explore/mlx) and [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) | The on-device ML stack from Apple |
 | [Gemma](https://ai.google.dev/gemma) | The default model on Macs with 16 GB or more |
 | [Qwen](https://huggingface.co/Qwen) | The default model on 8 GB Macs |
-| [MiniCPM](https://huggingface.co/openbmb) | The fastest model in the catalog |
+| [MiniCPM](https://huggingface.co/openbmb) | One of the two fastest models in the catalog |
 | [swift-transformers](https://github.com/huggingface/swift-transformers) | The tokenizers and the Hugging Face hub client |
 | [Cotypist](https://cotypist.app) | The original idea |
 

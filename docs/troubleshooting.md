@@ -33,11 +33,12 @@ These lines show in the menu and in **Settings → API → Test connection**.
 | Symptom | Cause | Remedy |
 |---|---|---|
 | `add an API key in Settings → API` | API text or dictation is on, and the provider has no key. | Paste the key in **Settings → API**. Click **Test connection**. |
-| `the API key was rejected (401)` or `(403)` | The key is incorrect, expired, or for a different provider. | Make a new key with **Get a key**. Paste it, then click **Test connection**. |
+| `the API key was rejected (401)` | The key is incorrect, expired, or for a different provider. | Make a new key with **Get a key**. Paste it, then click **Test connection**. |
+| `HTTP 403` and a message | The provider refused this request: the account cannot use the model, the region is blocked, or the input was flagged. The engine stays on. | Read the message. Select a different model in **Settings → API**, or check the account at the provider. |
 | `HTTP 404` or `HTTP 400` with a model name | The provider does not know the model name. | Type a model name from the list of the provider. Or select the provider again to get the preset model. |
 | `Could not connect to the server` with Ollama or LM Studio | The local server does not run. | Start Ollama or the LM Studio server. Make sure that the model is downloaded, for example with `ollama pull gemma4:e4b`. |
 | Suggestions come late with API text on | The network, or a model that reasons before it answers. | Use the preset model of the provider, or a provider near you. Or turn off API text to use the local model. |
-| Dictation types nothing with API dictation on | The upload failed, or the provider timed out after 60 s. | Click **Test connection** in the Dictation section. For long takes, use a shorter capture. |
+| Dictation types nothing with API dictation on | The upload failed, or the provider did not answer in time. The time limit is 55 s, plus 0.3 s for each second of audio. After a network error, a timeout or a server error, Pretype tries the upload one more time. | Click **Test connection** in the Dictation section. For long takes, use a shorter capture. |
 
 ## FAQ
 
@@ -94,7 +95,7 @@ If dictation still does not operate:
 
 ### What does it cost in battery and memory?
 
-The model stays in memory while you type. This makes suggestions fast. The default model uses approximately 1.5–5 GB, which is less than one quarter of the memory of your Mac.
+The model stays in memory while you type. This makes suggestions fast. The default model uses approximately 1.2–5 GB, which is less than one quarter of the memory of your Mac.
 
 * After five minutes without typing, the model unloads and releases its memory. On Macs with 32 GB or more, this time is fifteen minutes. The model loads again at your next keystroke.
 * If macOS reports memory pressure, the model unloads earlier.
@@ -122,4 +123,4 @@ By default, Pretype does not send your data. If you turn on an API provider in *
 
 ---
 
-If the problem continues, [open an issue](https://github.com/nikiomori/Pretype/issues) and attach the Diagnostics output. The output does not contain your text. It contains only the pipeline state.
+If the problem continues, [open an issue](https://github.com/nikiomori/Pretype/issues) and attach the Diagnostics output. The issue is public. The output can contain parts of your text: the window title, the field label, the last suggestion, the last accepted text, and the last typo fix. Read the output before you post it. Remove or replace private text.
