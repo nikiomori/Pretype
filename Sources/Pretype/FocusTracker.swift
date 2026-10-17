@@ -180,10 +180,34 @@ final class FocusTracker {
         }
     }
 
+    /// Swaps a tracked handle that died for the field now holding focus — a
+    /// node web and Electron apps replaced under the caret, with no focus
+    /// notification. The same field (same label, same window title) is
+    /// swapped in quietly, and true returned: a focus change would tear down
+    /// what the pipeline holds for it (the settle window, a ⌘Z decline, the
+    /// screen capture) and offer a reply in a chat box re-mounted on send.
+    /// Anything else — an unlabeled field included, since nothing then says
+    /// it is the same one — is reported as a focus change.
+    @discardableResult
+    func relatchFocusedElement() -> Bool {
+        guard let appEl = appElement, let obs = observer,
+              let element = AXText.element(appEl, kAXFocusedUIElementAttribute) else {
+            refreshFocusedElement()
+            return false
+        }
+        AXUIElementSetMessagingTimeout(element, Self.axMessagingTimeout)
+        let title: String? = AXText.element(appEl, kAXFocusedWindowAttribute).flatMap { AXText.attribute($0, kAXTitleAttribute) }
+        guard let label = AXText.editableTextLabel(element), label != nil, label == typingContext.fieldLabel,
+              title == typingContext.windowTitle else {
+            refreshFocusedElement()
+            return false
+        }
+        observe(element, obs)
+        return true
+    }
+
     private func refreshFocusedElement() {
         guard let appEl = appElement, let obs = observer else { return }
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
-
         unobserveFocusedElement(obs)
         focusedTextElement = nil
 
@@ -192,9 +216,7 @@ final class FocusTracker {
             AXUIElementSetMessagingTimeout(element, Self.axMessagingTimeout)
             if let label = AXText.editableTextLabel(element) {
                 fieldLabel = label
-                focusedTextElement = element
-                AXObserverAddNotification(obs, element, kAXValueChangedNotification as CFString, refcon)
-                AXObserverAddNotification(obs, element, kAXSelectedTextChangedNotification as CFString, refcon)
+                observe(element, obs)
             }
         }
         let window = AXText.element(appEl, kAXFocusedWindowAttribute)
@@ -209,6 +231,15 @@ final class FocusTracker {
         Task { @MainActor in
             onFocusChange?()
         }
+    }
+
+    /// Track `element` as the focused field: its value and selection changes.
+    private func observe(_ element: AXUIElement, _ obs: AXObserver) {
+        unobserveFocusedElement(obs)
+        focusedTextElement = element
+        let refcon = Unmanaged.passUnretained(self).toOpaque()
+        AXObserverAddNotification(obs, element, kAXValueChangedNotification as CFString, refcon)
+        AXObserverAddNotification(obs, element, kAXSelectedTextChangedNotification as CFString, refcon)
     }
 
     /// Unregister the value/selection notifications on the focused field.

@@ -170,6 +170,7 @@ final class SuggestionController {
     /// context must never attach to the new one).
     var focusGeneration = 0
     private var lastFocusedElement: AXUIElement?
+    private var deadHandleCheckedAt = Date.distantPast
     private var lastLoggedSuggestion: String?
 
     // Surfaced in the menu.
@@ -708,6 +709,22 @@ final class SuggestionController {
         if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleSelection(element) { return }
 
         guard let ctx = AXText.context(for: element) else {
+            // Web and Electron apps can REPLACE the focused node with no focus
+            // notification (see `dictationFieldContext`) — typing an accept
+            // into one does it. Every read of the old handle then fails, and
+            // completions, ⌥⇥ and ⌘Z stayed off until the user left the field.
+            // The liveness probe is one more AX round trip, so not in a
+            // terminal (a shell prompt reads nil on every key) and at most once
+            // a second (a hung app would pay its timeout twice).
+            if element == focusTracker.focusedTextElement, !AppPolicy.isTerminal(typingContext.bundleID),
+               Date().timeIntervalSince(deadHandleCheckedAt) > 1 {
+                deadHandleCheckedAt = Date()
+                if AXText.isDead(element) {
+                    // Quietly swapped: the focus dedupe must see the new handle as this field.
+                    if focusTracker.relatchFocusedElement() { lastFocusedElement = focusTracker.focusedTextElement }
+                    return scheduleKeystrokeRefresh(after: 0.09)
+                }
+            }
             if active != nil { lastEvent = "lost text element" }
             dismiss()
             return

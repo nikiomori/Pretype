@@ -932,6 +932,13 @@ enum AXText {
         return (ref as! AXUIElement)
     }
 
+    /// The app destroyed the node behind this handle: every read fails from
+    /// here on, and only a fresh lookup finds the field again.
+    static func isDead(_ element: AXUIElement) -> Bool {
+        var ref: CFTypeRef?
+        return AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &ref) == .invalidUIElement
+    }
+
     private static func selectedRange(of element: AXUIElement) -> CFRange? {
         axValue(attribute(element, kAXSelectedTextRangeAttribute), .cfRange, CFRange())
     }
