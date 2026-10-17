@@ -152,7 +152,7 @@ The old model stays on disk. To delete it, go to **Settings → Model**. If you 
 Your keyboard languages continue to set the persona and the per-language menu suggestion. To change the model, use **Settings → Model**. Each entry has its own recommended settings from the eval. The catalog ranks the models again for each of the 19 evaluated languages.
 
 <div align="center">
-<img src="shot-models.png" width="720" alt="Model tab: one card for each goal, the confidence choice drawn as dots, and every model ranked with accuracy, speed and memory bars" />
+<img src="shot-models.png" width="720" alt="Model tab: one card for each goal, the confidence choice as two bars, and every model ranked with accuracy, speed and memory bars" />
 <p><sub><i>The app shows the same data: a speed × accuracy map, presets you can apply with one click, and an accuracy axis for each language.</i></sub></p>
 </div>
 
