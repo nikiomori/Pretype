@@ -141,7 +141,21 @@ extension SuggestionController: DictationHost {
     /// keyboard focus, and a search spoken into Spotlight is a fine use — it is
     /// only a ghost from the app underneath that must never land there.
     private func dictationElement() -> AXUIElement? {
-        keyboardFocusIsElsewhere ? AXText.systemFocusedTextElement() : currentTextElement()
+        keyboardFocusIsElsewhere ? launcherElement() : currentTextElement()
+    }
+
+    /// The launcher's own field — unless the panel holding the keys belongs to
+    /// an app Pretype stays out of. A password manager's quick-access panel
+    /// takes keys the same non-activating way, and `begin`'s app check only
+    /// sees the app underneath: its field would be read for the tidy-up
+    /// context and typed into.
+    private func launcherElement() -> AXUIElement? {
+        guard let element = AXText.systemFocusedTextElement() else { return nil }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success,
+              !AppPolicy.isBlacklisted(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier)
+        else { return nil }
+        return element
     }
 
     /// Precise marked-text only — `AXText.hasMarkedText`, not `isComposing` —
@@ -187,10 +201,9 @@ extension SuggestionController: DictationHost {
         }
         // In a launcher the tracked field is the app underneath; the system's
         // focused element is the launcher's own field.
-        if !keyboardFocusIsElsewhere, let element = focusTracker.focusedTextElement,
-           let ctx = read(element) { return ctx }
-        guard let fresh = AXText.systemFocusedTextElement() else { return nil }
-        return read(fresh)
+        if keyboardFocusIsElsewhere { return launcherElement().flatMap(read) }
+        if let element = focusTracker.focusedTextElement, let ctx = read(element) { return ctx }
+        return AXText.systemFocusedTextElement().flatMap(read)
     }
 
     func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle) {
