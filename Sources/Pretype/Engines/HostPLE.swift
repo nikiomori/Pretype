@@ -93,28 +93,17 @@ final class HostPLE: Embedding {
     /// Maps the file range that holds `loaded`'s three tensors, if the
     /// snapshot stores them with the same shapes and dtypes.
     private static func map(_ directory: URL, matching loaded: [MLXArray], of layer: QuantizedEmbedding) -> HostPLE? {
-        let dtypes: [String: DType] = ["U32": .uint32, "BF16": .bfloat16, "F16": .float16, "F32": .float32]
         let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         for file in files where file.pathExtension == "safetensors" {
-            guard let handle = try? FileHandle(forReadingFrom: file) else { continue }
-            defer { try? handle.close() }
-            guard let size = try? handle.read(upToCount: 8), size.count == 8 else { continue }
-            let headerLength = Int(size.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self) })
-            guard let headerData = try? handle.read(upToCount: headerLength),
-                  let header = try? JSONSerialization.jsonObject(with: headerData) as? [String: Any],
-                  let key = header.keys.first(where: { $0.hasSuffix("embed_tokens_per_layer.weight") })
-            else { continue }
-            let prefix = String(key.dropLast("weight".count))
-            var spans: [(start: Int, end: Int, shape: [Int], dtype: DType)] = []
-            for (name, array) in zip(["weight", "scales", "biases"], loaded) {
-                guard let entry = header[prefix + name] as? [String: Any],
-                      let offsets = entry["data_offsets"] as? [Int], offsets.count == 2,
-                      let shape = entry["shape"] as? [Int],
-                      let dtype = (entry["dtype"] as? String).flatMap({ dtypes[$0] }),
-                      shape == array.shape, dtype == array.dtype,
-                      offsets[1] - offsets[0] == shape.reduce(dtype.size, *)
-                else { return nil }
-                spans.append((8 + headerLength + offsets[0], 8 + headerLength + offsets[1], shape, dtype))
+            guard let spans = tableSpans(in: file, matching: loaded.map { ($0.shape, $0.dtype) }) else { continue }
+            // A mapped page read back from a volume that went away (an external
+            // or network drive holding the cache) is a SIGBUS, not an error:
+            // anywhere but an internal disk the table stays resident.
+            let volume = try? file.resolvingSymlinksInPath()
+                .resourceValues(forKeys: [.volumeIsInternalKey, .volumeIsLocalKey])
+            guard volume?.volumeIsInternal == true, volume?.volumeIsLocal == true else {
+                DebugLog.shared.log("MLX", "PLE kept on the GPU: the model files are not on an internal disk")
+                return nil
             }
             let page = Int(getpagesize())
             guard let start = spans.map(\.start).min(), let end = spans.map(\.end).max() else { return nil }
@@ -130,5 +119,38 @@ final class HostPLE: Embedding {
                            tensors: spans.map { ($0.start - low, $0.shape, $0.dtype) }, of: layer)
         }
         return nil
+    }
+
+    /// Where the per-layer table's weight, scales and biases sit in one
+    /// safetensors file, as byte offsets from its start — nil unless the
+    /// header names them with `expected`'s shapes and dtypes and every byte
+    /// lies inside the file (a page mapped past the end is a SIGBUS too).
+    static func tableSpans(in file: URL, matching expected: [(shape: [Int], dtype: DType)])
+        -> [(start: Int, end: Int, shape: [Int], dtype: DType)]? {
+        let dtypes: [String: DType] = ["U32": .uint32, "BF16": .bfloat16, "F16": .float16, "F32": .float32]
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard let fileSize = try? handle.seekToEnd(), (try? handle.seek(toOffset: 0)) != nil,
+              let size = try? handle.read(upToCount: 8), size.count == 8,
+              let headerLength = Int(exactly: UInt64(littleEndian: size.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self) })),
+              headerLength <= Int(fileSize) - 8,
+              let headerData = try? handle.read(upToCount: headerLength),
+              let header = try? JSONSerialization.jsonObject(with: headerData) as? [String: Any],
+              let key = header.keys.first(where: { $0.hasSuffix("embed_tokens_per_layer.weight") })
+        else { return nil }
+        let prefix = String(key.dropLast("weight".count)), base = 8 + headerLength
+        var spans: [(start: Int, end: Int, shape: [Int], dtype: DType)] = []
+        for (name, want) in zip(["weight", "scales", "biases"], expected) {
+            guard let entry = header[prefix + name] as? [String: Any],
+                  let offsets = entry["data_offsets"] as? [Int], offsets.count == 2,
+                  let shape = entry["shape"] as? [Int],
+                  let dtype = (entry["dtype"] as? String).flatMap({ dtypes[$0] }),
+                  shape == want.shape, dtype == want.dtype, offsets[0] >= 0,
+                  offsets[1] - offsets[0] == shape.reduce(dtype.size, *),
+                  offsets[1] <= Int(fileSize) - base
+            else { return nil }
+            spans.append((base + offsets[0], base + offsets[1], shape, dtype))
+        }
+        return spans.count == 3 ? spans : nil
     }
 }
