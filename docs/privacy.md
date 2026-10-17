@@ -28,7 +28,7 @@ Do not trust this page without proof. These files read your input or type text b
 | **Network** | By default, only downloads and one version check. No request contains your text. See [Network requests](#network-requests). |
 | **Accessibility** *(required)* | Pretype uses it to read the focused field, catch the accept key, and type text back. Pretype cannot do this without it. On macOS 27, this permission has the name **Device Control and Data Access**. See [Websites](#websites). |
 | **Screen Recording** *(optional, off)* | Pretype uses it for two things:<br>1. On-screen OCR context, only for the focused window, and only if you turn on screen context.<br>2. The brightness beside the caret. When Pretype shows text at the caret, it captures a strip of the screen to the right of the caret. It reduces the capture to 8 × 4 pixels, and then to one brightness value. It uses this value to select dark or light text. It does not capture its own windows. It keeps no image. This occurs when the permission is granted, also with screen context off.<br>The debug log does not contain OCR text or clipboard contents. An exported log shows a character count in their place, never the text. |
-| **Clipboard** *(optional, off)* | Only if you turn on **Settings → General → Use clipboard context**. When the clipboard changes, Pretype reads its text and keeps the first 600 characters in memory. It adds them to the prompt. See [Clipboard](#clipboard). |
+| **Clipboard** *(optional, off)* | Only if you turn on **Settings → Personalization → Use clipboard context**. When the clipboard changes, Pretype reads its text and keeps the first 600 characters in memory. It adds them to the prompt. See [Clipboard](#clipboard). |
 | **Microphone** *(optional, off)* | Pretype uses it only for dictation, and only while a capture runs. See [Microphone](#microphone). |
 | **Stored locally** | A journal for on-device personalization. See [Journal](#journal). |
 | **Terminals** | Pretype completes text only in the prompt box of an AI agent, such as Claude Code. See [Terminals](#terminals). |
@@ -48,13 +48,13 @@ None of these requests contains your text. The optional API providers are differ
 | Speculative-decoding drafter, ~150 MB | Hugging Face | Gemma tiers only. In the background, when the drafter is missing. One attempt for each launch. | It makes the fix and reply chords faster. |
 | Version check | GitHub Releases API | One time each day. | It sends no data about you. To stop it, go to **Settings → General**. |
 | Speech model for your dictation language | Apple servers | When you turn on dictation, or select a new language. | This is the same system download that the built-in keyboard dictation uses. |
-| Parakeet dictation model, ~610 MB (CoreML) | Hugging Face (`FluidInference/parakeet-ultra-coreml`) | One time, only if you opt in (**Settings → General → Dictation**). | Stored in `~/Library/Application Support/FluidAudio`. An install that opted in before this model replaces its earlier `parakeet-tdt-0.6b-v3-coreml` one time, in the background, on an unmetered network. |
+| Parakeet dictation model, ~610 MB (CoreML) | Hugging Face (`FluidInference/parakeet-ultra-coreml`) | One time, only if you opt in (**Settings → Dictation**). | Stored in `~/Library/Application Support/FluidAudio`. An install that opted in before this model replaces its earlier `parakeet-tdt-0.6b-v3-coreml` one time, in the background, on an unmetered network. |
 | Share a per-app style | GitHub, in your browser | Only when you click the share button. | GitHub's new-file page opens with that one style. The style text is in the URL of the page. Thus GitHub and your browser history see it when the page opens. GitHub gets nothing more until you submit the page. |
 | Refrain download link | GitHub Releases API | Only when you click **Download Refrain** in the menu bar menu. | Pretype asks `api.github.com/repos/nikiomori/Refrain/releases/latest` for the file list of the latest Refrain release. Then your browser opens the zip file of the release and downloads it. The request contains no text and no data about you. Pretype does not install Refrain. You move it to Applications yourself. |
 
 ### Clipboard
 
-The clipboard context is off by default. To turn it on, use **Settings → General → Use clipboard context**.
+The clipboard context is off by default. To turn it on, use **Settings → Personalization → Use clipboard context**.
 
 * Pretype reads the clipboard only when its contents change. It keeps the first 600 characters of the text.
 * Pretype does not read a copy that a password manager marks as concealed or transient.
@@ -109,11 +109,11 @@ Pretype keeps a journal in `~/Library/Application Support/Pretype` for on-device
 
 | | |
 |---|---|
-| **Contents** | Every suggestion that Pretype showed you, and its result. Each entry has the text around the caret at that time: up to 1,000 characters before it and 192 after it. Plus any text that you import with **Settings → Personalization → Import Text…**. |
+| **Contents** | Every suggestion that Pretype showed you, and its result. Each entry has the text around the caret at that time: up to 1,000 characters before it and 192 after it. Plus any text that you import with **Settings → Personalization → Advanced → Import Text…**. |
 | **Format** | Plain text. |
 | **Maximum size** | 50 MB (years of typing). |
 | **Default** | On. |
-| **To delete** | Switch it off in **Settings → Personalization**. This deletes all of the journal, imported text included. |
+| **To delete** | Switch it off in **Settings → Personalization → Advanced**. This deletes all of the journal, imported text included. |
 | **Never in the journal** | OCR screen text. Clipboard text. Dictation writes no journal entries of its own. Dictated text that is already in the field is ordinary surrounding text (see [Microphone](#microphone)). |
 
 ### Terminals

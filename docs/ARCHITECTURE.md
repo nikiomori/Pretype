@@ -196,7 +196,7 @@ trim. This diagram shows the checks in base style:
 <img src="diagram-arch-gates.svg" width="400" alt="Base-style checks after the decode. 1, confidence gate, opt-in: is the first-word log-prob at or above tau? If no, show nothing. The gate does not apply when the caret is inside a word. 2, confidence trim: stop at the first weak token and show the text before it. 3, token healing: with the caret inside a word, does the output start with the typed fragment? If no, show nothing. 4, output gates: if they fail, show nothing; if they pass, show the suggestion." />
 </div>
 
-* **Confidence gate.** It is in **Settings → Suggestions**. It is off by
+* **Confidence gate.** It is in **Settings → Model → How often to suggest**. It is off by
   default and operates only in base style. The mean log-probability of the
   first word must be at or above a threshold τ. We calibrate τ for each
   model on one half of the eval set and verify it on the other half. The

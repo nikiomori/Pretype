@@ -53,7 +53,7 @@ Most autocomplete tools operate in one editor, and they send your text to a serv
 <img src="docs/demo-fix.gif" alt="The user selects a line with typos. After Option-Tab, a panel shows the fix as a word diff. Return replaces the line." width="720" />
 <p><sub><i><b>Rewrite.</b> <kbd>⏎</kbd> accepts it. <kbd>Esc</kbd> keeps your original text.</i></sub></p>
 
-<img src="docs/shot-settings.png" alt="Settings window with a glass sidebar and a Live Impact inspector. The inspector shows the measured accuracy, speed, memory, and compute." width="720" />
+<img src="docs/shot-settings.png" alt="Model pane of the Settings window: one card for each goal, and a Live Impact inspector that shows the measured accuracy, speed, memory, and compute." width="720" />
 <p><sub><i><b>Settings show their cost.</b> Hover over an option to see its effect on accuracy, speed, and memory.</i></sub></p>
 
 <img src="docs/shot-personal.png" alt="Personalization tab with a persona field and style instructions for Mail, Messages, and Notes" width="720" />
@@ -106,7 +106,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 * The speech models of macOS transcribe on your Mac. Audio does not go to the disk.
 * A tidy-up pass adds the punctuation and the capital letters.
 * Dictation uses the language of your keyboard layout.
-* **Voice commands.** Select text and dictate an instruction, for example *"make it shorter"* or *"translate to English"*. Enable this in **Settings → General → Dictation**.
+* **Voice commands.** Select text and dictate an instruction, for example *"make it shorter"* or *"translate to English"*. Enable this in **Settings → Dictation → Advanced**.
 * **Send.** Pretype can push <kbd>Return</kbd> after a dictation, for example in a chat. To enable this for an app, select **Press Return after Dictation** in the menu.
 * If the focus changes during a capture, Pretype puts the transcript on the clipboard.
 
