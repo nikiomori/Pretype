@@ -44,6 +44,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         showWindow(nil)
+        // Nothing focused on open: AppKit hands first responder to the first
+        // text field, and General's is the blacklist field — a ring and a
+        // caret in a field nobody clicked. Tab still walks the controls.
+        DispatchQueue.main.async { [weak self] in self?.window?.makeFirstResponder(nil) }
         store.startStatusTimer()
     }
 

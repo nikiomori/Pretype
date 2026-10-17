@@ -33,33 +33,43 @@ private struct APIEndpointSection: View {
         Section {
             Toggle(isOn: $config.enabled) {
                 if kind == .text {
-                    Text("Use an API model for text")
-                    Text("Suggestions, fix, reply and voice commands use this model.")
+                    IconLabel(symbol: "text.bubble.fill", tint: .teal,
+                              title: Text("Use an API model for text"),
+                              subtitle: Text("Suggestions, fix, reply and voice commands use this model."))
                 } else {
-                    Text("Use an API model for dictation")
-                    Text("Transcribes dictation with this model.")
+                    IconLabel(symbol: "waveform", tint: .red,
+                              title: Text("Use an API model for dictation"),
+                              subtitle: Text("Transcribes dictation with this model."))
                 }
             }
-            Picker("Provider", selection: Binding(
-                get: { config.provider },
-                // A new provider brings its own URL and suggested model.
-                set: { config = APIConfig(provider: .named($0), kind: kind, enabled: config.enabled) })) {
-                ForEach(APIProvider.offering(kind)) { Text($0.name).tag($0.id) }
-            }
-            TextField("Base URL", text: $config.baseURL, prompt: Text(verbatim: "https://example.com/v1"))
-            TextField("Model", text: $config.model, prompt: Text("model name"))
-            SecureField("API key", text: $key, prompt: provider.needsKey ? Text("required") : Text("optional"))
-            HStack {
-                Button("Test connection") { store.testAPI(kind) }
-                    // Same key SettingsStore sets it from, so the match holds in every language.
-                    .disabled(test == String(localized: "Testing…"))
-                if let page = provider.keyPage, let url = URL(string: page) {
-                    Link("Get a key", destination: url)
+            // Off, the endpoint is five empty-looking fields nobody needs to
+            // read; they come with the switch.
+            if config.enabled {
+                Picker("Provider", selection: Binding(
+                    get: { config.provider },
+                    // A new provider brings its own URL and suggested model.
+                    set: { config = APIConfig(provider: .named($0), kind: kind, enabled: config.enabled) })) {
+                    ForEach(APIProvider.offering(kind)) { Text($0.name).tag($0.id) }
                 }
-                Spacer()
+                // A preset brings its own URL: the field is for custom servers
+                // and for whoever already changed it.
+                if config.provider == APIProvider.custom.id || config.baseURL != provider.baseURL {
+                    TextField("Base URL", text: $config.baseURL, prompt: Text(verbatim: "https://example.com/v1"))
+                }
+                TextField("Model", text: $config.model, prompt: Text("model name"))
+                SecureField("API key", text: $key, prompt: provider.needsKey ? Text("required") : Text("optional"))
+                HStack {
+                    Button("Test connection") { store.testAPI(kind) }
+                        // Same key SettingsStore sets it from, so the match holds in every language.
+                        .disabled(test == String(localized: "Testing…"))
+                    if let page = provider.keyPage, let url = URL(string: page) {
+                        Link("Get a key", destination: url)
+                    }
+                    Spacer()
+                }
+                if let test { Caption(test) }
+                Caption(privacyNote)
             }
-            if let test { Caption(test) }
-            Caption(privacyNote)
         } header: {
             kind == .text ? Text("Text") : Text("Dictation")
         }

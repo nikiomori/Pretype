@@ -78,16 +78,26 @@ func gbLabel(_ gb: Double) -> String {
 // MARK: - Root
 
 enum SettingsTab: CaseIterable {
-    case general, suggestions, model, personalization, api
+    case general, model, dictation, personalization, api
 
-    /// Sidebar icon.
+    /// Sidebar icon, drawn as a tile in `tint`.
     var symbol: String {
         switch self {
-        case .general: return "gearshape"
-        case .suggestions: return "character.cursor.ibeam"
-        case .model: return "cpu"
-        case .personalization: return "person.crop.circle"
-        case .api: return "cloud"
+        case .general: return "gearshape.fill"
+        case .model: return "cpu.fill"
+        case .dictation: return "mic.fill"
+        case .personalization: return "person.fill"
+        case .api: return "cloud.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .general: return .gray
+        case .model: return .purple
+        case .dictation: return .red
+        case .personalization: return .blue
+        case .api: return .teal
         }
     }
 
@@ -95,10 +105,75 @@ enum SettingsTab: CaseIterable {
     var title: String {
         switch self {
         case .general: return String(localized: "General")
-        case .suggestions: return String(localized: "Suggestions")
         case .model: return String(localized: "Model")
+        case .dictation: return String(localized: "Dictation")
         case .personalization: return String(localized: "Personalization")
         case .api: return String(localized: "API")
+        }
+    }
+}
+
+/// A System Settings icon tile: a white glyph on a colored rounded square,
+/// so a row is found by its picture before its words are read.
+struct SettingsIcon: View {
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 20, height: 20)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// A row title with its icon tile and an optional one-line subtitle — the
+/// label of the main switches.
+struct IconLabel: View {
+    let symbol: String
+    let tint: Color
+    let title: Text
+    var subtitle: Text?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            SettingsIcon(symbol: symbol, tint: tint)
+            VStack(alignment: .leading, spacing: 2) {
+                title
+                if let subtitle {
+                    subtitle.font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+}
+
+/// The last row of a pane: shows or hides the pane's detailed settings
+/// under it. One switch for every pane — whoever wants them once wants them
+/// everywhere.
+struct AdvancedRow: View {
+    @AppStorage("showAdvancedSettings") private var shown = false
+
+    var body: some View {
+        Section {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { shown.toggle() }
+            } label: {
+                HStack {
+                    Text("Advanced")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(shown ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(shown ? Text("Expanded") : Text("Collapsed"))
         }
     }
 }
@@ -114,11 +189,18 @@ struct SettingsRootView: View {
         NavigationSplitView {
             sidebar
         } detail: {
+            // The rail measures model settings, so it stands beside the
+            // Model pane only — elsewhere it repeated four bars nothing on
+            // the pane could move.
             detail
-                .inspector(isPresented: .constant(true)) {
+                .inspector(isPresented: .constant(store.activeTab == .model)) {
                     ImpactRailView(store: store)
                         .inspectorColumnWidth(min: 250, ideal: 280, max: 340)
                 }
+                // Animated, the column's arrival re-laid out the whole pane
+                // every frame: opening Model stalled for up to a third of a
+                // second. It appears in one step with the pane.
+                .transaction(value: store.activeTab) { $0.animation = nil }
         }
         .frame(minWidth: 1020, minHeight: 620)
         // On the root, not a tab: rows, cards and the map ask from Model, the
@@ -142,7 +224,7 @@ struct SettingsRootView: View {
     private var sidebar: some View {
         List(selection: $store.activeTab) {
             ForEach(SettingsTab.allCases, id: \.self) { tab in
-                Label(tab.title, systemImage: tab.symbol)
+                Label { Text(tab.title) } icon: { SettingsIcon(symbol: tab.symbol, tint: tab.tint) }
             }
         }
         .listStyle(.sidebar)
@@ -153,12 +235,17 @@ struct SettingsRootView: View {
                     .resizable()
                     .frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text(verbatim: "Pretype").font(.headline)
-                        Text("v\(UpdateChecker.currentVersion)").font(.caption2).foregroundStyle(.tertiary)
-                    }
+                    Text(verbatim: "Pretype").font(.headline)
+                    Text("v\(UpdateChecker.currentVersion)").font(.caption2).foregroundStyle(.tertiary)
                 }
                 Spacer(minLength: 0)
+                // The master switch, on every pane: fix, reply and dictation
+                // stop with it, same as Pause Pretype in the menu bar.
+                Toggle("Pretype", isOn: $store.enabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .help("Off pauses suggestions, fix, reply and dictation — same as Pause Pretype in the menu bar")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -170,17 +257,21 @@ struct SettingsRootView: View {
 
     private var detail: some View {
         VStack(spacing: 0) {
+            // Over the form's own column: a grouped Form stops growing at
+            // ~704 pt and centers, and a title left at the pane's edge stood
+            // apart from it on every pane without the rail.
             Text(store.activeTab.title)
                 .font(.title2.weight(.bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: 704)
             .padding(.horizontal, 22)
             .padding(.top, 12)
             .padding(.bottom, 8)
             Group {
                 switch store.activeTab {
                 case .general: GeneralTab(store: store)
-                case .suggestions: SuggestionsTab(store: store)
                 case .model: ModelTab(store: store)
+                case .dictation: DictationTab(store: store)
                 case .personalization: PersonalTab(store: store)
                 case .api: APITab(store: store)
                 }
@@ -318,16 +409,204 @@ struct GeneralTab: View {
     @AppStorage("replyGesture") private var replyGesture = Settings.replyGesture
     @AppStorage("autoReply") private var autoReply = Settings.autoReply
     @AppStorage("ghostOpacity") private var ghostOpacity = Settings.ghostOpacity
+    @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = Settings.automaticUpdateCheck
+    /// The interface-language override; "" follows the system.
+    @State private var language = AppLanguage.override ?? ""
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 12) {
+                    // Animate at the mutation site: the Ghost-visibility row
+                    // below inserts/removes on this change, and a row cannot
+                    // animate its own insertion from a Section modifier.
+                    PresentationCard(mode: .panel, title: String(localized: "Panel"),
+                                     isSelected: store.presentation == .panel,
+                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
+                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
+                    }
+                    PresentationCard(mode: .inline, title: String(localized: "Inline"), badge: String(localized: "Unstable"),
+                                     isSelected: store.presentation == .inline,
+                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
+                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
+                    }
+                }
+                // Ghost opacity dims inline ghost text only; the panel is an
+                // opaque HUD by design (SuggestionWindow), so the slider is
+                // inline-only — a control that moved the preview but never the
+                // real panel pill was misleading.
+                if store.presentation == .inline {
+                    LabeledContent("Ghost visibility") {
+                        HStack(spacing: 8) {
+                            Text("Faint").font(.caption).foregroundStyle(.secondary)
+                            // Floor at 40%: the help text itself calls 45%
+                            // near-invisible, and below that the ghost vanished.
+                            Slider(value: $ghostOpacity, in: 0.4...1, step: 0.05)
+                                .accessibilityLabel("Ghost visibility")
+                                .accessibilityValue("\(Int(ghostOpacity * 100)) percent")
+                            Text("Bold").font(.caption).foregroundStyle(.secondary)
+                            Text("\(Int(ghostOpacity * 100))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, alignment: .trailing)
+                        }
+                        .frame(width: 320)
+                        .help("How strongly the ghost text stands out from your own. 70% measured most readable over real app backgrounds — 45% was near-invisible.")
+                    }
+                }
+            } header: {
+                Text("Suggestion display")
+            } footer: {
+                store.presentation == .inline
+                    ? Text("Ghost text right at the cursor. It can leave drawing glitches in some apps.")
+                    : Text("A small box above the line. It never covers your text.")
+            }
+
+            // Every key Pretype answers to, each with a picture of what it does.
+            Section("Shortcuts") {
+                Picker(selection: $store.hotkeyStyle) {
+                    ForEach(HotkeyStyle.allCases, id: \.self) { Text($0.label).tag($0) }
+                } label: {
+                    ShortcutLabel(title: Text("Accept hotkey")) { ShortcutDemo.accept }
+                }
+                // Pretype takes the fix chord on every press and the accept key
+                // whenever a suggestion is up — say so where the pick is made,
+                // not after the user's input-source switch stops working.
+                switch store.hotkeyStyle {
+                case .ctrlSpace:
+                    Caption(String(localized: "⚠︎ ⌃Space and \(store.hotkeyStyle.correctionLabel) also switch keyboard layouts in macOS."))
+                case .cmdSpace:
+                    Caption(String(localized: "⚠︎ ⌘Space opens Spotlight and \(store.hotkeyStyle.correctionLabel) a Finder search."))
+                default:
+                    EmptyView()
+                }
+                LabeledContent {
+                    MenuHintsView.keycap(store.hotkeyStyle.correctionLabel)
+                } label: {
+                    ShortcutLabel(title: Text("Fix last word / selection")) { ShortcutDemo.fix }
+                }
+                Picker(selection: $replyGesture) {
+                    ForEach(ReplyGesture.allCases, id: \.self) { Text($0.label).tag($0) }
+                } label: {
+                    ShortcutLabel(title: Text("Write a reply")) { ShortcutDemo.reply }
+                }
+                .help("\(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
+            }
+
+            Section {
+                Toggle(isOn: $autoReply) {
+                    IconLabel(symbol: "bubble.left.and.text.bubble.right.fill", tint: .green,
+                              title: Text("Offer replies in chats"),
+                              subtitle: Text("Drafts a reply when you click into an empty message box."))
+                }
+                .help("In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything drops the reply. It starts once the reply model is downloaded — the chord's first use downloads it.")
+                // Replies read the screen, which is off by default and needs a
+                // permission — what's missing is listed with its fix, and
+                // nothing is listed once it's all in place.
+                if !store.screenContext {
+                    RequirementRow(met: false, text: String(localized: "Screen context on"),
+                                   fixTitle: String(localized: "Turn On")) { store.screenContext = true }
+                }
+                if !ScreenContext.hasPermission {
+                    RequirementRow(met: false,
+                                   text: String(localized: "Screen Recording allowed (then relaunch Pretype)"),
+                                   fixTitle: String(localized: "Open System Settings…")) { ScreenContext.openScreenRecordingPane() }
+                }
+            }
+
+            Section("Turned off in these apps") {
+                if store.blacklist.isEmpty {
+                    Caption(String(localized: "Always off in password managers."))
+                        .help("Terminals get suggestions only in an AI agent's prompt.")
+                }
+                ForEach(store.blacklist, id: \.self) { entry in
+                    BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }
+                }
+                HStack(spacing: 10) {
+                    Button("Add App…", systemImage: "plus") { store.addBlacklistApp() }
+                    TextField("", text: $blacklistDraft, prompt: Text("or type part of a bundle ID"))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .help("A fragment like “slack” covers Slack everywhere. ⏎ adds it.")
+                        .onSubmit {
+                            store.addBlacklistEntry(blacklistDraft)
+                            blacklistDraft = ""
+                        }
+                }
+                .controlSize(.small)
+            }
+
+            Section {
+                Picker(selection: $language) {
+                    Text("System (\(AppLanguage.nativeName(AppLanguage.systemChoice)))").tag("")
+                    Divider()
+                    ForEach(AppLanguage.available, id: \.self) { code in
+                        Text(verbatim: AppLanguage.nativeName(code)).tag(code)
+                    }
+                } label: {
+                    IconLabel(symbol: "globe", tint: .blue, title: Text("Language"))
+                }
+                .onChange(of: language) { AppLanguage.override = language.isEmpty ? nil : language }
+                if (language.isEmpty ? AppLanguage.systemChoice : language) != AppLanguage.running {
+                    // Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
+                    if MicrophoneAccess.isBundled {
+                        LabeledContent {
+                            Button("Relaunch") { AppLanguage.relaunch() }
+                        } label: {
+                            Text("Relaunch Pretype to switch the language.")
+                        }
+                    } else {
+                        Caption(String(localized: "Restart Pretype to switch the language."))
+                    }
+                }
+                // Bound to launchd, not to a stored bool: the same switch lives
+                // in System Settings → Login Items, and mirroring it in
+                // UserDefaults would eventually show a state that isn't real.
+                // Only `.enabled` is on: `.requiresApproval` is registered but
+                // held by macOS — on, yet doing nothing.
+                Toggle(isOn: Binding(
+                    get: { store.loginStatus == .enabled },
+                    set: { store.setOpenAtLogin($0) }
+                )) {
+                    IconLabel(symbol: "power", tint: .gray, title: Text("Open at login"))
+                }
+                .help("Also in System Settings → General → Login Items.")
+                .disabled(!LoginItem.isSupported)
+                // The same switch lives in System Settings, and `sync()` only
+                // runs when the window is (re)presented — catch the user coming
+                // back from flipping it there, or this toggle only catches up
+                // when the window reopens.
+                .onReceive(NotificationCenter.default.publisher(
+                    for: NSApplication.didBecomeActiveNotification)) { _ in
+                    store.loginStatus = LoginItem.status
+                }
+                if let note = LoginItem.note(store.loginStatus) {
+                    Caption(note)
+                }
+                Toggle(isOn: $automaticUpdateCheck) {
+                    IconLabel(symbol: "arrow.down.circle.fill", tint: .blue,
+                              title: Text("Check for updates automatically"),
+                              subtitle: Text("Asks GitHub once a day. Sends nothing about you."))
+                }
+                .help("New versions are announced in the menu bar; nothing is downloaded automatically.")
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - Dictation tab
+
+struct DictationTab: View {
+    @Bindable var store: SettingsStore
+    @AppStorage("replyGesture") private var replyGesture = Settings.replyGesture
     @AppStorage("dictationGesture") private var dictationGesture = Settings.dictationGesture
     @AppStorage("dictationLatch") private var dictationLatch = Settings.dictationLatch
     /// Silence budget for a hands-free capture, in seconds; 0 is off.
     @AppStorage("dictationSilence") private var dictationSilence = Settings.dictationSilence
     @AppStorage("dictationPolish") private var dictationPolish = Settings.dictationPolish
     @AppStorage("dictationCommands") private var dictationCommands = Settings.dictationCommands
-    @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = Settings.automaticUpdateCheck
-    @AppStorage("clipboardContext") private var clipboardContext = Settings.clipboardContextEnabled
-    /// The interface-language override; "" follows the system.
-    @State private var language = AppLanguage.override ?? ""
+    @AppStorage("showAdvancedSettings") private var showAdvanced = false
 
     /// The speech model the dictation language resolves to, for the Language
     /// row's subtitle.
@@ -354,109 +633,6 @@ struct GeneralTab: View {
     var body: some View {
         Form {
             Section {
-                HStack(spacing: 12) {
-                    // Animate at the mutation site: the Ghost-visibility row
-                    // below inserts/removes on this change, and a row cannot
-                    // animate its own insertion from a Section modifier.
-                    PresentationCard(mode: .panel, title: String(localized: "Panel"),
-                                     isSelected: store.presentation == .panel,
-                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
-                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
-                    }
-                    PresentationCard(mode: .inline, title: String(localized: "Inline"), badge: String(localized: "Unstable"),
-                                     isSelected: store.presentation == .inline,
-                                     hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
-                        withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
-                    }
-                }
-            } header: {
-                Text("Suggestion display")
-            } footer: {
-                store.presentation == .inline
-                    ? Text("Ghost text right at the cursor. It can leave drawing glitches in some apps.")
-                    : Text("A small box above the line. It never covers your text.")
-            }
-
-            Section {
-                Picker("Accept hotkey", selection: $store.hotkeyStyle) {
-                    ForEach(HotkeyStyle.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                // Pretype takes the fix chord on every press and the accept key
-                // whenever a suggestion is up — say so where the pick is made,
-                // not after the user's input-source switch stops working.
-                switch store.hotkeyStyle {
-                case .ctrlSpace:
-                    Caption(String(localized: "⚠︎ ⌃Space and \(store.hotkeyStyle.correctionLabel) also switch keyboard layouts in macOS."))
-                case .cmdSpace:
-                    Caption(String(localized: "⚠︎ ⌘Space opens Spotlight and \(store.hotkeyStyle.correctionLabel) a Finder search."))
-                default:
-                    EmptyView()
-                }
-                // Ghost opacity dims inline ghost text only; the panel is an
-                // opaque HUD by design (SuggestionWindow), so the slider is
-                // inline-only — a control that moved the preview but never the
-                // real panel pill was misleading.
-                if store.presentation == .inline {
-                    LabeledContent("Ghost visibility") {
-                        HStack(spacing: 8) {
-                            Text("Faint").font(.caption).foregroundStyle(.secondary)
-                            // Floor at 40%: the help text itself calls 45%
-                            // near-invisible, and below that the ghost vanished.
-                            Slider(value: $ghostOpacity, in: 0.4...1, step: 0.05)
-                                .accessibilityLabel("Ghost visibility")
-                                .accessibilityValue("\(Int(ghostOpacity * 100)) percent")
-                            Text("Bold").font(.caption).foregroundStyle(.secondary)
-                            Text("\(Int(ghostOpacity * 100))%")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 36, alignment: .trailing)
-                        }
-                        .frame(width: 320)
-                        .help("How strongly the ghost text stands out from your own. 70% measured most readable over real app backgrounds — 45% was near-invisible.")
-                    }
-                }
-            }
-
-            Section {
-                Picker(selection: $replyGesture) {
-                    ForEach(ReplyGesture.allCases, id: \.self) { Text($0.label).tag($0) }
-                } label: {
-                    Text("Write a reply")
-                    Text("Drafts your next message from the conversation on screen.")
-                }
-                .help("\(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
-                Toggle(isOn: $autoReply) {
-                    Text("Offer replies in chats")
-                    Text("Drafts a reply when you click into an empty message box.")
-                }
-                .help("In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything drops the reply. It starts once the reply model is downloaded — the chord's first use downloads it.")
-                // Reply is on by default but reads the screen, which is off by
-                // default and needs a permission — the checklist says what's
-                // missing and fixes it in place, instead of the chord flashing
-                // a notice at the caret.
-                RequirementRow(met: store.screenContext, text: String(localized: "Screen context on"),
-                               fixTitle: String(localized: "Turn On")) { store.screenContext = true }
-                RequirementRow(met: ScreenContext.hasPermission,
-                               text: String(localized: "Screen Recording allowed (then relaunch Pretype)"),
-                               fixTitle: String(localized: "Open System Settings…")) { ScreenContext.openScreenRecordingPane() }
-            }
-
-            // Right under the reply checklist that asks for it, not on the
-            // Model tab among memory settings it has nothing to do with.
-            Section("Context") {
-                Toggle(isOn: $store.screenContext) {
-                    Text("Use screen context")
-                    Text("Reads the focused window on this Mac.")
-                }
-                .help("On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It never leaves the Mac and is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor.")
-                Toggle(isOn: $clipboardContext) {
-                    Text("Use clipboard context")
-                    Text("Uses text you just copied.")
-                }
-                .help("Up to 600 characters, read only when the clipboard changes. Copies from password managers are never read, and nothing is written to the journal or debug log.")
-            }
-
-                        Section("Dictation") {
                 if let blocker = store.dictationBlocker {
                     Caption(blocker)
                     if store.dictationMicDenied {
@@ -468,238 +644,173 @@ struct GeneralTab: View {
                     }
                 } else {
                     Toggle(isOn: $store.dictation) {
-                        Text("Talk instead of typing")
-                        if store.apiAudio.enabled, !store.apiAudio.isLocal {
-                            Text("Hold a key and speak. Transcribed by your API provider.")
-                        } else {
-                            Text("Hold a key and speak. Transcribed on this Mac.")
-                        }
+                        IconLabel(symbol: "mic.fill", tint: .red,
+                                  title: Text("Talk instead of typing"),
+                                  subtitle: store.apiAudio.enabled && !store.apiAudio.isLocal
+                                      ? Text("Hold a key and speak. Transcribed by your API provider.")
+                                      : Text("Hold a key and speak. Transcribed on this Mac."))
                     }
                     .help("Hold a key for a sentence, or press a chord for a paragraph — either way it is typed into the field you're in. No audio is written to disk, and nothing records unless you ask.")
-                    if store.dictation {
-                        Picker(selection: $dictationGesture) {
-                            ForEach(DictationGesture.allCases, id: \.self) { gesture in
-                                Text(gesture.label).tag(gesture)
-                            }
-                        } label: {
-                            Text("Push-to-talk key")
-                            if dictationGesture != .off {
-                                Text("Hold to record. Esc discards.")
-                            }
+                }
+            }
+
+            if store.dictationBlocker == nil, store.dictation {
+                Section {
+                    Picker(selection: $dictationGesture) {
+                        ForEach(DictationGesture.allCases, id: \.self) { gesture in
+                            Text(gesture.label).tag(gesture)
                         }
-                        .help(replyGesture == .off
-                            ? Text("A hold, not a tap. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it.")
-                            : Text("A hold, not a tap, so it never collides with “\(replyGesture.label)” for a reply. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it."))
-                        if dictationGesture == .off, dictationLatch == .off {
-                            Caption(String(localized: "⚠︎ Nothing starts dictation. Pick a key or a chord."))
+                    } label: {
+                        Text("Push-to-talk key")
+                        if dictationGesture != .off {
+                            Text("Hold to record. Esc discards.")
                         }
-                        Picker(selection: $dictationLatch) {
-                            ForEach(DictationLatch.allCases, id: \.self) { latch in
-                                Text(latch.label).tag(latch)
-                            }
-                        } label: {
-                            Text("Hands-free chord")
-                            if dictationLatch != .off {
-                                Text("Press once to start, again to stop.")
-                            }
+                    }
+                    .help(replyGesture == .off
+                        ? Text("A hold, not a tap. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it.")
+                        : Text("A hold, not a tap, so it never collides with “\(replyGesture.label)” for a reply. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it."))
+                    if dictationGesture == .off, dictationLatch == .off {
+                        Caption(String(localized: "⚠︎ Nothing starts dictation. Pick a key or a chord."))
+                    }
+                    Picker(selection: $dictationLatch) {
+                        ForEach(DictationLatch.allCases, id: \.self) { latch in
+                            Text(latch.label).tag(latch)
                         }
-                        .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording starts on the keypress itself. ⎋ throws the capture away, and moving to another field ends it.")
+                    } label: {
+                        Text("Hands-free chord")
                         if dictationLatch != .off {
-                            Picker("Stop after silence", selection: $dictationSilence) {
-                                Text("Never").tag(0.0)
-                                Text("3 seconds").tag(3.0)
-                                Text("5 seconds").tag(5.0)
-                                Text("10 seconds").tag(10.0)
-                            }
-                            .help(dictationSilence == 0
-                                ? Text("Runs until you press the chord again, or for ten minutes.")
-                                : Text("Types what it has and stops, so a forgotten chord isn't an open microphone. Before your first word, it waits 30 seconds."))
+                            Text("Press once to start, again to stop.")
                         }
-                        Picker(selection: $store.dictationInput) {
-                            Text("Automatic").tag("auto")
-                            Text("System default").tag("system")
-                            Divider()
-                            ForEach(store.dictationInputs, id: \.uid) { device in
-                                Text(device.name).tag(device.uid)
-                            }
-                            // A pinned microphone that is currently
-                            // unplugged has no row above, and a Picker
-                            // whose selection matches no tag renders
-                            // EMPTY — which reads as "no microphone
-                            // chosen" while captures still honor the pin
-                            // the moment it returns.
-                            if store.dictationInput != "auto",
-                               store.dictationInput != "system",
-                               !store.dictationInputs.contains(where: { $0.uid == store.dictationInput }) {
-                                Text("Unplugged microphone").tag(store.dictationInput)
-                            }
-                        } label: {
-                            Text("Microphone")
-                            Text(store.dictationInput == "auto"
-                                ? store.dictationInputNote ?? String(localized: "Keeps wireless headphones out of call mode.")
-                                : String(localized: "Wireless headsets switch to call mode while recording."))
+                    }
+                    .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording starts on the keypress itself. ⎋ throws the capture away, and moving to another field ends it.")
+                    Picker(selection: $store.dictationLanguage) {
+                        Text("Follow keyboard").tag("auto")
+                        Divider()
+                        ForEach(store.dictationLocales, id: \.identifier) { locale in
+                            Text(Transcription.name(of: locale)).tag(locale.identifier)
                         }
-                        .help(store.dictationInput == "auto"
-                            ? Text("A headset carries either good playback or a two-way call, never both. When your default input and output are the same headset, dictation records from the built-in microphone instead, so your audio never changes.")
-                            : Text("Recording from a wireless headset switches it into call mode for the capture, which makes anything playing sound flat and quiet."))
-                        Picker(selection: $store.dictationLanguage) {
-                            Text("Follow keyboard").tag("auto")
-                            Divider()
-                            ForEach(store.dictationLocales, id: \.identifier) { locale in
-                                Text(Transcription.name(of: locale)).tag(locale.identifier)
-                            }
-                        } label: {
-                            Text("Language")
-                            // Which speech model it lands on, right where the
-                            // language is picked.
-                            let line = [store.dictationLanguage == "auto" ? String(localized: "Now \(store.dictationLanguageName)") : nil,
-                                        speechModel].compactMap { $0 }
-                            if !line.isEmpty {
-                                Text(line.joined(separator: " · "))
-                            }
+                    } label: {
+                        Text("Language")
+                        // Which speech model it lands on, right where the
+                        // language is picked.
+                        let line = [store.dictationLanguage == "auto" ? String(localized: "Now \(store.dictationLanguageName)") : nil,
+                                    speechModel].compactMap { $0 }
+                        if !line.isEmpty {
+                            Text(line.joined(separator: " · "))
                         }
-                        .help(languageHelp)
-                        // For the languages macOS simply cannot dictate, say so
-                        // HERE instead of letting the user find out by holding
-                        // a key and getting nothing.
-                        if store.dictationSupport == .unsupported {
-                            Caption(String(localized: "⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language."))
+                    }
+                    .help(languageHelp)
+                    // For the languages macOS simply cannot dictate, say so
+                    // HERE instead of letting the user find out by holding
+                    // a key and getting nothing.
+                    if store.dictationSupport == .unsupported {
+                        Caption(String(localized: "⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language."))
+                    }
+                    if [.fallback, .parakeet].contains(store.dictationSupport),
+                       Parakeet.covers(Settings.resolvedDictationLocale) {
+                        Toggle(isOn: $store.dictationParakeet) {
+                            Text("Use Parakeet for \(store.dictationLanguageName)")
+                            Text("Fewer errors and real punctuation. A one-time 610 MB download.")
                         }
-                        if [.fallback, .parakeet].contains(store.dictationSupport),
-                           Parakeet.covers(Settings.resolvedDictationLocale) {
-                            Toggle(isOn: $store.dictationParakeet) {
-                                Text("Use Parakeet for \(store.dictationLanguageName)")
-                                Text("Fewer errors and real punctuation. A one-time 610 MB download.")
-                            }
-                            .help("NVIDIA's open speech model, run locally. On Russian it makes under half the word errors of the system model, punctuates (F1 0.87 against 0.02) and runs three times faster.")
-                            if let note = store.parakeetNote {
-                                Caption(note)
-                            }
+                        .help("NVIDIA's open speech model, run locally. On Russian it makes under half the word errors of the system model, punctuates (F1 0.87 against 0.02) and runs three times faster.")
+                        if let note = store.parakeetNote {
+                            Caption(note)
                         }
-                        Toggle(isOn: $dictationPolish) {
-                            Text("Tidy up with the model")
-                            Text("Fixes capitalization, punctuation and mishearings.")
-                        }
-                        .help("The same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses; a result that rephrases is rejected. Costs one short generation before the text lands. Where the fix needs a separate model, its first use downloads it.")
-                        Toggle(isOn: $dictationCommands) {
-                            Text("Voice commands on selected text")
-                            Text("Say an edit like “make this shorter” over a selection.")
-                        }
-                        .help("The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. Off, dictating over a selection replaces it.")
-                        DictationSendList(store: store)
                     }
                 }
-            }
-            .onAppear {
-                store.loadDictationLocales()
-                store.refreshDictationInput()
-            }
-            // Devices come and go while the pane is open — a headset
-            // connecting is exactly the event that changes both the list and
-            // the "recording from X" note, and it happens outside any state
-            // this pane owns. (The notifications fire for cameras too; a
-            // spurious refresh costs a device-list read.) The notifications
-            // post on an arbitrary thread and the store is main-actor, hence
-            // the explicit hop.
-            .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
-                .merge(with: NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification))
-                .receive(on: DispatchQueue.main)) { _ in
-                store.refreshDictationInput()
-            }
-            // Under "Follow keyboard" both the "Now X" subtitle and the
-            // speech-model caption depend on the layout
-            // that is selected system-wide — and the user switches it from the
-            // menu bar or ⌃Space, outside our process, so no state we own
-            // changes. Carbon's distributed notification is the only signal
-            // that crosses the process boundary; re-resolving on it keeps both
-            // lines honest while the pane stays open. It is scoped to the
-            // section, so it costs nothing on the other tabs.
-            .onReceive(DistributedNotificationCenter.default().publisher(
-                for: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String))) { _ in
-                store.refreshDictationLanguage()
-            }
 
-            Section("Turned off in these apps") {
-                if store.blacklist.isEmpty {
-                    Caption(String(localized: "Always off in password managers."))
-                        .help("Terminals get suggestions only in an AI agent's prompt.")
+                AdvancedRow()
+                if showAdvanced {
+                    advanced
                 }
-                ForEach(store.blacklist, id: \.self) { entry in
-                    BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }
-                }
-                HStack(spacing: 10) {
-                    Button("Add App…", systemImage: "plus") { store.addBlacklistApp() }
-                    TextField("", text: $blacklistDraft, prompt: Text("or type part of a bundle ID"))
-                        .labelsHidden()
-                        .textFieldStyle(.roundedBorder)
-                        .help("A fragment like “slack” covers Slack everywhere. ⏎ adds it.")
-                        .onSubmit {
-                            store.addBlacklistEntry(blacklistDraft)
-                            blacklistDraft = ""
-                        }
-                }
-                .controlSize(.small)
-            }
-
-            Section {
-                Picker("Language", selection: $language) {
-                    Text("System (\(AppLanguage.nativeName(AppLanguage.systemChoice)))").tag("")
-                    Divider()
-                    ForEach(AppLanguage.available, id: \.self) { code in
-                        Text(verbatim: AppLanguage.nativeName(code)).tag(code)
-                    }
-                }
-                .onChange(of: language) { AppLanguage.override = language.isEmpty ? nil : language }
-                if (language.isEmpty ? AppLanguage.systemChoice : language) != AppLanguage.running {
-                    // Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
-                    if MicrophoneAccess.isBundled {
-                        LabeledContent {
-                            Button("Relaunch") { AppLanguage.relaunch() }
-                        } label: {
-                            Text("Relaunch Pretype to switch the language.")
-                        }
-                    } else {
-                        Caption(String(localized: "Restart Pretype to switch the language."))
-                    }
-                }
-            }
-
-            Section("Startup") {
-                // Bound to launchd, not to a stored bool: the same switch lives
-                // in System Settings → Login Items, and mirroring it in
-                // UserDefaults would eventually show a state that isn't real.
-                // Only `.enabled` is on: `.requiresApproval` is registered but
-                // held by macOS — on, yet doing nothing.
-                Toggle(isOn: Binding(
-                    get: { store.loginStatus == .enabled },
-                    set: { store.setOpenAtLogin($0) }
-                )) {
-                    Text("Open at login")
-                }
-                .help("Also in System Settings → General → Login Items.")
-                .disabled(!LoginItem.isSupported)
-                // The same switch lives in System Settings, and `sync()` only
-                // runs when the window is (re)presented — catch the user coming
-                // back from flipping it there, or this toggle only catches up
-                // when the window reopens.
-                .onReceive(NotificationCenter.default.publisher(
-                    for: NSApplication.didBecomeActiveNotification)) { _ in
-                    store.loginStatus = LoginItem.status
-                }
-                if let note = LoginItem.note(store.loginStatus) {
-                    Caption(note)
-                }
-            }
-
-            Section("Updates") {
-                Toggle(isOn: $automaticUpdateCheck) {
-                    Text("Check for updates automatically")
-                    Text("Asks GitHub once a day. Sends nothing about you.")
-                }
-                .help("New versions are announced in the menu bar; nothing is downloaded automatically.")
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            store.loadDictationLocales()
+            store.refreshDictationInput()
+        }
+        // Devices come and go while the pane is open — a headset
+        // connecting is exactly the event that changes both the list and
+        // the "recording from X" note, and it happens outside any state
+        // this pane owns. (The notifications fire for cameras too; a
+        // spurious refresh costs a device-list read.) The notifications
+        // post on an arbitrary thread and the store is main-actor, hence
+        // the explicit hop.
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
+            .merge(with: NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification))
+            .receive(on: DispatchQueue.main)) { _ in
+            store.refreshDictationInput()
+        }
+        // Under "Follow keyboard" both the "Now X" subtitle and the
+        // speech-model caption depend on the layout
+        // that is selected system-wide — and the user switches it from the
+        // menu bar or ⌃Space, outside our process, so no state we own
+        // changes. Carbon's distributed notification is the only signal
+        // that crosses the process boundary; re-resolving on it keeps both
+        // lines honest while the pane stays open.
+        .onReceive(DistributedNotificationCenter.default().publisher(
+            for: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String))) { _ in
+            store.refreshDictationLanguage()
+        }
+    }
+
+    /// Microphone, silence stop, the model's tidy-up, voice commands and the
+    /// send-after list: each has a default that holds for most people.
+    @ViewBuilder private var advanced: some View {
+        Section {
+            Picker(selection: $store.dictationInput) {
+                Text("Automatic").tag("auto")
+                Text("System default").tag("system")
+                Divider()
+                ForEach(store.dictationInputs, id: \.uid) { device in
+                    Text(device.name).tag(device.uid)
+                }
+                // A pinned microphone that is currently
+                // unplugged has no row above, and a Picker
+                // whose selection matches no tag renders
+                // EMPTY — which reads as "no microphone
+                // chosen" while captures still honor the pin
+                // the moment it returns.
+                if store.dictationInput != "auto",
+                   store.dictationInput != "system",
+                   !store.dictationInputs.contains(where: { $0.uid == store.dictationInput }) {
+                    Text("Unplugged microphone").tag(store.dictationInput)
+                }
+            } label: {
+                Text("Microphone")
+                Text(store.dictationInput == "auto"
+                    ? store.dictationInputNote ?? String(localized: "Keeps wireless headphones out of call mode.")
+                    : String(localized: "Wireless headsets switch to call mode while recording."))
+            }
+            .help(store.dictationInput == "auto"
+                ? Text("A headset carries either good playback or a two-way call, never both. When your default input and output are the same headset, dictation records from the built-in microphone instead, so your audio never changes.")
+                : Text("Recording from a wireless headset switches it into call mode for the capture, which makes anything playing sound flat and quiet."))
+            if dictationLatch != .off {
+                Picker("Stop after silence", selection: $dictationSilence) {
+                    Text("Never").tag(0.0)
+                    Text("3 seconds").tag(3.0)
+                    Text("5 seconds").tag(5.0)
+                    Text("10 seconds").tag(10.0)
+                }
+                .help(dictationSilence == 0
+                    ? Text("Runs until you press the chord again, or for ten minutes.")
+                    : Text("Types what it has and stops, so a forgotten chord isn't an open microphone. Before your first word, it waits 30 seconds."))
+            }
+            Toggle(isOn: $dictationPolish) {
+                Text("Tidy up with the model")
+                Text("Fixes capitalization, punctuation and mishearings.")
+            }
+            .help("The same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses; a result that rephrases is rejected. Costs one short generation before the text lands. Where the fix needs a separate model, its first use downloads it.")
+            Toggle(isOn: $dictationCommands) {
+                Text("Voice commands on selected text")
+                Text("Say an edit like “make this shorter” over a selection.")
+            }
+            .help("The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. Off, dictating over a selection replaces it.")
+        }
+        Section {
+            DictationSendList(store: store)
+        }
     }
 }
 
@@ -827,9 +938,76 @@ private struct PerAppInstructionRow: View {
     }
 }
 
+/// A shortcut row's label: the action's name, and under it a small
+/// before → after picture of what the key does.
+private struct ShortcutLabel<Demo: View>: View {
+    let title: Text
+    @ViewBuilder let demo: () -> Demo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            title
+            demo()
+                .font(.caption)
+                .lineLimit(1)
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// The before → after pictures of the Shortcuts rows.
+@MainActor
+private enum ShortcutDemo {
+    static var arrow: some View {
+        Image(systemName: "arrow.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+    }
+
+    /// The suggestion's next chunk joins the line; the rest stays grey.
+    static var accept: some View {
+        let (typed, chunk, rest) = (SuggestionLineMock.typed, SuggestionLineMock.chunk, SuggestionLineMock.rest)
+        return HStack(spacing: 6) {
+            Text("\(Text(typed))\(Text(chunk + rest).foregroundStyle(.tertiary))")
+            arrow
+            Text("\(Text(typed))\(Text(chunk).foregroundStyle(Color.green.legible).bold())\(Text(rest).foregroundStyle(.tertiary))")
+        }
+    }
+
+    /// The misspelled word, struck out, and its fix.
+    static var fix: some View {
+        HStack(spacing: 6) {
+            Text("tomorow", comment: "Settings → Shortcuts: a misspelled word the fix chord corrects. Use a common misspelling of the word translated in “tomorrow”.")
+                .strikethrough(color: .red)
+                .foregroundStyle(.secondary)
+            arrow
+            Text("tomorrow", comment: "Settings → Shortcuts: the corrected form of the misspelled word in “tomorow”.")
+                .foregroundStyle(Color.green.legible)
+                .bold()
+        }
+    }
+
+    /// The other person's message, and the reply drafted for it.
+    static var reply: some View {
+        HStack(spacing: 6) {
+            Text("Free tonight?", comment: "Settings → Shortcuts: a sample chat message from someone else.")
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(Color.primary.opacity(0.1), in: Capsule())
+            arrow
+            Text("Yes, see you at 7!", comment: "Settings → Shortcuts: the reply Pretype drafts to “Free tonight?”.")
+                .foregroundStyle(.white)
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(Color.blue, in: Capsule())
+        }
+    }
+}
+
 /// The sample line at the caret — the inline ghost, or the panel pill above
 /// the line — drawn by the presentation cards.
 struct SuggestionLineMock: View {
+    static let typed = String(localized: "Write ", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 1, the text typed before the caret. Keep the trailing space.")
+    static let chunk = String(localized: "a reply", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 2, the suggestion's first chunk right after the caret.")
+    static let rest = String(localized: " to Anna", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 3, the rest of the suggestion up to its end. Keep the leading space.")
+
     let presentation: SuggestionPresentation
     let opacity: Double
     let hotkey: String
@@ -845,9 +1023,7 @@ struct SuggestionLineMock: View {
         // differently promised a look the caret never delivered.
         let head = ink.opacity(1.0 * effective)
         let tail = ink.opacity(0.72 * effective)
-        let typed = String(localized: "Write ", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 1, the text typed before the caret. Keep the trailing space.")
-        let chunk = String(localized: "a reply", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 2, the suggestion's first chunk right after the caret.")
-        let rest = String(localized: " to Anna", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 3, the rest of the suggestion up to its end. Keep the leading space.")
+        let (typed, chunk, rest) = (Self.typed, Self.chunk, Self.rest)
         return Group {
             if presentation == .inline {
                 // The ghost, then the accept keycap a new user sees beside it.
@@ -955,118 +1131,83 @@ private struct PresentationCard: View {
     }
 }
 
-// MARK: - Suggestions tab
+// MARK: - Suggestion tuning
 
-struct SuggestionsTab: View {
+/// Style and length: the Model pane's advanced section. "Use recommended
+/// settings" sets both per model, and most people never leave it.
+struct TuningSection: View {
     @Bindable var store: SettingsStore
 
     var body: some View {
-        Form {
+        Section("Suggestions") {
             // Apple Intelligence runs as the macOS system model on the Neural
             // Engine: Style and the precision gate never reach it
-            // (EngineCoordinator sends only length + persona), so those tuning
-            // sections are on-device only.
+            // (EngineCoordinator sends only length + persona).
             if store.isAppleIntelligence {
-                Section {
-                    Caption(String(localized: "Style and precision don't apply to Apple Intelligence."))
-                }
+                Caption(String(localized: "Style and precision don't apply to Apple Intelligence."))
             } else {
-                Section {
-                    Toggle(isOn: $store.useRecommended) {
-                        Text("Use recommended settings")
-                        if store.useRecommended {
-                            Text("Now \(store.recommendation.summary). Changing Style or Length turns this off.")
-                        } else {
-                            Text("Best for this model: \(store.recommendation.summary).")
-                        }
+                Toggle(isOn: $store.useRecommended) {
+                    Text("Use recommended settings")
+                    if store.useRecommended {
+                        Text("Now \(store.recommendation.summary). Changing Style or Length turns this off.")
+                    } else {
+                        Text("Best for this model: \(store.recommendation.summary).")
                     }
-                    .onHover { store.setHover(.useRecommended(!store.useRecommended), $0) }
                 }
-
-                Section {
+                .onHover { store.setHover(.useRecommended(!store.useRecommended), $0) }
+                LabeledContent {
                     HoverSegments(title: String(localized: "Style"),
                                   options: CompletionStyle.allCases.map { ($0, $0.label) },
                                   selection: store.style,
                                   select: { style in
-                                      // Base↔Instruct inserts/removes requirement
-                                      // rows and swaps footers in two sections.
+                                      // Base↔Instruct inserts/removes the
+                                      // length row and the precision cards.
                                       withAnimation(.easeInOut(duration: 0.18)) { store.style = style }
                                   },
                                   hover: { style, hovering in
                                       store.setHover(.style(style), hovering)
                                   })
-                    if store.style == .instruct, store.instructUnusable {
-                        RequirementRow(met: false,
-                                       text: String(localized: "Instruct doesn't work on \(store.selectedModelName)"),
-                                       fixTitle: String(localized: "Switch to Base")) { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
-                            .help("It answers the text instead of continuing it. Instruct needs a Gemma E4B model.")
-                    }
-                } header: {
+                        .frame(width: 220)
+                } label: {
                     Text("Style")
-                } footer: {
-                    store.style == .instruct
-                        ? Text("Follows your persona. Loads a second model.")
-                        : Text("Continues your text. Most accurate on everyday typing.")
-                }
-
-                Section("Precision") {
-                    Toggle(isOn: $store.logprobGate) {
-                        Text("Show only confident suggestions")
-                        Text(gateLine)
-                    }
-                    .disabled(!store.logprobGateUsable)
-                    .onHover { hovering in
-                        guard store.logprobGateUsable else { return }
-                        store.setHover(.logprobGate(!store.logprobGate), hovering)
-                    }
-                    if !store.logprobGateUsable {
-                        RequirementRow(met: false, text: String(localized: "Needs Base style"),
-                                       fixTitle: String(localized: "Switch to Base")) { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
+                    if store.style == .instruct {
+                        Text("Follows your persona. Loads a second model.")
+                    } else {
+                        Text("Continues your text. Most accurate on everyday typing.")
                     }
                 }
-            }  // end on-device-only tuning sections (hidden for Apple Intelligence)
-
-            Section {
-                HoverSegments(title: String(localized: "Length"),
-                              options: CompletionLength.allCases.map { ($0, $0.label) },
-                              selection: store.length,
-                              select: { store.length = $0 },
-                              hover: { length, hovering in
-                                  store.setHover(.length(length), hovering)
-                              })
-                    .disabled(lengthInert)
-            } header: {
-                Text("Length")
-            } footer: {
-                Text(lengthLine)
+                if store.style == .instruct, store.instructUnusable {
+                    RequirementRow(met: false,
+                                   text: String(localized: "Instruct doesn't work on \(store.selectedModelName)"),
+                                   fixTitle: String(localized: "Switch to Base")) { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
+                        .help("It answers the text instead of continuing it. Instruct needs a Gemma E4B model.")
+                }
+            }
+            // Base style's entropy stop ends a suggestion inside even Short's
+            // budget (identical output at all three lengths, 2026-10-15), so
+            // the control only shows where it does something. Apple
+            // Intelligence reads length whatever the style says.
+            if store.style != .base || store.isAppleIntelligence {
+                LabeledContent {
+                    HoverSegments(title: String(localized: "Length"),
+                                  options: CompletionLength.allCases.map { ($0, $0.label) },
+                                  selection: store.length,
+                                  select: { store.length = $0 },
+                                  hover: { length, hovering in
+                                      store.setHover(.length(length), hovering)
+                                  })
+                        .frame(width: 260)
+                } label: {
+                    Text("Length")
+                    Text(lengthLine)
+                }
             }
         }
-        .formStyle(.grouped)
-    }
-
-    /// The gate's trade for the SELECTED model in one line, from the
-    /// projection the Live Impact rail reads — so the two always agree.
-    private var gateLine: String {
-        var config = store.committedConfig
-        config.logprobGate = true
-        let on = ConfigProjection.project(config)
-        guard store.logprobGateUsable, on.accuracyPct != nil, let shown = on.coveragePct else {
-            return String(localized: "Fewer suggestions, more of them right.")
-        }
-        return String(localized: "Suggests \(shown)% of the time; \(on.accuracyText) of those are right.")
-    }
-
-    /// Base style's entropy stop ends a suggestion inside even Short's budget
-    /// (identical output at all three lengths, 2026-10-15), so the control is
-    /// off there. Apple Intelligence reads length whatever the style says.
-    private var lengthInert: Bool {
-        store.style == .base && !store.isAppleIntelligence
     }
 
     /// How far one suggestion runs and what it costs, from the projection
     /// the rail reads (measured on the EN+RU core, 2026-10-15).
     private var lengthLine: String {
-        if lengthInert { return String(localized: "Base stops at about 2 words, so length has no effect.") }
         // One whole sentence per case, with and without the latency.
         let each = ConfigProjection.project(store.committedConfig).p50Ms.map { latencyLabel(ms: $0) }
         switch store.length {
@@ -1091,6 +1232,8 @@ struct PersonalTab: View {
     /// they route through one confirmation instead of firing on a single click.
     @State private var confirmingClear = false
     @State private var clearDisablesJournal = false
+    @AppStorage("clipboardContext") private var clipboardContext = Settings.clipboardContextEnabled
+    @AppStorage("showAdvancedSettings") private var showAdvanced = false
 
     var body: some View {
         Form {
@@ -1137,68 +1280,36 @@ struct PersonalTab: View {
                 .controlSize(.small)
             }
 
-            // Instant n-gram suggestions come from the controller, so learning
-            // works the same on every engine, Apple Intelligence included.
-            Section("Learning") {
+            // What Pretype may read besides the text field — next to the
+            // persona and styles it feeds.
+            Section("Context") {
+                Toggle(isOn: $store.screenContext) {
+                    IconLabel(symbol: "macwindow", tint: .blue,
+                              title: Text("Use screen context"),
+                              subtitle: Text("Reads the focused window on this Mac."))
+                }
+                .help("On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It never leaves the Mac and is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor.")
+                Toggle(isOn: $clipboardContext) {
+                    IconLabel(symbol: "doc.on.clipboard.fill", tint: .orange,
+                              title: Text("Use clipboard context"),
+                              subtitle: Text("Uses text you just copied."))
+                }
+                .help("Up to 600 characters, read only when the clipboard changes. Copies from password managers are never read, and nothing is written to the journal or debug log.")
+                // Instant n-gram suggestions come from the controller, so learning
+                // works the same on every engine, Apple Intelligence included.
                 Toggle(isOn: $store.personalization) {
-                    Text("Learn my words")
-                    if store.learnedWords > 0 {
-                        Text("\(store.learnedWords) words learned from your typing.")
-                    } else {
-                        Text("Boosts words you often type.")
-                    }
+                    IconLabel(symbol: "character.book.closed.fill", tint: .purple,
+                              title: Text("Learn my words"),
+                              subtitle: store.learnedWords > 0
+                                  ? Text("\(store.learnedWords) words learned from your typing.")
+                                  : Text("Boosts words you often type."))
                 }
                 .help("Learned from your suggestion journal, only while on. Clear the journal to forget them.")
             }
 
-            Section("Journal") {
-                Toggle(isOn: Binding(
-                    get: { store.journalEnabled },
-                    set: { on in
-                        // Turning off deletes the journal via the store's didSet;
-                        // only ask when there is actually something to lose.
-                        if !on && store.journalHasData {
-                            clearDisablesJournal = true
-                            confirmingClear = true
-                        } else {
-                            store.journalEnabled = on
-                        }
-                    }
-                )) {
-                    Text("Keep suggestion journal")
-                    Text("Saves suggestions with nearby text, on this Mac only.")
-                }
-                .help("The raw data for personalization, capped at 50 MB in Application Support. On-screen text is never written. Turning this off deletes it.")
-                LabeledContent("Size") {
-                    HStack(spacing: 10) {
-                        Text(store.journalBytes > 0
-                            ? ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)
-                            : String(localized: "Empty"))
-                            .monospacedDigit()
-                        Button("Clear…") {
-                            clearDisablesJournal = false
-                            confirmingClear = true
-                        }
-                        .controlSize(.small)
-                        .disabled(store.journalBytes == 0)
-                    }
-                }
-                LabeledContent {
-                    Button("Import Text…", systemImage: "text.book.closed") { store.importTextFiles() }
-                        .controlSize(.small)
-                        .disabled(!store.journalEnabled || store.importing)
-                } label: {
-                    Text("Learn from your writing")
-                    if store.journalEnabled {
-                        Text("Import .txt or .md files you wrote.")
-                    } else {
-                        Text("Turn on the journal first.")
-                    }
-                }
-                .help("Pretype learns your words and reuses your sentences as examples. Files are only read; Clear forgets imported text too.")
-                if let status = store.importStatus {
-                    Caption(status)
-                }
+            AdvancedRow()
+            if showAdvanced {
+                journal
             }
         }
         .formStyle(.grouped)
@@ -1221,6 +1332,60 @@ struct PersonalTab: View {
             store.learnedWords > 0
                 ? Text("This also forgets the \(store.learnedWords) words Pretype learned from you. It can't be undone.")
                 : Text("This can't be undone.")
+        }
+    }
+
+    /// The raw data under Learn my words: on by default, so it's here for
+    /// clearing and importing, not for setting up.
+    private var journal: some View {
+        Section("Journal") {
+            Toggle(isOn: Binding(
+                get: { store.journalEnabled },
+                set: { on in
+                    // Turning off deletes the journal via the store's didSet;
+                    // only ask when there is actually something to lose.
+                    if !on && store.journalHasData {
+                        clearDisablesJournal = true
+                        confirmingClear = true
+                    } else {
+                        store.journalEnabled = on
+                    }
+                }
+            )) {
+                Text("Keep suggestion journal")
+                Text("Saves suggestions with nearby text, on this Mac only.")
+            }
+            .help("The raw data for personalization, capped at 50 MB in Application Support. On-screen text is never written. Turning this off deletes it.")
+            LabeledContent("Size") {
+                HStack(spacing: 10) {
+                    Text(store.journalBytes > 0
+                        ? ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)
+                        : String(localized: "Empty"))
+                        .monospacedDigit()
+                    Button("Clear…") {
+                        clearDisablesJournal = false
+                        confirmingClear = true
+                    }
+                    .controlSize(.small)
+                    .disabled(store.journalBytes == 0)
+                }
+            }
+            LabeledContent {
+                Button("Import Text…", systemImage: "text.book.closed") { store.importTextFiles() }
+                    .controlSize(.small)
+                    .disabled(!store.journalEnabled || store.importing)
+            } label: {
+                Text("Learn from your writing")
+                if store.journalEnabled {
+                    Text("Import .txt or .md files you wrote.")
+                } else {
+                    Text("Turn on the journal first.")
+                }
+            }
+            .help("Pretype learns your words and reuses your sentences as examples. Files are only read; Clear forgets imported text too.")
+            if let status = store.importStatus {
+                Caption(status)
+            }
         }
     }
 }

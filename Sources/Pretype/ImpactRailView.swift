@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The Live Impact rail (trailing inspector): the master switch, the active
-/// configuration, and four meters — accuracy, speed, memory, compute — for
+/// The Live Impact rail (the Model pane's trailing inspector): the active
+/// configuration and four meters — accuracy, speed, memory, compute — for
 /// what the committed configuration measures to. Hovering any wired control
 /// overlays a ghost band and delta chip showing where that change would move
 /// each meter, before anything commits. All figures come from
@@ -73,20 +73,8 @@ struct ImpactRailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Live Impact")
-                    .font(.headline)
-                Spacer()
-                // Labeled, not a bare switch: next to the "Live Impact" title an
-                // unlabeled toggle reads as showing/hiding the inspector, when it
-                // is the master pause — fix, reply and dictation stop with it,
-                // so it is named for all of Pretype, not just suggestions.
-                Toggle("Pretype", isOn: $store.enabled)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .font(.subheadline)
-                    .help("Off pauses suggestions, fix, reply and dictation — same as Pause Pretype in the menu bar")
-            }
+            Text("Live Impact")
+                .font(.headline)
             HStack(spacing: 7) {
                 Circle()
                     .fill(store.enabled ? Color.green : Color.secondary)

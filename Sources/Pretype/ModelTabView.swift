@@ -1,10 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// The Model tab: a ranked, bar-annotated comparison of every model —
-/// accuracy, speed and memory as at-a-glance bars (longer = better) with the
-/// measured numbers beside them. Every figure is a real eval run
-/// (see `ModelMetrics`); no axes to decode, no spec-sheet estimates.
+/// The Model tab: one card per goal picks a model and its settings in a
+/// click; the precision cards show the confidence gate's trade as dots; the
+/// ranked list compares every model — accuracy, speed and memory as
+/// at-a-glance bars (longer = better) with the measured numbers beside them.
+/// Under Advanced: style tuning, memory and the map. Every figure is a real
+/// eval run (see `ModelMetrics`).
 struct ModelTab: View {
     @Bindable var store: SettingsStore
     /// Catalog id awaiting delete confirmation. Local @State: it changes on a
@@ -14,6 +16,7 @@ struct ModelTab: View {
     /// changes on a click and resets to completions with the window.
     @State private var mapLens = MapLens.completion
     @AppStorage("idleUnloadMinutes") private var idleUnloadMinutes = Settings.idleUnloadMinutes
+    @AppStorage("showAdvancedSettings") private var showAdvanced = false
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
@@ -41,31 +44,6 @@ struct ModelTab: View {
                 }
             }
             Section {
-                // Languages only. The pooled English+Russian entry used to sit
-                // here as if it were a language; it pooled two that measure
-                // differently (every small model is stronger in English), and
-                // its real job — anchoring the settings projections — is a mode,
-                // not a language. It moved to the toggle below.
-                Picker("Accuracy in", selection: $store.accuracyAxis) {
-                    Text("All languages").tag("*")
-                    Divider()
-                    ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
-                        Text(ModelMetrics.axisDisplayName(code)).tag(code)
-                    }
-                }
-                // Not disabled while the map is on: picking a language turns the
-                // map off (see SettingsStore.accuracyAxis), so the control the
-                // user reaches for is the one that answers.
-                Toggle(isOn: $store.settingsMapMode) {
-                    Text("Show settings on the map")
-                    if store.settingsMapMode {
-                        Text("Measured on English and Russian.")
-                    }
-                }
-                .help("Plots this model's other settings on the map. They were measured on English and Russian together, so the whole tab switches to that sample.")
-            }
-
-            Section {
                 HStack(spacing: 10) {
                     ForEach(distinctPriorities, id: \.self) { priority in
                         let pick = priority.pick(axis: axis)
@@ -82,21 +60,33 @@ struct ModelTab: View {
                 Text("What matters most")
             }
 
-            Section {
-                // The two chord tasks run on a different, smaller set of
-                // models (the instruct siblings), so they are a lens on the
-                // map rather than extra bubbles — same axes, different task.
-                HoverSegments(title: String(localized: "Map task"), options: [
-                    (MapLens.completion, String(localized: "Completions")),
-                    (MapLens.fix, String(localized: "Fix")),
-                    (MapLens.reply, String(localized: "Reply")),
-                ], selection: mapLens, select: { mapLens = $0 })
-                ModelMapView(store: store, lens: mapLens)
-            } header: {
-                Text("Model map")
+            // The gate reads the base model's own confidence: Instruct and
+            // Apple Intelligence have none to read, so the choice leaves
+            // with them.
+            if store.logprobGateUsable, !store.isAppleIntelligence {
+                Section {
+                    HStack(spacing: 12) {
+                        GateCard(store: store, on: false)
+                        GateCard(store: store, on: true)
+                    }
+                } header: {
+                    Text("How often to suggest")
+                } footer: {
+                    let right = Text(verbatim: "●").foregroundStyle(Color.green)
+                    let wrong = Text(verbatim: "●").foregroundStyle(Color.secondary.opacity(0.6))
+                    let none = Text(verbatim: "○").foregroundStyle(.secondary)
+                    Text("Each dot is one pause in your typing: \(right) right, \(wrong) wrong, \(none) nothing shown.")
+                }
             }
 
             Section("All models") {
+                Picker("Accuracy in", selection: $store.accuracyAxis) {
+                    Text("All languages").tag("*")
+                    Divider()
+                    ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
+                        Text(ModelMetrics.axisDisplayName(code)).tag(code)
+                    }
+                }
                 ForEach(rankedEntries, id: \.id) { entry in
                     ModelRow(id: entry.id, title: entry.title,
                              isSelected: store.modelID == entry.id,
@@ -115,33 +105,10 @@ struct ModelTab: View {
                 }
             }
 
-            selectedModelSection
-
-            Section("Runtime") {
-                Picker(selection: $idleUnloadMinutes) {
-                    Text("Never").tag(0)
-                    Text("After 1 minute").tag(1)
-                    Text("After 5 minutes").tag(5)
-                    Text("After 15 minutes").tag(15)
-                    Text("After 30 minutes").tag(30)
-                } label: {
-                    Text("Free memory when idle")
-                    if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
-                        // Less what the table on disk already freed.
-                        let onDisk = store.pleFromDisk ? HostPLE.savingGB(for: store.modelID) ?? 0 : 0
-                        Text("Frees about \(oneDecimal(store.selectedRamGB - onDisk)) GB while unused.")
-                    }
-                }
-                .help("The next keystroke reloads the model from disk; switching to a text field pre-warms it.")
-                if let savingGB = HostPLE.savingGB(for: store.modelID) {
-                    Toggle(isOn: $store.pleFromDisk) {
-                        Text("Reduce memory use")
-                        Text("Frees about \(oneDecimal(savingGB)) GB; suggestions come a few milliseconds later.")
-                    }
-                    .help("Reads one of the model's tables from disk instead of keeping it in memory. Suggestions stay exactly the same. On by default on Macs with 16 GB of memory or less.")
-                }
+            AdvancedRow()
+            if showAdvanced {
+                advanced
             }
-
         }
         .formStyle(.grouped)
         .onAppear { store.refreshModelDiskUsage() }
@@ -164,6 +131,61 @@ struct ModelTab: View {
         }
     }
 
+    /// Style tuning, memory and the map: the cards and the list above pick a
+    /// model and its settings in one click.
+    @ViewBuilder private var advanced: some View {
+        TuningSection(store: store)
+
+        Section("Memory") {
+            Picker(selection: $idleUnloadMinutes) {
+                Text("Never").tag(0)
+                Text("After 1 minute").tag(1)
+                Text("After 5 minutes").tag(5)
+                Text("After 15 minutes").tag(15)
+                Text("After 30 minutes").tag(30)
+            } label: {
+                Text("Free memory when idle")
+                if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
+                    // Less what the table on disk already freed.
+                    let onDisk = store.pleFromDisk ? HostPLE.savingGB(for: store.modelID) ?? 0 : 0
+                    Text("Frees about \(oneDecimal(store.selectedRamGB - onDisk)) GB while unused.")
+                }
+            }
+            .help("The next keystroke reloads the model from disk; switching to a text field pre-warms it.")
+            if let savingGB = HostPLE.savingGB(for: store.modelID) {
+                Toggle(isOn: $store.pleFromDisk) {
+                    Text("Reduce memory use")
+                    Text("Frees about \(oneDecimal(savingGB)) GB; suggestions come a few milliseconds later.")
+                }
+                .help("Reads one of the model's tables from disk instead of keeping it in memory. Suggestions stay exactly the same. On by default on Macs with 16 GB of memory or less.")
+            }
+        }
+
+        Section {
+            // The two chord tasks run on a different, smaller set of
+            // models (the instruct siblings), so they are a lens on the
+            // map rather than extra bubbles — same axes, different task.
+            HoverSegments(title: String(localized: "Map task"), options: [
+                (MapLens.completion, String(localized: "Completions")),
+                (MapLens.fix, String(localized: "Fix")),
+                (MapLens.reply, String(localized: "Reply")),
+            ], selection: mapLens, select: { mapLens = $0 })
+            ModelMapView(store: store, lens: mapLens)
+            // Not disabled while the map is on: picking a language turns the
+            // map off (see SettingsStore.accuracyAxis), so the control the
+            // user reaches for is the one that answers.
+            Toggle(isOn: $store.settingsMapMode) {
+                Text("Show settings on the map")
+                if store.settingsMapMode {
+                    Text("Measured on English and Russian.")
+                }
+            }
+            .help("Plots this model's other settings on the map. They were measured on English and Russian together, so the whole tab switches to that sample.")
+        } header: {
+            Text("Model map")
+        }
+    }
+
     /// Download size of what a click on `id` would load, while it isn't on
     /// this Mac yet — the selected row is already loading whatever it needs.
     private func downloadGB(for id: String) -> Double? {
@@ -180,24 +202,6 @@ struct ModelTab: View {
         guard let gb = ConfigProjection.project(store.committedConfig.applying(.model(id))).ramGB,
               ModelCatalog.isHeavy(residentGB: gb) else { return nil }
         return gb
-    }
-
-    /// The tolerance on every figure the axis shows, computed at the selected
-    /// model's own rate so it is honest at the low end too (a 1% cell is far
-    /// tighter than a 25% one).
-    private func margin(for axis: String) -> Int {
-        let pct = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis) ?? 20
-        return ModelMetrics.marginOfError(pct: pct, n: ModelMetrics.axisSampleSize(axis))
-    }
-
-    /// The selected model's accuracy evidence — rule, sample, tolerance and
-    /// the catalog note — as one tooltip.
-    private func accuracyHelp(note: String?) -> String {
-        let rule = axis == "core"
-            ? String(localized: "First word right")
-            : String(localized: "First word right, silence counted as a miss")
-        let sample = String(localized: "\(ModelMetrics.axisDisplayName(axis)), \(ModelMetrics.axisSampleSize(axis)) samples, ±\(margin(for: axis)) pp.")
-        return "\(rule) — \(sample)" + (note.map { "\n\n" + $0 } ?? "")
     }
 
     /// Axis accuracy for a row, with the axis best for bar normalization —
@@ -233,69 +237,6 @@ struct ModelTab: View {
             case (.some, .none): return true
             case (.none, .some): return false
             case (.none, .none): return a.title < b.title
-            }
-        }
-    }
-
-    @ViewBuilder private var selectedModelSection: some View {
-        Section("Selected: \(store.selectedModelName)") {
-            if let m = ModelMetrics.metrics(for: store.modelID) {
-                // Both rows follow the axis. Coverage used to be the pooled EN+RU
-                // figure no matter what was selected, which is how "offers a
-                // suggestion 81% of the time" ended up on the Hebrew axis for a
-                // model that answers 58% of Hebrew. The evidence (sample size,
-                // tolerance, the catalog note) is a tooltip, not a paragraph.
-                let v = ModelMetrics.axisAccuracy(for: store.modelID, axis: axis)
-                LabeledContent("Accuracy") {
-                    v.map { Text("\($0)%") } ?? Text("Not measured")
-                }
-                .help(accuracyHelp(note: m.note))
-                LabeledContent("Suggests") {
-                    Text("\(ModelMetrics.axisCoverage(for: store.modelID, axis: axis) ?? m.coveragePct)% of the time")
-                }
-                .help("Stays silent the rest of the time rather than guess.")
-                // Apple Intelligence is the system model: style is moot (setupLine
-                // omits it too) — so suppress the measured-config row.
-                if !store.isAppleIntelligence {
-                    LabeledContent("Best settings") {
-                        Text(store.recommendation.summary)
-                    }
-                }
-                ChordTaskRows(store: store)
-            } else {
-                Caption(String(localized: "Not measured yet."))
-            }
-        }
-    }
-}
-
-// MARK: - Chord task rows
-
-/// The fix/reply figures on the selected-model card. The chord tasks run on
-/// the instruct sibling, not the selected model — resolved per the current
-/// style the same way the engine picks what it loads, so the figures are the
-/// ones this pick would actually produce.
-struct ChordTaskRows: View {
-    @Bindable var store: SettingsStore
-
-    var body: some View {
-        if store.isAppleIntelligence {
-            LabeledContent("Fix and reply") {
-                Text("Not measured")
-            }
-            .help("The chords run on the system model, which the task eval doesn't cover yet.")
-        } else if let t = ModelMetrics.taskMetrics(for: store.modelID, style: store.style) {
-            LabeledContent("Fix a line (\(store.hotkeyStyle.correctionLabel))") {
-                Text("\(t.m.fixPct)% exact")
-            }
-            .help("Of 510 single-typo sentences in 17 languages, \(t.runsOn) — the model this pick loads for the chord — restored \(t.m.fixPct)% [\(t.m.fixCI.lowerBound)–\(t.m.fixCI.upperBound)] to the exact original; on 170 already-clean lines it still proposed a change \(t.m.falseFixPct)% of the time. Warm median \(t.m.fixP50Ms) ms. \(ModelMetrics.taskSource).")
-            LabeledContent("Draft a reply (\(store.hotkeyStyle.replyLabel))") {
-                Text("\(t.m.replyPct)% on topic")
-            }
-            .help("Of 380 on-screen conversations in 19 languages, \(t.runsOn) wrote a reply that an independent model rates as on topic \(t.m.replyPct)% [\(t.m.replyCI.lowerBound)–\(t.m.replyCI.upperBound)] of the time. Warm median \(t.m.replyP50Ms) ms. \(ModelMetrics.taskSource).")
-        } else {
-            LabeledContent("Fix and reply") {
-                Text("Not measured")
             }
         }
     }
@@ -477,6 +418,84 @@ struct ModelRow: View {
     }
 }
 
+// MARK: - Precision cards
+
+/// One side of the confidence gate: what it does to twenty pauses in your
+/// typing — how many get a suggestion, and how many of those are right —
+/// drawn as dots, from the same projection the Live Impact rail reads.
+private struct GateCard: View {
+    @Bindable var store: SettingsStore
+    let on: Bool
+    /// Local hover for the card highlight, kept off the observed store.
+    @State private var hovering = false
+
+    private static let dots = 20
+
+    private enum Dot { case right, wrong, none }
+
+    private func dot(_ kind: Dot) -> some View {
+        Circle()
+            .fill(kind == .right ? Color.green : kind == .wrong ? Color.secondary.opacity(0.45) : Color.clear)
+            .overlay(Circle().strokeBorder(kind == .none ? Color.secondary.opacity(0.45) : Color.clear, lineWidth: 1))
+            .frame(width: 9, height: 9)
+    }
+
+    var body: some View {
+        var config = store.committedConfig
+        config.logprobGate = on
+        let p = ConfigProjection.project(config)
+        let shown = Int((Double(p.coveragePct ?? 0) / 100 * Double(Self.dots)).rounded())
+        let right = Int((Double(shown) * Double(p.accuracyPct ?? 0) / 100).rounded())
+        let isSelected = store.logprobGate == on
+        return Button {
+            withAnimation(.easeInOut(duration: 0.18)) { store.logprobGate = on }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                // Two plain rows of ten: a lazy grid inside a form row laid
+                // itself out again on every pass and stalled the pane.
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(0..<2, id: \.self) { row in
+                        HStack(spacing: 5) {
+                            ForEach(row * 10..<row * 10 + 10, id: \.self) { i in
+                                dot(i < right ? .right : i < shown ? .wrong : .none)
+                            }
+                        }
+                    }
+                }
+                HStack {
+                    (on ? Text("Only when sure") : Text("More often"))
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
+                    }
+                }
+                if let cov = p.coveragePct, let acc = p.accuracyPct {
+                    Text("Suggests \(cov)% of the time · \(acc)% right")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10)
+                .fill(isSelected ? Color.accentColor.opacity(0.08)
+                      : (hovering ? Color.primary.opacity(0.04) : Color.clear)))
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? Color.accentColor
+                        : (hovering ? Color.primary.opacity(0.22) : Color(nsColor: .separatorColor)),
+                        lineWidth: isSelected ? 2 : 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(on ? Text("Only when sure") : Text("More often"))
+        .accessibilityValue(Text("Suggests \(p.coveragePct ?? 0)% of the time · \(p.accuracyPct ?? 0)% right"))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .onHover { hovering = $0; store.setHover(.logprobGate(on), $0) }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
 // MARK: - Priority presets
 
 /// One "what matters most" card: goal on top, the measured landing spot below
@@ -497,10 +516,8 @@ private struct PriorityCard: View {
     var body: some View {
         Button(action: apply) {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 5) {
-                    Image(systemName: priority.symbol)
-                        .font(.caption)
-                        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                HStack(spacing: 6) {
+                    SettingsIcon(symbol: priority.symbol, tint: priority.tint)
                     // Wraps rather than shrinking below the caption floor:
                     // "Quick & accurate" overflows a card at the minimum width.
                     Text(priority.title)
@@ -561,6 +578,19 @@ private struct PriorityCard: View {
         .help(priority.goal)
         .onHover { hovering = $0; hover($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+extension ModelPriority {
+    /// The card's tile, in the color of the figure the goal maximizes —
+    /// the same green, blue and teal as the bars and the rail.
+    var tint: Color {
+        switch self {
+        case .lightest: return .teal
+        case .quick: return .blue
+        case .accurate: return .green
+        case .balanced: return .purple
+        }
     }
 }
 
@@ -697,7 +727,7 @@ struct ModelMapView: View {
         // equivalent, so describe the chart and point VoiceOver at the list.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(lens == .completion
-            ? Text("Model map — accuracy, speed and memory of every model. Use the ranked list below to choose a model, and the Suggestions tab for the style, length and confidence settings the map previews.")
+            ? Text("Model map — accuracy, speed and memory of every model. Use the ranked list above to choose a model, and the Suggestions section for the style, length and confidence settings the map previews.")
             : lens == .fix
             ? Text("Task map — how well each instruct sibling handles the fix chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model.")
             : Text("Task map — how well each instruct sibling handles the reply chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model."))
@@ -1174,8 +1204,14 @@ private struct MetricBar: View {
                 Spacer()
                 Text(text).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
             }
+            // Drawn, not a ProgressView: each of those is an AppKit progress
+            // indicator, and 33 of them made opening the list stall.
             // Floored so the slowest model still shows a sliver of bar.
-            ProgressView(value: max(0.03, fraction)).tint(color)
+            Capsule().fill(color.opacity(0.15))
+                .overlay {
+                    Capsule().fill(color).scaleEffect(x: max(0.03, fraction), anchor: .leading)
+                }
+                .frame(height: 5)
         }
         .frame(maxWidth: .infinity)
         .help(help)
