@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Live Impact rail (the Model pane's trailing inspector): the active
+/// The Live Impact rail (the Model pane's trailing column): the active
 /// configuration and four meters — accuracy, speed, memory, compute — for
 /// what the committed configuration measures to. Hovering any wired control
 /// overlays a ghost band and delta chip showing where that change would move

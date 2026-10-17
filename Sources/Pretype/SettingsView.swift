@@ -159,8 +159,10 @@ struct AdvancedRow: View {
 
     var body: some View {
         Section {
+            // Only the chevron animates: rows sliding into a grouped Form
+            // re-laid out the whole pane on every frame of the slide.
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) { shown.toggle() }
+                shown.toggle()
             } label: {
                 HStack {
                     Text("Advanced")
@@ -169,6 +171,7 @@ struct AdvancedRow: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(shown ? 90 : 0))
+                        .animation(.easeInOut(duration: 0.2), value: shown)
                 }
                 .contentShape(Rectangle())
             }
@@ -189,18 +192,7 @@ struct SettingsRootView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            // The rail measures model settings, so it stands beside the
-            // Model pane only — elsewhere it repeated four bars nothing on
-            // the pane could move.
             detail
-                .inspector(isPresented: .constant(store.activeTab == .model)) {
-                    ImpactRailView(store: store)
-                        .inspectorColumnWidth(min: 250, ideal: 280, max: 340)
-                }
-                // Animated, the column's arrival re-laid out the whole pane
-                // every frame: opening Model stalled for up to a third of a
-                // second. It appears in one step with the pane.
-                .transaction(value: store.activeTab) { $0.animation = nil }
         }
         .frame(minWidth: 1020, minHeight: 620)
         // On the root, not a tab: rows, cards and the map ask from Model, the
@@ -256,25 +248,36 @@ struct SettingsRootView: View {
     }
 
     private var detail: some View {
-        VStack(spacing: 0) {
-            // Over the form's own column: a grouped Form stops growing at
-            // ~704 pt and centers, and a title left at the pane's edge stood
-            // apart from it on every pane without the rail.
-            Text(store.activeTab.title)
-                .font(.title2.weight(.bold))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(maxWidth: 704)
-            .padding(.horizontal, 22)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            Group {
-                switch store.activeTab {
-                case .general: GeneralTab(store: store)
-                case .model: ModelTab(store: store)
-                case .dictation: DictationTab(store: store)
-                case .personalization: PersonalTab(store: store)
-                case .api: APITab(store: store)
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                // Over the form's own column: a grouped Form stops growing at
+                // ~704 pt and centers, and a title left at the pane's edge stood
+                // apart from it on every pane without the rail.
+                Text(store.activeTab.title)
+                    .font(.title2.weight(.bold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: 704)
+                .padding(.horizontal, 22)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                Group {
+                    switch store.activeTab {
+                    case .general: GeneralTab(store: store)
+                    case .model: ModelTab(store: store)
+                    case .dictation: DictationTab(store: store)
+                    case .personalization: PersonalTab(store: store)
+                    case .api: APITab(store: store)
+                    }
                 }
+            }
+            // The rail measures model settings, so it stands beside the Model
+            // pane only. A plain column, not an .inspector: an inspector shown
+            // per pane made the split view animate its columns, and the
+            // sidebar collapsed and sprang back on every visit to Model.
+            if store.activeTab == .model {
+                Divider()
+                ImpactRailView(store: store)
+                    .frame(width: 280)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))

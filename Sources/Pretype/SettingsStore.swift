@@ -355,17 +355,27 @@ final class SettingsStore {
     /// Re-read the device list and say — out loud — when the automatic rule is
     /// substituting a microphone, because the substitution is otherwise exactly
     /// the kind of surprise that reads as a bug ("I chose AirPods in System
-    /// Settings; why does it record from the laptop?").
+    /// Settings; why does it record from the laptop?"). Off the main actor:
+    /// the first device discovery in a process takes ~¼ s, and it stalled
+    /// the Dictation pane on the way in. Latest request wins.
     func refreshDictationInput() {
-        let inputs = AudioDevices.inputs()
-        dictationInputs = inputs
-        let defaultInput = AudioDevices.defaultInput()
-        let chosen = AudioDevices.resolve(
-            preference: AudioDevices.Preference(stored: Settings.dictationInput),
-            inputs: inputs, defaultInput: defaultInput,
-            defaultOutput: AudioDevices.defaultOutput())
-        dictationInputNote = AudioDevices.automaticExplanation(defaultInput: defaultInput, chosen: chosen)
+        let preference = AudioDevices.Preference(stored: Settings.dictationInput)
+        dictationInputTask?.cancel()
+        dictationInputTask = Task.detached {
+            let inputs = AudioDevices.inputs()
+            let defaultInput = AudioDevices.defaultInput()
+            let chosen = AudioDevices.resolve(preference: preference, inputs: inputs,
+                                              defaultInput: defaultInput,
+                                              defaultOutput: AudioDevices.defaultOutput())
+            let note = AudioDevices.automaticExplanation(defaultInput: defaultInput, chosen: chosen)
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
+                self.dictationInputs = inputs
+                self.dictationInputNote = note
+            }
+        }
     }
+    @ObservationIgnored private var dictationInputTask: Task<Void, Never>?
 
     /// Re-ask which model serves the language a capture would use right now.
     /// Cheap, and re-run whenever the pane appears — under "Follow keyboard"
