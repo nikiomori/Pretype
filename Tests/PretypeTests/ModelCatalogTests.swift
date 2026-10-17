@@ -122,6 +122,17 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(deltas.contains { $0.label == "Memory" && !$0.improved })
     }
 
+    /// `revision(for:)` falls back to "main" without a word, which would hand
+    /// that one download whatever was pushed last — so every repo the catalog
+    /// can fetch, or still loads from an older install, must be pinned.
+    func testEveryDownloadableRepoIsPinned() {
+        let models = ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] }
+        var repos = Set(models).union(ModelCatalog.slimRepos.values).union(ModelCatalog.previousBuilds.keys)
+            .union(models.compactMap(ModelCatalog.mtpDrafterID(for:)))
+        for option in ModelCatalog.options { repos.formUnion(ModelStorage.repos(for: option.id)) }
+        for repo in repos { XCTAssertNotNil(ModelCatalog.pinnedRevisions[repo], repo) }
+    }
+
     // The settings download gate asks about the weights a switch actually
     // loads — the instruct sibling in Instruct style — and names and sizes
     // that, not the base row the user clicked.
