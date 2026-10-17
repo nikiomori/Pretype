@@ -2,11 +2,10 @@ import AppKit
 import SwiftUI
 
 /// The Model tab: one card per goal picks a model and its settings in a
-/// click; the precision cards show the confidence gate's trade as dots; the
-/// ranked list compares every model — accuracy, speed and memory as
-/// at-a-glance bars (longer = better) with the measured numbers beside them.
-/// Under Advanced: style tuning, memory and the map. Every figure is a real
-/// eval run (see `ModelMetrics`).
+/// click; the precision cards show the confidence gate's trade as two bars;
+/// every model is one section, as a ranked list (accuracy, speed and memory
+/// as bars, longer = better) or as a map. Under Advanced: style tuning and
+/// memory. Every figure is a real eval run (see `ModelMetrics`).
 struct ModelTab: View {
     @Bindable var store: SettingsStore
     /// Catalog id awaiting delete confirmation. Local @State: it changes on a
@@ -17,6 +16,8 @@ struct ModelTab: View {
     @State private var mapLens = MapLens.completion
     @AppStorage("idleUnloadMinutes") private var idleUnloadMinutes = Settings.idleUnloadMinutes
     @AppStorage("showAdvancedSettings") private var showAdvanced = false
+    /// Whether "All models" shows the map instead of the list.
+    @AppStorage("modelsAsMap") private var modelsAsMap = false
     /// The accuracy axis every surface on this tab reads ("*" = all
     /// languages, "core" = EN+RU, or one language) — one store-persisted
     /// selection, so cards, map and ranking always tell the same story.
@@ -72,15 +73,10 @@ struct ModelTab: View {
                     }
                 } header: {
                     Text("How often to suggest")
-                } footer: {
-                    let right = Text(verbatim: "●").foregroundStyle(Color.green)
-                    let wrong = Text(verbatim: "●").foregroundStyle(Color.secondary.opacity(0.6))
-                    let none = Text(verbatim: "○").foregroundStyle(.secondary)
-                    Text("Each dot is one pause in your typing: \(right) right, \(wrong) wrong, \(none) nothing shown.")
                 }
             }
 
-            Section("All models") {
+            Section {
                 Picker("Accuracy in", selection: $store.accuracyAxis) {
                     Text("All languages").tag("*")
                     Divider()
@@ -88,22 +84,25 @@ struct ModelTab: View {
                         Text(ModelMetrics.axisDisplayName(code)).tag(code)
                     }
                 }
-                ForEach(rankedEntries, id: \.id) { entry in
-                    ModelRow(id: entry.id, title: entry.title,
-                             isSelected: store.modelID == entry.id,
-                             select: { store.selectModel(entry.id) },
-                             hover: { store.setHover(.model(entry.id), $0) },
-                             langAccuracy: langAccuracy(for: entry.id),
-                             // Only deletable weights get a figure (the selected
-                             // model and its rewrite siblings are excluded at the
-                             // source), so the trash can't appear on the row a
-                             // click just made undeletable.
-                             diskBytes: store.modelDiskBytes[entry.id],
-                             delete: { confirmingDelete = entry.id },
-                             deleteDisabled: store.engineBusy,
-                             downloadGB: downloadGB(for: entry.id),
-                             heavyGB: heavyGB(for: entry.id),
-                             pleFromDisk: store.pleFromDisk)
+                if modelsAsMap {
+                    map
+                } else {
+                    list
+                }
+            } header: {
+                HStack {
+                    Text("All models")
+                    Spacer()
+                    // Two views of one choice: the list carries downloads and
+                    // deletes, the map shows the trade at a glance.
+                    Picker("View", selection: $modelsAsMap) {
+                        Image(systemName: "list.bullet").accessibilityLabel(Text("List")).tag(false)
+                        Image(systemName: "chart.dots.scatter").accessibilityLabel(Text("Map")).tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .help(modelsAsMap ? Text("Map") : Text("List"))
                 }
             }
 
@@ -133,8 +132,52 @@ struct ModelTab: View {
         }
     }
 
-    /// Style tuning, memory and the map: the cards and the list above pick a
-    /// model and its settings in one click.
+    /// The ranked rows: every model with its bars, download size and trash.
+    private var list: some View {
+        ForEach(rankedEntries, id: \.id) { entry in
+            ModelRow(id: entry.id, title: entry.title,
+                     isSelected: store.modelID == entry.id,
+                     select: { store.selectModel(entry.id) },
+                     hover: { store.setHover(.model(entry.id), $0) },
+                     langAccuracy: langAccuracy(for: entry.id),
+                     // Only deletable weights get a figure (the selected
+                     // model and its rewrite siblings are excluded at the
+                     // source), so the trash can't appear on the row a
+                     // click just made undeletable.
+                     diskBytes: store.modelDiskBytes[entry.id],
+                     delete: { confirmingDelete = entry.id },
+                     deleteDisabled: store.engineBusy,
+                     downloadGB: downloadGB(for: entry.id),
+                     heavyGB: heavyGB(for: entry.id),
+                     pleFromDisk: store.pleFromDisk)
+        }
+    }
+
+    /// The same models as a map: accuracy up, speed right, bubble = memory.
+    @ViewBuilder private var map: some View {
+        // The two chord tasks run on a different, smaller set of models (the
+        // instruct siblings), so they are a lens on the map rather than extra
+        // bubbles — same axes, different task.
+        HoverSegments(title: String(localized: "Map task"), options: [
+            (MapLens.completion, String(localized: "Completions")),
+            (MapLens.fix, String(localized: "Fix")),
+            (MapLens.reply, String(localized: "Reply")),
+        ], selection: mapLens, select: { mapLens = $0 })
+        ModelMapView(store: store, lens: mapLens)
+        // Not disabled while the map is on: picking a language turns the map
+        // off (see SettingsStore.accuracyAxis), so the control the user
+        // reaches for is the one that answers.
+        Toggle(isOn: $store.settingsMapMode) {
+            Text("Show settings on the map")
+            if store.settingsMapMode {
+                Text("Measured on English and Russian.")
+            }
+        }
+        .help("Plots this model's other settings on the map. They were measured on English and Russian together, so the whole tab switches to that sample.")
+    }
+
+    /// Style tuning and memory: the cards and the models above pick a model
+    /// and its settings in one click.
     @ViewBuilder private var advanced: some View {
         TuningSection(store: store)
 
@@ -160,30 +203,6 @@ struct ModelTab: View {
                 }
                 .help("Reads one of the model's tables from disk instead of keeping it in memory. Suggestions stay exactly the same. On by default on Macs with 16 GB of memory or less.")
             }
-        }
-
-        Section {
-            // The two chord tasks run on a different, smaller set of
-            // models (the instruct siblings), so they are a lens on the
-            // map rather than extra bubbles — same axes, different task.
-            HoverSegments(title: String(localized: "Map task"), options: [
-                (MapLens.completion, String(localized: "Completions")),
-                (MapLens.fix, String(localized: "Fix")),
-                (MapLens.reply, String(localized: "Reply")),
-            ], selection: mapLens, select: { mapLens = $0 })
-            ModelMapView(store: store, lens: mapLens)
-            // Not disabled while the map is on: picking a language turns the
-            // map off (see SettingsStore.accuracyAxis), so the control the
-            // user reaches for is the one that answers.
-            Toggle(isOn: $store.settingsMapMode) {
-                Text("Show settings on the map")
-                if store.settingsMapMode {
-                    Text("Measured on English and Russian.")
-                }
-            }
-            .help("Plots this model's other settings on the map. They were measured on English and Russian together, so the whole tab switches to that sample.")
-        } header: {
-            Text("Model map")
         }
     }
 
@@ -424,48 +443,26 @@ struct ModelRow: View {
 
 // MARK: - Precision cards
 
-/// One side of the confidence gate: what it does to twenty pauses in your
-/// typing — how many get a suggestion, and how many of those are right —
-/// drawn as dots, from the same projection the Live Impact rail reads.
+/// One side of the confidence gate as two bars — how often a suggestion
+/// shows, and how often a shown one is right — from the same projection the
+/// Live Impact rail reads. Side by side, the cards show the trade: one long
+/// bar swaps for the other.
 private struct GateCard: View {
     @Bindable var store: SettingsStore
     let on: Bool
     /// Local hover for the card highlight, kept off the observed store.
     @State private var hovering = false
 
-    private static let dots = 20
-
-    private enum Dot { case right, wrong, none }
-
-    private func dot(_ kind: Dot) -> some View {
-        Circle()
-            .fill(kind == .right ? Color.green : kind == .wrong ? Color.secondary.opacity(0.45) : Color.clear)
-            .overlay(Circle().strokeBorder(kind == .none ? Color.secondary.opacity(0.45) : Color.clear, lineWidth: 1))
-            .frame(width: 9, height: 9)
-    }
-
     var body: some View {
         var config = store.committedConfig
         config.logprobGate = on
         let p = ConfigProjection.project(config)
-        let shown = Int((Double(p.coveragePct ?? 0) / 100 * Double(Self.dots)).rounded())
-        let right = Int((Double(shown) * Double(p.accuracyPct ?? 0) / 100).rounded())
+        let cov = p.coveragePct ?? 0, acc = p.accuracyPct ?? 0
         let isSelected = store.logprobGate == on
         return Button {
             withAnimation(.easeInOut(duration: 0.18)) { store.logprobGate = on }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                // Two plain rows of ten: a lazy grid inside a form row laid
-                // itself out again on every pass and stalled the pane.
-                VStack(alignment: .leading, spacing: 5) {
-                    ForEach(0..<2, id: \.self) { row in
-                        HStack(spacing: 5) {
-                            ForEach(row * 10..<row * 10 + 10, id: \.self) { i in
-                                dot(i < right ? .right : i < shown ? .wrong : .none)
-                            }
-                        }
-                    }
-                }
                 HStack {
                     (on ? Text("Only when sure") : Text("More often"))
                         .font(.subheadline.weight(.semibold))
@@ -474,11 +471,12 @@ private struct GateCard: View {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
                     }
                 }
-                if let cov = p.coveragePct, let acc = p.accuracyPct {
-                    Text("Suggests \(cov)% of the time · \(acc)% right")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
+                MetricBar(label: String(localized: "Suggests"), fraction: Double(cov) / 100,
+                          text: String(localized: "\(cov)%"), color: .indigo,
+                          help: String(localized: "Suggests \(cov)% of the time · \(acc)% right"))
+                MetricBar(label: String(localized: "Accuracy"), fraction: Double(acc) / 100,
+                          text: String(localized: "\(acc)%"), color: .green,
+                          help: String(localized: "Suggests \(cov)% of the time · \(acc)% right"))
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -493,7 +491,7 @@ private struct GateCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(on ? Text("Only when sure") : Text("More often"))
-        .accessibilityValue(Text("Suggests \(p.coveragePct ?? 0)% of the time · \(p.accuracyPct ?? 0)% right"))
+        .accessibilityValue(Text("Suggests \(cov)% of the time · \(acc)% right"))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .onHover { hovering = $0; store.setHover(.logprobGate(on), $0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
@@ -729,14 +727,14 @@ struct ModelMapView: View {
         }
         .frame(height: Self.height)
         // Every element here is a bare Circle with .onTapGesture — no button, no
-        // focus, nothing to announce. The ranked list below is the accessible
+        // focus, nothing to announce. The section's list view is the accessible
         // equivalent, so describe the chart and point VoiceOver at the list.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(lens == .completion
-            ? Text("Model map — accuracy, speed and memory of every model. Use the ranked list above to choose a model, and the Suggestions section for the style, length and confidence settings the map previews.")
+            ? Text("Model map — accuracy, speed and memory of every model. Switch to the list view to choose a model by name.")
             : lens == .fix
-            ? Text("Task map — how well each instruct sibling handles the fix chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model.")
-            : Text("Task map — how well each instruct sibling handles the reply chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model."))
+            ? Text("Task map — how well each instruct sibling handles the fix chord, with speed and memory. The list view shows the same Fix and Reply figures per model.")
+            : Text("Task map — how well each instruct sibling handles the reply chord, with speed and memory. The list view shows the same Fix and Reply figures per model."))
     }
 
     /// Latency span of the chord lenses: fixes and replies run 33–409 ms warm

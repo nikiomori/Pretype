@@ -16193,112 +16193,6 @@
         }
       }
     },
-    "Each dot is one pause in your typing: %@ right, %@ wrong, %@ nothing shown." : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Každá tečka je jedna pauza při psaní: %@ správně, %@ špatně, %@ nic nezobrazeno."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jeder Punkt ist eine Tipppause: %@ richtig, %@ falsch, %@ nichts angezeigt."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Each dot is one pause in your typing: %1$@ right, %2$@ wrong, %3$@ nothing shown."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cada punto es una pausa al escribir: %@ acierto, %@ fallo, %@ no se muestra nada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chaque point est une pause dans votre frappe : %@ juste, %@ fausse, %@ rien d’affiché."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ogni punto è una pausa mentre scrivi: %@ giusto, %@ sbagliato, %@ niente mostrato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点は入力の一時停止1回分です：%@ 正解、%@ 不正解、%@ 表示なし。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "점 하나는 입력 중 한 번의 멈춤입니다: %@ 맞음, %@ 틀림, %@ 표시 안 함."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elke stip is een pauze tijdens het typen: %@ goed, %@ fout, %@ niets getoond."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Każda kropka to jedna pauza w pisaniu: %@ trafna, %@ błędna, %@ nic nie pokazano."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cada ponto é uma pausa na digitação: %@ certa, %@ errada, %@ nada exibido."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fiecare punct este o pauză în tastare: %@ corect, %@ greșit, %@ nimic afișat."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Каждая точка — одна пауза в наборе: %@ верно, %@ неверно, %@ ничего не показано."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Varje punkt är en paus när du skriver: %@ rätt, %@ fel, %@ inget visas."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Her nokta yazarken bir duraklamadır: %@ doğru, %@ yanlış, %@ hiçbir şey gösterilmez."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кожна точка — одна пауза в наборі: %@ правильно, %@ неправильно, %@ нічого не показано."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每个点代表一次输入停顿：%@ 正确，%@ 错误，%@ 未显示。"
-          }
-        }
-      }
-    },
     "Each recording goes to %@ when you stop speaking, with names from the field as spelling hints. Audio is never saved to disk." : {
       "localizations" : {
         "cs" : {
@@ -25101,6 +24995,106 @@
         }
       }
     },
+    "List" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seznam"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elenco"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lijst"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listă"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列表"
+          }
+        }
+      }
+    },
     "Listening — dictation is capturing" : {
       "localizations" : {
         "cs" : {
@@ -25697,6 +25691,106 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "内存"
+          }
+        }
+      }
+    },
+    "Map" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mapa"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karte"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mapa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carte"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mappa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マップ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "맵"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaart"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mapa"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mapa"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hartă"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karta"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Harita"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分布图"
           }
         }
       }
@@ -27001,202 +27095,102 @@
         }
       }
     },
-    "Model map" : {
+    "Model map — accuracy, speed and memory of every model. Switch to the list view to choose a model by name." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa modelů"
+            "value" : "Mapa modelů — přesnost, rychlost a paměť každého modelu. Chcete-li vybrat model podle názvu, přepněte na seznam."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modellkarte"
+            "value" : "Modellkarte – Genauigkeit, Geschwindigkeit und Speicher jedes Modells. Wechseln Sie zur Listenansicht, um ein Modell nach Namen zu wählen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa de modelos"
+            "value" : "Mapa de modelos: precisión, velocidad y memoria de cada modelo. Cambia a la vista de lista para elegir un modelo por su nombre."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Carte des modèles"
+            "value" : "Carte des modèles — précision, vitesse et mémoire de chaque modèle. Passez à la vue en liste pour choisir un modèle par son nom."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mappa dei modelli"
+            "value" : "Mappa dei modelli: precisione, velocità e memoria di ogni modello. Passa alla vista elenco per scegliere un modello per nome."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "モデルマップ"
+            "value" : "モデルマップ — 各モデルの精度、速度、メモリ。名前でモデルを選ぶには、リスト表示に切り替えてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "모델 맵"
+            "value" : "모델 맵 — 모든 모델의 정확도, 속도, 메모리. 이름으로 모델을 선택하려면 목록 보기로 전환하세요."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modelkaart"
+            "value" : "Modelkaart – nauwkeurigheid, snelheid en geheugen van elk model. Schakel over naar de lijstweergave om een model op naam te kiezen."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa modeli"
+            "value" : "Mapa modeli — dokładność, szybkość i pamięć każdego modelu. Aby wybrać model po nazwie, przełącz na widok listy."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa de modelos"
+            "value" : "Mapa de modelos: precisão, velocidade e memória de cada modelo. Mude para a visualização em lista para escolher um modelo pelo nome."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Harta modelelor"
+            "value" : "Harta modelelor — acuratețea, viteza și memoria fiecărui model. Comutați la vizualizarea listă pentru a alege un model după nume."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Карта моделей"
+            "value" : "Карта моделей — точность, скорость и память каждой модели. Чтобы выбрать модель по названию, переключитесь на список."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modellkarta"
+            "value" : "Modellkarta — träffsäkerhet, hastighet och minne för varje modell. Byt till listvyn för att välja en modell efter namn."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Model haritası"
+            "value" : "Model haritası — her modelin doğruluğu, hızı ve belleği. Modeli adıyla seçmek için liste görünümüne geçin."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Карта моделей"
+            "value" : "Карта моделей — точність, швидкість і пам’ять кожної моделі. Щоб вибрати модель за назвою, перейдіть до списку."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "模型分布图"
-          }
-        }
-      }
-    },
-    "Model map — accuracy, speed and memory of every model. Use the ranked list above to choose a model, and the Suggestions section for the style, length and confidence settings the map previews." : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mapa modelů — přesnost, rychlost a paměť každého modelu. Model vyberte v seznamu výše; styl, délku a jistotu, které mapa zobrazuje, nastavíte v části „Návrhy“."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Modellkarte – Genauigkeit, Geschwindigkeit und Speicher jedes Modells. Wählen Sie ein Modell in der Rangliste oben; Stil, Länge und Sicherheit, die die Karte vorschaut, stellen Sie im Abschnitt „Vorschläge“ ein."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mapa de modelos: precisión, velocidad y memoria de cada modelo. Usa la lista ordenada de arriba para elegir un modelo, y la sección Sugerencias para los ajustes de estilo, longitud y confianza que muestra el mapa."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Carte des modèles — précision, vitesse et mémoire de chaque modèle. Utilisez la liste classée ci-dessus pour choisir un modèle, et la section « Suggestions » pour les réglages de style, de longueur et de confiance que la carte prévisualise."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mappa dei modelli: precisione, velocità e memoria di ogni modello. Usa l'elenco ordinato qui sopra per scegliere un modello e la sezione «Suggerimenti» per stile, lunghezza e affidabilità che la mappa mostra in anteprima."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "モデルマップ — 各モデルの精度、速度、メモリ。モデルを選ぶには上のランキングを、マップでプレビューするスタイル、長さ、確信度の設定には「候補」セクションを使用してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "모델 맵 — 모든 모델의 정확도, 속도, 메모리. 모델을 선택하려면 위 순위 목록을, 맵이 미리 보여 주는 스타일, 길이, 신뢰도 설정은 ‘제안’ 섹션을 사용하세요."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Modelkaart – nauwkeurigheid, snelheid en geheugen van elk model. Kies een model in de ranglijst hierboven; de stijl, lengte en zekerheid die de kaart toont, stel je in bij het onderdeel “Suggesties”."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mapa modeli — dokładność, szybkość i pamięć każdego modelu. Model wybierzesz z listy powyżej, a styl, długość i pewność pokazywane na mapie — w sekcji „Podpowiedzi”."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mapa de modelos: precisão, velocidade e memória de cada modelo. Use a lista ordenada acima para escolher um modelo, e a seção Sugestões para os ajustes de estilo, comprimento e confiança que o mapa mostra."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Harta modelelor — acuratețea, viteza și memoria fiecărui model. Folosiți lista ordonată de mai sus pentru a alege un model, iar secțiunea „Sugestii” pentru configurările de stil, lungime și încredere previzualizate pe hartă."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Карта моделей — точность, скорость и память каждой модели. Чтобы выбрать модель, используйте список выше, а для стиля, длины и уверенности, которые показывает карта, — раздел «Подсказки»."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Modellkarta — träffsäkerhet, hastighet och minne för varje modell. Välj modell i den rangordnade listan ovan, och använd avsnittet ”Förslag” för inställningarna för stil, längd och säkerhet som kartan förhandsvisar."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Model haritası — her modelin doğruluğu, hızı ve belleği. Model seçmek için yukarıdaki sıralı listeyi, haritanın önizlediği stil, uzunluk ve kesinlik ayarları için “Öneriler” bölümünü kullanın."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Карта моделей — точність, швидкість і пам’ять кожної моделі. Щоб вибрати модель, скористайтеся списком вище, а для стилю, довжини й упевненості, які показує карта, — розділом «Підказки»."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模型分布图：显示每个模型的准确率、速度和内存。请使用上方的排名列表选择模型；分布图预览的风格、长度和置信度设置请前往“建议”部分调整。"
+            "value" : "模型分布图：显示每个模型的准确率、速度和内存。如需按名称选择模型，请切换到列表视图。"
           }
         }
       }
@@ -41601,6 +41595,106 @@
         }
       }
     },
+    "Suggests" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navrhuje"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlägt vor"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugiere"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggère"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggerisce"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示頻度"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 빈도"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stelt voor"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podpowiada"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugere"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerează"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказывает"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Föreslår"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öneri sıklığı"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Підказує"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提示频率"
+          }
+        }
+      }
+    },
     "Suggests %lld%% of the time · %lld%% right" : {
       "localizations" : {
         "cs" : {
@@ -42407,202 +42501,202 @@
         }
       }
     },
-    "Task map — how well each instruct sibling handles the fix chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model." : {
+    "Task map — how well each instruct sibling handles the fix chord, with speed and memory. The list view shows the same Fix and Reply figures per model." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa úloh — jak si každý instrukční model poradí se zkratkou opravy, spolu s rychlostí a pamětí. Údaje „Oprava“ a „Odpověď“ v seznamu níže nesou stejná čísla pro každý model."
+            "value" : "Mapa úloh — jak si každý instrukční model poradí se zkratkou opravy, spolu s rychlostí a pamětí. Seznam ukazuje stejné údaje „Oprava“ a „Odpověď“ pro každý model."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aufgabenkarte – wie gut jede Instruktiv-Variante die Korrektur meistert, mit Tempo und Speicher. Die Werte „Korrektur“ und „Antwort“ in der Rangliste unten zeigen dieselben Zahlen pro Modell."
+            "value" : "Aufgabenkarte – wie gut jede Instruktiv-Variante die Korrektur meistert, mit Tempo und Speicher. Die Listenansicht zeigt dieselben Werte „Korrektur“ und „Antwort“ pro Modell."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa de tareas: qué tal gestiona el atajo de corrección cada versión de instrucción, con velocidad y memoria. Las cifras de “Corrección” y “Respuesta” de la lista ordenada de abajo son las mismas para cada modelo."
+            "value" : "Mapa de tareas: qué tal gestiona el atajo de corrección cada versión de instrucción, con velocidad y memoria. La vista de lista muestra las mismas cifras de “Corrección” y “Respuesta” para cada modelo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Carte des tâches — la qualité de chaque version instruct pour le raccourci de correction, avec vitesse et mémoire. Les chiffres « Correction » et « Réponse » de la liste classée ci-dessous reprennent les mêmes valeurs par modèle."
+            "value" : "Carte des tâches — la qualité de chaque version instruct pour le raccourci de correction, avec vitesse et mémoire. La vue en liste affiche les mêmes chiffres « Correction » et « Réponse » par modèle."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mappa delle attività: quanto bene ogni versione instruct gestisce la combinazione di correzione, con velocità e memoria. I valori «Correzione» e «Risposta» nell'elenco ordinato qui sotto riportano gli stessi numeri per modello."
+            "value" : "Mappa delle attività: quanto bene ogni versione instruct gestisce la combinazione di correzione, con velocità e memoria. La vista elenco mostra gli stessi valori «Correzione» e «Risposta» per modello."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "タスクマップ — 各インストラクト版の修正ショートカットの成績を、速度とメモリとともに表示します。下のランキングの「修正」と「返信」の数値も、モデルごとに同じ値です。"
+            "value" : "タスクマップ — 各インストラクト版の修正ショートカットの成績を、速度とメモリとともに表示します。リスト表示にも、モデルごとに同じ「修正」と「返信」の数値が表示されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "작업 맵 — 각 인스트럭트 버전이 수정 단축키를 얼마나 잘 처리하는지 속도 및 메모리와 함께 보여 줍니다. 아래 순위 목록의 ‘수정’ 및 ‘답장’ 수치도 모델별로 같은 값입니다."
+            "value" : "작업 맵 — 각 인스트럭트 버전이 수정 단축키를 얼마나 잘 처리하는지 속도 및 메모리와 함께 보여 줍니다. 목록 보기에도 모델별로 같은 ‘수정’ 및 ‘답장’ 수치가 표시됩니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Taakkaart – hoe goed elke instructievariant de correctie aankan, met snelheid en geheugen. De waarden “Correctie” en “Antwoord” in de ranglijst hieronder tonen dezelfde cijfers per model."
+            "value" : "Taakkaart – hoe goed elke instructievariant de correctie aankan, met snelheid en geheugen. De lijstweergave toont dezelfde waarden “Correctie” en “Antwoord” per model."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa zadań — jak każdy model instrukcyjny radzi sobie z poprawianiem, a także jego szybkość i pamięć. Wskaźniki „Poprawka” i „Odpowiedź” na liście poniżej to te same liczby dla każdego modelu."
+            "value" : "Mapa zadań — jak każdy model instrukcyjny radzi sobie z poprawianiem, a także jego szybkość i pamięć. Widok listy pokazuje te same wskaźniki „Poprawka” i „Odpowiedź” dla każdego modelu."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa de tarefas: como cada versão de instrução lida com o atalho de correção, com velocidade e memória. Os números de “Correção” e “Resposta” na lista ordenada abaixo são os mesmos para cada modelo."
+            "value" : "Mapa de tarefas: como cada versão de instrução lida com o atalho de correção, com velocidade e memória. A visualização em lista mostra os mesmos números de “Correção” e “Resposta” para cada modelo."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Harta sarcinilor — cât de bine gestionează fiecare model instructiv combinația de corectare, plus viteza și memoria. Valorile „Corectare” și „Răspuns” din lista ordonată de mai jos sunt aceleași cifre per model."
+            "value" : "Harta sarcinilor — cât de bine gestionează fiecare model instructiv combinația de corectare, plus viteza și memoria. Vizualizarea listă arată aceleași valori „Corectare” și „Răspuns” per model."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Карта задач — как каждая инструктивная модель справляется с исправлением, а также её скорость и память. Показатели «Исправление» и «Ответ» в списке ниже — те же цифры для каждой модели."
+            "value" : "Карта задач — как каждая инструктивная модель справляется с исправлением, а также её скорость и память. В виде списка — те же показатели «Исправление» и «Ответ» для каждой модели."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Uppgiftskarta — hur väl varje instruerad syskonmodell klarar kortkommandot för rättning, med hastighet och minne. Siffrorna för ”Rättning” och ”Svar” i den rangordnade listan nedan visar samma värden per modell."
+            "value" : "Uppgiftskarta — hur väl varje instruerad syskonmodell klarar kortkommandot för rättning, med hastighet och minne. Listvyn visar samma siffror för ”Rättning” och ”Svar” per modell."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Görev haritası — her talimatlı modelin düzeltme kısayolundaki başarısı, hızı ve belleği. Aşağıdaki sıralı listedeki “Düzeltme” ve “Yanıt” değerleri model başına aynı rakamlardır."
+            "value" : "Görev haritası — her talimatlı modelin düzeltme kısayolundaki başarısı, hızı ve belleği. Liste görünümü model başına aynı “Düzeltme” ve “Yanıt” değerlerini gösterir."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Карта завдань — як кожна інструктивна модель справляється з виправленням, а також її швидкість і пам’ять. Показники «Виправлення» й «Відповідь» у списку нижче — ті самі цифри для кожної моделі."
+            "value" : "Карта завдань — як кожна інструктивна модель справляється з виправленням, а також її швидкість і пам’ять. У вигляді списку — ті самі показники «Виправлення» й «Відповідь» для кожної моделі."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "任务分布图：显示每个指令版模型处理修正快捷键的效果，以及速度和内存。下方排名列表中的“修正”和“回复”数据与此一致。"
+            "value" : "任务分布图：显示每个指令版模型处理修正快捷键的效果，以及速度和内存。列表视图按模型显示相同的“修正”和“回复”数据。"
           }
         }
       }
     },
-    "Task map — how well each instruct sibling handles the reply chord, with speed and memory. The Fix and Reply figures in the ranked list below carry the same numbers per model." : {
+    "Task map — how well each instruct sibling handles the reply chord, with speed and memory. The list view shows the same Fix and Reply figures per model." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa úloh — jak si každý instrukční model poradí se zkratkou odpovědi, spolu s rychlostí a pamětí. Údaje „Oprava“ a „Odpověď“ v seznamu níže nesou stejná čísla pro každý model."
+            "value" : "Mapa úloh — jak si každý instrukční model poradí se zkratkou odpovědi, spolu s rychlostí a pamětí. Seznam ukazuje stejné údaje „Oprava“ a „Odpověď“ pro každý model."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aufgabenkarte – wie gut jede Instruktiv-Variante den Antwortentwurf meistert, mit Tempo und Speicher. Die Werte „Korrektur“ und „Antwort“ in der Rangliste unten zeigen dieselben Zahlen pro Modell."
+            "value" : "Aufgabenkarte – wie gut jede Instruktiv-Variante den Antwortentwurf meistert, mit Tempo und Speicher. Die Listenansicht zeigt dieselben Werte „Korrektur“ und „Antwort“ pro Modell."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa de tareas: qué tal gestiona el atajo de respuesta cada versión de instrucción, con velocidad y memoria. Las cifras de “Corrección” y “Respuesta” de la lista ordenada de abajo son las mismas para cada modelo."
+            "value" : "Mapa de tareas: qué tal gestiona el atajo de respuesta cada versión de instrucción, con velocidad y memoria. La vista de lista muestra las mismas cifras de “Corrección” y “Respuesta” para cada modelo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Carte des tâches — la qualité de chaque version instruct pour le raccourci de réponse, avec vitesse et mémoire. Les chiffres « Correction » et « Réponse » de la liste classée ci-dessous reprennent les mêmes valeurs par modèle."
+            "value" : "Carte des tâches — la qualité de chaque version instruct pour le raccourci de réponse, avec vitesse et mémoire. La vue en liste affiche les mêmes chiffres « Correction » et « Réponse » par modèle."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mappa delle attività: quanto bene ogni versione instruct gestisce la combinazione di risposta, con velocità e memoria. I valori «Correzione» e «Risposta» nell'elenco ordinato qui sotto riportano gli stessi numeri per modello."
+            "value" : "Mappa delle attività: quanto bene ogni versione instruct gestisce la combinazione di risposta, con velocità e memoria. La vista elenco mostra gli stessi valori «Correzione» e «Risposta» per modello."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "タスクマップ — 各インストラクト版の返信ショートカットの成績を、速度とメモリとともに表示します。下のランキングの「修正」と「返信」の数値も、モデルごとに同じ値です。"
+            "value" : "タスクマップ — 各インストラクト版の返信ショートカットの成績を、速度とメモリとともに表示します。リスト表示にも、モデルごとに同じ「修正」と「返信」の数値が表示されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "작업 맵 — 각 인스트럭트 버전이 답장 단축키를 얼마나 잘 처리하는지 속도 및 메모리와 함께 보여 줍니다. 아래 순위 목록의 ‘수정’ 및 ‘답장’ 수치도 모델별로 같은 값입니다."
+            "value" : "작업 맵 — 각 인스트럭트 버전이 답장 단축키를 얼마나 잘 처리하는지 속도 및 메모리와 함께 보여 줍니다. 목록 보기에도 모델별로 같은 ‘수정’ 및 ‘답장’ 수치가 표시됩니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Taakkaart – hoe goed elke instructievariant het conceptantwoord aankan, met snelheid en geheugen. De waarden “Correctie” en “Antwoord” in de ranglijst hieronder tonen dezelfde cijfers per model."
+            "value" : "Taakkaart – hoe goed elke instructievariant het conceptantwoord aankan, met snelheid en geheugen. De lijstweergave toont dezelfde waarden “Correctie” en “Antwoord” per model."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa zadań — jak każdy model instrukcyjny radzi sobie ze szkicem odpowiedzi, a także jego szybkość i pamięć. Wskaźniki „Poprawka” i „Odpowiedź” na liście poniżej to te same liczby dla każdego modelu."
+            "value" : "Mapa zadań — jak każdy model instrukcyjny radzi sobie ze szkicem odpowiedzi, a także jego szybkość i pamięć. Widok listy pokazuje te same wskaźniki „Poprawka” i „Odpowiedź” dla każdego modelu."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mapa de tarefas: como cada versão de instrução lida com o atalho de resposta, com velocidade e memória. Os números de “Correção” e “Resposta” na lista ordenada abaixo são os mesmos para cada modelo."
+            "value" : "Mapa de tarefas: como cada versão de instrução lida com o atalho de resposta, com velocidade e memória. A visualização em lista mostra os mesmos números de “Correção” e “Resposta” para cada modelo."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Harta sarcinilor — cât de bine gestionează fiecare model instructiv combinația de răspuns, plus viteza și memoria. Valorile „Corectare” și „Răspuns” din lista ordonată de mai jos sunt aceleași cifre per model."
+            "value" : "Harta sarcinilor — cât de bine gestionează fiecare model instructiv combinația de răspuns, plus viteza și memoria. Vizualizarea listă arată aceleași valori „Corectare” și „Răspuns” per model."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Карта задач — как каждая инструктивная модель справляется с черновиком ответа, а также её скорость и память. Показатели «Исправление» и «Ответ» в списке ниже — те же цифры для каждой модели."
+            "value" : "Карта задач — как каждая инструктивная модель справляется с черновиком ответа, а также её скорость и память. В виде списка — те же показатели «Исправление» и «Ответ» для каждой модели."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Uppgiftskarta — hur väl varje instruerad syskonmodell klarar kortkommandot för svar, med hastighet och minne. Siffrorna för ”Rättning” och ”Svar” i den rangordnade listan nedan visar samma värden per modell."
+            "value" : "Uppgiftskarta — hur väl varje instruerad syskonmodell klarar kortkommandot för svar, med hastighet och minne. Listvyn visar samma siffror för ”Rättning” och ”Svar” per modell."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Görev haritası — her talimatlı modelin yanıt kısayolundaki başarısı, hızı ve belleği. Aşağıdaki sıralı listedeki “Düzeltme” ve “Yanıt” değerleri model başına aynı rakamlardır."
+            "value" : "Görev haritası — her talimatlı modelin yanıt kısayolundaki başarısı, hızı ve belleği. Liste görünümü model başına aynı “Düzeltme” ve “Yanıt” değerlerini gösterir."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Карта завдань — як кожна інструктивна модель справляється з чернеткою відповіді, а також її швидкість і пам’ять. Показники «Виправлення» й «Відповідь» у списку нижче — ті самі цифри для кожної моделі."
+            "value" : "Карта завдань — як кожна інструктивна модель справляється з чернеткою відповіді, а також її швидкість і пам’ять. У вигляді списку — ті самі показники «Виправлення» й «Відповідь» для кожної моделі."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "任务分布图：显示每个指令版模型处理回复快捷键的效果，以及速度和内存。下方排名列表中的“修正”和“回复”数据与此一致。"
+            "value" : "任务分布图：显示每个指令版模型处理回复快捷键的效果，以及速度和内存。列表视图按模型显示相同的“修正”和“回复”数据。"
           }
         }
       }
@@ -48350,6 +48444,106 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在使用 %@，以便 %@ 保持高品质播放。"
+          }
+        }
+      }
+    },
+    "View" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobrazení"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ansicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vista"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affichage"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vista"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보기"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weergave"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widok"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visualização"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vizualizare"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вид"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visning"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Görünüm"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вигляд"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视图"
           }
         }
       }
