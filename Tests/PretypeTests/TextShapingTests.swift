@@ -16,18 +16,23 @@ final class TextShapingTests: XCTestCase {
         XCTAssertEqual(SuggestionController.firstWordChunk(of: "   multiple   words"), "   multiple")
     }
 
-    func testNarrowedSuggestion() {
+    func testGhostUpdate() {
+        let update = SuggestionController.ghostUpdate
         // Typing the suggestion's head shrinks it.
-        XCTAssertEqual(SuggestionController.narrowedSuggestion("ing to the store", typedCharacters: "i"), "ng to the store")
-        XCTAssertEqual(SuggestionController.narrowedSuggestion(" привет мир", typedCharacters: " "), "привет мир")
-        // A diverging character invalidates it.
-        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "x"))
-        // Typing through the end leaves nothing to suggest.
-        XCTAssertNil(SuggestionController.narrowedSuggestion("i", typedCharacters: "i"))
-        // Control input (backspace, return, arrows/function keys) invalidates.
-        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "\u{08}"))
-        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "\r"))
-        XCTAssertNil(SuggestionController.narrowedSuggestion("ing to", typedCharacters: "\u{F702}"))
+        XCTAssertEqual(update("go", "ing to the store", "goi"), .narrowed("ng to the store"))
+        XCTAssertEqual(update("", " привет мир", " "), .narrowed("привет мир"))
+        // A keystroke narrows on its own characters: a Thai tone mark typed
+        // after "ข" would merge into the anchor if appended to it.
+        XCTAssertEqual(update("", "\u{E49}\u{E32}\u{E27}", "\u{E49}"), .narrowed("\u{E32}\u{E27}"))
+        // A re-read with no text change keeps it.
+        XCTAssertEqual(update("go", "ing", "go"), .unchanged)
+        // A diverging character, or typing all of it, retires it.
+        XCTAssertEqual(update("go", "ing to", "gox"), .retired(.diverged))
+        XCTAssertEqual(update("go", "i", "goi"), .retired(.typedThrough))
+        XCTAssertEqual(update("go", "ing", "goings"), .retired(.typedThrough))
+        // The anchor itself changed (a backspace, a caret move): abandoned.
+        XCTAssertEqual(update("go", "ing", "g"), .retired(.abandoned))
+        XCTAssertEqual(update("go", "ing", "to"), .retired(.abandoned))
     }
 
     func testStrippingStraySeparator() {
