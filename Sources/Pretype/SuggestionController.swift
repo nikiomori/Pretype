@@ -192,13 +192,12 @@ final class SuggestionController {
             // (or a transcript being finalized) during that tail is
             // deliberate, not a scroll gesture interrupting it.
             let dictating = self.dictationController.isBusy
-            if !isMomentum { self.dictationController.pointerInterrupted() }
+            if !isMomentum { self.dictationController.pointerInterrupted(isScroll: true) }
             // While dictation is busy the overlay is its to keep: the live
-            // pill riding out a momentum tail, or the protected "dictation
-            // dropped" notice `pointerInterrupted()` just posted — `dropOverlay` would
-            // erase either one, and dictation tears down its own overlay on
-            // discard anyway. (`mouseDownHandler` skips it for the same
-            // reason.)
+            // pill riding out a momentum tail, or "writing it down…" over a
+            // take the scroll left alone — `dropOverlay` would erase either
+            // one, and dictation tears down its own overlay on discard
+            // anyway. (`mouseDownHandler` skips it for the same reason.)
             if !dictating { self.viewScrolled() }
             // Not from inside the monitor's own handler.
             DispatchQueue.main.async { [weak self] in self?.updateScrollMonitoring() }
@@ -1357,14 +1356,14 @@ final class SuggestionController {
         // ⌥-arrows hold the modifier across several presses, and a hold left
         // armed through them opens the microphone in the middle of a chord.
         // Idle this costs a cleared date. Escape is the explicit "forget that"
-        // while listening, so it is ours to swallow — but only when a capture
-        // was live as it arrived, which the call below is what ends. Not in a
-        // launcher: its ⎋ is also "close", and swallowed it left Spotlight
-        // open over the field the capture was for.
-        let wasDictating = dictationController.isBusy
-        let isEscape = keyCode == KeyCode.escape
-        dictationController.keyPressed(isEscape: isEscape)
-        if wasDictating, isEscape, !keyboardFocusIsElsewhere { return true }
+        // while listening, so it is ours to swallow — but only when it
+        // cancelled a capture, which the call below decides: a ⎋ pressed in a
+        // launcher opened over the field, or after the take went to the
+        // clipboard, was meant for that app. Not in a launcher even then: its
+        // ⎋ is also "close", and swallowed it left Spotlight open over the
+        // field the capture was for.
+        if dictationController.keyPressed(isEscape: keyCode == KeyCode.escape),
+           !keyboardFocusIsElsewhere { return true }
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }

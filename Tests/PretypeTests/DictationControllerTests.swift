@@ -716,6 +716,76 @@ final class DictationControllerTests: XCTestCase {
         }
     }
 
+    /// ...unless what it waits on is a first-use model download. That is
+    /// still running (and kept), so the notice says so — not a red "couldn't
+    /// start" that the next press then contradicts with the download wording.
+    func testPreparingCeilingDuringADownloadSaysSoInsteadOfFailing() async {
+        let rig = makeRig()
+        let session = rig.session
+        rig.controller.maxCaptureSeconds = 0.15
+        slowStart(rig, seconds: 1)
+        rig.controller.toggleLatch()
+        XCTAssertEqual(rig.controller.phase, .preparing)
+        Transcription.downloading.set(.languagePack)
+        defer { Transcription.downloading.set(nil) }
+        await pump(until: { rig.controller.phase == .idle })
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a download is not a failure: \(rig.host.transientNotices)")
+        }
+        XCTAssertTrue(notice.contains("getting the dictation model ready"), notice)
+        await pump(until: { session.cancelCount == 1 })
+        XCTAssertEqual(session.cancelCount, 1, "the download was left to finish")
+    }
+
+    /// Every interrupt rule in one table — `DictationController.action(for:)`,
+    /// which every interrupt entry point routes through.
+    func testInterruptTable() {
+        typealias C = DictationController
+        let live = C.Phase.listening("words")
+        let cancelled = C.InterruptAction.discard(.hint("dictation cancelled"))
+        let rows: [(interrupt: C.Interrupt, phase: C.Phase, trigger: C.Trigger,
+                    command: Bool, origin: Bool, heard: Bool, expect: C.InterruptAction)] = [
+            // A hold: everything ends it, and keystrokes say so.
+            (.key, live, .hold, false, true, false, cancelled),
+            (.escape, live, .hold, false, false, false, cancelled),
+            (.chord, live, .hold, false, true, false, cancelled),
+            (.click, live, .hold, false, true, false, .discard(nil)),
+            (.scroll, live, .hold, false, true, false, .discard(nil)),
+            (.focusLost, live, .hold, false, true, false, .discard(nil)),
+            // A latch: only ⎋ at its origin and a focus loss reach it.
+            (.key, live, .latch, false, true, false, .ignore),
+            (.click, live, .latch, false, true, false, .ignore),
+            (.scroll, live, .latch, false, true, false, .ignore),
+            (.chord, live, .latch, false, true, false, .ignore),
+            (.escape, live, .latch, false, true, false, cancelled),
+            (.escape, live, .latch, false, false, false, .ignore),  // closing Spotlight
+            (.focusLost, live, .latch, false, true, true, .finish),
+            (.focusLost, live, .latch, false, true, false, .discard(.hint("dictation stopped — the focus moved"))),
+            // Being written down: the take is finished, whatever started it.
+            (.key, .working, .hold, false, true, false, .rescue),
+            (.click, .working, .latch, false, true, false, .rescue),
+            (.key, .working, .hold, true, true, false, .discard(.hint("dictation dropped — you kept typing"))),
+            (.click, .working, .latch, true, true, false, .discard(.hint("dictation dropped — the caret moved"))),
+            (.escape, .working, .hold, true, true, false, cancelled),
+            (.escape, .working, .latch, false, false, false, .ignore),  // pressed in another app
+            (.scroll, .working, .hold, false, true, false, .ignore),  // moves no caret
+            (.scroll, .working, .latch, true, true, false, .ignore),
+            (.chord, .working, .hold, false, true, false, .ignore),
+            (.focusLost, .working, .latch, false, true, false, .ignore),  // `finish` rescues it
+        ]
+        for row in rows {
+            // `.preparing` is part of the live capture: same rules.
+            for phase in row.phase == live ? [live, .preparing] : [row.phase] {
+                XCTAssertEqual(C.action(for: row.interrupt, phase: phase, trigger: row.trigger, isCommand: row.command,
+                                        atOrigin: row.origin, heard: row.heard), row.expect, "\(row) in \(phase)")
+            }
+        }
+        for interrupt: C.Interrupt in [.key, .escape, .click, .scroll, .chord, .focusLost] {
+            XCTAssertEqual(C.action(for: interrupt, phase: .idle, trigger: .latch, isCommand: false,
+                                    atOrigin: true, heard: true), .ignore, "nothing to interrupt")
+        }
+    }
+
     /// A click mid-`.working` moves the caret a *finished* sentence was headed
     /// for — it goes to the clipboard, the same as after a keystroke.
     /// Mid-`.listening` it stays silent: the pill vanishing under the click is
@@ -934,8 +1004,9 @@ final class DictationControllerTests: XCTestCase {
     }
 
     /// Once the transcript is headed for the clipboard, a click or keystroke
-    /// can't land it behind anything — it is kept. ⎋ still cancels.
-    func testClickOrKeyDuringRescueKeepsTheTranscriptEscapeCancels() async {
+    /// can't land it behind anything — it is kept. So is a ⎋: pressed in the
+    /// app the focus moved to, it was meant for that app, and goes through.
+    func testClickKeyOrEscapeDuringRescueKeepTheTranscript() async {
         let rig = makeRig { $0.finishDelay = 0.2 }
         await startLatched(rig)
         await hear("a whole paragraph", in: rig)
@@ -944,18 +1015,89 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.controller.phase, .working)
         rig.controller.pointerInterrupted()
         rig.controller.keyPressed()
+        XCTAssertFalse(rig.controller.keyPressed(isEscape: true), "the other app's ⎋ goes through")
+        XCTAssertEqual(rig.controller.phase, .working)
         await pump(until: { !rig.host.rescued.isEmpty })
         XCTAssertEqual(rig.host.rescued, ["hello world"])
+    }
 
-        let cancelled = makeRig { $0.finishDelay = 0.2 }
-        await startLatched(cancelled)
-        await hear("never mind", in: cancelled)
-        cancelled.host.focusGeneration += 1
-        cancelled.controller.invalidate()
-        cancelled.controller.keyPressed(isEscape: true)
-        await pump(0.4)
-        XCTAssertTrue(cancelled.host.rescued.isEmpty, "⎋ is a cancel, not a rescue")
-        XCTAssertEqual(cancelled.controller.phase, .idle)
+    /// The same for a take a click sent to the clipboard with the focus where
+    /// it was: past cancelling, so the ⎋ after it is the app's.
+    func testEscapeAfterAClickRescuedTheTakeLeavesItBe() async {
+        let rig = makeRig { $0.finishDelay = 0.3 }
+        await startCapture(rig)
+        await hear("about to move", in: rig)
+        await release(rig.controller)
+        rig.controller.pointerInterrupted()
+        XCTAssertFalse(rig.controller.keyPressed(isEscape: true))
+        XCTAssertEqual(rig.controller.phase, .working)
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+    }
+
+    /// ⌘Space opens Spotlight over a hands-free capture with no focus change,
+    /// so the capture stays live — and the ⎋ that closes Spotlight was meant
+    /// for Spotlight. Minutes of speech must not go with it.
+    func testEscapeInALauncherOverAHandsFreeCaptureLeavesItRunning() async {
+        let rig = makeRig()
+        await startLatched(rig)
+        await hear("a long paragraph", in: rig)
+        rig.host.focusIsInLauncher = true
+        XCTAssertFalse(rig.controller.keyPressed(isEscape: true), "Spotlight's ⎋ goes to Spotlight")
+        XCTAssertEqual(rig.controller.phase, .listening("a long paragraph"))
+        rig.host.focusIsInLauncher = false
+        rig.controller.toggleLatch()
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+    }
+
+    /// A scroll while the take is written down moves no caret — `TextInjector`
+    /// types at keyboard focus — so the take lands where it was going, not on
+    /// the clipboard behind a false "the caret moved".
+    func testScrollWhileWritingDownLetsTheTakeLand() async {
+        let rig = makeRig { $0.finishDelay = 0.3 }
+        await startCapture(rig)
+        await hear("still here", in: rig)
+        await release(rig.controller)
+        XCTAssertEqual(rig.controller.phase, .working)
+        rig.controller.pointerInterrupted(isScroll: true)
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertTrue(rig.host.rescued.isEmpty)
+    }
+
+    /// A rescued take's notice is how the user learns the words are on the
+    /// clipboard, and a capture queued behind it would paint over it at once
+    /// — so the queue goes with the rescue; the next press starts it.
+    func testARescuedTakeDropsTheCaptureQueuedBehindIt() async {
+        let rig = makeRig { $0.finishDelay = 0.3 }
+        await startLatched(rig)
+        await hear("first", in: rig)
+        rig.controller.toggleLatch()
+        rig.controller.toggleLatch()
+        rig.controller.pointerInterrupted()
+        await pump(until: { !rig.host.rescued.isEmpty })
+        await pump(0.2)
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertEqual(rig.capture.startCount, 1, "nothing may paint over the rescue notice")
+        XCTAssertEqual(rig.controller.phase, .idle)
+    }
+
+    /// A focus change under a queued hold: the hold died with the focus, and
+    /// "wasn't listening yet" must not replace "focus moved — dictation copied".
+    func testAFocusChangeUnderAQueuedHoldLeavesOnlyTheRescueNotice() async {
+        let rig = makeRig { $0.finishDelay = 0.3 }
+        await startCapture(rig)
+        await hear("first", in: rig)
+        await release(rig.controller)
+        await holdDown(rig.controller)
+        XCTAssertTrue(rig.controller.hold.isActive, "queued behind the write")
+        rig.host.focusGeneration += 1
+        rig.controller.invalidate()
+        await pump(until: { !rig.host.rescued.isEmpty })
+        await pump(0.1)
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertTrue(rig.host.transientNotices.isEmpty, "\(rig.host.transientNotices)")
     }
 
     /// The rule that makes hands-free worth having. Under a hold, every one of
@@ -967,6 +1109,7 @@ final class DictationControllerTests: XCTestCase {
         await hear("still going", in: rig)
         rig.controller.keyPressed()
         rig.controller.pointerInterrupted()
+        rig.controller.pointerInterrupted(isScroll: true)
         await pump(0.05)
         XCTAssertEqual(rig.controller.phase, .listening("still going"),
                        "hands-free means the user keeps working while it runs")
@@ -982,7 +1125,7 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         await startLatched(rig)
         await hear("never mind", in: rig)
-        rig.controller.keyPressed(isEscape: true)
+        XCTAssertTrue(rig.controller.keyPressed(isEscape: true), "a cancel at its origin is ours to swallow")
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertTrue(rig.host.inserted.isEmpty)

@@ -69,25 +69,9 @@ final class DictationController {
 
     private(set) var trigger: Trigger = .hold
 
-    /// A hands-free capture that has not been stopped yet — which is the window
-    /// the relaxed interrupt rules apply to. Every interrupt that exists because
-    /// a held modifier is ambiguous — a keystroke, a click, a scroll — reads
-    /// this and stands down: hands-free means the user is expected to keep
-    /// using the machine, and a capture that died on the first scroll would be
-    /// a hold with extra steps.
-    ///
-    /// `.preparing` is in it, deliberately and load-bearingly. That phase is
-    /// tens of milliseconds on a built-in microphone, seconds on a Bluetooth
-    /// headset and *minutes* on a first-use language-pack download — and
-    /// "press the chord, then go and find the thing I was going to say" is the
-    /// hands-free case exactly. Scoping this to `.listening` alone let a scroll
-    /// during the wait tear the capture down with no pill and no notice.
-    ///
-    /// `.working` is out of it, equally deliberately. Once the chord has been
-    /// pressed again and the words are being written down there is no speech
-    /// left to protect, and a click in that window has just moved the caret the
-    /// transcript is about to be typed at — so it goes to the clipboard
-    /// instead (`rescueOnInterrupt`), whatever started the capture.
+    /// A hands-free capture that has not been stopped yet. The hold gesture is
+    /// inert under it (`modifierChanged`, `apply`); `.preparing` counts, for
+    /// the reason `action(for:)` gives.
     private var isLatchedAndLive: Bool {
         trigger == .latch && isBusy && phase != .working
     }
@@ -98,20 +82,124 @@ final class DictationController {
     /// clicked. Reset by `begin`.
     private var caretMoved = false
 
-    /// A keystroke or click while the take is being written down. Dropping
-    /// it there threw away a finished sentence over one stray key — and on a
-    /// hosted API `.working` is the whole upload, so that sentence could be
-    /// ten minutes of speech. It can't be typed either, the caret has moved:
-    /// it finishes to the clipboard, as a focus change does, and later
-    /// interrupts leave it be. A hold queued behind it was a chord, and goes.
-    /// false when there is nothing to rescue — not writing yet, or a voice
-    /// command, whose selection is what just moved — and the caller drops it
-    /// as before.
-    private func rescueOnInterrupt() -> Bool {
-        guard phase == .working, commandSelection == nil else { return false }
-        if hold.interrupt() != nil, pendingBegin == .hold { pendingBegin = nil }
-        caretMoved = true
-        return true
+    /// Keyboard focus is still in the field this capture started in — the
+    /// only place its words may be typed. Opening or closing a launcher fires
+    /// no focus change, hence the second half.
+    private var focusHeld: Bool {
+        guard let owner else { return false }
+        return owner.focusGeneration == focusGeneration && owner.focusIsInLauncher == startedInLauncher
+    }
+
+    /// Something from outside the capture that may end it.
+    enum Interrupt: Equatable {
+        case key, escape, click, scroll
+        /// Another modifier joined a held one (`ModifierHold`'s `.cancel`).
+        case chord
+        /// Focus moved, Pretype was paused, the app is quitting.
+        case focusLost
+    }
+
+    enum InterruptAction: Equatable {
+        /// The capture carries on, or the take being written lands as planned.
+        case ignore
+        /// The take being written goes to the clipboard: its caret moved.
+        case rescue
+        /// A hands-free take that lost its field: finished, to the clipboard.
+        case finish
+        /// Thrown away, saying `notice` (nil: silently).
+        case discard(SuggestionDisplayMode?)
+    }
+
+    /// What `interrupt` does to a capture in `phase` — every interrupt rule in
+    /// one table, applied by `interrupted(by:)`. `atOrigin` (⎋ only): focus is
+    /// still where the capture started and its caret hasn't moved. `heard`
+    /// (focus loss only): the capture has words worth finishing.
+    ///
+    /// A HOLD is a dead-man's switch: anything else the user does means "that
+    /// wasn't dictation". A keystroke or chord says so out loud ("cancelled");
+    /// a click, scroll or focus change ends it silently — the pill vanishing
+    /// under the click is the explanation, and a user who switched apps with a
+    /// hand on a modifier needs no pill about it.
+    ///
+    /// A LATCH stands down from all of that: hands-free means the user keeps
+    /// using the machine — typing into the very field the transcript is bound
+    /// for included, which is why the insert re-reads the caret — and a
+    /// capture that died on the first scroll would be a hold with extra
+    /// steps. `.preparing` included, load-bearingly — it
+    /// is minutes on a first-use language-pack download, and "press the chord,
+    /// then go and find what I was going to say" is the hands-free case
+    /// exactly. ⎋ still cancels, as Settings promises — but only at its
+    /// origin: ⌘Space opens Spotlight with no focus change and the capture
+    /// stays live, so the ⎋ that closes Spotlight must not throw away minutes
+    /// of speech. A focus change finishes a take that heard something (to the
+    /// clipboard, `finish` sees the field is gone) and says so when it didn't:
+    /// the user has no key in hand to tell them it was live.
+    ///
+    /// `.working`: the sentence is finished, and on a hosted API this is the
+    /// whole upload — so nothing short of ⎋ at its origin throws it away. A
+    /// keystroke or click moved the caret it was headed for, so it goes to the
+    /// clipboard instead; a voice command can't be rescued (its selection is
+    /// what moved) and is dropped with a notice — a take that vanishes
+    /// without a word reads as the feature being broken. A scroll or a chord
+    /// moves no caret (`TextInjector` types at keyboard focus): it lands. A
+    /// focus loss leaves it to `finish`'s own focus check, which rescues it —
+    /// an app switch fires two of these ms apart, and a discard from the
+    /// second would drop the take the first one was rescuing. A ⎋ pressed
+    /// away from its origin was meant for the app that has focus now.
+    static func action(for interrupt: Interrupt, phase: Phase, trigger: Trigger,
+                       isCommand: Bool, atOrigin: Bool, heard: Bool) -> InterruptAction {
+        let cancelled = InterruptAction.discard(.hint(String(localized: "dictation cancelled")))
+        switch (phase, trigger) {
+        case (.idle, _):
+            return .ignore
+        case (.preparing, .latch), (.listening, .latch):
+            switch interrupt {
+            case .escape where atOrigin: return cancelled
+            case .focusLost: return heard ? .finish : .discard(.hint(String(localized: "dictation stopped — the focus moved")))
+            default: return .ignore
+            }
+        case (.preparing, .hold), (.listening, .hold):
+            switch interrupt {
+            case .key, .escape, .chord: return cancelled
+            case .click, .scroll, .focusLost: return .discard(nil)
+            }
+        case (.working, _):
+            switch interrupt {
+            case .escape: return atOrigin ? cancelled : .ignore
+            case .key: return isCommand ? .discard(.hint(String(localized: "dictation dropped — you kept typing"))) : .rescue
+            case .click: return isCommand ? .discard(.hint(String(localized: "dictation dropped — the caret moved"))) : .rescue
+            case .scroll, .chord, .focusLost: return .ignore
+            }
+        }
+    }
+
+    /// Apply `interrupt` to whatever is running — the one place its side
+    /// effects happen. See `action(for:)` for what it decides.
+    @discardableResult
+    private func interrupted(by interrupt: Interrupt) -> InterruptAction {
+        let action = Self.action(
+            for: interrupt, phase: phase, trigger: trigger, isCommand: commandSelection != nil,
+            // An AX read (`focusIsInLauncher`), so only for the ⎋ that asks.
+            atOrigin: interrupt == .escape && isBusy && focusHeld && !caretMoved,
+            heard: heardSomething)
+        // Every interrupt ends a hold — armed, live, or queued behind the take
+        // being written. A queued one it ended was a chord, a click or a zoom,
+        // not someone asking to talk, so the queue forgets it. A focus loss
+        // empties the queue outright: what is queued would open the microphone
+        // in the app just moved to.
+        let endedHold = hold.interrupt() != nil || interrupt == .chord
+        if interrupt == .focusLost || (endedHold && pendingBegin == .hold) { pendingBegin = nil }
+        switch action {
+        case .ignore: break
+        case .rescue: caretMoved = true
+        case .finish:
+            Self.note("focus moved mid hands-free capture — finishing to the clipboard")
+            finish()
+        case .discard(let notice):
+            Self.note("capture ended by \(interrupt)")
+            discard(notice: notice)
+        }
+        return action
     }
 
     private(set) var phase: Phase = .idle {
@@ -150,7 +238,8 @@ final class DictationController {
     /// discarding: whatever was said still gets typed. Armed from `begin`, so
     /// it covers `.preparing` too — a hung session start with the release
     /// never delivered is the same wedge, and there it discards, because there
-    /// is nothing heard to keep. A var only so tests can shorten it; nothing
+    /// is nothing heard to keep (`discardPreparing`: no error while a model
+    /// download is what it waits on). A var only so tests can shorten it; nothing
     /// in the app writes it.
     var maxCaptureSeconds: TimeInterval = 120
 
@@ -307,37 +396,15 @@ final class DictationController {
     /// also disarms a press that has not reached the threshold yet, which is
     /// the case that bites: ⌥⌫ and ⌥-arrows keep the modifier down across
     /// several presses, and a hold left armed through them has the timer open
-    /// the microphone half a second into an ordinary edit.
-    func keyPressed(isEscape: Bool = false) {
-        // Nothing about a keystroke says anything about a latched capture: it
-        // is not riding on a held key, so there is no chord to have been
-        // building. The user is free to keep typing — including into the very
-        // field the transcript is bound for, which is why the insert re-reads
-        // the caret rather than trusting the one `begin` saw. ⎋ still cancels;
-        // Settings promises that it does, for every capture.
-        if isLatchedAndLive {
-            _ = hold.keyPressed()
-            guard isEscape else { return }
-            Self.note("hands-free capture cancelled with ⎋")
-            discard(notice: .hint(String(localized: "dictation cancelled")))
-            return
-        }
-        // Release-then-keep-typing is the most natural gesture there is: a
-        // take being written down goes to the clipboard, not away. ⎋ is still
-        // a cancel — Settings promises "⎋ discards one already running".
-        if !isEscape, rescueOnInterrupt() { return }
-        // Mid-write a `.cancel` would only end a queued hold (see `apply`),
-        // and this keystroke ends the take too — below.
-        if let event = hold.keyPressed(), phase != .working { return apply(event) }
-        // What is left mid-write is ⎋ or a voice command, and both are
-        // dropped WITH a notice, unlike the other silent interrupts: a take
-        // that vanishes without a word is indistinguishable from the feature
-        // being broken. ⎋ gets its own wording — answering a deliberate
-        // cancel with "you kept typing" reads as the app misreading it.
-        let wasWorking = phase == .working
-        discard(notice: wasWorking
-            ? .hint(isEscape ? String(localized: "dictation cancelled") : String(localized: "dictation dropped — you kept typing"))
-            : nil)
+    /// the microphone half a second into an ordinary edit. What it does to a
+    /// capture is `action(for:)`'s call.
+    ///
+    /// True when ⎋ cancelled a capture, and the caller swallows it. A ⎋ that
+    /// cancelled nothing here was meant for the app, and goes through.
+    @discardableResult
+    func keyPressed(isEscape: Bool = false) -> Bool {
+        let action = interrupted(by: isEscape ? .escape : .key)
+        return isEscape && action != .ignore
     }
 
     /// A mouse press or a scroll ends a hold too. ⌥-click and ⌥-drag are
@@ -345,64 +412,17 @@ final class DictationController {
     /// where the words were going. Under "Hold ⌃" the gesture key is also the
     /// pinch-zoom modifier, so a ⌃-scroll held past the threshold would open
     /// the microphone mid-zoom; and during a live capture the view has just
-    /// carried the caret out from under the pill.
-    ///
-    /// Armed counts as well as busy: the damage these two prevent happens in
-    /// the first `threshold` seconds, before a capture exists to be `isBusy`
-    /// about. Fully idle stays a cheap early return, because both ride global
-    /// monitors that see every click and every scroll on the system.
-    ///
-    /// Mid-`.working` the sentence is already finished, the finalize-plus-tidy
-    /// window is seconds long (a whole upload, on a hosted API), and users
-    /// click things while they wait — so it goes to the clipboard, same as
-    /// `keyPressed`. A voice command dropped there earns a notice. A click
-    /// during `.listening` stays silent: the pill vanishing under the click IS
-    /// the explanation there.
-    func pointerInterrupted() {
-        // Both of these exist because a held modifier is ambiguous — ⌥-click
-        // and ⌃-scroll are ordinary gestures that happen to look like a hold.
-        // A latch is not ambiguous about anything, and reading a page or
-        // clicking something to check a fact while dictating a paragraph is
-        // precisely what hands-free is for.
-        guard !isLatchedAndLive else { return }
-        guard isBusy || hold.isArmed else { return }
-        guard !rescueOnInterrupt() else { return }
-        _ = hold.interrupt()
-        let wasWorking = phase == .working
-        discard(notice: wasWorking ? .hint(String(localized: "dictation dropped — the caret moved")) : nil)
+    /// carried the caret out from under the pill. Armed counts as well as
+    /// busy: that damage happens in the first `threshold` seconds, before a
+    /// capture exists. The rest is `action(for:)`'s call.
+    func pointerInterrupted(isScroll: Bool = false) {
+        interrupted(by: isScroll ? .scroll : .click)
     }
 
     /// Focus moved, Pretype was paused, the app is quitting: whatever was being
     /// captured can no longer be typed anywhere sensible.
     func invalidate() {
-        // Already finishing: the transcript is done, and the finish task's own
-        // focus check routes it to the clipboard now that it can't be typed
-        // here. Discarding instead would drop it — and an app switch fires
-        // this twice (focus change, then resign-active, ms apart), so the
-        // second call would bump the generation under the finish the FIRST
-        // one started for exactly this rescue. The capture QUEUED behind it is
-        // another matter: that one would open the microphone in the app just
-        // moved to, so it goes.
-        if phase == .working {
-            _ = hold.interrupt()
-            if pendingBegin == .latch { pendingBegin = nil }
-            return
-        }
-        // Silent for a hold: the key came up, or the user switched apps with
-        // one hand on a modifier, and a pill about it would be noise. A latched
-        // capture is the opposite case — it can be minutes of speech, the user
-        // has no key in their hand to tell them it was live, and losing a
-        // paragraph without a word is exactly how this feature reads as broken.
-        let spoken = isLatchedAndLive
-        _ = hold.interrupt()
-        // …and a latched capture that has heard something is finished, not
-        // discarded: `finish` sees the focus moved and hands the transcript
-        // to `rescueDictated` instead of typing it into the wrong field.
-        if spoken, heardSomething {
-            Self.note("focus moved mid hands-free capture — finishing to the clipboard")
-            return finish()
-        }
-        discard(notice: spoken ? .hint(String(localized: "dictation stopped — the focus moved")) : nil)
+        interrupted(by: .focusLost)
     }
 
     /// The live capture has words worth finishing rather than discarding. The
@@ -459,15 +479,7 @@ final class DictationController {
         switch event {
         case .begin: begin()
         case .end: finish()
-        case .cancel where phase == .working:
-            // Mid-write, the hold a `.cancel` ends is the one QUEUED behind the
-            // take (`begin`): another modifier joined it, so it was a chord.
-            // Only the queue goes — a modifier types nothing, the caret is
-            // still where the take is headed, and it lands there. ⎋ drops the
-            // take itself, in `keyPressed`.
-            if pendingBegin == .hold { pendingBegin = nil }
-            Self.note("queued hold turned into a chord — dropped it, still writing the last one down")
-        case .cancel: discard(notice: .hint(String(localized: "dictation cancelled")))
+        case .cancel: interrupted(by: .chord)
         case nil: break
         }
     }
@@ -772,7 +784,7 @@ final class DictationController {
                 case .preparing:
                     Self.note("still preparing when the capture ceiling hit — giving up on this hold")
                     _ = self.hold.interrupt()
-                    self.discard(notice: .error(String(localized: "dictation couldn't start — try again")))
+                    self.discardPreparing(otherwise: .error(String(localized: "dictation couldn't start — try again")))
                 default:
                     break
                 }
@@ -954,16 +966,11 @@ final class DictationController {
     private func finish() {
         guard let owner else { return }
         if case .preparing = phase {
-            // Released before the microphone opened. During a first-use
-            // language-pack download that is expected — the download keeps
-            // running (`discard` leaves it alone: it is the slow part, and
-            // cancelling would mean starting over), so the next press is the
-            // fast one. Otherwise it was only the microphone opening (a
+            // Released before the microphone opened. Unless a model download
+            // is what it waits on, that was only the microphone opening (a
             // Bluetooth input negotiates for 0.5–2 s), and "getting the model
             // ready" would send the user waiting for a download that isn't.
-            discard(notice: .hint(Transcription.isDownloading(for: Settings.resolvedDictationLocale)
-                ? String(localized: "getting the dictation model ready…")
-                : String(localized: "too quick — the microphone was still opening")))
+            discardPreparing(otherwise: .hint(String(localized: "too quick — the microphone was still opening")))
             return
         }
         guard case .listening(let heard) = phase, let session else { return }
@@ -972,9 +979,6 @@ final class DictationController {
         phase = .working
         render()
         let gen = generation
-        let targetFocus = focusGeneration
-        let inLauncher = startedInLauncher
-        let focusHeld = { owner.focusGeneration == targetFocus && owner.focusIsInLauncher == inLauncher }
         let deadline = session.finishDeadline ?? finalizeSeconds
         sessionTask = Task { @MainActor [weak self] in
             do {
@@ -1008,7 +1012,7 @@ final class DictationController {
                     // focus moved — the selection it was about is gone.
                     self.phase = .idle
                     self.session = nil
-                    if focusHeld() {
+                    if self.focusHeld {
                         owner.hideOverlay()
                         owner.applyVoiceCommand(transcript, to: selection)
                     } else {
@@ -1033,11 +1037,15 @@ final class DictationController {
                 self.phase = .idle
                 self.session = nil
                 owner.hideOverlay()
-                if focusHeld(), !self.caretMoved {
+                if self.focusHeld, !self.caretMoved {
                     owner.insertDictated(text)
                 } else {
                     Self.note("rescued \(text.count) chars to the clipboard — \(self.caretMoved ? "the caret moved" : "focus changed")")
-                    owner.rescueDictated(text, because: focusHeld() ? .caretMoved : .focusMoved)
+                    // Nothing resumes behind a rescue: its notice is how the
+                    // user learns where the words went, and a queued capture's
+                    // pill would paint over it at once. The next press starts it.
+                    self.pendingBegin = nil
+                    owner.rescueDictated(text, because: self.focusHeld ? .caretMoved : .focusMoved)
                 }
                 self.resumePendingHold(noticeIfMissed: true)
             } catch {
@@ -1049,9 +1057,7 @@ final class DictationController {
                 let preview = Self.clean(heard)
                 if case TranscriptionError.timedOut = error, !preview.isEmpty, self.commandSelection == nil {
                     Self.note("finish timed out — rescued the \(preview.count)-char preview to the clipboard")
-                    // A hold queued behind this take resumes inside `discard`;
-                    // its pill replaces the notice once its microphone opens.
-                    // The words are on the clipboard either way.
+                    self.pendingBegin = nil  // as for a rescue above
                     self.discard(notice: nil)
                     owner.rescueDictated(preview, because: .timedOut)
                     return
@@ -1196,6 +1202,15 @@ final class DictationController {
         silenceTimer?.invalidate()
         silenceTimer = nil
         meter = nil
+    }
+
+    /// Give up on a capture still in `.preparing`. While the model download it
+    /// waits on runs (a first-use language pack, Parakeet's 610 MB), that is
+    /// the news rather than `notice`: the download carries on (see `discard`)
+    /// and `begin` answers with the same words until it lands.
+    private func discardPreparing(otherwise notice: SuggestionDisplayMode) {
+        discard(notice: Transcription.isDownloading(for: Settings.resolvedDictationLocale)
+            ? .hint(String(localized: "getting the dictation model ready…")) : notice)
     }
 
     /// Stop everything and forget it.
