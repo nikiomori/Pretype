@@ -58,6 +58,14 @@ final class HostPLE: Embedding {
         modelID.contains("gemma-4-e2b") ? 1.3 : modelID.contains("gemma-4-e4b") ? 1.6 : nil
     }
 
+    /// What `modelID` keeps resident of its booked `gb` weights: less the
+    /// table while it is served from disk. Every memory figure on the Model
+    /// tab and the Live Impact rail reads this one, so none of them disagrees
+    /// with the "Reduce memory use" toggle. Not the download size.
+    static func residentGB(_ gb: Double, of modelID: String, pleFromDisk: Bool = Settings.pleFromDisk) -> Double {
+        pleFromDisk ? gb - (savingGB(for: modelID) ?? 0) : gb
+    }
+
     /// With `Settings.pleFromDisk` on, swaps the loaded model's PLE table for
     /// one served from its snapshot files and frees the GPU copy. Leaves any
     /// other model, a layout it doesn't recognize, or rows that don't match

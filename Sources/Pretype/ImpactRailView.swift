@@ -32,7 +32,7 @@ struct ImpactRailView: View {
         // of offering "Click to apply" over identical figures.
         let previewsRuntime = store.previewedConfig
             .map { !$0.sameRuntime(as: store.committedConfig) } ?? false
-        let target = previewsRuntime ? store.previewedConfig.map(ConfigProjection.project) : nil
+        let target = previewsRuntime ? store.previewedConfig.map { ConfigProjection.project($0, pleFromDisk: store.pleFromDisk) } : nil
         let deltas = target.map { ConfigProjection.deltas(from: base, to: $0) } ?? []
 
         ScrollView {

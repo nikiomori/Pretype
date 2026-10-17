@@ -133,6 +133,25 @@ final class ModelCatalogTests: XCTestCase {
         for repo in repos { XCTAssertNotNil(ModelCatalog.pinnedRevisions[repo], repo) }
     }
 
+    /// The "Reduce memory use" toggle moves every memory figure together: the
+    /// rail's meter and the idle-unload line both read the projection, which
+    /// reads `HostPLE.residentGB` — and compute does not move with it.
+    func testResidentMemoryFollowsThePLEToggle() {
+        let e4b6 = ProjectionConfig(modelID: "mlx-community/gemma-4-e4b-6bit", style: .base, length: .short,
+                                    logprobGate: false, useRecommended: false)
+        let off = ConfigProjection.project(e4b6, pleFromDisk: false)
+        let on = ConfigProjection.project(e4b6, pleFromDisk: true)
+        XCTAssertEqual(off.ramGB ?? 0, 5.03, accuracy: 0.001)
+        XCTAssertEqual(on.ramGB ?? 0, 5.03 - 1.6, accuracy: 0.001)
+        XCTAssertEqual(on.computeRel, off.computeRel)
+        // Instruct runs the sibling, and the saving is the sibling's table.
+        let e2bInstruct = ProjectionConfig(modelID: "mlx-community/gemma-4-e2b-8bit", style: .instruct, length: .short,
+                                           logprobGate: false, useRecommended: false)
+        XCTAssertEqual(ConfigProjection.project(e2bInstruct, pleFromDisk: true).ramGB ?? 0, 4.57 - 1.6, accuracy: 0.001)
+        // No per-layer table, nothing to subtract.
+        XCTAssertEqual(HostPLE.residentGB(1.5, of: "nikimori/Qwen3.5-2B-Base-6bit", pleFromDisk: true), 1.5)
+    }
+
     // The settings download gate asks about the weights a switch actually
     // loads — the instruct sibling in Instruct style — and names and sizes
     // that, not the base row the user clicked.

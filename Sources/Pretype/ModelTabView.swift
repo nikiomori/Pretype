@@ -51,7 +51,8 @@ struct ModelTab: View {
                                      acc: ModelMetrics.axisAccuracy(for: pick, axis: axis),
                                      isActive: store.priorityIsActive(priority),
                                      apply: { store.applyPriority(priority) },
-                                     hover: { store.setHover(.preset(pick), $0) })
+                                     hover: { store.setHover(.preset(pick), $0) },
+                                     pleFromDisk: store.pleFromDisk)
                     }
                 }
                 // Ideal height of the tallest card, which the others then fill.
@@ -101,7 +102,8 @@ struct ModelTab: View {
                              delete: { confirmingDelete = entry.id },
                              deleteDisabled: store.engineBusy,
                              downloadGB: downloadGB(for: entry.id),
-                             heavyGB: heavyGB(for: entry.id))
+                             heavyGB: heavyGB(for: entry.id),
+                             pleFromDisk: store.pleFromDisk)
                 }
             }
 
@@ -145,14 +147,13 @@ struct ModelTab: View {
                 Text("After 30 minutes").tag(30)
             } label: {
                 Text("Free memory when idle")
-                if idleUnloadMinutes > 0, store.selectedRamGB > 0 {
-                    // Less what the table on disk already freed.
-                    let onDisk = store.pleFromDisk ? HostPLE.savingGB(for: store.modelID) ?? 0 : 0
-                    Text("Frees about \(oneDecimal(store.selectedRamGB - onDisk)) GB while unused.")
+                // The rail's Memory figure: less what the table on disk already freed.
+                if idleUnloadMinutes > 0, let gb = store.projection.ramGB, gb > 0 {
+                    Text("Frees about \(oneDecimal(gb)) GB while unused.")
                 }
             }
             .help("The next keystroke reloads the model from disk; switching to a text field pre-warms it.")
-            if let savingGB = HostPLE.savingGB(for: store.modelID) {
+            if let savingGB = HostPLE.savingGB(for: store.committedConfig.primaryModelID) {
                 Toggle(isOn: $store.pleFromDisk) {
                     Text("Reduce memory use")
                     Text("Frees about \(oneDecimal(savingGB)) GB; suggestions come a few milliseconds later.")
@@ -263,6 +264,8 @@ struct ModelRow: View {
     var downloadGB: Double?
     /// GB a click keeps resident, when that is heavy for this Mac.
     var heavyGB: Double?
+    /// `Settings.pleFromDisk`, read off the store so a flip redraws the row.
+    let pleFromDisk: Bool
     /// Local hover for the row highlight — the rail preview (`hover`) lands
     /// 500 px away in the inspector, so a highlight at the pointer confirms
     /// the row is live. Kept off the observed store.
@@ -334,6 +337,7 @@ struct ModelRow: View {
                     }
                 }
                 if let m = ModelMetrics.metrics(for: id) {
+                    let gb = HostPLE.residentGB(m.ramGB, of: id, pleFromDisk: pleFromDisk)
                     HStack(spacing: 16) {
                         if let la = langAccuracy {
                             MetricBar(label: String(localized: "Accuracy"), fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
@@ -348,11 +352,11 @@ struct ModelRow: View {
                         MetricBar(label: String(localized: "Speed"), fraction: Bounds.speed(m), text: String(localized: "\(m.p50Ms) ms"),
                                   color: .blue,
                                   help: String(localized: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster."))
-                        MetricBar(label: String(localized: "Memory"), fraction: Bounds.lightness(m),
-                                  text: gbLabel(m.ramGB),
+                        MetricBar(label: String(localized: "Memory"), fraction: Bounds.lightness(gb),
+                                  text: gbLabel(gb),
                                   color: .teal,
-                                  help: m.ramGB > 0
-                                    ? String(localized: "Resident weights: \(oneDecimal(m.ramGB)) GB — longer bar = lighter.")
+                                  help: gb > 0
+                                    ? String(localized: "Resident weights: \(oneDecimal(gb)) GB — longer bar = lighter.")
                                     : String(localized: "System model — no download, no app memory."))
                         chordFigures
                     }
@@ -414,7 +418,7 @@ struct ModelRow: View {
 
         static func accuracy(_ m: ModelMetrics) -> Double { Double(m.firstWordPct) / maxAccuracy }
         static func speed(_ m: ModelMetrics) -> Double { minP50 / Double(m.p50Ms) }
-        static func lightness(_ m: ModelMetrics) -> Double { m.ramGB > 0 ? minRam / m.ramGB : 1 }
+        static func lightness(_ gb: Double) -> Double { gb > 0 ? minRam / gb : 1 }
     }
 }
 
@@ -509,6 +513,7 @@ private struct PriorityCard: View {
     let isActive: Bool
     let apply: () -> Void
     let hover: (Bool) -> Void
+    let pleFromDisk: Bool
     /// Local hover for the card highlight — kept off the store the Form
     /// observes, unlike the rail-preview `hover` callback below.
     @State private var hovering = false
@@ -541,7 +546,8 @@ private struct PriorityCard: View {
                     let accText = Text("\(acc ?? m.firstWordPct)%").foregroundStyle(Color.green.legible)
                     let dot = Text(" · ").foregroundStyle(.tertiary)
                     let msText = Text("\(m.p50Ms) ms").foregroundStyle(Color.blue.legible)
-                    let gbText = Text(gbLabel(m.ramGB)).foregroundStyle(Color.teal.legible)
+                    let gbText = Text(gbLabel(HostPLE.residentGB(m.ramGB, of: pick, pleFromDisk: pleFromDisk)))
+                        .foregroundStyle(Color.teal.legible)
                     // One line where it fits; at the 1020 pt minimum width four
                     // cards leave ~96 pt for a ~113 pt triple, so memory takes
                     // a second line instead of the whole triple shrinking to 8 pt.
@@ -918,7 +924,7 @@ struct ModelMapView: View {
     private func bubbles(_ plot: PlotFrame) -> some View {
         ForEach(ModelMetrics.all, id: \.id) { m in
             let selected = m.id == store.modelID
-            let r = radius(m.ramGB)
+            let r = radius(HostPLE.residentGB(m.ramGB, of: m.id, pleFromDisk: store.pleFromDisk))
             let center = bubbleCenter(for: m.id, plot)
             // Hover and tap attach BEFORE .position: onHover tracks the
             // view's FRAME, and a positioned wrapper fills the whole plot —
@@ -1025,7 +1031,7 @@ struct ModelMapView: View {
                 HStack(spacing: 10) {
                     stat(String(localized: "ACC"), String(localized: "\(ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct)%"), .green)
                     stat(String(localized: "SPEED"), latencyLabel(ms: m.p50Ms), .blue)
-                    stat(String(localized: "MEM"), gbLabel(m.ramGB), .teal)
+                    stat(String(localized: "MEM"), gbLabel(HostPLE.residentGB(m.ramGB, of: m.id, pleFromDisk: store.pleFromDisk)), .teal)
                 }
             }
             .padding(.horizontal, 10)
@@ -1060,7 +1066,7 @@ struct ModelMapView: View {
                       pct: lens == .fix ? t.fixPct : t.replyPct,
                       ci: lens == .fix ? t.fixCI : t.replyCI,
                       p50Ms: lens == .fix ? t.fixP50Ms : t.replyP50Ms,
-                      ramGB: ModelMetrics.taskRamGB(for: id) ?? 1)
+                      ramGB: HostPLE.residentGB(ModelMetrics.taskRamGB(for: id) ?? 1, of: id, pleFromDisk: store.pleFromDisk))
         }.sorted { $0.pct > $1.pct }
     }
 

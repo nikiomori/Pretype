@@ -391,10 +391,6 @@ final class SettingsStore {
     var selectedModelName: String {
         ModelCatalog.option(for: modelID)?.title ?? (modelID as NSString).lastPathComponent
     }
-    var selectedRamGB: Double {
-        ModelMetrics.metrics(for: modelID)?.ramGB
-            ?? Double(ModelCatalog.option(for: modelID)?.approxSizeMB ?? 0) / 1000
-    }
 
     // MARK: Live projection — measured expectations for the current configuration
 
@@ -404,8 +400,9 @@ final class SettingsStore {
                          logprobGate: logprobGate,
                          useRecommended: useRecommended)
     }
-    /// What the committed configuration measures to.
-    var projection: ConfigProjection { .project(committedConfig) }
+    /// What the committed configuration measures to — the toggle read off
+    /// the store, so the rail redraws when it flips.
+    var projection: ConfigProjection { .project(committedConfig, pleFromDisk: pleFromDisk) }
     /// The hovered change applied to the committed config, cascades included.
     var previewedConfig: ProjectionConfig? {
         preview.map(committedConfig.applying)

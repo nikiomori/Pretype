@@ -11,6 +11,12 @@ struct ProjectionConfig: Equatable {
     var logprobGate: Bool
     var useRecommended: Bool
 
+    /// The model the engine loads as the primary: Instruct style runs the
+    /// entry's instruct sibling.
+    var primaryModelID: String {
+        style == .instruct ? ModelCatalog.option(for: modelID)?.instructModelID ?? modelID : modelID
+    }
+
     /// One user gesture on one control.
     enum Change: Equatable {
         case model(String)
@@ -204,7 +210,7 @@ struct ConfigProjection {
     /// A fixed yardstick (the default when it was set), not today's default.
     private static let computeReferenceGB = 2.2
 
-    static func project(_ c: ProjectionConfig) -> ConfigProjection {
+    static func project(_ c: ProjectionConfig, pleFromDisk: Bool = Settings.pleFromDisk) -> ConfigProjection {
         guard let m = ModelMetrics.metrics(for: c.modelID) else {
             return ConfigProjection(
                 accuracyPct: nil, accuracyText: "—",
@@ -231,13 +237,14 @@ struct ConfigProjection {
         if c.style == .instruct {
             let usable = ModelCatalog.instructCompletes(c.modelID)
             let gb = ModelMetrics.instructRamGB(for: c.modelID) ?? m.ramGB
+            let resident = HostPLE.residentGB(gb, of: c.primaryModelID, pleFromDisk: pleFromDisk)
             if !usable {
                 return ConfigProjection(
                     accuracyPct: 0, accuracyText: "~0%",
                     accuracySub: String(localized: "broken combination — this model answers the text instead of continuing it"),
                     coveragePct: 99,
                     p50Ms: m.p50Ms, latencyIsApprox: true, latencySub: String(localized: "base-model figure — instruct unmeasured here"),
-                    gb: gb, memorySub: String(localized: "instruct sibling weights (hub size)"), lengthFactor: lf)
+                    gb: gb, residentGB: resident, memorySub: String(localized: "instruct sibling weights (hub size)"), lengthFactor: lf)
             }
             // Usable means the measured it-6bit sibling (the E4B tiers).
             let it = ModelMetrics.instructCompletion
@@ -248,18 +255,19 @@ struct ConfigProjection {
                 coveragePct: it.coveragePct,
                 p50Ms: ms, latencyIsApprox: lf > 1,
                 latencySub: lf > 1 ? String(localized: "instruct sibling, scaled by the measured length factor") : String(localized: "instruct sibling, measured (it-6bit)"),
-                gb: gb, memorySub: String(localized: "instruct sibling weights (hub size)"), lengthFactor: lf)
+                gb: gb, residentGB: resident, memorySub: String(localized: "instruct sibling weights (hub size)"), lengthFactor: lf)
         }
 
         // Base style — the only path the gate applies to.
         let ms = Int((Double(m.p50Ms) * lf).rounded())
+        let resident = HostPLE.residentGB(m.ramGB, of: c.modelID, pleFromDisk: pleFromDisk)
         if c.logprobGate, let g = ModelMetrics.gated[c.modelID] {
             return ConfigProjection(
                 accuracyPct: g.firstWordPct, accuracyText: "\(g.firstWordPct)%",
                 accuracySub: String(localized: "offers \(g.shownPct)% of the time at this model's own threshold · \(ModelMetrics.evalSource)"),
                 coveragePct: g.shownPct,
                 p50Ms: ms, latencyIsApprox: lf > 1, latencySub: String(localized: "no added latency over plain Base"),
-                gb: m.ramGB, lengthFactor: lf)
+                gb: m.ramGB, residentGB: resident, lengthFactor: lf)
         }
         return ConfigProjection(
             accuracyPct: m.firstWordPct,
@@ -268,7 +276,7 @@ struct ConfigProjection {
             coveragePct: m.coveragePct,
             p50Ms: ms, latencyIsApprox: lf > 1,
             latencySub: lf > 1 ? String(localized: "scaled by the measured length factor") : String(localized: "median per suggestion, measured"),
-            gb: m.ramGB, lengthFactor: lf)
+            gb: m.ramGB, residentGB: resident, lengthFactor: lf)
     }
 
     // MARK: Meter fractions (0…1, longer bar = better)
@@ -371,15 +379,16 @@ struct ConfigProjection {
 }
 
 extension ConfigProjection {
-    /// A config that runs `gb` of MLX weights: the memory figure and the
-    /// compute estimate (that much weight read per decoded token, times the
-    /// measured length factor) both follow from them.
+    /// A config that runs `gb` of MLX weights, `residentGB` of them in memory
+    /// (`HostPLE.residentGB`). The compute estimate follows all the weights
+    /// (that much read per decoded token, times the measured length factor):
+    /// a table served from disk saves memory, not work.
     init(accuracyPct: Int, accuracyText: String, accuracySub: String, coveragePct: Int,
          p50Ms: Int, latencyIsApprox: Bool, latencySub: String,
-         gb: Double, memorySub: String = String(localized: "resident model weights"), lengthFactor: Double) {
+         gb: Double, residentGB: Double, memorySub: String = String(localized: "resident model weights"), lengthFactor: Double) {
         self.init(accuracyPct: accuracyPct, accuracyText: accuracyText, accuracySub: accuracySub,
                   coveragePct: coveragePct, p50Ms: p50Ms, latencyIsApprox: latencyIsApprox,
-                  latencySub: latencySub, ramGB: gb, memorySub: memorySub,
+                  latencySub: latencySub, ramGB: residentGB, memorySub: memorySub,
                   computeRel: gb * lengthFactor / Self.computeReferenceGB,
                   computeSub: String(localized: "chip load per keystroke vs default (est.)"))
     }
