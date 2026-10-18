@@ -17,12 +17,42 @@ struct DictationAnchor {
     var selectedText: String = ""
 }
 
+/// What holds keyboard focus, as far as a capture is concerned.
+enum DictationFocus {
+    /// An editable field: the words can be typed into it.
+    case field
+    /// Nothing editable — typed at, the words would fire shortcuts.
+    case noField
+    /// A panel Pretype stays out of holds the keys: see `panel(ownedBy:hasTextField:)`.
+    case offLimits
+
+    /// A non-activating panel holding keyboard focus over the tracked app,
+    /// judged by the app that owns it. A launcher's field (Spotlight, Raycast)
+    /// takes dictation — a search spoken into Spotlight is a fine use. A
+    /// password manager's quick-access panel takes keys the same way, and
+    /// `begin`'s app check only sees the app underneath, so its field would be
+    /// read for the tidy-up context and typed into: the panel's own app is
+    /// held to the same lists the tracked app is.
+    ///
+    /// The owner is judged FIRST, and `hasTextField` — an AX read of the
+    /// panel — only asked when it passes: with the arrow keys in a password
+    /// manager's item list nothing editable is focused, and judged as "no
+    /// field" the panel got a "click into a text field" pill drawn over it.
+    static func panel(ownedBy bundleID: String?, hasTextField: () -> Bool) -> DictationFocus {
+        if AppPolicy.isBlacklisted(bundleID) { return .offLimits }
+        return hasTextField() ? .field : .noField
+    }
+}
+
 /// Why a transcript went to the clipboard instead of the field.
 enum DictationRescue {
     case focusMoved
     /// A keystroke or click landed while the take was being written down.
     case caretMoved
+    /// The last live preview of a take whose final pass outran its watchdog...
     case timedOut
+    /// ...or failed outright: a model error, a local server that went away.
+    case failed
 }
 
 /// What `DictationController` needs from the app around it — a protocol, not
@@ -32,8 +62,8 @@ enum DictationRescue {
 /// what has focus, how to draw at it, and how to type into it.
 @MainActor
 protocol DictationHost: AnyObject {
-    /// One-line activity readout, surfaced in the Diagnostics menu.
-    var lastEvent: String { get set }
+    /// One line of what just happened, surfaced in the Diagnostics menu.
+    func report(_ event: String)
     var typingContext: TypingContext { get }
     /// Bumped by the host on every real focus change; a transcript is only
     /// inserted while the value still matches the one captured at `begin`.
@@ -42,14 +72,20 @@ protocol DictationHost: AnyObject {
     /// app. Opening or closing one fires no focus change, so a transcript
     /// started on one side of it is rescued, not typed, on the other.
     var focusIsInLauncher: Bool { get }
+    /// One of Pretype's own windows is frontmost: its fields are no place
+    /// for a transcript, and the tracked field is behind it.
+    var isOwnUIFrontmost: Bool { get }
+    /// macOS reports secure input: a password field has the keys somewhere.
+    var isSecureInputActive: Bool { get }
     /// The last caret the host drew at — where a refusal notice goes when this
     /// capture never got far enough to read a caret of its own.
     var fallbackCaretRect: CGRect? { get }
     var fallbackHostStyle: HostTextStyle { get }
 
-    /// An editable text element has keyboard focus — the one hard requirement:
-    /// typing into a window with no text focus fires shortcuts, not sentences.
-    func hasFocusedTextField() -> Bool
+    /// Whether an editable text element has keyboard focus — the one hard
+    /// requirement: typing into a window with no text focus fires shortcuts,
+    /// not sentences — and whether it is one Pretype may type into.
+    func dictationFocus() -> DictationFocus
     /// The focused field has an open IME composition (marked text). Synthetic
     /// keystrokes land INSIDE a live composition — garbling or force-committing
     /// it, IME-dependent — so a capture must not start over one, and a finished
@@ -75,7 +111,7 @@ protocol DictationHost: AnyObject {
     /// A finished transcript that can no longer be typed — the focus moved
     /// while it was being captured or written down. Put it on the clipboard and
     /// say so: a latched capture can be minutes of speech. Also the last live
-    /// preview of a take whose transcription outran its watchdog.
+    /// preview of a take whose final pass timed out or failed.
     func rescueDictated(_ text: String, because reason: DictationRescue)
     /// Voice command mode: rewrite `selection` as the spoken `instruction`
     /// asks, previewed like a ⌥⇥ fix (⏎/⇥ applies, ⎋ keeps the original).

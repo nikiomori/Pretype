@@ -11,7 +11,9 @@ import Foundation
 /// The local preview re-sends the whole take, as Parakeet's does: ~2 MB a
 /// refresh at the 10-minute latch, still well under a second on loopback.
 enum CloudTranscription {
+    /// `previewEvery`, `retryAfter`: see `RecordedTranscription`.
     static func start(_ config: APIConfig, locale: Locale,
+                      previewEvery: Duration = .seconds(1), retryAfter: Duration = .seconds(1),
                       onPartial: @escaping @Sendable (String) -> Void) throws -> TranscriptionSession {
         let endpoint = try config.endpoint()
         let language = locale.language.languageCode?.identifier
@@ -24,7 +26,8 @@ enum CloudTranscription {
         // Doubled: `finish` retries a failed upload once, so the watchdog
         // spans two full requests and the second's one-second wait.
         return RecordedTranscription(preview: config.isLocal, finishDeadline: 2 * 60,
-                                     perAudioSecond: 2 * uploadPerSecond, onPartial: onPartial) { audio, final in
+                                     perAudioSecond: 2 * uploadPerSecond, previewEvery: previewEvery,
+                                     retryAfter: retryAfter, onPartial: onPartial) { audio, final in
             // Under a tenth of a second is a key tap, not speech — and most
             // servers refuse a clip that short.
             guard audio.count >= 1_600 else { return "" }

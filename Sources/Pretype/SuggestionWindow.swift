@@ -317,13 +317,6 @@ final class SuggestionWindow: NSPanel {
     /// mode instead.
     private(set) var currentMode: SuggestionDisplayMode?
 
-    /// A completion ghost (or panel) is the thing on screen right now.
-    var showsSuggestion: Bool { Self.offersSuggestion(currentMode) }
-
-    /// A correction is on screen: the ⌥⇥ preview awaiting accept, or the inline
-    /// spell pill over the word at the caret.
-    var showsCorrection: Bool { Self.offersCorrection(currentMode) }
-
     /// Which owner a displayed mode belongs to. Static and mode-only so the
     /// keyboard gates can be pinned by a test without a window server: what
     /// they decide is whether ⇥ inserts text, which is the one thing in this
@@ -393,6 +386,10 @@ final class SuggestionWindow: NSPanel {
                        protectFor: TimeInterval = 0) {
         show(mode: mode, at: caretRect, host: host)   // bumps hideGeneration via place()
         if protectFor > 0 { noticeProtectedUntil = Date().addingTimeInterval(protectFor) }
+        // Gone in under two seconds and never focused: VoiceOver reads a
+        // notice ("dictation copied, ⌘V to paste") only when told to.
+        if case .hint(let text) = mode { Self.announce(text) }
+        if case .error(let text) = mode { Self.announce(text) }
         let gen = hideGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + hideAfter) { [weak self] in
             guard let self, self.hideGeneration == gen else { return }
@@ -401,6 +398,13 @@ final class SuggestionWindow: NSPanel {
             // reaches here.
             self.hide(force: true)
         }
+    }
+
+    private static func announce(_ text: String) {
+        guard let app = NSApp else { return }
+        NSAccessibility.post(element: app, notification: .announcementRequested, userInfo: [
+            .announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue,
+        ])
     }
 
     /// After the user accepts `accepted`, slide the ghost forward by that word's

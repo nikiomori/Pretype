@@ -60,12 +60,76 @@ final class HotkeyTests: XCTestCase {
         XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand, .maskAlternate]))
         XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand, .maskControl]))
         XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: []))
+        // More than one character produced (a dead-key sequence) is no Latin
+        // letter either: the physical key decides.
+        XCTAssertTrue(SuggestionController.isPlainCommandZ(keyCode: z, key: "ab", flags: [.maskCommand]))
+        XCTAssertFalse(SuggestionController.isPlainCommandZ(keyCode: 16, key: "zz", flags: [.maskCommand]))
         // Caps Lock is outside the modifier mask, so it doesn't break ⌘Z.
         XCTAssertTrue(SuggestionController.isPlainCommandZ(keyCode: z, key: "z", flags: [.maskCommand, .maskAlphaShift]))
     }
 
     // The double-tap gesture fires an LLM run on whatever is on screen, so it must
     // fire on exactly the gesture and on nothing else the hand does routinely.
+    // The double tap's edges: a tap is held under 0.4 s, the second comes
+    // under 0.45 s after the first; another modifier between them, or fn
+    // held with it, makes it a chord — caps lock doesn't.
+    func testModifierDoubleTapEdges() {
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)   // exact sums at the edges
+        func taps(_ times: [(down: TimeInterval, up: TimeInterval)], flags: CGEventFlags = .maskAlternate,
+                  between: (inout ModifierDoubleTap) -> Void = { _ in }) -> Bool {
+            var gesture = ModifierDoubleTap()
+            var fired = false
+            for (n, tap) in times.enumerated() {
+                if n == 1 { between(&gesture) }
+                _ = gesture.modifierChanged(keyCode: KeyCode.leftOption, flags: flags, gesture: .option,
+                                            now: t0.addingTimeInterval(tap.down))
+                fired = gesture.modifierChanged(keyCode: KeyCode.leftOption, flags: [], gesture: .option,
+                                                now: t0.addingTimeInterval(tap.up))
+            }
+            return fired
+        }
+        XCTAssertTrue(taps([(0, 0.399), (0.4, 0.44)]))
+        XCTAssertFalse(taps([(0, 0.4), (0.5, 0.6)]), "held 0.4 s")
+        XCTAssertFalse(taps([(0, 0.1), (0.2, 0.6)]), "the second held 0.4 s")
+        XCTAssertTrue(taps([(0, 0.1), (0.3, 0.549)]))
+        XCTAssertFalse(taps([(0, 0.1), (0.3, 0.55)]), "0.45 s apart")
+        XCTAssertFalse(taps([(0, 0.1), (0.2, 0.3)], flags: [.maskAlternate, .maskSecondaryFn]))
+        XCTAssertTrue(taps([(0, 0.1), (0.2, 0.3)], flags: [.maskAlternate, .maskAlphaShift]))
+        var joined = ModifierDoubleTap()
+        let option = { (flags: CGEventFlags, at: TimeInterval) in
+            joined.modifierChanged(keyCode: KeyCode.leftOption, flags: flags, gesture: .option,
+                                   now: t0.addingTimeInterval(at))
+        }
+        _ = option(.maskAlternate, 0)
+        _ = joined.modifierChanged(keyCode: KeyCode.leftShift, flags: [.maskAlternate, .maskShift], gesture: .option,
+                                   now: t0.addingTimeInterval(0.02))
+        _ = option([], 0.05)
+        _ = option(.maskAlternate, 0.1)
+        XCTAssertFalse(option([], 0.15), "a modifier joining mid-press makes it a chord")
+        var later = ModifierDoubleTap()
+        func at(_ dt: TimeInterval, _ flags: CGEventFlags) -> Bool {
+            later.modifierChanged(keyCode: KeyCode.leftOption, flags: flags, gesture: .option, now: t0.addingTimeInterval(dt))
+        }
+        _ = at(0, .maskAlternate)
+        later.keyPressed()
+        _ = at(0.05, [])
+        _ = at(1, .maskAlternate)
+        _ = at(1.05, [])
+        _ = at(1.1, .maskAlternate)
+        XCTAssertTrue(at(1.15, []), "a chord spoils its own press only")
+        var echo = ModifierDoubleTap()
+        _ = echo.modifierChanged(keyCode: KeyCode.leftOption, flags: .maskAlternate, gesture: .option, now: t0)
+        _ = echo.modifierChanged(keyCode: KeyCode.leftOption, flags: [], gesture: .option, now: t0.addingTimeInterval(0.05))
+        XCTAssertFalse(echo.modifierChanged(keyCode: KeyCode.leftOption, flags: [], gesture: .option,
+                                            now: t0.addingTimeInterval(0.1)), "a second release is no second tap")
+        XCTAssertFalse(taps([(0, 0.05), (0.1, 0.15), (0.2, 0.25)]) { gesture in gesture.keyPressed() },
+                       "a chord between two taps starts the pair over")
+        XCTAssertFalse(taps([(0, 0.1), (0.2, 0.3)]) { gesture in
+            _ = gesture.modifierChanged(keyCode: KeyCode.leftShift, flags: .maskShift, gesture: .option,
+                                        now: t0.addingTimeInterval(0.15))
+        }, "another modifier between the taps")
+    }
+
     func testModifierDoubleTap() {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
         func at(_ dt: TimeInterval) -> Date { t0.addingTimeInterval(dt) }

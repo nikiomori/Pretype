@@ -4,6 +4,13 @@ import XCTest
 @testable import Pretype
 
 final class AXTextTests: XCTestCase {
+    // A web password field that slips past every other guard still renders
+    // mask glyphs: three or more of them, and nothing else, is never text.
+    func testMaskGlyphsAreNeverText() {
+        for masked in ["•••", "●●●●", "∙∙∙", "***", "•*●∙"] { XCTAssertTrue(AXText.looksMasked(masked), masked) }
+        for text in ["", "•", "••", "**", "a••", "•• ", "abc", "3 * 4"] { XCTAssertFalse(AXText.looksMasked(text), text) }
+    }
+
     // The AX read window's start holds while the user types (so the ghost's
     // anchor and apply's prefix checks survive a long document), moves in 512
     // steps, and never lands inside a surrogate pair or composed character.
@@ -24,6 +31,9 @@ final class AXTextTests: XCTestCase {
         XCTAssertEqual(AXText.substring("ab😀cd", from: 3), "cd")        // inside the surrogate pair
         XCTAssertEqual(AXText.substring("ab😀cd", from: 2), "😀cd")
         XCTAssertEqual(AXText.substring("ae\u{301}x", from: 2), "x")    // inside e + combining acute
+        XCTAssertEqual(AXText.substring("abc", from: 3), "")
+        XCTAssertEqual(AXText.substring("abc", from: 5), "")
+        XCTAssertEqual(AXText.substring("abc", from: -2), "abc")
     }
 
     // The web fallback's ranged read covers the caret's window, not the
@@ -40,6 +50,9 @@ final class AXTextTests: XCTestCase {
         XCTAssertTrue(covers(stuck, 4_800 ... 6_000), "\(stuck)")
         XCTAssertEqual(AXText.webReadRange(caret: 0, total: 300, maxChars: 1_200).location, 0)
         XCTAssertEqual(AXText.webReadRange(caret: 0, total: 300, maxChars: 1_200).length, 300)
+        // A caret at 1 is a caret, not the stuck-at-0 breakage; one at the end is the end.
+        XCTAssertEqual(AXText.webReadRange(caret: 1, total: 6_000, maxChars: 1_200).length, 193)
+        XCTAssertEqual(AXText.webReadRange(caret: 6_000, total: 6_000, maxChars: 1_200).location, 4_592)
     }
 
     // Inline ghost text may only draw where the line is empty; mid-line it lands
@@ -85,6 +98,22 @@ final class AXTextTests: XCTestCase {
                                                  prevChar: nil),
                        CGRect(x: 5, y: 5, width: 1, height: 12))
         XCTAssertNil(AXText.glyphAnchoredCaret(reported: nil, prevChar: .zero))
+        // The edges: a glyph box under 4 pt is none; a caret a point above the
+        // glyphs is on them; overlapping by a point is not overlapping; a
+        // span off by a point in all is the same span.
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 5, y: 5, width: 1, height: 12),
+                                                 prevChar: CGRect(x: 100, y: 50, width: 8, height: 3)),
+                       CGRect(x: 5, y: 5, width: 1, height: 12))
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 49, width: 1, height: 2), prevChar: prev),
+                       CGRect(x: 108, y: 49, width: 1, height: 2), "ends where the glyphs begin, plus a point")
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 48.5, width: 1, height: 16), prevChar: prev),
+                       CGRect(x: 108, y: 50, width: 1, height: 16), "over a point above: off the line")
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 65, width: 1, height: 16), prevChar: prev),
+                       CGRect(x: 108, y: 65, width: 1, height: 16), "starts where the glyphs end, less a point")
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 51, width: 1, height: 16), prevChar: prev),
+                       CGRect(x: 108, y: 51, width: 1, height: 16), "a point off in all")
+        XCTAssertEqual(AXText.glyphAnchoredCaret(reported: CGRect(x: 108, y: 51, width: 1, height: 16.5), prevChar: prev),
+                       CGRect(x: 108, y: 50, width: 1, height: 16))
     }
 
     // Suppressing suggestions while an IME composes is all-or-nothing per input
@@ -128,6 +157,26 @@ final class AXTextTests: XCTestCase {
         XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 21, y: 1181, width: 276, height: 21), in: field))
         XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 0, y: 39, width: 0, height: 0), in: field))
         XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 40, y: 1183, width: 1, height: 200), in: field))
+        // The edges: under 4 pt wide, 6 pt tall to the field's height plus 4,
+        // its middle within 4 pt of the field (12 to the right).
+        let box = CGRect(x: 100, y: 100, width: 200, height: 20)
+        func caret(x: CGFloat = 150, midY: CGFloat = 110, width: CGFloat = 1, height: CGFloat = 16) -> Bool {
+            AXText.isCollapsedCaret(CGRect(x: x - width / 2, y: midY - height / 2, width: width, height: height), in: box)
+        }
+        XCTAssertTrue(caret(width: 3.9))
+        XCTAssertFalse(caret(width: 4))
+        XCTAssertTrue(caret(height: 6))
+        XCTAssertFalse(caret(height: 5.9))
+        XCTAssertTrue(caret(height: 24))
+        XCTAssertFalse(caret(height: 24.1))
+        XCTAssertTrue(caret(x: 96))
+        XCTAssertFalse(caret(x: 95.9))
+        XCTAssertTrue(caret(x: 312))
+        XCTAssertFalse(caret(x: 312.1))
+        XCTAssertTrue(caret(midY: 96))
+        XCTAssertFalse(caret(midY: 95.9))
+        XCTAssertTrue(caret(midY: 124))
+        XCTAssertFalse(caret(midY: 124.1))
 
         // Idle box vs selection, given such a run: only the reply flow asks, and
         // only an untouched caret with no selected text answers yes.

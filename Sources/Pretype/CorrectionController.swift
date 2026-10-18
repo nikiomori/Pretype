@@ -1,6 +1,29 @@
 import AppKit
 import ApplicationServices
 
+/// What the fix flows may ask of the completion pipeline — `SuggestionController`
+/// in the app, a fake in CorrectionControllerTests.
+@MainActor
+protocol CorrectionHost: AnyObject {
+    var typingContext: TypingContext { get }
+    var engine: CompletionEngine { get }
+    /// Bumped on every focus change: a fix for the field just left is stale.
+    var focusGeneration: Int { get }
+    var lastCaretRect: CGRect? { get }
+    /// A fix measured where its text is (a selection, the word at the caret).
+    func noteCaret(_ rect: CGRect)
+    /// …or found the caret a scroll forgot.
+    func recoverCaret(_ rect: CGRect?)
+    func report(_ event: String)
+    /// The field the pipeline reads and types into.
+    func currentTextElement() -> AXUIElement?
+    /// A fix takes the overlay: the completion's ghost and query go.
+    func clearActiveCompletion()
+    /// Type the fix over `deleted` the one way the pipeline types — cache,
+    /// settle window and all — and re-read the field once the keys landed.
+    func typeFix(_ text: String, deleting deleted: String, over before: String?)
+}
+
 /// Owns the three text-fixing flows, kept separate from the completion pipeline:
 ///   1. fix-selection — ⌥⇥ on a selection asks the engine to correct it,
 ///   2. last-word fix — ⌥⇥ with no selection corrects the just-typed word,
@@ -8,16 +31,20 @@ import ApplicationServices
 ///      spell-check correction over it (⇥ applies), Cotypist-style.
 ///
 /// A fix is always *previewed* and applied only on an explicit key — never
-/// automatically. The controller reaches shared infrastructure (the overlay
-/// window, the engine, the caret rect, the focus generation) through its
-/// `owner`; it never drives the completion state directly beyond clearing it
-/// when a fix preempts a suggestion.
+/// automatically. It draws into the shared overlay and reaches the pipeline
+/// only through its `CorrectionHost`, never driving the completion state
+/// beyond clearing it when a fix preempts a suggestion.
 @MainActor
 final class CorrectionController {
-    private unowned let owner: SuggestionController
+    private unowned let host: any CorrectionHost
+    private let env: SuggestionController.Environment
+    private let indicator: CaretIndicator
+    private var window: any SuggestionOverlay { env.window }
 
-    init(owner: SuggestionController) {
-        self.owner = owner
+    init(host: any CorrectionHost, env: SuggestionController.Environment, indicator: CaretIndicator) {
+        self.host = host
+        self.env = env
+        self.indicator = indicator
     }
 
     /// A correction the engine proposed, shown as a preview and applied only
@@ -52,7 +79,7 @@ final class CorrectionController {
     /// Read by the caret indicator's `isQueryRunning` — a fix generation must
     /// keep the thinking dots alive just like a completion stream does.
     private(set) var inFlight = false
-    private var correctionTask: Task<Void, Never>?
+    private(set) var correctionTask: Task<Void, Never>?
 
     // MARK: - Lifecycle
 
@@ -77,15 +104,15 @@ final class CorrectionController {
     /// ⌥⇥ affordance. Returns true if it took the overlay over (caller returns).
     /// When there is no selection it clears the selection state and returns false.
     func handleSelection(_ element: AXUIElement) -> Bool {
-        if let info = AXText.selectionInfo(for: element) {
+        if let info = env.selection(element) {
             // A selection switches the panel into fix-selection mode: drop any
             // live completion first.
-            owner.clearActiveCompletion()
-            owner.indicator.stop()
-            let rect = info.rect ?? owner.lastCaretRect
+            host.clearActiveCompletion()
+            indicator.stop()
+            let rect = info.rect ?? host.lastCaretRect
             // A proposed fix for this exact selection stays up until accept/cancel.
             if let fix = pendingFix, fix.original == info.text {
-                if let rect { owner.window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement), at: rect) }
+                if let rect { window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement), at: rect) }
                 return true
             }
             pendingFix = nil
@@ -94,23 +121,23 @@ final class CorrectionController {
             if fixable, !inFlight {
                 selection = info
                 if let rect {
-                    owner.window.show(mode: .shortcut(key: Settings.hotkeyStyle.correctionLabel, action: String(localized: "fix")), at: rect)
+                    window.show(mode: .shortcut(key: Settings.hotkeyStyle.correctionLabel, action: String(localized: "fix")), at: rect)
                 }
             } else if !inFlight {
                 selection = nil
-                owner.window.hide()
+                window.hide()
             }
             return true
         }
         // The "fix" pill goes with its selection: in an app the completion
         // pipeline has gone quiet in, nothing else would ever repaint it.
-        if case .shortcut = owner.window.currentMode { owner.window.hide() }
+        if case .shortcut = window.currentMode { window.hide() }
         selection = nil
         // A selection-fix preview ends when the selection is gone; a last-word
         // fix preview is re-validated against the caret context in handleCaret.
         if pendingFix?.deletesOriginal == false {
             pendingFix = nil
-            owner.window.hide()
+            window.hide()
         }
         return false
     }
@@ -127,14 +154,14 @@ final class CorrectionController {
             if let rect = ctx.caretRect,
                ctx.textAfterCaret.first?.isLetter != true,
                SpellChecker.trailingWord(of: text) == fix.original {
-                owner.window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement), at: rect)
+                window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement), at: rect)
                 return true
             }
             pendingFix = nil
             // The preview pill must not outlive its word: nobody downstream is
             // guaranteed to redraw the overlay (the completion flow only shows
             // when it has something), so hide it here or it lingers forever.
-            owner.window.hide()
+            window.hide()
         }
 
         // Escape suppresses a fix until the token under the caret changes.
@@ -160,10 +187,10 @@ final class CorrectionController {
                : tokenAtCaret.hasSuffix("=")
                    ? InlineCalculator.completion(for: tokenAtCaret)
                    : SpellChecker.correction(for: tokenAtCaret, context: text) {
-            owner.clearActiveCompletion()
-            owner.indicator.stop()
+            host.clearActiveCompletion()
+            indicator.stop()
             activeCorrection = (word: tokenAtCaret, fix: fix)
-            showCorrection(fix, word: tokenAtCaret, caret: caret, host: ctx.host)
+            showCorrection(fix, word: tokenAtCaret, caret: caret, style: ctx.host)
             return true
         }
         if activeCorrection != nil {
@@ -171,73 +198,110 @@ final class CorrectionController {
             // typed past it). Hide NOW — same reason as the pendingFix drop
             // above: no later stage reliably clears the overlay.
             activeCorrection = nil
-            owner.window.hide()
+            window.hide()
         }
         return false
     }
 
     // MARK: - Key handling (called from SuggestionController.handleKeyDown)
 
-    func handleKey(keyCode: Int64, flags: CGEventFlags) -> KeyOutcome {
-        let style = Settings.hotkeyStyle
+    /// What a key does to the fix flows — every rule in one table, executed
+    /// by `handleKey`. FixKeyTests pin it.
+    enum FixKey: Equatable {
+        /// ⌥⇥ with nothing proposed: ask the engine — for the selection, or
+        /// for the word before the caret.
+        case propose(selection: Bool)
+        /// ⌥⇥ over a proposal nobody can see (never drawn, or a notice took
+        /// the window): draw it again rather than type a rewrite unseen.
+        case reshow
+        /// ⌥⇥, ⏎ or the accept key over the preview on screen.
+        case apply
+        /// ⎋ over the preview: the original stays — and ⎋ still reaches the app.
+        case cancel
+        /// The accept key over the inline fix pill.
+        case applyInline
+        /// ⎋ over the inline fix pill: that token isn't offered again until it changes.
+        case dismissInline
+        case none
 
-        // Check correction trigger based on active hotkey style
-        if style.matchesCorrection(keyCode: keyCode, flags: flags) {
-            // Same gate as ⏎ below: only a preview on screen is applied. One
-            // that was never drawn, or that a notice has since covered, is
-            // shown again instead — the press that looked like it did nothing
-            // must not type an unseen rewrite over the selection.
-            if let fix = pendingFix {
-                if owner.window.showsCorrection { applyPendingFix() } else { showPreview(fix) }
-                return .consumed
+        /// Whether the app still gets the key.
+        var outcome: KeyOutcome {
+            switch self {
+            case .propose, .reshow, .apply, .applyInline: return .consumed
+            case .cancel, .dismissInline: return .passThrough
+            case .none: return .ignored
             }
+        }
+    }
+
+    /// What `fixKey` reads, all known before the key is routed.
+    struct FixKeyState {
+        var keyCode: Int64
+        var flags: CGEventFlags = []
+        var style = HotkeyStyle.tab
+        /// An engine fix is proposed (`pendingFix`).
+        var proposal = false
+        /// An inline fix pill is up (`activeCorrection`).
+        var inline = false
+        /// The window shows a correction — `showsCorrection`, not
+        /// `isVisible`: a dictation notice, an engine status or a ghost also
+        /// make the window visible, and a preview never painted (no caret
+        /// rect, routine in web and Electron fields) would let ⏎ apply a
+        /// rewrite nobody saw and swallow the Enter meant to send the message.
+        var onScreen = false
+        /// A selection is waiting for ⌥⇥ (`selection`).
+        var selection = false
+    }
+
+    static func fixKey(_ key: FixKeyState) -> FixKey {
+        if key.style.matchesCorrection(keyCode: key.keyCode, flags: key.flags) {
+            guard key.proposal else { return .propose(selection: key.selection) }
+            return key.onScreen ? .apply : .reshow
+        }
+        guard key.onScreen else { return .none }
+        if key.proposal {
+            if key.keyCode == KeyCode.returnKey || key.keyCode == KeyCode.keypadEnter
+                || key.style.matchesAcceptWord(keyCode: key.keyCode, flags: key.flags) { return .apply }
+            if key.keyCode == KeyCode.escape { return .cancel }
+        }
+        if key.inline {
+            if key.style.matchesAcceptWord(keyCode: key.keyCode, flags: key.flags) { return .applyInline }
+            if key.keyCode == KeyCode.escape { return .dismissInline }
+        }
+        return .none
+    }
+
+    func handleKey(keyCode: Int64, flags: CGEventFlags) -> KeyOutcome {
+        let action = Self.fixKey(FixKeyState(
+            keyCode: keyCode, flags: flags, style: Settings.hotkeyStyle, proposal: pendingFix != nil,
+            inline: activeCorrection != nil, onScreen: window.showsCorrection, selection: selection != nil))
+        switch action {
+        case .propose(let fixSelection):
             // Neither fix runs here, inside the event-tap callback: the
             // last-word fix does a synchronous AX read — a hung target app
             // would block the main thread and get the tap disabled. Hop off
             // the callback and consume the key now — the correction hotkey
             // isn't a system shortcut, so swallowing it even when there's
             // nothing to fix is harmless.
-            let fixSelection = selection != nil
-            DispatchQueue.main.async { [weak self] in
+            env.hop { [weak self] in
                 if fixSelection { self?.correctSelection() } else { self?.correctLastWord() }
             }
-            return .consumed
+        case .reshow:
+            if let pendingFix { showPreview(pendingFix) }
+        case .apply:
+            applyPendingFix()
+        case .cancel:
+            cancelPendingFix()
+        case .applyInline:
+            applyCorrection()
+        case .dismissInline:
+            dismissedCorrectionWord = activeCorrection?.word
+            activeCorrection = nil
+            window.hide()
+        case .none:
+            break
         }
-
-        // While a proposed fix is on screen: ⏎ or style's accept key applies it, esc keeps the
-        // original (but still reaches the app).
-        //
-        // `showsCorrection`, not `isVisible`: a dictation notice, an engine
-        // status or a completion ghost also makes the window visible, and a
-        // preview that was never painted (no caret rect to hang it on, which
-        // web and Electron fields routinely report) would then let ⏎ apply a
-        // rewrite nobody saw — and swallow the Enter that was meant to send
-        // the message.
-        if pendingFix != nil, owner.window.showsCorrection {
-            if keyCode == KeyCode.returnKey || keyCode == KeyCode.keypadEnter || style.matchesAcceptWord(keyCode: keyCode, flags: flags) {
-                applyPendingFix()
-                return .consumed
-            }
-            if keyCode == KeyCode.escape {
-                cancelPendingFix()
-                return .passThrough
-            }
-        }
-
-        // Inline spell-fix: style's accept key replaces the word, esc dismisses
-        if let correction = activeCorrection, owner.window.showsCorrection {
-            if style.matchesAcceptWord(keyCode: keyCode, flags: flags) {
-                applyCorrection()
-                return .consumed
-            }
-            if keyCode == KeyCode.escape {
-                dismissedCorrectionWord = correction.word
-                activeCorrection = nil
-                owner.window.hide()
-                return .passThrough
-            }
-        }
-        return .ignored
+        return action.outcome
     }
 
     // MARK: - Fix selection (⌥Tab)
@@ -246,7 +310,7 @@ final class CorrectionController {
     /// off the event-tap callback.
     private func correctSelection() {
         guard let sel = selection, !inFlight else { return }
-        owner.lastCaretRect = sel.rect ?? owner.lastCaretRect
+        if let rect = sel.rect { host.noteCaret(rect) }
         runFix(
             selectionText: sel.text,
             proposedEvent: "fix proposed — ⏎ to apply, esc to keep",
@@ -259,10 +323,10 @@ final class CorrectionController {
     /// the selection (re-validated live), ⎋ keeps the original.
     func runVoiceCommand(_ instruction: String, selection text: String) {
         guard !inFlight else { return }
-        if let element = owner.currentTextElement(), let rect = AXText.selectionInfo(for: element)?.rect {
-            owner.lastCaretRect = rect
+        if let element = host.currentTextElement(), let rect = env.selection(element)?.rect {
+            host.noteCaret(rect)
         }
-        owner.clearActiveCompletion()
+        host.clearActiveCompletion()
         runFix(
             selectionText: text,
             proposedEvent: "voice command — ⏎ to apply, esc to keep",
@@ -277,19 +341,19 @@ final class CorrectionController {
     /// when there's nothing fixable at the caret.
     private func correctLastWord() {
         guard !inFlight,
-              let element = owner.currentTextElement(),
+              let element = host.currentTextElement(),
               // Re-checked here: resolving the element can read a site the
               // tap-side check didn't know yet.
-              !AppPolicy.isBlacklisted(owner.typingContext),
-              let ctx = AXText.context(for: element),
+              !AppPolicy.isBlacklisted(host.typingContext),
+              let ctx = env.context(of: element),
               let rect = ctx.caretRect else { return }
         // Not mid-word: the next character must not be a letter.
         guard ctx.textAfterCaret.first?.isLetter != true else { return }
         let word = SpellChecker.trailingWord(of: ctx.textBeforeCaret)
         guard word.count >= 3, word.count <= 40 else { return }
 
-        owner.clearActiveCompletion()
-        owner.lastCaretRect = rect
+        host.clearActiveCompletion()
+        host.noteCaret(rect)
         let before = ctx.textBeforeCaret
         runFix(
             selectionText: word,
@@ -315,11 +379,11 @@ final class CorrectionController {
         perform: @escaping @Sendable (any CompletionEngine) async throws -> String?
     ) {
         inFlight = true
-        owner.indicator.start()
-        let engine = owner.engine
-        let generation = owner.focusGeneration
+        indicator.start()
+        let engine = host.engine
+        let generation = host.focusGeneration
+        let started = env.now()
         correctionTask = Task { [weak self] in
-            let started = Date()
             let outcome: Result<String?, Error>
             do {
                 outcome = .success(try await perform(engine))
@@ -328,7 +392,6 @@ final class CorrectionController {
             } catch {
                 outcome = .failure(error)
             }
-            let elapsed = Date().timeIntervalSince(started)
             // The task inherits the main actor: nothing runs between this
             // check and the code below it.
             guard let self else { return }
@@ -337,11 +400,11 @@ final class CorrectionController {
             // request's single-flight flag.
             guard !Task.isCancelled else { return }
             self.inFlight = false
-            owner.indicator.stop()
-            Stats.recordLatency(elapsed)
+            indicator.stop()
+            env.book(.latency(env.now().timeIntervalSince(started)))
             // The user moved on while the engine ran: don't show a fix for
             // context that's no longer in front.
-            guard owner.focusGeneration == generation else {
+            guard host.focusGeneration == generation else {
                 DebugLog.shared.log("FIX", "dropped stale fix (focus changed)")
                 return
             }
@@ -358,17 +421,17 @@ final class CorrectionController {
                     return
                 }
                 self.pendingFix = fix
-                owner.lastEvent = proposedEvent
+                host.report(proposedEvent)
                 DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
                 self.showPreview(fix)
             case .success(nil):
-                owner.lastEvent = "nothing to fix"
+                host.report("nothing to fix")
                 DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
-                owner.indicator.flashTransient(.hint(unchangedNotice), orAtPointer: true)
+                indicator.flashTransient(.hint(unchangedNotice), orAtPointer: true)
             case .failure(let error):
-                owner.lastEvent = "fix failed: \(error.localizedDescription)"
+                host.report("fix failed: \(error.localizedDescription)")
                 DebugLog.shared.log("ERROR", "correction failed: \(error.localizedDescription)")
-                owner.indicator.flashTransient(SuggestionController.failureNotice(error, fallback: String(localized: "fix failed")),
+                indicator.flashTransient(SuggestionController.failureNotice(error, fallback: String(localized: "fix failed")),
                                                orAtPointer: true)
             }
         }
@@ -378,8 +441,8 @@ final class CorrectionController {
     /// nor caret could be read (web and Electron selections), under the
     /// pointer: a preview pending off screen is one ⏎ or ⌥⇥ would apply blind.
     private func showPreview(_ fix: PendingFix) {
-        owner.window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement),
-                          at: owner.lastCaretRect ?? DictationController.pointerAnchor())
+        window.show(mode: .fixPreview(original: fix.original, fix: fix.replacement),
+                          at: host.lastCaretRect ?? DictationController.pointerAnchor())
     }
 
     /// Confirm the previewed fix. A selection fix types over the selection; a
@@ -388,11 +451,11 @@ final class CorrectionController {
         guard let fix = pendingFix else { return }
         pendingFix = nil
         selection = nil
-        owner.window.hide()
+        window.hide()
         let event = "fixed \(fix.deletesOriginal ? "last word" : "selection") (\(fix.original.count) chars)"
         // The validating AX read must not run inside the event-tap callback (a
         // hung target app would stall the tap); hop off, then validate + inject.
-        DispatchQueue.main.async { [weak self] in self?.inject(fix, event: event) }
+        env.hop { [weak self] in self?.inject(fix, event: event) }
     }
 
     /// Shared apply path for every fix flow: re-read the *live* text and inject
@@ -408,11 +471,10 @@ final class CorrectionController {
         // Through the shared path, so the settle window covers a fix too: an
         // AX read still showing the typo would re-raise its pill, and a second
         // ⇥ — validated against that same stale read — would apply it twice.
-        owner.inject(fix.replacement, deleting: fix.deletesOriginal ? fix.original : "", over: live.textBeforeCaret)
-        Stats.recordCorrection()
-        owner.lastEvent = event
+        host.typeFix(fix.replacement, deleting: fix.deletesOriginal ? fix.original : "", over: live.textBeforeCaret)
+        env.book(.correction)
+        host.report(event)
         DebugLog.shared.log("FIX", "applied \"\(fix.original)\" → \"\(fix.replacement)\"")
-        owner.scheduleKeystrokeRefresh(after: 0.12)
     }
 
     /// What a confirming live read saw: the text before the caret for a
@@ -426,16 +488,16 @@ final class CorrectionController {
     /// Also re-anchors a caret a scroll forgot (`viewScrolled`), so a fix that
     /// lands after one is drawn at its text, not under the pointer.
     private func liveRead(confirming fix: PendingFix) -> LiveRead? {
-        guard let element = owner.currentTextElement() else { return nil }
+        guard let element = host.currentTextElement() else { return nil }
         if fix.deletesOriginal {
-            guard let ctx = AXText.context(for: element),
+            guard let ctx = env.context(of: element),
                   ctx.textAfterCaret.first?.isLetter != true,
                   Self.lastToken(of: ctx.textBeforeCaret) == fix.original else { return nil }
-            if owner.lastCaretRect == nil { owner.lastCaretRect = ctx.caretRect }
+            host.recoverCaret(ctx.caretRect)
             return LiveRead(textBeforeCaret: ctx.textBeforeCaret)
         }
-        guard let info = AXText.selectionInfo(for: element), info.text == fix.original else { return nil }
-        if owner.lastCaretRect == nil { owner.lastCaretRect = info.rect }
+        guard let info = env.selection(element), info.text == fix.original else { return nil }
+        host.recoverCaret(info.rect)
         return LiveRead(textBeforeCaret: nil)
     }
 
@@ -443,9 +505,9 @@ final class CorrectionController {
     private func cancelPendingFix() {
         guard pendingFix != nil else { return }
         pendingFix = nil
-        owner.lastEvent = "fix dismissed"
+        host.report("fix dismissed")
         DebugLog.shared.log("FIX", "dismissed by user")
-        owner.window.hide()
+        window.hide()
     }
 
     // MARK: - Inline spell-fix
@@ -453,17 +515,17 @@ final class CorrectionController {
     /// Places the inline spell-fix diff in a pill ABOVE the mistyped word. The
     /// word ends at the caret, so it starts one word-width to the left; anchoring
     /// the pill there lands it above the word it's correcting, not the caret.
-    private func showCorrection(_ fix: String, word: String, caret: CGRect, host: HostTextStyle) {
+    private func showCorrection(_ fix: String, word: String, caret: CGRect, style: HostTextStyle) {
         // Measure the word in the HOST's font — a system-font measurement put the
         // pill a word-width off in any field that doesn't use it.
-        let font = host.font ?? .systemFont(ofSize: caret.height / 1.30)
+        let font = style.font ?? .systemFont(ofSize: caret.height / 1.30)
         let wordWidth = ceil((word as NSString).size(withAttributes: [.font: font]).width)
         var wordRect = caret
         wordRect.origin.x = caret.maxX - wordWidth
         wordRect.size.width = wordWidth
-        owner.lastCaretRect = caret
-        owner.lastEvent = "typo \"\(word)\" → \"\(fix)\" (\(Settings.hotkeyStyle.label) to fix)"
-        owner.window.show(mode: .correction(original: word, fix: fix), at: wordRect, host: host)
+        host.noteCaret(caret)
+        host.report("typo \"\(word)\" → \"\(fix)\" (\(Settings.hotkeyStyle.label) to fix)")
+        window.show(mode: .correction(original: word, fix: fix), at: wordRect, host: style)
     }
 
     /// ⇥ on an inline spell-fix: replace the mistyped word with the correction.
@@ -471,11 +533,11 @@ final class CorrectionController {
     private func applyCorrection() {
         guard let correction = activeCorrection else { return }
         activeCorrection = nil
-        owner.window.hide()
+        window.hide()
         let fix = PendingFix(original: correction.word, replacement: correction.fix,
                              deletesOriginal: true)
         let event = "fixed typo \"\(correction.word)\" → \"\(correction.fix)\""
-        DispatchQueue.main.async { [weak self] in self?.inject(fix, event: event) }
+        env.hop { [weak self] in self?.inject(fix, event: event) }
     }
 
     /// The fixable token just before the caret: an emoji shortcode if one is
@@ -486,5 +548,12 @@ final class CorrectionController {
         EmojiShortcodes.trailingShortcode(in: text)
             ?? InlineCalculator.trailingExpression(in: text)
             ?? SpellChecker.trailingWord(of: text)
+    }
+}
+
+extension SuggestionController: CorrectionHost {
+    func typeFix(_ text: String, deleting deleted: String, over before: String?) {
+        inject(text, deleting: deleted, over: before)
+        scheduleKeystrokeRefresh(after: 0.12)
     }
 }

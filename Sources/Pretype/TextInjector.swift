@@ -7,12 +7,16 @@ enum TextInjector {
     /// Marks our synthetic events so the key tap can ignore them.
     static let magicTag: Int64 = 0x5052_5459 // "PRTY"
 
+    /// Where every finished event goes: the HID event stream. A test records
+    /// them instead (TextInjectorTests).
+    static var post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }
+
     static func insert(_ text: String) {
         guard !text.isEmpty else { return }
         let source = CGEventSource(stateID: .hidSystemState)
         for chunk in utf16Chunks(Array(text.utf16)) {
-            post(chunk: chunk, keyDown: true, source: source)
-            post(chunk: chunk, keyDown: false, source: source)
+            postChunk(chunk, keyDown: true, source: source)
+            postChunk(chunk, keyDown: false, source: source)
         }
     }
 
@@ -79,12 +83,12 @@ enum TextInjector {
                 guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: keyDown) else { continue }
                 event.flags = []
                 event.setIntegerValueField(.eventSourceUserData, value: magicTag)
-                event.post(tap: .cghidEventTap)
+                post(event)
             }
         }
     }
 
-    private static func post(chunk: [UniChar], keyDown: Bool, source: CGEventSource?) {
+    private static func postChunk(_ chunk: [UniChar], keyDown: Bool, source: CGEventSource?) {
         guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: keyDown) else { return }
         chunk.withUnsafeBufferPointer { buffer in
             event.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress)
@@ -97,6 +101,6 @@ enum TextInjector {
         // treat as shortcuts instead of typing.
         event.flags = []
         event.setIntegerValueField(.eventSourceUserData, value: magicTag)
-        event.post(tap: .cghidEventTap)
+        post(event)
     }
 }

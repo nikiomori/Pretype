@@ -32,7 +32,10 @@ enum ScreenContext {
     /// OCR summary of `pid`'s frontmost window in reading order, deduplicated
     /// against the already-typed text, capped at `maxChars` (keeping the
     /// bottom of the window — in chats that's where the recent messages are).
-    static func capture(pid: pid_t, excluding typedText: String, caretRect: CGRect?, maxChars: Int = 600) async -> String? {
+    static let defaultMaxChars = 600
+
+    static func capture(pid: pid_t, excluding typedText: String, caretRect: CGRect?,
+                        maxChars: Int = defaultMaxChars) async -> String? {
         guard hasPermission else { return nil }
         // Text Input Sources answer on the main thread only.
         let languages = recognitionLanguages(keyboard: await MainActor.run { keyboardLanguages })

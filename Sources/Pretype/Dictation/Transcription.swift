@@ -358,18 +358,27 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
     private let transcribe: @Sendable (_ audio: [Float], _ final: Bool) async throws -> String
     private let samples = LockedValue<[Float]>([])
     private let previewTask = LockedValue<Task<Void, Never>?>(nil)
+    /// How long a failed upload waits before its one retry (`finish`).
+    private let retryAfter: Duration
 
+    /// `previewEvery`, `retryAfter`: the preview cadence and the retry wait,
+    /// a second each; tests shorten them. `previewTick` replaces the cadence's
+    /// sleep, so a test can step the preview pass by pass.
     init(preview: Bool, finishDeadline: TimeInterval, perAudioSecond: TimeInterval,
+         previewEvery: Duration = .seconds(1), retryAfter: Duration = .seconds(1),
+         previewTick: (@Sendable () async -> Void)? = nil,
          onPartial: @escaping @Sendable (String) -> Void,
          transcribe: @escaping @Sendable (_ audio: [Float], _ final: Bool) async throws -> String) {
         self.deadline = finishDeadline
         self.perAudioSecond = perAudioSecond
         self.transcribe = transcribe
+        self.retryAfter = retryAfter
         guard preview else { return }
+        let tick = previewTick ?? { try? await Task.sleep(for: previewEvery) }
         previewTask.set(Task { [samples] in
             var previewed = 0
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                await tick()
                 let audio = samples.get()
                 // Half a second of new audio, or the pill would repaint the same guess.
                 guard audio.count >= previewed + 8_000 else { continue }
@@ -405,7 +414,7 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
             // a second later; the watchdog leaves room for it
             // (`CloudTranscription.start`). Parakeet throws none of these.
             DebugLog.shared.log("DICTATE", "upload failed (\(error.localizedDescription)) — retrying once")
-            try await Task.sleep(for: .seconds(1))
+            try await Task.sleep(for: retryAfter)
             // Discarded meanwhile (⎋, a focus change): nothing more is sent.
             guard !cancelled.get() else { throw CancellationError() }
             return try await transcribe(audio, true)

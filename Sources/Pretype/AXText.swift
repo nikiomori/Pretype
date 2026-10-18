@@ -53,6 +53,53 @@ struct SelectionInfo {
 }
 
 enum AXText {
+    /// Every accessibility call the reads here make, and the system state
+    /// they consult — the system's in the app. A test reads a tree of its own
+    /// for the duration of `$calls.withValue` (AXTextReadTests).
+    struct Calls: Sendable {
+        /// `AXUIElementCopyAttributeValue`.
+        var copy: @Sendable (_ element: AXUIElement, _ attribute: String) -> (AXError, CFTypeRef?)
+        /// `AXUIElementCopyParameterizedAttributeValue`; nil on any error.
+        var copyParameterized: @Sendable (_ element: AXUIElement, _ attribute: String,
+                                          _ parameter: CFTypeRef) -> CFTypeRef?
+        /// The bundle ID of the app an element belongs to.
+        var bundleID: @Sendable (AXUIElement) -> String?
+        /// Secure input is engaged system-wide (`IsSecureEventInputEnabled`).
+        var secureInput: @Sendable () -> Bool
+        /// The keyboard input source's type and input mode.
+        var inputSource: @Sendable () -> (type: String, modeID: String?)?
+
+        static let live = Calls(
+            copy: { element, attribute in
+                var ref: CFTypeRef?
+                let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &ref)
+                return (error, ref)
+            },
+            copyParameterized: { element, attribute, parameter in
+                var ref: CFTypeRef?
+                guard AXUIElementCopyParameterizedAttributeValue(element, attribute as CFString, parameter, &ref)
+                    == .success else { return nil }
+                return ref
+            },
+            bundleID: { element in
+                var pid: pid_t = 0
+                guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+                return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+            },
+            secureInput: { IsSecureEventInputEnabled() },
+            inputSource: {
+                // TISCopy* is a Copy (retained); TISGetInputSourceProperty is a Get.
+                guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+                      let typePtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceType) else { return nil }
+                let type = Unmanaged<CFString>.fromOpaque(typePtr).takeUnretainedValue() as String
+                let modeID = TISGetInputSourceProperty(source, kTISPropertyInputModeID).map {
+                    Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String
+                }
+                return (type, modeID)
+            })
+    }
+
+    @TaskLocal static var calls = Calls.live
 
     /// Fallback for apps whose focus notifications never fire (some Electron
     /// builds): ask the system-wide element who has focus right now.
@@ -82,7 +129,7 @@ enum AXText {
     /// always — so this guard is backed up by the label/mask-glyph heuristics
     /// below rather than trusted alone. While it's on, we read no field text at all.
     static func isSecureInputActive() -> Bool {
-        IsSecureEventInputEnabled()
+        calls.secureInput()
     }
 
     /// True while an input method is mid-composition (Pinyin, kana, Telex,
@@ -118,8 +165,8 @@ enum AXText {
     private enum MarkedRangeAnswer { case marked(CFRange), clear, unsupported }
 
     private static func markedRangeAnswer(_ element: AXUIElement) -> MarkedRangeAnswer {
-        var ref: CFTypeRef?
-        switch AXUIElementCopyAttributeValue(element, "AXTextInputMarkedRange" as CFString, &ref) {
+        let (error, ref) = calls.copy(element, "AXTextInputMarkedRange")
+        switch error {
         case .success:
             guard let range = axValue(ref, .cfRange, CFRange()), range.length > 0 else { return .clear }
             return .marked(range)
@@ -145,14 +192,8 @@ enum AXText {
     /// benchmarks at ~13 ns and is only reached from the already-throttled AX
     /// read path. And no Settings toggle — this is correctness, not taste.
     private static func isComposingInputSourceActive() -> Bool {
-        // TISCopy* is a Copy (retained); TISGetInputSourceProperty is a Get.
-        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
-              let typePtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceType) else { return false }
-        let type = Unmanaged<CFString>.fromOpaque(typePtr).takeUnretainedValue() as String
-        let modeID = TISGetInputSourceProperty(source, kTISPropertyInputModeID).map {
-            Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String
-        }
-        return isCompositionInputMode(type: type, modeID: modeID)
+        guard let source = calls.inputSource() else { return false }
+        return isCompositionInputMode(type: source.type, modeID: source.modeID)
     }
 
     /// The rule, kept pure so it can be pinned by a test. Only input *modes*
@@ -299,6 +340,13 @@ enum AXText {
 
     private enum FieldKind { case xterm, terminal, plain }
 
+    /// A terminal's line editor — a terminal app's, or xterm.js inside an
+    /// editor (VS Code, Cursor), where Claude Code's prompt sits — some of
+    /// which delete a whole grapheme cluster per Backspace. The app's bundle
+    /// can't tell: an xterm panel lives in a code editor. Free after the
+    /// field's first read (`kind` is remembered).
+    static func isTerminalField(_ element: AXUIElement) -> Bool { kind(of: element) != .plain }
+
     /// The line after the caret's is a horizontal rule — what `AgentPrompt`
     /// demands first — read the way `fieldContext` reads the after-text (192
     /// characters from a collapsed caret), so both agree. Unreadable counts as
@@ -323,16 +371,12 @@ enum AXText {
 
     private static func kind(of element: AXUIElement) -> FieldKind {
         if let hit = lastKind.get(), hit.element == element { return hit.kind }
-        var ref: CFTypeRef?
-        let read = AXUIElementCopyAttributeValue(element, "AXDOMClassList" as CFString, &ref)
+        let (read, ref) = calls.copy(element, "AXDOMClassList")
         let kind: FieldKind
         if (ref as? [String])?.contains("xterm-helper-textarea") == true {
             kind = .xterm
         } else {
-            var pid: pid_t = 0
-            let terminal = AXUIElementGetPid(element, &pid) == .success
-                && AppPolicy.isTerminal(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier)
-            kind = terminal ? .terminal : .plain
+            kind = AppPolicy.isTerminal(calls.bundleID(element)) ? .terminal : .plain
         }
         // Only a definite answer is kept: a timeout or a just-woken Chromium
         // tree's failure would pin the wrong kind for the element's life.
@@ -918,25 +962,23 @@ enum AXText {
     }
 
     static func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &ref) == .success else { return nil }
+        let (error, ref) = calls.copy(element, name)
+        guard error == .success else { return nil }
         return ref as? T
     }
 
     /// An element-valued attribute (focused element, focused window). Type-
     /// checked, because `as?` to a CF type succeeds on anything.
     static func element(_ element: AXUIElement, _ name: String) -> AXUIElement? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &ref) == .success,
-              let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
+        let (error, ref) = calls.copy(element, name)
+        guard error == .success, let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
         return (ref as! AXUIElement)
     }
 
     /// The app destroyed the node behind this handle: every read fails from
     /// here on, and only a fresh lookup finds the field again.
     static func isDead(_ element: AXUIElement) -> Bool {
-        var ref: CFTypeRef?
-        return AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &ref) == .invalidUIElement
+        calls.copy(element, kAXRoleAttribute).0 == .invalidUIElement
     }
 
     private static func selectedRange(of element: AXUIElement) -> CFRange? {
@@ -966,9 +1008,6 @@ enum AXText {
     }
 
     private static func parameterized(_ element: AXUIElement, _ name: String, _ parameter: CFTypeRef) -> CFTypeRef? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(element, name as CFString, parameter, &ref) == .success
-        else { return nil }
-        return ref
+        calls.copyParameterized(element, name, parameter)
     }
 }

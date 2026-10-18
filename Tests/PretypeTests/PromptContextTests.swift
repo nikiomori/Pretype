@@ -30,6 +30,18 @@ final class PromptContextTests: XCTestCase {
         XCTAssertNil(ScreenContext.recognitionLanguages(keyboard: ["en", "xx"]), "unknown to Vision")
     }
 
+    /// Only as far as needed: a shell line reads no row above it; a box
+    /// reads up to its prompt line and the line over it, no further.
+    func testAgentBoxRowsReadOnlyWhatTheyNeed() {
+        var asked: [Int] = []
+        let screen = ["  indented output", "  more", "❯ first line that", "  wraps here"]
+        XCTAssertEqual(AXText.agentBoxRows(above: 4, typed: "$ git sta") { asked.append($0); return screen[$0] }, [])
+        XCTAssertEqual(asked, [])
+        let rows = AXText.agentBoxRows(above: 4, typed: "  and on") { asked.append($0); return screen[$0] }
+        XCTAssertEqual(rows, ["  more", "❯ first line that", "  wraps here"])
+        XCTAssertEqual(asked, [3, 2, 1])
+    }
+
     /// The xterm reader fetches only the rows over the caret `AgentPrompt`
     /// reads: the verdict must match the whole 20-row window it used to read.
     func testAgentBoxRowsMatchTheFullWindow() {

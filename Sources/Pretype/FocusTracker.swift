@@ -44,9 +44,60 @@ final class FocusTracker {
     /// is generous headroom while bounding the worst case to a recoverable hiccup.
     static let axMessagingTimeout: Float = 0.1
 
+    /// The accessibility calls a focus refresh and a re-latch make of the
+    /// tracked app. `live` in the app; a test hands in its own and drives the
+    /// real dedupe and re-latch with no AX tree (FocusTrackerTests).
+    struct AXCalls {
+        var focusedElement: (_ app: AXUIElement) -> AXUIElement?
+        var focusedWindow: (_ app: AXUIElement) -> AXUIElement?
+        var title: (_ window: AXUIElement) -> String?
+        /// `AXText.editableTextLabel`: nil when not an editable text field,
+        /// `.some(nil)` for one with no label.
+        var editableLabel: (AXUIElement) -> String??
+        var pageHost: (AXUIElement) -> String?
+        /// The bundle ID of the app an element belongs to.
+        var bundleID: (_ app: AXUIElement) -> String?
+        var isDead: (AXUIElement) -> Bool
+        /// See `wakeAccessibility`.
+        var wake: (_ app: AXUIElement) -> Void
+        /// Have the observer post `notification` for `element`, or stop.
+        var register: (_ observer: AXObserver, _ element: AXUIElement, _ notification: String,
+                       _ refcon: UnsafeMutableRawPointer) -> Void
+        var unregister: (_ observer: AXObserver, _ element: AXUIElement, _ notification: String) -> Void
+
+        static let live = AXCalls(
+            focusedElement: { AXText.element($0, kAXFocusedUIElementAttribute) },
+            focusedWindow: { AXText.element($0, kAXFocusedWindowAttribute) },
+            title: { AXText.attribute($0, kAXTitleAttribute) },
+            editableLabel: { AXText.editableTextLabel($0) },
+            pageHost: { AXText.pageHost(for: $0) },
+            bundleID: { app in
+                var pid: pid_t = 0
+                guard AXUIElementGetPid(app, &pid) == .success else { return nil }
+                return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+            },
+            isDead: { AXText.isDead($0) },
+            wake: { AXUIElementSetAttributeValue($0, "AXManualAccessibility" as CFString, kCFBooleanTrue) },
+            register: { AXObserverAddNotification($0, $1, $2 as CFString, $3) },
+            unregister: { AXObserverRemoveNotification($0, $1, $2 as CFString) })
+    }
+
+    private let ax: AXCalls
+
+    init(ax: AXCalls = .live) {
+        self.ax = ax
+    }
+
     private(set) var focusedTextElement: AXUIElement?
     private var observedApp: NSRunningApplication?
-    private(set) var typingContext = TypingContext()
+    private var typingContext = TypingContext()
+    /// The focus as `onFocusChange` last reported it. Apps fire the focus
+    /// notification in duplicate bursts: the same context on the same element
+    /// is no change, so a report compares the two when it runs and is dropped
+    /// when they match. A quiet re-latch (`relatchIfDead`) moves the element
+    /// along with the handle, so the swap reads as the same field.
+    private(set) var reportedContext = TypingContext()
+    private var reportedElement: AXUIElement?
 
     private var observer: AXObserver?
     private var appElement: AXUIElement?
@@ -102,25 +153,32 @@ final class FocusTracker {
             // re-activating the app retries.
             typingContext = TypingContext(appName: app.localizedName, bundleID: app.bundleIdentifier,
                                           windowTitle: nil, fieldLabel: nil)
-            Task { @MainActor in
-                onFocusChange?()
-            }
+            reportFocusChange()
             return
         }
 
-        observedPID = pid
         observedApp = app
-        let appEl = AXUIElementCreateApplication(pid)
+        follow(AXUIElementCreateApplication(pid), observer: obs)
+    }
+
+    /// Follow the focus inside `appEl` from here on. `attach` passes the
+    /// observer whose notifications drive the refreshes; without one (a test)
+    /// they are delivered by hand through `handleNotification`.
+    func follow(_ appEl: AXUIElement, observer obs: AXObserver?) {
         appElement = appEl
+        var pid: pid_t = 0
+        observedPID = AXUIElementGetPid(appEl, &pid) == .success ? pid : 0
         // Per-element timeout too (the global default doesn't always propagate to
         // freshly created app elements on every macOS version).
         AXUIElementSetMessagingTimeout(appEl, Self.axMessagingTimeout)
         wakeAccessibility()
 
         observer = obs
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
-        AXObserverAddNotification(obs, appEl, kAXFocusedUIElementChangedNotification as CFString, refcon)
-        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
+        if let obs {
+            let refcon = Unmanaged.passUnretained(self).toOpaque()
+            ax.register(obs, appEl, kAXFocusedUIElementChangedNotification, refcon)
+            CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
+        }
 
         refreshFocusedElement()
     }
@@ -131,8 +189,8 @@ final class FocusTracker {
     /// calls this again for the app in front.
     func wakeAccessibility() {
         guard let appEl = appElement, Settings.enabled,
-              !AppPolicy.isCredentialApp(observedApp?.bundleIdentifier) else { return }
-        AXUIElementSetAttributeValue(appEl, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+              !AppPolicy.isCredentialApp(ax.bundleID(appEl)) else { return }
+        ax.wake(appEl)
     }
 
     private func detach() {
@@ -140,9 +198,9 @@ final class FocusTracker {
             // Unregister everything we added before releasing the observer, so a
             // torn-down observer never carries stale notifications.
             if let appEl = appElement {
-                AXObserverRemoveNotification(obs, appEl, kAXFocusedUIElementChangedNotification as CFString)
+                ax.unregister(obs, appEl, kAXFocusedUIElementChangedNotification)
             }
-            unobserveFocusedElement(obs)
+            unobserveFocusedElement()
             observeWindow(nil)
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
         }
@@ -160,7 +218,7 @@ final class FocusTracker {
         if let token = deactivationToken { center.removeObserver(token) }
     }
 
-    fileprivate func handleNotification(_ name: String, element: AXUIElement) {
+    func handleNotification(_ name: String, element: AXUIElement) {
         switch name {
         case kAXFocusedUIElementChangedNotification:
             refreshFocusedElement()
@@ -180,73 +238,84 @@ final class FocusTracker {
         }
     }
 
-    /// Swaps a tracked handle that died for the field now holding focus — a
-    /// node web and Electron apps replaced under the caret, with no focus
-    /// notification. The same field (same label, same window title) is
-    /// swapped in quietly, and true returned: a focus change would tear down
-    /// what the pipeline holds for it (the settle window, a ⌘Z decline, the
-    /// screen capture) and offer a reply in a chat box re-mounted on send.
-    /// Anything else — an unlabeled field included, since nothing then says
-    /// it is the same one — is reported as a focus change.
-    @discardableResult
-    func relatchFocusedElement() -> Bool {
-        guard let appEl = appElement, let obs = observer,
-              let element = AXText.element(appEl, kAXFocusedUIElementAttribute) else {
+    /// The app destroyed the node behind the tracked `element` — web and
+    /// Electron apps replace the focused node under the caret, with no focus
+    /// notification — so swap in the field now holding focus. The same field
+    /// (same label, same window title) is swapped in quietly: a focus change
+    /// would tear down what the pipeline holds for it (the settle window, a
+    /// ⌘Z decline, the screen capture) and offer a reply in a chat box
+    /// re-mounted on send. Anything else — an unlabeled field included, since
+    /// nothing then says it is the same one — is reported as a focus change.
+    /// Returns whether the handle was dead. One AX round trip when it isn't.
+    func relatchIfDead(_ element: AXUIElement) -> Bool {
+        guard ax.isDead(element) else { return false }
+        guard let appEl = appElement, let focused = ax.focusedElement(appEl) else {
             refreshFocusedElement()
-            return false
+            return true
         }
-        AXUIElementSetMessagingTimeout(element, Self.axMessagingTimeout)
-        let title: String? = AXText.element(appEl, kAXFocusedWindowAttribute).flatMap { AXText.attribute($0, kAXTitleAttribute) }
-        guard let label = AXText.editableTextLabel(element), label != nil, label == typingContext.fieldLabel,
+        AXUIElementSetMessagingTimeout(focused, Self.axMessagingTimeout)
+        let title = ax.focusedWindow(appEl).flatMap(ax.title)
+        guard let label = ax.editableLabel(focused), label != nil, label == typingContext.fieldLabel,
               title == typingContext.windowTitle else {
             refreshFocusedElement()
-            return false
+            return true
         }
-        observe(element, obs)
+        observe(focused)
+        reportedElement = focused
         return true
     }
 
     private func refreshFocusedElement() {
-        guard let appEl = appElement, let obs = observer else { return }
-        unobserveFocusedElement(obs)
+        guard let appEl = appElement else { return }
+        unobserveFocusedElement()
         focusedTextElement = nil
 
         var fieldLabel: String?
-        if let element = AXText.element(appEl, kAXFocusedUIElementAttribute) {
+        if let element = ax.focusedElement(appEl) {
             AXUIElementSetMessagingTimeout(element, Self.axMessagingTimeout)
-            if let label = AXText.editableTextLabel(element) {
+            if let label = ax.editableLabel(element) {
                 fieldLabel = label
-                observe(element, obs)
+                observe(element)
             }
         }
-        let window = AXText.element(appEl, kAXFocusedWindowAttribute)
+        let window = ax.focusedWindow(appEl)
         observeWindow(window)
         typingContext = TypingContext(
             appName: observedApp?.localizedName,
-            bundleID: observedApp?.bundleIdentifier,
-            windowTitle: window.flatMap { AXText.attribute($0, kAXTitleAttribute) },
+            bundleID: ax.bundleID(appEl),
+            windowTitle: window.flatMap(ax.title),
             fieldLabel: fieldLabel,
-            site: focusedTextElement.flatMap { AXText.pageHost(for: $0) }
+            site: focusedTextElement.flatMap(ax.pageHost)
         )
+        reportFocusChange()
+    }
+
+    /// Report once the notification burst has landed — compared then, not
+    /// now, so a burst that ends where it started reports nothing.
+    private func reportFocusChange() {
         Task { @MainActor in
+            guard typingContext != reportedContext || focusedTextElement != reportedElement else { return }
+            reportedContext = typingContext
+            reportedElement = focusedTextElement
             onFocusChange?()
         }
     }
 
     /// Track `element` as the focused field: its value and selection changes.
-    private func observe(_ element: AXUIElement, _ obs: AXObserver) {
-        unobserveFocusedElement(obs)
+    private func observe(_ element: AXUIElement) {
+        unobserveFocusedElement()
         focusedTextElement = element
+        guard let obs = observer else { return }
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        AXObserverAddNotification(obs, element, kAXValueChangedNotification as CFString, refcon)
-        AXObserverAddNotification(obs, element, kAXSelectedTextChangedNotification as CFString, refcon)
+        ax.register(obs, element, kAXValueChangedNotification, refcon)
+        ax.register(obs, element, kAXSelectedTextChangedNotification, refcon)
     }
 
     /// Unregister the value/selection notifications on the focused field.
-    private func unobserveFocusedElement(_ obs: AXObserver) {
-        guard let focused = focusedTextElement else { return }
-        AXObserverRemoveNotification(obs, focused, kAXValueChangedNotification as CFString)
-        AXObserverRemoveNotification(obs, focused, kAXSelectedTextChangedNotification as CFString)
+    private func unobserveFocusedElement() {
+        guard let obs = observer, let focused = focusedTextElement else { return }
+        ax.unregister(obs, focused, kAXValueChangedNotification)
+        ax.unregister(obs, focused, kAXSelectedTextChangedNotification)
     }
 
     /// Watch the window holding the caret for moves and resizes — the overlay is
@@ -258,13 +327,13 @@ final class FocusTracker {
         guard let obs = observer else { return }
         if let old = observedWindow {
             if old == window { return }
-            AXObserverRemoveNotification(obs, old, kAXWindowMovedNotification as CFString)
-            AXObserverRemoveNotification(obs, old, kAXWindowResizedNotification as CFString)
+            ax.unregister(obs, old, kAXWindowMovedNotification)
+            ax.unregister(obs, old, kAXWindowResizedNotification)
         }
         observedWindow = window
         guard let window else { return }
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        AXObserverAddNotification(obs, window, kAXWindowMovedNotification as CFString, refcon)
-        AXObserverAddNotification(obs, window, kAXWindowResizedNotification as CFString, refcon)
+        ax.register(obs, window, kAXWindowMovedNotification, refcon)
+        ax.register(obs, window, kAXWindowResizedNotification, refcon)
     }
 }

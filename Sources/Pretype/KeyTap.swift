@@ -42,7 +42,8 @@ final class KeyTap {
     /// own UI. The local twins close exactly that hole; both observe and pass
     /// the event on.
     private var monitors: [Any] = []
-    private var scrollMonitor: Any?
+    /// The global scroll monitor while `wantsScroll` holds.
+    private(set) var scrollMonitor: Any?
 
     /// The GLOBAL scroll monitor is up only while something needs scrolls (a
     /// live overlay, a capture, an armed hold — see `SuggestionController.
@@ -67,6 +68,35 @@ final class KeyTap {
     /// revoked, and a port that merely exists read "active" over a tap that
     /// saw nothing.
     var isActive: Bool { tapPort.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
+
+    /// Start the tap and keep it up. It fails when Accessibility was granted
+    /// after launch (or to the wrong target), and one the system disabled when
+    /// the grant was revoked stays disabled after the re-grant — so this keeps
+    /// watching, and rebuilds it whenever it's down while trust is there.
+    func keepUp() {
+        restart(trusted: Permissions.isTrusted)
+        guard watch == nil else { return }
+        // A timer with slack, not a chain of exact 3 s wakeups: macOS folds
+        // it into wakeups it runs anyway.
+        let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
+            self?.restart(trusted: Permissions.isTrusted)
+        }
+        timer.tolerance = 1.5
+        RunLoop.main.add(timer, forMode: .common)
+        watch = timer
+    }
+
+    private var watch: Timer?
+
+    /// Start the tap — rebuilt first when it is down while trust is there.
+    /// A rebuild keeps the scroll monitor that `stop` drops.
+    private func restart(trusted: Bool) {
+        let rebuild = !isActive && trusted
+        let scrolls = wantsScroll
+        if rebuild { stop() }
+        start()
+        if rebuild { wantsScroll = scrolls }
+    }
 
     func start() {
         // Before the tap guard: `start()` is retried every 3 s until the tap
@@ -93,19 +123,7 @@ final class KeyTap {
         let callback: CGEventTapCallBack = { _, type, event, refcon in
             guard let refcon else { return Unmanaged.passUnretained(event) }
             let tap = Unmanaged<KeyTap>.fromOpaque(refcon).takeUnretainedValue()
-            switch type {
-            case .tapDisabledByTimeout, .tapDisabledByUserInput:
-                tap.reenable()
-                return Unmanaged.passUnretained(event)
-            case .keyDown:
-                if tap.handler?(event) == true { return nil }
-                return Unmanaged.passUnretained(event)
-            case .flagsChanged:
-                tap.flagsHandler?(event)
-                return Unmanaged.passUnretained(event)
-            default:
-                return Unmanaged.passUnretained(event)
-            }
+            return tap.route(type, event) ? nil : Unmanaged.passUnretained(event)
         }
         tapPort = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -124,7 +142,25 @@ final class KeyTap {
         CGEvent.tapEnable(tap: tapPort, enable: true)
     }
 
-    fileprivate func reenable() {
+    /// What the tap does with one event: true swallows it. A key-down is the
+    /// handler's to swallow; a modifier edge is only observed; a tap macOS
+    /// turned off is turned back on.
+    func route(_ type: CGEventType, _ event: CGEvent) -> Bool {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            reenable()
+            return false
+        case .keyDown:
+            return handler?(event) == true
+        case .flagsChanged:
+            flagsHandler?(event)
+            return false
+        default:
+            return false
+        }
+    }
+
+    private func reenable() {
         if let tapPort {
             CGEvent.tapEnable(tap: tapPort, enable: true)
         }
@@ -151,6 +187,7 @@ final class KeyTap {
     }
 
     deinit {
+        watch?.invalidate()
         stop()
     }
 }

@@ -30,8 +30,6 @@ final class DictationController {
     /// state machine can run with no microphone, no bundle and no frontmost
     /// app — the exact conditions a test runner is in.
     struct Gates {
-        var appIsActive: @MainActor () -> Bool = { NSApp.isActive }
-        var secureInput: () -> Bool = { AXText.isSecureInputActive() }
         var micBundled: () -> Bool = { MicrophoneAccess.isBundled }
         var micStatus: () -> AVAuthorizationStatus = { MicrophoneAccess.status }
         var transcriptionSupported: () -> Bool = { Transcription.isSupported }
@@ -239,9 +237,8 @@ final class DictationController {
     /// it covers `.preparing` too — a hung session start with the release
     /// never delivered is the same wedge, and there it discards, because there
     /// is nothing heard to keep (`discardPreparing`: no error while a model
-    /// download is what it waits on). A var only so tests can shorten it; nothing
-    /// in the app writes it.
-    var maxCaptureSeconds: TimeInterval = 120
+    /// download is what it waits on).
+    let maxCaptureSeconds: TimeInterval = 120
 
     /// The same ceiling for a latched capture, where it means something else
     /// entirely. Nothing was ever going to arrive to end a hands-free capture —
@@ -250,21 +247,22 @@ final class DictationController {
     /// past any dictation anyone sits through and still short enough that a
     /// forgotten latch is not an open microphone for the afternoon. (Silence
     /// normally gets there first; this covers the room that is never quiet.)
-    var maxLatchedSeconds: TimeInterval = 600
+    let maxLatchedSeconds: TimeInterval = 600
 
     /// The ceiling this capture is running under.
     private var ceilingSeconds: TimeInterval {
         trigger == .latch ? maxLatchedSeconds : maxCaptureSeconds
     }
 
-    /// Internal, not private: tests shorten `hold.threshold` so driving the
-    /// arm timer doesn't cost half a second of wall clock per case.
+    /// Internal, not private: tests zero `hold.threshold` and fire the arm
+    /// timer by hand.
     var hold = ModifierHold()
-    private var armTimer: Timer?
-    private var limitTimer: Timer?
-    /// Bumped by every `armCeiling` — see there.
-    private var ceilingToken = 0
-    private var silenceTimer: Timer?
+    /// Readable so a test can `fire()` one instead of waiting out its
+    /// interval. Every handler runs on the main run loop with no actor hop, so
+    /// the fire is the effect — and an `invalidate()` is a true cancel.
+    private(set) var armTimer: Timer?
+    private(set) var limitTimer: Timer?
+    private(set) var silenceTimer: Timer?
     /// A start that arrived while the previous capture was still being written
     /// down, and what asked for it. Honored by `resumePendingHold` the moment
     /// that write resolves — the alternative was a generation bump that
@@ -278,7 +276,9 @@ final class DictationController {
     private var meter: VoiceMeter?
     private let capture: any AudioCapturing
     private var session: (any TranscriptionSession)?
-    private var sessionTask: Task<Void, Never>?
+    /// Readable so a test can await the step in flight — the session start,
+    /// or the write-down — instead of guessing how long it takes.
+    private(set) var sessionTask: Task<Void, Never>?
 
     init(capture: any AudioCapturing = AudioCapture()) {
         self.capture = capture
@@ -493,7 +493,7 @@ final class DictationController {
         // A hair past the threshold: the press was timestamped a moment before
         // this timer was scheduled, and firing exactly on it would race.
         armTimer = Timer.scheduledTimer(withTimeInterval: hold.threshold + 0.02, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 guard let self else { return }
                 self.armTimer = nil
                 self.apply(self.hold.tick(now: Date()))
@@ -536,7 +536,7 @@ final class DictationController {
         // silently there is indistinguishable from a broken build.
         func refuse(_ why: String, notice: SuggestionDisplayMode? = nil,
                     at rect: CGRect? = nil) {
-            owner.lastEvent = "dictation: \(why)"
+            owner.report("dictation: \(why)")
             Self.note("not listening — \(why)")
             guard let notice else { return }
             // Falls all the way back to the POINTER when there is no caret to
@@ -546,19 +546,28 @@ final class DictationController {
             let anchor = rect ?? owner.fallbackCaretRect ?? Self.pointerAnchor()
             owner.showTransientOverlay(notice, at: anchor, host: owner.fallbackHostStyle)
         }
-        // The three "we should not be here at all" cases draw nothing on
-        // purpose — a paused or blacklisted app is one Pretype has been told to
-        // keep out of, pills included. A terminal is let through to the agent
+        // The "we should not be here at all" cases draw nothing on purpose — a
+        // paused or blacklisted app is one Pretype has been told to keep out
+        // of, pills included. A terminal is let through to the agent
         // check below, as for completions.
         guard Settings.enabled else { return refuse("Pretype is paused") }
-        guard !gates.appIsActive() else { return refuse("our own window is frontmost") }
+        guard !owner.isOwnUIFrontmost else { return refuse("our own window is frontmost") }
         guard AppPolicy.allowsCompletions(owner.typingContext) else {
             return refuse("off in \(owner.typingContext.appName ?? "this app")")
         }
         // Something has to receive the words. This is the only hard requirement:
         // typing into a window with no text focus would fire shortcuts instead
         // of writing a sentence.
-        guard owner.hasFocusedTextField() else {
+        switch owner.dictationFocus() {
+        case .field:
+            break
+        case .offLimits:
+            // A password manager's quick-access panel over an app that is on:
+            // as off limits as the app itself, so the same silence — and
+            // "click into a text field" would be wrong twice over, drawn over
+            // the password manager at someone already in a field.
+            return refuse("off in the panel that has the keys")
+        case .noField:
             return refuse("no text field in focus",
                           notice: .hint(latchKey.map { String(localized: "click into a text field, then press \($0) again") }
                               ?? String(localized: "click into a text field, then hold to talk")))
@@ -582,7 +591,7 @@ final class DictationController {
         // restated here, because the anchor read is no longer a gate: while
         // macOS reports secure input, a password field is focused somewhere and
         // nothing may be captured or typed.
-        guard !gates.secureInput() else {
+        guard !owner.isSecureInputActive else {
             return refuse("secure input is active",
                           notice: .hint(String(localized: "dictation stays out of password fields")))
         }
@@ -667,7 +676,7 @@ final class DictationController {
         phase = .preparing
         if Settings.dictationPolish || commandSelection != nil { owner.prewarmTidy() }
         render()
-        owner.lastEvent = "listening…"
+        owner.report("listening…")
         Self.note("listening (\(requested == .latch ? Settings.dictationLatch.label + ", hands-free" : Settings.dictationGesture.label))")
         // Armed here, not at the `.listening` flip, so the ceiling covers
         // `.preparing` too: a hung session start with the key-up never
@@ -681,7 +690,7 @@ final class DictationController {
         // minutes of "starting dictation…" is ten minutes with the completion
         // pipeline suppressed behind `isBusy`. The capture re-arms itself at the
         // full ceiling once it is actually listening.
-        armCeiling(maxCaptureSeconds, generation: gen)
+        armCeiling(maxCaptureSeconds)
 
         // Built here, not inside the task below: a closure written inside a
         // `[weak self]` task captures the task's optional `self` *variable*,
@@ -697,7 +706,7 @@ final class DictationController {
         // hence no main-actor hop per buffer: at 16 kHz that would be a
         // scheduled task every few milliseconds to answer one question every
         // quarter second.
-        let meter = VoiceMeter()
+        let meter = VoiceMeter(now: clock())
         self.meter = meter
         let startSession = gates.startSession
         sessionTask = Task { @MainActor [weak self] in
@@ -734,8 +743,8 @@ final class DictationController {
                 // key-down that may have spent a Bluetooth negotiation getting
                 // here — and so a latch gets its long bound only now that there
                 // is speech for it to be long about.
-                self.armCeiling(self.ceilingSeconds, generation: gen)
-                meter.opened()
+                self.armCeiling(self.ceilingSeconds)
+                meter.opened(now: self.clock())
                 self.armSilenceWatch()
             } catch {
                 started?.cancel()
@@ -754,28 +763,25 @@ final class DictationController {
         // than replacing it: the fallback transcriber that Russian and most
         // other locales run on reports far less often than a live level does,
         // so on its own it would end captures mid-sentence.
-        if text != previous { meter?.noteVoice() }
+        if text != previous { meter?.noteVoice(now: clock()) }
         render()
     }
 
-    /// Arm (or re-arm) the hard ceiling on the capture `generation` owns.
+    /// Arm (or re-arm) the hard ceiling on the capture in flight.
     ///
-    /// Token-guarded as well as generation-guarded, because one capture arms
-    /// this twice — the short bound at `begin`, the real one at the microphone
-    /// opening — and both arms share a generation. Invalidating the old timer
-    /// does not un-schedule a fire whose main-actor hop is already queued, and
-    /// that hop landing after the re-arm would end the capture on the ceiling
-    /// it had just been let out of.
-    private func armCeiling(_ seconds: TimeInterval, generation gen: Int) {
+    /// One capture arms this twice — the short bound at `begin`, the real one
+    /// at the microphone opening. The handler runs in the timer's own callout,
+    /// not behind a main-actor hop, so the `invalidate()` here (and in
+    /// `stopTimers`) leaves no queued fire of the old bound to land after the
+    /// re-arm and end the capture on the ceiling it had just been let out of.
+    private func armCeiling(_ seconds: TimeInterval) {
         limitTimer?.invalidate()
-        ceilingToken += 1
-        let token = ceilingToken
         limitTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, self.generation == gen, self.ceilingToken == token else { return }
-                // The interrupt lives inside the cases: a fire racing
-                // `finish()` into `.working` must be a true no-op, not one
-                // that ends a second hold already queued behind the write.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // The interrupt lives inside the cases: a fire in any other
+                // phase must be a true no-op, not one that ends a second hold
+                // already queued behind the write.
                 switch self.phase {
                 case .listening:
                     Self.note("capture hit the \(Int(seconds))-second ceiling — finishing")
@@ -801,7 +807,6 @@ final class DictationController {
         silenceTimer?.invalidate()
         silenceTimer = nil
         guard trigger == .latch, Settings.dictationSilence > 0 else { return }
-        let gen = generation
         // One-shot, re-armed by each tick rather than repeating. A repeating
         // Timer is retained by the run loop and keeps firing after a `[weak
         // self]` has gone nil — there is nothing in the block to stop it —
@@ -810,10 +815,7 @@ final class DictationController {
         silenceTimer = Timer.scheduledTimer(
             withTimeInterval: silenceTick, repeats: false
         ) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, self.generation == gen else { return }
-                self.checkSilence()
-            }
+            MainActor.assumeIsolated { self?.checkSilence() }
         }
     }
 
@@ -823,7 +825,7 @@ final class DictationController {
         // and end it on the spot.
         guard case .listening = phase, trigger == .latch,
               Settings.dictationSilence > 0, let meter else { return }
-        let quiet = meter.quietFor(now: Date())
+        let quiet = meter.quietFor(now: clock())
         // Before the first word the budget is a far longer one. Someone who
         // latched and is still gathering their thoughts has said nothing to
         // measure, and holding them to the same few seconds a mid-sentence
@@ -954,12 +956,13 @@ final class DictationController {
         let onDeviceChange: @Sendable () -> Void = { [weak self] in
             Task { @MainActor in await self?.deviceChanged(generation: gen, epoch: epoch) }
         }
+        let clock = clock
         try await capture.start(
             deviceUID: AudioDevices.current(preference: .init(stored: Settings.dictationInput))?.uid,
             outputFormat: session.audioFormat, onDeviceChange: onDeviceChange
         ) { buffer in
             session.feed(buffer)
-            meter?.feed(buffer)
+            meter?.feed(buffer, now: clock())
         }
     }
 
@@ -1050,19 +1053,26 @@ final class DictationController {
                 self.resumePendingHold(noticeIfMissed: true)
             } catch {
                 guard let self, self.generation == gen else { return }
-                // A watchdog that fired on a take with a live preview still has
-                // that preview — on Parakeet and a local server, nearly the
-                // whole take. Minutes of speech go to the clipboard, not away.
-                // A voice command's preview is an instruction, not text: it fails.
+                // A final pass that timed out or failed outright — a model
+                // error, a local server that went away — on a take with a live
+                // preview still has that preview: on Parakeet and a local
+                // server, nearly the whole take. Minutes of speech go to the
+                // clipboard, not away. A voice command's preview is an
+                // instruction, not text: it fails.
                 let preview = Self.clean(heard)
-                if case TranscriptionError.timedOut = error, !preview.isEmpty, self.commandSelection == nil {
-                    Self.note("finish timed out — rescued the \(preview.count)-char preview to the clipboard")
-                    self.pendingBegin = nil  // as for a rescue above
-                    self.discard(notice: nil)
-                    owner.rescueDictated(preview, because: .timedOut)
-                    return
+                guard !preview.isEmpty, self.commandSelection == nil else { return self.fail(error) }
+                var timedOut = false
+                if case TranscriptionError.timedOut = error { timedOut = true }
+                // The error itself goes where `fail` puts it, not into the
+                // unified log: a server's message can quote anything.
+                if !timedOut {
+                    let why = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    DebugLog.shared.log("ERROR", "dictation: \(why)")
                 }
-                self.fail(error)
+                Self.note("finish \(timedOut ? "timed out" : "failed") — rescued the \(preview.count)-char preview to the clipboard")
+                self.pendingBegin = nil  // as for a rescue above
+                self.discard(notice: nil)
+                owner.rescueDictated(preview, because: timedOut ? .timedOut : .failed)
             }
         }
     }
@@ -1151,10 +1161,13 @@ final class DictationController {
     var finalizeSeconds: TimeInterval = 10
     /// How often `checkSilence` reads the meter. Fine enough that the capture
     /// ends within a blink of the budget, coarse enough to be nothing next to
-    /// the audio it is watching. Vars, again only so tests can shorten them.
-    var silenceTick: TimeInterval = 0.25
+    /// the audio it is watching.
+    let silenceTick: TimeInterval = 0.25
     /// The silence budget BEFORE anything has been said — see `checkSilence`.
-    var openingSilenceSeconds: TimeInterval = 30
+    let openingSilenceSeconds: TimeInterval = 30
+    /// What the level meter and `checkSilence` read the time from. A var only
+    /// so tests can step it past a budget instead of sleeping through one.
+    var clock: @Sendable () -> Date = { Date() }
 
     /// `body` raced against a deadline. NOT a task group, deliberately: a
     /// group's scope awaits its children even after `cancelAll()`, so a body
@@ -1186,7 +1199,7 @@ final class DictationController {
 
     private func fail(_ error: Error) {
         let why = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        owner?.lastEvent = "dictation failed: \(why)"
+        owner?.report("dictation failed: \(why)")
         DebugLog.shared.log("ERROR", "dictation: \(why)")
         // Whatever failed, the session is gone — take the task with it.
         sessionTask?.cancel()
@@ -1431,8 +1444,7 @@ final class VoiceMeter: Sendable {
     /// from there is spent on a wait nobody could have spoken into. Long
     /// enough, and the first check after the microphone opened would end the
     /// capture as "nothing heard" before the user got a word in.
-    func opened() {
-        let now = Date()
+    func opened(now: Date) {
         state.withLock { state in
             state.openedAt = now
             state.lastQuietAt = now

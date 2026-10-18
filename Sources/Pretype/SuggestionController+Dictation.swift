@@ -41,10 +41,10 @@ extension SuggestionController {
         guard Settings.enabled else {
             return drop("Pretype was paused", notice: String(localized: "paused — dictation copied, ⌘V to paste"))
         }
-        guard !NSApp.isActive else {
+        guard !isOwnUIFrontmost else {
             return drop("our own window took focus", notice: String(localized: "Pretype's window took focus — dictation copied, ⌘V to paste"))
         }
-        guard !AXText.isSecureInputActive() else {
+        guard !isSecureInputActive else {
             return drop("secure input engaged", notice: String(localized: "a password field took focus — dictation copied, ⌘V to paste"))
         }
         guard dictationElement() != nil else {
@@ -82,21 +82,16 @@ extension SuggestionController {
         // Without a read the cache is unknown, not the old field's text — and a
         // launcher's text is no cache of the tracked field's, nor a ⌘Z of ours.
         let inLauncher = keyboardFocusIsElsewhere
-        let snapshot = inject(chunk, over: inLauncher ? nil : before)
         // Sent: the app empties the field (or opens a line), so the text known
         // to be before the caret is gone and there is nothing for ⌘Z to take back.
         let sends = !inLauncher && AppPolicy.sendsAfterDictation(typingContext)
-        if sends {
-            TextInjector.press(KeyCode.returnKey, times: 1)
-            latestTextBeforeCaret = nil
-        }
         // ⌘Z removes it exactly like an accepted suggestion — but the undo
         // path books what it removed, and this chunk was spoken.
-        undoable = sends ? nil : snapshot.map { Undoable(chunk: chunk, snapshot: $0, dictated: true) }
+        typeChunk(chunk, over: inLauncher ? nil : before, dictated: true, thenReturn: sends)
         // The transcript's own length, not the chunk's: the seam spaces are
         // typing mechanics, and the counter claims to measure what was said.
-        Stats.recordDictated(chars: text.count)
-        lastEvent = "dictated \(chunk.count) characters"
+        env.book(.dictated(chars: text.count))
+        report("dictated \(chunk.count) characters")
         // The transcript itself never reaches the log: the debug buffer is
         // exportable for bug reports, and what was said aloud is as sensitive
         // as the OCR'd screen and the clipboard, both of which the prompt log
@@ -110,13 +105,8 @@ extension SuggestionController {
     /// transient, so clipboard managers keep it out of their on-disk history —
     /// no transcript is ever written to disk — and kept off other devices.
     private func parkDictation(_ text: String, why: String, notice: String) {
-        let pasteboard = NSPasteboard.general
-        // This Mac only: Universal Clipboard ignores the transient marker and
-        // would offer the transcript to every device on the iCloud account.
-        pasteboard.prepareForNewContents(with: .currentHostOnly)
-        pasteboard.setString(text, forType: .string)
-        pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
-        lastEvent = "dictation copied to the clipboard — \(why)"
+        Self.copyTranscript(text, to: env.pasteboard)
+        report("dictation copied to the clipboard — \(why)")
         showTransientOverlay(.hint(notice),
                              at: lastCaretRect ?? DictationController.pointerAnchor(),
                              host: lastHostStyle)
@@ -127,35 +117,40 @@ extension SuggestionController {
 // capture state machine testable without an AX tree or a window server, and
 // keeps `DictationController` from growing casual reach into the completion
 // pipeline. `insertDictated` (above), `noteCaret`, `typingContext`,
-// `focusGeneration` and `lastEvent` already satisfy their requirements.
+// `focusGeneration` and `report` already satisfy their requirements.
 extension SuggestionController: DictationHost {
     var fallbackCaretRect: CGRect? { lastCaretRect }
     var fallbackHostStyle: HostTextStyle { lastHostStyle }
 
-    func hasFocusedTextField() -> Bool { dictationElement() != nil }
+    /// The same reads `dictationElement` makes, with the launcher's verdict
+    /// kept: `begin` refuses an off-limits panel silently and a missing field
+    /// out loud, and telling them apart must not cost a second AX round trip.
+    func dictationFocus() -> DictationFocus {
+        guard let owner = focusedPanelOwner else { return currentTextElement() == nil ? .noField : .field }
+        return launcherField(ownedBy: owner).focus
+    }
 
     var focusIsInLauncher: Bool { keyboardFocusIsElsewhere }
+    var isSecureInputActive: Bool { env.secureInputActive() }
 
     /// The field a dictation types into. Unlike the pipeline's, a launcher's
     /// counts (Spotlight, Raycast): the transcript is typed into whatever holds
     /// keyboard focus, and a search spoken into Spotlight is a fine use — it is
     /// only a ghost from the app underneath that must never land there.
     private func dictationElement() -> AXUIElement? {
-        keyboardFocusIsElsewhere ? launcherElement() : currentTextElement()
+        guard let owner = focusedPanelOwner else { return currentTextElement() }
+        return launcherField(ownedBy: owner).element
     }
 
-    /// The launcher's own field — unless the panel holding the keys belongs to
-    /// an app Pretype stays out of. A password manager's quick-access panel
-    /// takes keys the same non-activating way, and `begin`'s app check only
-    /// sees the app underneath: its field would be read for the tidy-up
-    /// context and typed into.
-    private func launcherElement() -> AXUIElement? {
-        guard let element = AXText.systemFocusedTextElement() else { return nil }
-        var pid: pid_t = 0
-        guard AXUIElementGetPid(element, &pid) == .success,
-              !AppPolicy.isBlacklisted(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier)
-        else { return nil }
-        return element
+    /// A launcher-style panel's focused field, and what
+    /// `DictationFocus.panel` makes of it. An off-limits panel is never read.
+    private func launcherField(ownedBy owner: pid_t) -> (element: AXUIElement?, focus: DictationFocus) {
+        var element: AXUIElement?
+        let focus = DictationFocus.panel(ownedBy: env.bundleIdentifier(owner)) {
+            element = env.systemFocusedElement(nil)
+            return element != nil
+        }
+        return (element, focus)
     }
 
     /// Precise marked-text only — `AXText.hasMarkedText`, not `isComposing` —
@@ -163,7 +158,7 @@ extension SuggestionController: DictationHost {
     /// answer in Electron/Chromium) doesn't ban dictation wholesale where it
     /// demonstrably works today.
     func isComposingInFocusedField() -> Bool {
-        dictationElement().map(AXText.hasMarkedText) ?? false
+        dictationElement().map(env.hasMarkedText) ?? false
     }
 
     func prepareForDictation() {
@@ -176,7 +171,7 @@ extension SuggestionController: DictationHost {
         guard let ctx = dictationFieldContext() else { return nil }
         // Only read when it can matter: the selection is a voice command's target.
         let selected = Settings.dictationCommands
-            ? dictationElement().flatMap { AXText.selectionInfo(for: $0)?.text } ?? "" : ""
+            ? dictationElement().flatMap { env.selection($0)?.text } ?? "" : ""
         return DictationAnchor(caretRect: ctx.caretRect, host: ctx.host,
                                textBeforeCaret: ctx.textBeforeCaret, selectedText: selected)
     }
@@ -197,13 +192,13 @@ extension SuggestionController: DictationHost {
     /// change, and a focus change discards the capture being read for.
     private func dictationFieldContext() -> TextContext? {
         func read(_ element: AXUIElement) -> TextContext? {
-            AXText.context(for: element, allowEmpty: true)
+            env.context(of: element, allowEmpty: true)
         }
         // In a launcher the tracked field is the app underneath; the system's
         // focused element is the launcher's own field.
-        if keyboardFocusIsElsewhere { return launcherElement().flatMap(read) }
-        if let element = focusTracker.focusedTextElement, let ctx = read(element) { return ctx }
-        return AXText.systemFocusedTextElement().flatMap(read)
+        if let owner = focusedPanelOwner { return launcherField(ownedBy: owner).element.flatMap(read) }
+        if let element = env.trackedElement(), let ctx = read(element) { return ctx }
+        return env.systemFocusedElement(nil).flatMap(read)
     }
 
     func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle) {
@@ -254,6 +249,10 @@ extension SuggestionController: DictationHost {
         case .timedOut:
             parkDictation(text, why: "transcription timed out",
                           notice: String(localized: "transcription timed out — the preview is copied, ⌘V to paste"))
+        case .failed:
+            parkDictation(text, why: "transcription failed",
+                          notice: String(localized: "transcription failed — the preview is copied, ⌘V to paste",
+                                         comment: "Dictation notice at the caret: the speech model or server failed on the final pass, so the live preview text was copied to the clipboard instead of typed."))
         }
     }
 
@@ -277,7 +276,7 @@ extension SuggestionController: DictationHost {
         // nobody asked for gigabytes over a hotspot to tidy a sentence. On
         // one, the first ⌥⇥ (which the user does ask for) fetches it.
         guard engine.isCorrectionReady else {
-            if await ModelStorage.isNetworkUnmetered() {
+            if await env.networkUnmetered() {
                 engine.prewarmCorrection()
                 DictationController.note("tidy-up skipped — fetching the fix model for next time")
             } else {

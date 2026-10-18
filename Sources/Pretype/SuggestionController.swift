@@ -5,194 +5,96 @@ import AppKit
 /// fix-selection (⌥Tab) and feeds the menu with diagnostics and context.
 @MainActor
 final class SuggestionController {
-    let focusTracker = FocusTracker()
-    private let keyTap = KeyTap()
-    let window = SuggestionWindow()
+    let focusTracker: FocusTracker
+    let keyTap = KeyTap()
+    /// The pipeline's reach outside the process: AX, keys, overlay, engine, clock.
+    let env: Environment
+    var window: any SuggestionOverlay { env.window }
     /// Engine lifecycle + the settings that reshape it; the menu and settings
-    /// window drive it directly. A rebuild calls back into `dismiss()` (wired
-    /// in `init`) to drop the stale suggestion.
-    let engineCoordinator = EngineCoordinator()
+    /// window drive it directly. A rebuild calls back into `dismiss()` to drop
+    /// the stale suggestion. Built by `start()`, not `init`, so a controller a
+    /// test drives with a fake engine never builds — or loads — a real one.
+    private(set) lazy var engineCoordinator: EngineCoordinator = {
+        let coordinator = EngineCoordinator()
+        // A model/style/gate rebuild drops the suggestion that belonged to the
+        // old engine.
+        coordinator.onRebuild = { [weak self] in self?.dismiss() }
+        return coordinator
+    }()
     /// The active completion engine, owned by `engineCoordinator`. Read-only here;
     /// model/style/gate changes flow through the coordinator's methods.
-    var engine: CompletionEngine { engineCoordinator.engine }
-    /// The completion query or composed reply in flight — debouncing,
-    /// streaming, or waiting on its OCR. One value, so what the task is for
-    /// can't drift from whether there is one: as separate flags, a retired
-    /// completion once read as a reply, and a scroll or click spared its
-    /// stream — the next partial painted at the moved caret.
-    private var query: Query? { didSet { updateScrollMonitoring(canStop: false) } }
-    /// Numbers the queries, so a finishing task clears `query` only while it
-    /// is still the current one (a newer query owns it otherwise).
-    private var querySeq = 0
+    var engine: CompletionEngine { env.engine ?? engineCoordinator.engine }
+    /// The completion query or composed reply in flight (`QuerySlot`).
+    private(set) var queries = QuerySlot() { didSet { updateScrollMonitoring(canStop: false) } }
 
-    private struct Query {
-        enum Kind: Equatable {
-            /// A completion for this field. One edit reaches `textDidChange`
-            /// twice (the AX notification, then the keystroke timer); the
-            /// second must not restart the debounce, or cancel the stream, of a
-            /// query already running for exactly this text.
-            case completion(before: String, after: String)
-            /// A completion whose ghost was retired under it (`retire`): the
-            /// same text must re-query — backspacing onto a retired ghost's
-            /// text found no suggestion at all.
-            case retired
-            case reply
-        }
-        let id: Int
-        var kind: Kind
-        let task: Task<Void, Never>
-    }
-
-    private var replyInFlight: Bool { query?.kind == .reply }
     /// A completion query is scheduled or streaming (the indicator's dots).
-    var isCompleting: Bool { query != nil }
+    var isCompleting: Bool { queries.current != nil }
 
     /// Engine-state indicator at the caret (download progress, thinking dots,
     /// transient notices). Shares the overlay window with the suggestion.
-    lazy var indicator = CaretIndicator(owner: self)
+    private(set) lazy var indicator = CaretIndicator(host: self, window: window)
     /// The text-fixing flows (⌥⇥ fix-selection / last word, inline spell-fix),
     /// kept separate from the completion pipeline below.
-    lazy var correctionController = CorrectionController(owner: self)
+    private(set) lazy var correctionController = CorrectionController(host: self, env: env, indicator: indicator)
+    /// The window OCR, the clipboard and the personal examples a prompt carries.
+    private(set) lazy var promptContext = PromptContext(host: self, env: env)
+    /// The reply chord's flow: the conversation on screen in, a reply ghost out.
+    private(set) lazy var replyComposer = ReplyComposer(host: self, env: env, indicator: indicator, prompts: promptContext)
 
     /// Hold-to-talk dictation. Owns the microphone, the caret pill while it
     /// listens, and nothing else — the transcript comes back through
     /// `insertDictated`, which is the same injection path an accept takes.
-    let dictationController = DictationController()
+    let dictationController: DictationController
 
-    private struct Active {
-        /// Text before the caret at the moment the suggestion became valid.
-        var anchor: String
-        /// Text after the caret when it was shown (typing at the caret leaves
-        /// it be) — with `anchor`, the field a ⎋ declines (`declinedKey`).
-        var after = ""
-        /// Remaining (not yet accepted) suggestion text.
-        var text: String
-        /// Already counted as an accepted suggestion, so accepting word-by-word
-        /// counts once (not once per word). Carried across in-place mutations;
-        /// reset only when a fresh suggestion is shown. See accept().
-        var accepted = false
-        /// false for a composed reply: shown whole — in the pill when it
-        /// doesn't fit the line — never trimmed to the line like a completion.
-        var trimToLine = true
-        /// From the personal n-gram fast-path (shown instantly, before the LLM
-        /// answers). The LLM stream supersedes it via the normal `apply` path;
-        /// its *abstain* must not hide it though — a confident personal phrase
-        /// beats showing nothing.
-        var isInstant = false
+    /// The ghost, the text-before-caret cache, the settle window, the decline
+    /// and the ⌘Z record, with the rules that move them.
+    private(set) var field = FieldState() {
+        // A ghost is one of the times the scroll monitor runs.
+        didSet { if field.ghost != nil || oldValue.ghost != nil { updateScrollMonitoring(canStop: false) } }
     }
+    var hasActiveSuggestion: Bool { field.ghost != nil }
 
-    private var active: Active? { didSet { updateScrollMonitoring(canStop: false) } }
-    var hasActiveSuggestion: Bool { active != nil }
-    /// The field (before/after the caret) whose ghost ⎋ dropped. Nothing is
-    /// offered there again until it changes: an AX notification that leaves
-    /// the text alone (React re-setting the value, a mention popup closing)
-    /// re-runs `textDidChange`, which re-drew the declined ghost from the
-    /// n-gram and queried the model for it again.
-    private var declinedKey: (before: String, after: String)?
-
-    /// Journal record for the currently shown suggestion, opened when it first
-    /// appears and written out with its outcome when it resolves. Everything is
-    /// local-only (see `SuggestionJournal`). The entry's `app` is captured at
-    /// show time: resolution can arrive after focus has already moved (a
-    /// `.abandoned` on app switch), and `typingContext` names the NEW app by
-    /// then — booking the offer, or journaling it, against that one blames the
-    /// wrong app.
-    private var pendingJournal: (entry: SuggestionJournal.Entry, shownAt: Date)?
+    /// The record of the suggestion on screen, booked when it resolves.
+    private var offer = OfferRecord()
 
     /// Double-tap-a-modifier state — the easy-to-reach twin of the reply chord.
     private var replyTap = ModifierDoubleTap()
 
-    private var keyRefreshScheduled = false
-    private var keyRefreshIsFallback = false
-    /// AX notifications on the focused field since the last keystroke, and
-    /// whether a read ran after both (see `scheduleKeystrokeRefresh`).
-    private var axSeenSinceKey = (value: false, selection: false)
-    private var axReadSinceKey = false
-    private var axRefreshScheduled = false
-    /// Successful field reads, so a notification-driven pass can tell one ran.
-    private var contextReads = 0
-    /// The last chunk typed into the field — an accepted suggestion or a
-    /// dictation — while ⌘Z can still take it back. Any other keystroke
-    /// clears it.
-    var undoable: Undoable?
+    /// When the field is re-read after an edit (`RereadSchedule`).
+    private var reread = RereadSchedule()
 
-    struct Undoable {
-        let chunk: String
-        /// The cache exactly as it read right after the chunk landed. ⌘Z-undo
-        /// is offered only while the field still reads like this — a
-        /// same-field mouse click can land the caret after identical text, so
-        /// a bare "ends with the chunk" check would delete the wrong occurrence.
-        let snapshot: String
-        /// SPOKEN rather than suggested. The undo path books its chunk into
-        /// the debug log, the Diagnostics line and the journal — all three
-        /// fine for a suggestion the model produced, none of them allowed to
-        /// hold a dictated sentence (`docs/privacy.md`: the transcript is
-        /// redacted from the log and never journaled).
-        let dictated: Bool
-    }
-    /// The most recent `textBeforeCaret` seen by `textDidChange`. Lets a streamed
-    /// partial tell — without a fresh AX read — whether the user has typed since
-    /// the completion stream began, so it knows when its cached context is stale.
-    var latestTextBeforeCaret: String?
-    /// While set and in the future, a synthetic injection (accept / ⌘Z undo)
-    /// is still landing in the target app: `textDidChange` treats the cache as
-    /// the authority over a mismatching (trailing) AX read until then.
-    private var injectionSettleDeadline: Date?
+    /// The caret of the latest context, and the field's style there
+    /// (`FieldState.caret`, `.style`).
+    var lastCaretRect: CGRect? { field.caret }
+    var lastHostStyle: HostTextStyle { field.style }
 
-    /// Caret rect of the latest context — shared by the completion overlay, the
-    /// indicator and the correction previews.
-    var lastCaretRect: CGRect?
-    /// Host style of the latest context, refreshed with `lastCaretRect` on every
-    /// keystroke. The indicator's shows (thinking dots, status, transients) pass
-    /// it so they carry measured, current evidence — the dots decide ghost-vs-
-    /// pill on `textFollowsCaret`, and the window's own remembered style can be
-    /// many keystrokes stale while no suggestion is live.
-    private(set) var lastHostStyle = HostTextStyle()
-
-    // Opt-in OCR context of the focused window.
-    private var screenSummary: String?
-    private var screenCapturedAt = Date.distantPast
-    private var screenCaptureInFlight = false
-
-    // Opt-in clipboard context, re-read only when the pasteboard changes.
-    private var clipboardChangeCount = -1
-    private var clipboardSnippet: String?
-
-    // Retrieval-augmented few-shot from the user's own accepted phrases.
-    // Refreshed off the typing path (same discipline as the OCR context) so the
-    // prompt prefix only changes on a refresh, not per keystroke — a prefix
-    // change costs one full KV-cache re-prefill.
-    private var personalExamples: [SuggestionJournal.AcceptedPhrase] = []
-    private var examplesRefreshedAt = Date.distantPast
-    private var examplesRefreshInFlight = false
     /// Bumped on every real focus change; in-flight captures and corrections
     /// that finish after a change are discarded (a result for the previous app's
     /// context must never attach to the new one).
-    var focusGeneration = 0
-    private var lastFocusedElement: AXUIElement?
-    private var deadHandleCheckedAt = Date.distantPast
+    private(set) var focusGeneration = 0
     private var lastLoggedSuggestion: String?
 
     // Surfaced in the menu.
     /// What the focus tracker reported, plus the site of a field only the
     /// system-wide fallback found (`currentTextElement`).
     var typingContext: TypingContext {
-        var context = trackedContext
-        if context.site == nil { context.site = fallbackSite }
+        var context = focusTracker.reportedContext
+        if context.site == nil { context.site = field.untracked?.site }
         return context
     }
-    private var trackedContext = TypingContext()
     /// The last request sent — formatted only when Diagnostics asks, not per query.
     private var lastPromptRequest: CompletionRequest?
     var lastPromptDescription: String? { lastPromptRequest?.completionPrompt(maxChars: 1000) }
     private(set) var lastResultDescription: String?
-    var lastEvent = "waiting for typing"
+    /// One line of what just happened — the Diagnostics menu's "Last:".
+    private(set) var lastEvent = "waiting for typing"
     private var onboardingWindow: OnboardingWindow?
 
-    init() {
-        // A model/style/gate rebuild drops the suggestion that belonged to the
-        // old engine.
-        engineCoordinator.onRebuild = { [weak self] in self?.dismiss() }
+    init(env: Environment? = nil, focusTracker tracker: FocusTracker = FocusTracker(),
+         dictation: DictationController? = nil) {
+        focusTracker = tracker
+        dictationController = dictation ?? DictationController()
+        self.env = env ?? .live(tracker)
         window.presentation = Settings.suggestionPresentation
         window.onVisibilityChange = { [weak self] in self?.updateScrollMonitoring() }
         dictationController.owner = self
@@ -203,36 +105,13 @@ final class SuggestionController {
         keyTap.handler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
         }
-        keyTap.scrollHandler = { [weak self] isMomentum in
-            guard let self else { return }
-            // Momentum frames don't reach dictation at all — a flick keeps
-            // coasting for seconds after the finger left, and a hold started
-            // (or a transcript being finalized) during that tail is
-            // deliberate, not a scroll gesture interrupting it.
-            let dictating = self.dictationController.isBusy
-            if !isMomentum { self.dictationController.pointerInterrupted(isScroll: true) }
-            // While dictation is busy the overlay is its to keep: the live
-            // pill riding out a momentum tail, or "writing it down…" over a
-            // take the scroll left alone — `dropOverlay` would erase either
-            // one, and dictation tears down its own overlay on discard
-            // anyway. (`mouseDownHandler` skips it for the same reason.)
-            if !dictating { self.viewScrolled() }
-            // Not from inside the monitor's own handler.
-            DispatchQueue.main.async { [weak self] in self?.updateScrollMonitoring() }
-        }
-        keyTap.mouseDownHandler = { [weak self] in
-            guard let self else { return }
-            // Dictation keeps the overlay while busy, as for scroll — read
-            // before `pointerInterrupted()`, which may end the capture.
-            let dictating = self.dictationController.isBusy
-            self.dictationController.pointerInterrupted()
-            self.dropCompletion(afterUnseenCaretMove: "mouse click", overlay: !dictating)
-        }
+        keyTap.scrollHandler = { [weak self] isMomentum in self?.scrolled(momentum: isMomentum) }
+        keyTap.mouseDownHandler = { [weak self] in self?.pointerPressed() }
         keyTap.reenabledHandler = { [weak self] in
             // macOS turned the tap off (a callback ran past its timeout, or
             // input was held off) and keystrokes went by unseen.
             guard let self else { return }
-            self.undoable = nil
+            self.field.undoable = nil
             self.dropCompletion(afterUnseenCaretMove: "the key tap was paused",
                                 overlay: !self.dictationController.isBusy)
             DebugLog.shared.log("TAP", "re-enabled after macOS disabled it")
@@ -245,17 +124,19 @@ final class SuggestionController {
             self?.updateScrollMonitoring()
             guard let self, self.replyTap.modifierChanged(
                 keyCode: event.getIntegerValueField(.keyboardEventKeycode),
-                flags: event.flags, gesture: Settings.replyGesture, now: Date()) else { return }
+                flags: event.flags, gesture: Settings.replyGesture, now: self.env.now()) else { return }
             // Off the tap callback before any AX read — same rule as the chord.
-            DispatchQueue.main.async { [weak self] in self?.composeReply() }
+            self.env.hop { [weak self] in self?.replyComposer.compose() }
         }
     }
 
     func start() {
+        // The model starts loading with the app, as it did from `init`.
+        _ = engineCoordinator
         focusTracker.start()
-        ensureKeyTap()
+        keyTap.keepUp()
         if Settings.personalizationLevel != .off {
-            PersonalNgram.shared.prepareIfNeeded()
+            env.personalNgram.prepareIfNeeded()
         }
         if !Settings.onboardingCompleted {
             onboardingWindow = OnboardingWindow(controller: self)
@@ -291,59 +172,37 @@ final class SuggestionController {
         dismiss()
     }
 
-    /// Close the pending journal record with its outcome. Idempotent — the
-    /// first resolution wins; later calls (e.g. the `dismiss()` that follows an
-    /// Escape) find nothing pending.
+    /// Close the offer record with its outcome and book it (`OfferRecord.resolve`).
+    /// The counters are booked HERE, not where the ghost was drawn: what makes
+    /// a ghost an offer the user could take is how long it survived and what
+    /// ended it, and neither is known until now. See `Stats.isChance`.
     private func resolveJournal(_ outcome: SuggestionJournal.Outcome) {
-        guard let (shown, shownAt) = pendingJournal else { return }
-        pendingJournal = nil
-        // The counters are booked HERE, not where the ghost was drawn: what makes
-        // a ghost an offer the user could take is how long it survived and what
-        // ended it, and neither is known until now. See `Stats.isChance`.
-        let shownForMs = Int(Date().timeIntervalSince(shownAt) * 1000)
-        Stats.recordOffer(outcome: outcome, shownForMs: shownForMs,
-                          tookAny: shown.acceptedChars > 0, app: shown.app)
-        guard Settings.suggestionJournalEnabled else { return }
-        var entry = shown
-        // ONE snapshot for both consumers: observe's delta cursor must see
-        // exactly the ctx window the journal stores, or the next launch's
-        // replay re-splits the stream differently and double-learns.
+        guard var entry = offer.resolve(outcome, ghost: field.ghost?.text, at: env.now()) else { return }
+        // ONE snapshot for both of the journal's consumers: the n-gram's delta
+        // cursor must see exactly the ctx window the journal stores, or the
+        // next launch's replay re-splits the stream differently and double-learns.
         entry.ctx = String(entry.ctx.suffix(1000))
-        // Live n-gram learning from the same ctx snapshots the startup build
-        // replays — so today's typing predicts today, not from the next launch.
-        if Settings.personalizationLevel != .off {
-            PersonalNgram.shared.observe(ctx: entry.ctx, app: entry.app)
-        }
         entry.ts = SuggestionJournal.timestamp()
-        entry.outcome = outcome
-        if outcome != .superseded, let active {   // superseded: `active` is already the new ghost
-            entry.consumedChars = Self.consumedChars(outcome: outcome, offered: entry.suggestion,
-                                                     remaining: active.text)
-        }
-        entry.shownForMs = shownForMs
         // Read at resolve, not show: the engine publishes the value only
         // after the generation completes, which is after the first streamed
         // partial is shown. By resolve time it belongs to the shown
         // suggestion — except `superseded`, where a newer generation has
         // already overwritten it (see Entry doc: calibration filters those).
         entry.firstWordLogProb = entry.engine == "ngram" ? nil : engine.lastFirstWordLogProb
-        SuggestionJournal.shared.append(entry)
+        env.book(.offer(entry))
     }
 
     /// Resolve the shown suggestion with `outcome` and take it off screen.
     private func retire(_ outcome: SuggestionJournal.Outcome) {
         resolveJournal(outcome)
-        active = nil
-        // The query behind this ghost may still be streaming; once its ghost
-        // is gone the same text must re-query, not ride the dedupe in
-        // `textDidChange`.
-        if case .completion = query?.kind { query?.kind = .retired }
+        field.ghost = nil
+        queries.ghostRetired()
         window.hide()
     }
 
     func dismiss() {
         clearActiveCompletion()
-        undoable = nil
+        field.undoable = nil
         correctionController.reset()
         indicator.stop()
         window.hide()
@@ -361,9 +220,35 @@ final class SuggestionController {
     /// or capture change — or the first scroll nobody needed — stops it, so
     /// typing doesn't add and remove a global monitor every key.
     func updateScrollMonitoring(canStop: Bool = true) {
-        let needed = window.isVisible || active != nil || query != nil
+        let needed = window.isVisible || field.ghost != nil || queries.current != nil
             || dictationController.isBusy || dictationController.isHoldArmed
         if needed || canStop { keyTap.wantsScroll = needed }
+    }
+
+    /// A scroll anywhere (`KeyTap.scrollHandler`). Momentum frames don't
+    /// reach dictation at all — a flick keeps coasting for seconds after the
+    /// finger left, and a hold started (or a transcript being finalized)
+    /// during that tail is deliberate, not a scroll gesture interrupting it.
+    func scrolled(momentum isMomentum: Bool) {
+        let dictating = dictationController.isBusy
+        if !isMomentum { dictationController.pointerInterrupted(isScroll: true) }
+        // While dictation is busy the overlay is its to keep: the live pill
+        // riding out a momentum tail, or "writing it down…" over a take the
+        // scroll left alone — `dropOverlay` would erase either one, and
+        // dictation tears down its own overlay on discard anyway.
+        // (`pointerPressed` skips it for the same reason.)
+        if !dictating { viewScrolled() }
+        // Not from inside the monitor's own handler.
+        env.hop { [weak self] in self?.updateScrollMonitoring() }
+    }
+
+    /// A mouse press anywhere (`KeyTap.mouseDownHandler`). Dictation keeps the
+    /// overlay while busy, as for a scroll — read before `pointerInterrupted()`,
+    /// which may end the capture.
+    func pointerPressed() {
+        let dictating = dictationController.isBusy
+        dictationController.pointerInterrupted()
+        dropCompletion(afterUnseenCaretMove: "mouse click", overlay: !dictating)
     }
 
     /// The overlay is placed in screen coordinates, and nothing re-places it
@@ -374,7 +259,7 @@ final class SuggestionController {
     /// — the next keystroke re-queries from the live caret. Cheap enough to sit
     /// on the scroll-event path: three flags before anything else runs.
     private func dropOverlay(why: String) {
-        guard active != nil || query != nil || window.isVisible else { return }
+        guard field.ghost != nil || queries.current != nil || window.isVisible else { return }
         lastEvent = "dismissed — \(why)"
         // Every caller of this means the caret moved out from under the
         // overlay (scroll, window move, app switch) — a protected notice is as
@@ -389,11 +274,10 @@ final class SuggestionController {
     /// the caret. Forgetting the cache and the caret is what forces that read,
     /// and keeps the thinking dots from painting at the pre-scroll spot.
     private func viewScrolled() {
-        guard replyInFlight || correctionController.inFlight else {
+        guard queries.isReply || correctionController.inFlight else {
             return dropOverlay(why: "the view scrolled")
         }
-        latestTextBeforeCaret = nil
-        lastCaretRect = nil
+        field.forgetCaret()
         window.clearNoticeProtection()
         window.hide()
     }
@@ -406,8 +290,8 @@ final class SuggestionController {
     /// before they show or apply anything, and a click while waiting for one
     /// (into the very chat box being answered) must not silently lose it.
     private func dropCompletion(afterUnseenCaretMove why: String, overlay: Bool) {
-        latestTextBeforeCaret = nil
-        guard overlay, active != nil || (query != nil && !replyInFlight) else { return }
+        field.cache = nil
+        guard overlay, field.ghost != nil || (queries.current != nil && !queries.isReply) else { return }
         lastEvent = "dismissed — \(why)"
         clearActiveCompletion()
         if window.showsSuggestion { window.hide() }
@@ -417,18 +301,8 @@ final class SuggestionController {
     /// correction preempts a suggestion.
     func clearActiveCompletion() {
         resolveJournal(.abandoned)
-        active = nil
-        cancelQuery()
-    }
-
-    private func cancelQuery() {
-        query?.task.cancel()
-        query = nil
-    }
-
-    /// A query's task is done: clear it, unless a newer query took its place.
-    private func finishQuery(_ id: Int) {
-        if query?.id == id { query = nil }
+        field.ghost = nil
+        queries.cancel()
     }
 
     var diagnostics: [String] {
@@ -440,32 +314,10 @@ final class SuggestionController {
             "Engine: \(engine.name)\(engine.statusLine.map { " — \($0)" } ?? "")",
             "Dictation: \(dictationController.statusLine)",
             "Prompt: \(lastPromptDescription?.count ?? 0) chars"
-                + (screenSummary.map { " (incl. \($0.count) screen)" } ?? ""),
+                + (promptContext.screenSummary.map { " (incl. \($0.count) screen)" } ?? ""),
             "Last: \(lastEvent)",
         ]
     }
-
-    /// The event tap fails when Accessibility was granted after launch (or to
-    /// the wrong target), and one the system disabled when the grant was
-    /// revoked stays disabled after the re-grant — so keep watching, and
-    /// rebuild it whenever it's down while trust is there.
-    private func ensureKeyTap() {
-        let rebuild = !keyTap.isActive && Permissions.isTrusted
-        if rebuild { keyTap.stop() }
-        keyTap.start()
-        if rebuild { updateScrollMonitoring() }   // `stop` dropped the scroll monitor too
-        guard keyTapWatch == nil else { return }
-        // A timer with slack, not a chain of exact 3 s wakeups: macOS folds
-        // it into wakeups it runs anyway.
-        let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.ensureKeyTap() }
-        }
-        timer.tolerance = 1.5
-        RunLoop.main.add(timer, forMode: .common)
-        keyTapWatch = timer
-    }
-
-    private var keyTapWatch: Timer?
 
     /// The field the pipeline reads and types into — nil while keyboard focus
     /// sits in another process. Launchers (Spotlight, Raycast, Alfred) take
@@ -475,30 +327,20 @@ final class SuggestionController {
     /// and ⇥ would type it into the launcher.
     func currentTextElement() -> AXUIElement? {
         guard !keyboardFocusIsElsewhere else { return nil }
-        if let element = focusTracker.focusedTextElement { return element }
-        guard let element = AXText.systemFocusedTextElement(knownEditable: fallbackSiteElement) else { return nil }
-        // The tracker missed this field, so its site was never read and a
-        // site switched off would fall through to the app check. Once per field.
-        if fallbackSiteElement != element {
-            fallbackSiteElement = element
-            fallbackSite = trackedContext.site == nil ? AXText.pageHost(for: element) : nil
+        if let element = env.trackedElement() { return element }
+        return env.systemFocusedElement(field.untracked?.element).map {
+            field.foundUntracked($0, trackerSite: focusTracker.reportedContext.site, pageHost: env.pageHost)
         }
-        return element
     }
-
-    private var fallbackSiteElement: AXUIElement?
-    private var fallbackSite: String?
 
     /// One system-wide AX read: the process that holds keyboard focus is
     /// neither the tracked app nor Pretype itself (our panels never take focus;
     /// our own windows are `isOwnUIFrontmost`'s business).
-    var keyboardFocusIsElsewhere: Bool {
-        var pid: pid_t = 0
-        guard let app = AXText.element(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute as String),
-              AXUIElementGetPid(app, &pid) == .success, pid > 0,
-              focusTracker.observedPID > 0 else { return false }
-        return pid != focusTracker.observedPID && pid != ProcessInfo.processInfo.processIdentifier
-    }
+    var keyboardFocusIsElsewhere: Bool { focusedPanelOwner != nil }
+
+    /// That process — the owner of a launcher-style panel — else nil. Kept, so
+    /// dictation judges the panel by its app without a second round trip.
+    var focusedPanelOwner: pid_t? { env.focusedPanelOwner() }
 
     /// True while one of Pretype's own windows (Settings, Debug console) is
     /// frontmost. The session-wide key tap still fires for keystrokes into our
@@ -507,199 +349,70 @@ final class SuggestionController {
     /// field. Left ungated, typing in Settings would generate a ghost for that
     /// stale background field — and Tab would inject its text into our own
     /// field. Both pipeline entry points go inert while this is true.
-    private var isOwnUIFrontmost: Bool { NSApp.isActive }
+    var isOwnUIFrontmost: Bool { env.ownUIFrontmost() }
 
-    func makeRequest(text: String, after: String = "") -> CompletionRequest {
-        var request = CompletionRequest(textBeforeCaret: text, textAfterCaret: after, appBundleID: typingContext.bundleID,
-                                        appName: typingContext.appName, site: typingContext.site)
-        if AppPolicy.allowsScreenContext(typingContext) {
-            request.screenSummary = screenSummary
-            // Same app gate as the OCR: clipboard in a terminal/code editor is
-            // usually code, which poisons a prose model. Skip once pasted —
-            // the field already contains it.
-            if Settings.clipboardContextEnabled, let clip = currentClipboardContext(),
-               !text.contains(clip) {
-                request.clipboardContext = clip
-            }
-        }
-        // Decided here, on the main thread, where NSSpellChecker is safe: lets the
-        // engine offer a space + next word right after a finished word.
-        request.endsOnCompleteWord = SpellChecker.endsOnCompleteWord(before: text, after: after)
-        request.personalExamples = personalExamples
-        return request
+    /// Why the pipeline can start nothing now — paused, our own window
+    /// frontmost, a hands-free capture listening (it owns the overlay) — or nil.
+    var busyReason: String? {
+        if !Settings.enabled { return "Pretype is paused" }
+        if isOwnUIFrontmost { return "our own window is frontmost" }
+        if dictationController.isBusy { return "dictation is listening" }
+        return nil
     }
 
-    /// Retrieve the accepted phrases most similar to what's being typed, at
-    /// most every 25 s and never on the keystroke path. The result set stays
-    /// frozen between refreshes so the instruct prompt prefix — and with it the
-    /// KV cache — survives incremental typing.
-    private func refreshPersonalExamplesIfNeeded(typed: String) {
-        guard !examplesRefreshInFlight,
-              typed.count >= 12,
-              Date().timeIntervalSince(examplesRefreshedAt) > 25 else { return }
-        examplesRefreshInFlight = true
-        let generation = focusGeneration
-        let query = String(typed.suffix(300))
-        Task.detached { [weak self] in
-            let found = SuggestionJournal.shared.similarAcceptedPhrases(to: query)
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.examplesRefreshInFlight = false
-                guard self.focusGeneration == generation else { return }
-                self.examplesRefreshedAt = Date()
-                guard found != self.personalExamples else { return }
-                self.personalExamples = found
-                self.warmPromptForCurrentText()
-                DebugLog.shared.log(
-                    "PROMPT", "personal examples: \(found.count)",
-                    detail: found.map { "…\($0.ctx) ⟶\($0.next)" }.joined(separator: "\n"))
-            }
-        }
+    /// Whether completions are wanted in the app in front at all — worth a
+    /// model reload, a capture or a prefill: not on battery with "pause on
+    /// battery" on, not where Pretype stays out, not where its suggestions
+    /// go unused (`Stats.isUnproductive`).
+    var completionsWelcome: Bool {
+        !env.pausedForBattery() && AppPolicy.allowsCompletions(typingContext)
+            && !env.isUnproductive(typingContext.bundleID)
     }
 
-    /// Clipboard text for the prompt, re-read only when the pasteboard
-    /// changes (reading a multi-MB copy per keystroke would hurt). Concealed
-    /// and transient contents — password managers mark both — are never read.
-    /// The read itself can stall (a huge or lazily-provided copy): never call
-    /// this — or `makeRequest` — inside the event-tap callback.
-    private func currentClipboardContext() -> String? {
-        let pasteboard = NSPasteboard.general
-        if pasteboard.changeCount != clipboardChangeCount {
-            clipboardChangeCount = pasteboard.changeCount
-            let concealed = pasteboard.types?.contains {
-                $0.rawValue == "org.nspasteboard.ConcealedType"
-                    || $0.rawValue == "org.nspasteboard.TransientType"
-            } ?? false
-            clipboardSnippet = concealed ? nil : pasteboard.string(forType: .string).flatMap(Self.clipboardSnippet)
-        }
-        return clipboardSnippet
-    }
+    /// The app being typed in, whose window the screen context reads.
+    var observedPID: pid_t { focusTracker.observedPID }
 
-    /// The screen block and the retrieved examples sit at the HEAD of the
-    /// prompt, so their refresh invalidates the engine's whole KV cache. Have
-    /// the engine re-read the prompt now, in the background, rather than on
-    /// the next keystroke (where a cold prefill measured ~0.45 s on E4B-8bit).
-    private func warmPromptForCurrentText(_ typed: String? = nil) {
-        guard Settings.enabled, !isOwnUIFrontmost, !dictationController.isBusy,
-              !AppPolicy.pausedForBattery, AppPolicy.allowsCompletions(typingContext),
-              !Stats.isUnproductive(typingContext.bundleID),
-              let text = typed ?? latestTextBeforeCaret,
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        engine.warmPrompt(for: makeRequest(text: text))
-    }
-
-    /// A ⌘-chord may have been a copy (⌘C/⌘X, any layout): the clipboard block
-    /// also sits at the prompt's head, so a changed clipboard is warmed the
-    /// same way as a screen refresh. The check is a counter compare; the
-    /// pasteboard is only read (by `makeRequest`) when it moved.
-    private func warmPromptIfClipboardChanges() {
-        guard Settings.clipboardContextEnabled, AppPolicy.allowsScreenContext(typingContext) else { return }
-        let before = NSPasteboard.general.changeCount
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            guard let self, NSPasteboard.general.changeCount != before else { return }
-            // A ⌘-chord drops the synchronous text cache; read the field for
-            // this warm-up only (the cache keeps its own refresh rules).
-            let text = self.latestTextBeforeCaret ?? self.currentTextElement().flatMap {
-                AXText.context(for: $0)?.textBeforeCaret
-            }
-            self.warmPromptForCurrentText(text)
-        }
-    }
+    /// The text before the caret as last known (`FieldState.cache`).
+    var knownTextBeforeCaret: String? { field.cache }
 
     /// Surfaced in the Context submenu.
-    var screenContextStatus: String {
-        guard Settings.screenContextEnabled else { return "off" }
-        guard ScreenContext.hasPermission else {
-            return "no Screen Recording permission (grant + relaunch)"
-        }
-        guard AppPolicy.allowsScreenContext(typingContext) else {
-            return "blocked in this app (terminal/code editor)"
-        }
-        if let screenSummary { return "captured \(screenSummary.count) chars" }
-        return screenCaptureInFlight ? "capturing…" : "nothing captured yet"
-    }
-
-    /// Refreshes the window OCR at most every 25 s, off the typing path.
-    /// Paused on battery: the capture only feeds completions (a reply takes
-    /// its own fresh one), and its landing would warm a prompt nobody runs.
-    private func refreshScreenContextIfNeeded(typed: String) {
-        guard Settings.enabled, Settings.screenContextEnabled, ScreenContext.hasPermission,
-              !AppPolicy.pausedForBattery, AppPolicy.allowsScreenContext(typingContext) else { return }
-        guard !screenCaptureInFlight,
-              Date().timeIntervalSince(screenCapturedAt) > 25,
-              focusTracker.observedPID > 0 else { return }
-        screenCaptureInFlight = true
-        let pid = focusTracker.observedPID
-        let generation = focusGeneration
-        let appName = typingContext.appName ?? "?"
-        let caret = self.lastCaretRect
-        Task { [weak self] in
-            let summary = await ScreenContext.capture(pid: pid, excluding: typed, caretRect: caret)
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.screenCaptureInFlight = false
-                guard self.focusGeneration == generation else {
-                    DebugLog.shared.log("OCR", "discarded stale capture of \(appName) (focus changed)")
-                    return
-                }
-                // The first capture after a focus change warms even when it
-                // found nothing: the new field's prompt is cold either way.
-                let changed = summary != self.screenSummary || self.screenCapturedAt == .distantPast
-                self.screenCapturedAt = Date()
-                self.screenSummary = summary
-                if changed { self.warmPromptForCurrentText() }
-                // Count only, never the text: the log is exportable and this is
-                // OTHER people's on-screen text. Passing it as `detail` here
-                // leaked it straight past the redaction the prompt log does
-                // below, and past the export warning's "text you typed" framing.
-                DebugLog.shared.log(
-                    "OCR",
-                    summary.map { "captured \($0.count) chars (\(appName))" } ?? "nothing usable captured (\(appName))"
-                )
-            }
-        }
-    }
+    var screenContextStatus: String { promptContext.screenStatus }
 
     /// Adopt a caret reading taken by a side flow, so the indicator and any
     /// later overlay place against the same field that flow measured.
-    func noteCaret(rect: CGRect, host: HostTextStyle) {
-        lastCaretRect = rect
-        lastHostStyle = host
-    }
+    func noteCaret(rect: CGRect, host: HostTextStyle) { field.noteCaret(rect, style: host) }
+
+    /// A side flow measured where its text is (a selection, the word at the caret).
+    func noteCaret(_ rect: CGRect) { field.noteCaret(rect) }
+
+    /// Adopt `rect` only when the caret was forgotten (`viewScrolled`).
+    func recoverCaret(_ rect: CGRect?) { field.recoverCaret(rect) }
+
+    func report(_ event: String) { lastEvent = event }
 
     // MARK: - Text changes
 
-    private func textDidChange() {
-        guard Settings.enabled else { return }
-        // The overlay belongs to the dictation pill while it listens, and an AX
-        // notification arriving mid-capture (a selection event, the injection
-        // itself) would both hide it and start generating for text the user is
-        // still speaking. The post-injection refresh re-enters here normally.
-        if dictationController.isBusy { return }
-        if isOwnUIFrontmost { dismiss(); return }
-        // Checked on both sides of the lookup: before it, the app (no AX
-        // reads in a terminal); after it, also a site that only resolving a
-        // field the tracker missed could read.
-        if !AppPolicy.allowsCompletions(typingContext) {
-            lastEvent = "suggestions are off in blacklisted apps"
-            dismiss()
+    func textDidChange() {
+        let pass = RequestGate.Pass(
+            enabled: Settings.enabled, dictating: dictationController.isBusy,
+            ownWindowFrontmost: isOwnUIFrontmost, appAllowed: AppPolicy.allowsCompletions(typingContext),
+            hasGhost: field.ghost != nil)
+        let element: AXUIElement
+        switch RequestGate.entry(pass, findField: currentTextElement,
+                                 siteBlocked: { field.untracked?.site != nil && AppPolicy.isBlacklisted(typingContext) }) {
+        case .idle:
             return
-        }
-        guard let element = currentTextElement() else {
-            if active != nil { lastEvent = "lost text element" }
-            dismiss()
-            return
-        }
-        if fallbackSite != nil, AppPolicy.isBlacklisted(typingContext) {
-            lastEvent = "suggestions are off on this site"
-            dismiss()
-            return
+        case .dismiss(let why):
+            if let why { lastEvent = why }
+            return dismiss()
+        case .read(let found):
+            element = found
         }
 
         // A selection just typed over (a selection fix) may still read as
         // selected inside the settle window — and would put its "fix" pill
         // back. Look again once the host has caught up.
-        if let deadline = injectionSettleDeadline, Date() < deadline, AXText.selectionInfo(for: element) != nil {
+        if field.isSettling(at: env.now()), env.selection(element) != nil {
             scheduleKeystrokeRefresh(after: 0.09)
             return
         }
@@ -708,50 +421,30 @@ final class SuggestionController {
         // a selection is screen output and the chord is off.
         if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleSelection(element) { return }
 
-        guard let ctx = AXText.context(for: element) else {
-            // Web and Electron apps can REPLACE the focused node with no focus
-            // notification (see `dictationFieldContext`) — typing an accept
-            // into one does it. Every read of the old handle then fails, and
-            // completions, ⌥⇥ and ⌘Z stayed off until the user left the field.
-            // The liveness probe is one more AX round trip, so not in a
-            // terminal (a shell prompt reads nil on every key) and at most once
-            // a second (a hung app would pay its timeout twice).
-            if element == focusTracker.focusedTextElement, !AppPolicy.isTerminal(typingContext.bundleID),
-               Date().timeIntervalSince(deadHandleCheckedAt) > 1 {
-                deadHandleCheckedAt = Date()
-                if AXText.isDead(element) {
-                    // Quietly swapped: the focus dedupe must see the new handle as this field.
-                    if focusTracker.relatchFocusedElement() { lastFocusedElement = focusTracker.focusedTextElement }
-                    return scheduleKeystrokeRefresh(after: 0.09)
-                }
-            }
-            if active != nil { lastEvent = "lost text element" }
+        // Web and Electron apps can REPLACE the focused node with no focus
+        // notification (see `dictationFieldContext`) — typing an accept into
+        // one does it. Every read of the old handle then fails, and
+        // completions, ⌥⇥ and ⌘Z stayed off until the user left the field.
+        // The liveness probe is one more AX round trip, so not in a terminal,
+        // where a shell prompt reads nil on every key.
+        let probe = element == env.trackedElement() && !AppPolicy.isTerminal(typingContext.bundleID)
+            ? { [env] in env.relatchIfDead(element) } : nil
+        let ctx: TextContext
+        switch field.admit(env.context(of: element), of: element, probe: probe, clock: env.now) {
+        case .taken(let read):
+            ctx = read
+        case .retry:
+            return scheduleKeystrokeRefresh(after: 0.09)
+        case .lost:
+            if field.ghost != nil { lastEvent = "lost text element" }
             dismiss()
             return
         }
         let text = ctx.textBeforeCaret
-        // While an injection settles, the synchronously-maintained cache is the
-        // authority: AX reads trail synthetic keystrokes (worst in Electron),
-        // and acting on one would regress the cache, re-query a stale prompt
-        // and re-offer — or resurrect — the just-accepted/undone text. Retry
-        // shortly; the deadline bounds the wait.
-        if let deadline = injectionSettleDeadline {
-            if Date() < deadline, let cached = latestTextBeforeCaret, cached != text {
-                scheduleKeystrokeRefresh(after: 0.09)
-                return
-            }
-            injectionSettleDeadline = nil
-        }
-        latestTextBeforeCaret = text
-        // Any edit, or a caret move, ends a ⎋ decline.
-        if let declined = declinedKey, declined.before != text || declined.after != ctx.textAfterCaret {
-            declinedKey = nil
-        }
-        contextReads &+= 1
-        lastCaretRect = ctx.caretRect
-        lastHostStyle = ctx.host
-        refreshScreenContextIfNeeded(typed: text)
-        refreshPersonalExamplesIfNeeded(typed: text)
+        reread.fieldRead()
+        field.noteCaret(ctx.caretRect, style: ctx.host)
+        promptContext.refreshScreenIfNeeded(typed: text)
+        promptContext.refreshExamplesIfNeeded(typed: text)
 
         // A reviving last-word fix preview, or an inline spell-fix on the word at
         // the caret, preempts a completion — fixing what's written matters more
@@ -759,14 +452,9 @@ final class SuggestionController {
         // to the terminal there, so a pill could be neither applied nor dismissed.
         if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleCaret(ctx) { return }
 
-        // A letter or digit right after the caret: the caret splits a word, and
-        // any completion accepted there fuses into its remainder ("hel|lo" +
-        // "p there" → "help therelo"). The gates' after-caret duplication check
-        // only catches the model re-typing that exact remainder — the general
-        // case is unsalvageable, so offer nothing at all while the user edits
-        // inside a word. (The correction flows carry this same guard.)
-        if let next = ctx.textAfterCaret.first, next.isLetter || next.isNumber {
-            if active != nil { lastEvent = "caret splits a word — no suggestion" }
+        // The correction flows carry this same guard.
+        if RequestGate.caretSplitsWord(before: ctx.textAfterCaret) {
+            if field.ghost != nil { lastEvent = "caret splits a word — no suggestion" }
             // Not dismiss(): that resets the correction controller, and a
             // last-word ⌥⇥ fix may legitimately be computing at a caret that
             // sits before a DIGIT (its own guard only excludes letters).
@@ -776,94 +464,49 @@ final class SuggestionController {
             return
         }
 
-        if var current = active {
-            switch Self.ghostUpdate(anchor: current.anchor, remaining: current.text, text: text) {
-            case .unchanged:
-                // Caret/selection event with no text change: just reposition.
-                return showSuggestion(current.text, ctx)
-            case .narrowed(let remaining):
-                // The user typed (or we injected) characters that match the
-                // suggestion: shrink it instead of re-querying the engine.
-                current.anchor = text
-                current.text = remaining
-                active = current
-                return showSuggestion(remaining, ctx)
-            case .retired(let outcome):
-                retire(outcome)
+        switch field.reconcileGhost(with: text) {
+        case .unchanged?, .narrowed?:
+            // A caret/selection event with no text change repositions it; the
+            // user typing (or us injecting) its head shrinks it instead of
+            // re-querying the engine.
+            if let ghost = field.ghost {
+                showSuggestion(ghost.text, ctx)
+                return
             }
+        case .retired(let outcome)?:
+            retire(outcome)
+        case nil:
+            break
         }
 
-        // Suggestions have been offered here dozens of times and essentially
-        // never taken: go quiet rather than keep interrupting (and stop spending
-        // the battery generating them). Deliberately after the correction pass
-        // above — the record counts completions, so a typo fix or an emoji
-        // shortcode still works in an app that is bad for completions. A ghost
-        // that is already up keeps shrinking as the user types: it was offered
-        // before the verdict landed, and yanking it mid-word helps nobody.
-        // Reversible from the status menu, which is where the numbers are shown.
-        if Stats.isUnproductive(typingContext.bundleID) {
-            lastEvent = "quiet in this app — suggestions here are almost never taken"
+        // After the correction pass above: the app's record counts
+        // completions, so a typo fix or a shortcode still works where
+        // completions don't. Reversible from the status menu.
+        if let why = RequestGate.quietReason(unproductive: env.isUnproductive(typingContext.bundleID),
+                                             onBattery: env.pausedForBattery(), declined: field.isDeclined) {
+            lastEvent = why
             return
         }
-        // Same placement for the user's battery rule: typo fixes and emoji
-        // shortcodes cost nothing, completions are the GPU bursts it's about.
-        if AppPolicy.pausedForBattery {
-            lastEvent = "paused on battery"
-            return
-        }
-        // ⎋ declined this exact field: neither the n-gram nor the model.
-        if declinedKey != nil {
-            lastEvent = "dismissed — waiting for an edit"
-            return
-        }
+        if queries.isRunning(before: text, after: ctx.textAfterCaret) { return }
 
         // Personal n-gram fast-path: a confident hit from the user's own
         // recurring phrases shows at ~0 ms, before the debounce even starts;
         // the LLM stream below then supersedes it through the same apply path.
-        if query?.kind == .completion(before: text, after: ctx.textAfterCaret) { return }
-
-        if let instant = instantSuggestion(text: text, after: ctx.textAfterCaret) {
-            apply(instant, requestText: text, cachedContext: ctx, instant: true)
+        if Settings.personalizationLevel != .off {
+            env.personalNgram.prepareIfNeeded()   // switched on since launch: builds it now
+            if let instant = RequestGate.instantSuggestion(text: text, after: ctx.textAfterCaret,
+                                                           ngram: env.personalNgram) {
+                apply(instant, requestText: text, cachedContext: ctx, instant: true)
+            }
         }
 
         scheduleRefresh(for: text, after: ctx.textAfterCaret, context: ctx)
     }
 
-    /// A conservative next-word / word-completion prediction from the personal
-    /// n-gram model. Runs synchronously on the keystroke path — pure in-memory
-    /// counts, microseconds. nil unless the user's history is emphatic.
-    private func instantSuggestion(text: String, after: String) -> String? {
-        guard Settings.personalizationLevel != .off else { return nil }
-        PersonalNgram.shared.prepareIfNeeded()
-        guard text.count >= 12 else { return nil }
-
-        let prediction: String?
-        if text.hasSuffix(" ") {
-            prediction = PersonalNgram.shared.nextWord(after: text)
-        } else if text.last?.isLetter == true {
-            let partial = SpellChecker.trailingWord(of: text)
-            if let remainder = PersonalNgram.shared.completeWord(partial: partial) {
-                prediction = remainder
-            } else if SpellChecker.endsOnCompleteWord(before: text, after: after),
-                      let word = PersonalNgram.shared.nextWord(after: text) {
-                prediction = " " + word
-            } else {
-                prediction = nil
-            }
-        } else {
-            prediction = nil
-        }
-        guard let prediction, !prediction.isEmpty else { return nil }
-        // Never re-suggest what already follows the caret.
-        let nextWord = prediction.trimmingCharacters(in: .whitespaces)
-        guard !after.trimmingCharacters(in: .whitespaces).hasPrefix(nextWord) else { return nil }
-        return prediction
-    }
-
     private func scheduleRefresh(for text: String, after: String, context: TextContext) {
-        // Nil, not just cancelled: the early returns below would otherwise
+        // Freed, not just cancelled: the early returns below would otherwise
         // leave `isCompleting` reading true over a task that will never finish.
-        cancelQuery()
+        queries.cancel()
         indicator.stop()
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             // Nothing left to complete (e.g. the user cleared the field):
@@ -886,14 +529,13 @@ final class SuggestionController {
             return
         }
 
-        let request = makeRequest(text: text, after: after)
+        let request = promptContext.makeRequest(text: text, after: after)
         let engine = engine
+        let debounce = env.debounce, clock = env.now
         indicator.start()
 
-        querySeq += 1
-        let queryID = querySeq
-        query = Query(id: queryID, kind: .completion(before: text, after: after), task: Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(Settings.debounceMs))
+        queries.start(.completion(before: text, after: after)) { queryID in Task { [weak self] in
+            await debounce()
             if Task.isCancelled { return }
             let fullPrompt = Self.loggablePrompt(request)
             DebugLog.shared.log(
@@ -904,7 +546,7 @@ final class SuggestionController {
                     + " — \(request.appName ?? "?")",
                 detail: fullPrompt
             )
-            let started = Date()
+            let started = clock()
             var shown = false
             var measured = false
             do {
@@ -918,7 +560,7 @@ final class SuggestionController {
                 for try await partial in engine.completions(for: request) {
                     guard let self, !Task.isCancelled else { return }
                     if !measured {
-                        Stats.recordLatency(Date().timeIntervalSince(started))
+                        self.env.book(.latency(clock().timeIntervalSince(started)))
                         measured = true
                     }
                     if self.apply(partial, requestText: request.textBeforeCaret,
@@ -930,7 +572,7 @@ final class SuggestionController {
                 return
             } catch {
                 guard let self, !Task.isCancelled else { return }
-                self.finishQuery(queryID)
+                self.queries.finish(queryID)
                 self.lastEvent = "engine error: \(error.localizedDescription)"
                 DebugLog.shared.log("ERROR", error.localizedDescription)
                 self.indicator.stop()
@@ -938,20 +580,20 @@ final class SuggestionController {
                 return
             }
             guard let self, !Task.isCancelled else { return }
-            self.finishQuery(queryID)
+            self.queries.finish(queryID)
             self.lastPromptRequest = request
             if shown {
-                self.lastResultDescription = self.active?.text
-            } else if self.active?.isInstant == true {
+                self.lastResultDescription = self.field.ghost?.text
+            } else if self.field.ghost?.isInstant == true {
                 // The LLM abstained but the personal n-gram suggestion is
                 // up — a confident personal phrase beats showing nothing.
-                self.lastResultDescription = self.active?.text
+                self.lastResultDescription = self.field.ghost?.text
             } else {
                 // Nothing passed the gates — hide and record the abstain.
                 self.lastResultDescription = nil
                 self.apply(nil, requestText: request.textBeforeCaret)
             }
-        })
+        } }
     }
 
     /// Render an engine result — or a streamed partial — at the caret. Returns
@@ -961,20 +603,20 @@ final class SuggestionController {
     /// `cachedContext` is the `TextContext` captured when the stream began. Streamed
     /// partials pass it so each one doesn't trigger a fresh synchronous AX read on
     /// the main thread (N reads per completion): the caret can't move without a
-    /// keystroke, and every keystroke advances or invalidates
-    /// `latestTextBeforeCaret` synchronously, so the equality gate below
-    /// catches typing mid-stream. `nil` ⇒ read AX now.
+    /// keystroke, and every keystroke advances or invalidates the cache
+    /// synchronously, so the equality gate below catches typing mid-stream.
+    /// `nil` ⇒ read AX now.
     ///
     /// `reply`: a composed reply — capped at 400 characters, not 120, reads an
     /// empty field as a real (empty) context, and is never trimmed to the line.
     @discardableResult
-    private func apply(_ result: String?, requestText: String,
-                       cachedContext: TextContext? = nil, countShown: Bool = true,
-                       instant: Bool = false, reply: Bool = false) -> Bool {
+    func apply(_ result: String?, requestText: String,
+               cachedContext: TextContext? = nil, countShown: Bool = true,
+               instant: Bool = false, reply: Bool = false) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
-        var suggestion = result.map { Self.sanitized($0, maxChars: reply ? 400 : 120) } ?? ""
-        guard !suggestion.isEmpty else {
+        let sanitized = result.map { Self.sanitized($0, maxChars: reply ? 400 : 120) } ?? ""
+        guard !sanitized.isEmpty else {
             // nil/empty is an abstain — or a mid-stream RETRACT ("" from the
             // engine when its final gate rejected what the partials already
             // showed). Close the journal record and clear the stale suggestion
@@ -983,35 +625,20 @@ final class SuggestionController {
             retire(.abandoned)
             return false
         }
-        // While an injection settles, every anchor in reach (cache or AX read)
-        // either predates or trails the synthetic keystrokes: narrowing a
-        // streamed partial against one resurrects the just-accepted word (and
-        // across a step of the AX window's start the offsets diverge outright).
-        // Drop it — the post-settle refresh re-streams from the true context,
-        // and the ghost the accept advanced stays up meanwhile.
-        if let deadline = injectionSettleDeadline, Date() < deadline {
+        // A partial dropped while an edit settles leaves the ghost the accept
+        // advanced up meanwhile (`FieldState.anchor`).
+        let ctx: TextContext, suggestion: String
+        let read = { [self] in currentTextElement().flatMap { env.context(of: $0, allowEmpty: reply) } }
+        switch field.anchor(cached: cachedContext, read: read, at: env.now()) {
+        case .context(let anchored):
+            ctx = anchored
+        case .settling:
             lastEvent = "result during injection settle; dropped"
             return false
-        }
-        let ctx: TextContext
-        // Trust the cached context only while the typed text is unchanged since
-        // the stream began (the cheap string compare avoids an AX read). If the
-        // user typed mid-stream, `latestTextBeforeCaret` has moved on — fall back
-        // to a fresh read so the partial re-anchors and shrinks correctly.
-        if let cachedContext, cachedContext.textBeforeCaret == latestTextBeforeCaret {
-            ctx = cachedContext
-        } else if let element = currentTextElement(),
-                  let fresh = AXText.context(for: element, allowEmpty: reply) {
-            // The host hasn't caught up with a key the tap already saw ("hel"
-            // read, "hell" cached): anchoring here would let ⇥ type the "l"
-            // twice. Wait for the keystroke's own refresh instead.
-            if let cached = latestTextBeforeCaret, cached.count > fresh.textBeforeCaret.count,
-               cached.hasPrefix(fresh.textBeforeCaret) {
-                lastEvent = "field read trails the last keystroke; result dropped"
-                return false
-            }
-            ctx = fresh
-        } else {
+        case .trailing:
+            lastEvent = "field read trails the last keystroke; result dropped"
+            return false
+        case .unreadable:
             // The reply path lands here whenever the field is empty and this read
             // refuses it — which was every composed reply in a web/Electron chat
             // box: generated, then dropped one line before the ghost.
@@ -1022,56 +649,33 @@ final class SuggestionController {
         }
 
         let current = ctx.textBeforeCaret
-        // The user kept typing while the engine was thinking: the result is
-        // still usable if the newly typed characters match its beginning.
-        switch Self.ghostUpdate(anchor: requestText, remaining: suggestion, text: current) {
-        case .unchanged:
-            break
-        case .narrowed(let remaining):
-            suggestion = remaining
-        case .retired(let outcome):
-            lastEvent = outcome == .abandoned ? "context changed; dropped result" : "typed past the suggestion"
+        switch RequestGate.landing(sanitized, askedOn: requestText, current: current) {
+        case .show(let landed):
+            suggestion = landed
+        case .stale(let why):
+            lastEvent = why
             window.hide()
             return false
-        }
-
-        // Normalize on the main thread (NSSpellChecker is unsafe off it): drop a
-        // stray separator the engine prepended to a word-continuation ("при " +
-        // "вет" → "привет"), then lower a wrongly capitalized mid-sentence
-        // continuation ("я хочу " + "Поехать" → "поехать").
-        suggestion = SpellChecker.strippingStraySeparator(suggestion: suggestion, before: current)
-        suggestion = Self.deduplicatingSeamSpace(suggestion, after: current)
-        suggestion = SpellChecker.decapitalizeContinuation(suggestion, before: current)
-
-        if Self.wouldGlueMidWord(current: current, suggestion: suggestion) {
-            // A mid-word suggestion that fuses a whole new word onto the partial
-            // word ("быст" + "ответ" → "быстответ"): instruct/FM models answer
-            // flush, so the gate can't catch this upstream. Drop it — showing
-            // nothing beats showing garbage.
+        case .glued:
             lastEvent = "dropped mid-word glue suggestion"
             retire(.abandoned)
             return false
         }
 
-        // Preserve the "already counted as accepted" flag across streamed growth
-        // of the same suggestion (countShown == false, no recordShown); reset it
-        // only for a genuinely fresh suggestion. Keeps accepted ≤ shown even when
-        // the user accepts word-by-word while the model is still streaming.
-        // A stream whose ghost was retired under it (a backspace, a ⌘-chord)
-        // re-showing it is a fresh offer too: with no record open it would be
-        // shown — and acceptable — with nothing booked against it.
-        let opensRecord = countShown || pendingJournal == nil
-        active = Active(anchor: current, after: ctx.textAfterCaret, text: suggestion,
-                        accepted: opensRecord ? false : (active?.accepted ?? false),
-                        trimToLine: !reply, isInstant: instant)
+        // Streamed growth of the same suggestion (countShown == false) keeps
+        // its record and its "already counted" flag. A stream whose ghost was
+        // retired under it (a backspace, a ⌘-chord) re-showing it is a fresh
+        // offer too: with no record open it would be shown — and acceptable —
+        // with nothing booked against it.
+        let opensRecord = countShown || !offer.isOpen
+        field.offer(suggestion, before: current, after: ctx.textAfterCaret,
+                    fresh: opensRecord, trimToLine: !reply, instant: instant)
         if opensRecord {
             // A fresh suggestion opens a journal record; an unresolved one at
             // this point was replaced before the user reacted to it. The offer
             // itself is booked when this record resolves — resolveJournal.
             resolveJournal(.superseded)
-            // ts, outcome, typed, shownForMs and the logprob are stamped at
-            // resolve; ctx is capped there.
-            pendingJournal = (entry: SuggestionJournal.Entry(
+            offer.open(SuggestionJournal.Entry(
                 ts: "",
                 app: typingContext.bundleID,
                 // "ngram" for the fast-path, else the engine's name — so the
@@ -1085,36 +689,34 @@ final class SuggestionController {
                 personalization: Settings.personalizationLevel.rawValue,
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 outcome: .abandoned, acceptedChars: 0, shownForMs: 0,
-                screen: screenSummary != nil
+                screen: promptContext.screenSummary != nil
                     && AppPolicy.allowsScreenContext(typingContext)),
-                shownAt: Date())
+                at: env.now())
         } else {
             // Streamed growth of the same suggestion — keep the record current.
-            let recordCtx = pendingJournal?.entry.ctx
-            pendingJournal?.entry.suggestion = Self.journalSuggestion(suggestion, current: current, recordCtx: recordCtx)
+            offer.showing(suggestion, at: current)
         }
-        showSuggestion(suggestion, ctx)
-        return true
+        return showSuggestion(suggestion, ctx)
     }
 
-    private func showSuggestion(_ text: String, _ ctx: TextContext) {
+    /// Draw `text` at the caret `ctx` read. Whether it could be.
+    @discardableResult
+    private func showSuggestion(_ text: String, _ ctx: TextContext) -> Bool {
         guard let rect = ctx.caretRect else {
             lastEvent = "no caret geometry — cannot place overlay"
             dismiss()
-            return
+            return false
         }
-        lastCaretRect = rect
+        field.noteCaret(rect)
         // The inline ghost trims the suggestion to what fits on the line, and
         // what ⇧⇥ accepts has to be exactly what the user was shown — offering
         // an ellipsized tail is offering text sight unseen. Only ever a prefix,
         // so narrowing, accepting and the journal all still line up.
         let shown = window.show(mode: .suggestion(text), at: rect, host: ctx.host,
-                                trimToLine: active?.trimToLine ?? true) ?? text
+                                trimToLine: field.ghost?.trimToLine ?? true) ?? text
         if shown != text {
-            active?.text = shown
-            let recordCtx = pendingJournal?.entry.ctx
-            pendingJournal?.entry.suggestion = Self.journalSuggestion(shown, current: ctx.textBeforeCaret,
-                                                                      recordCtx: recordCtx)
+            field.ghost?.text = shown
+            offer.showing(shown, at: ctx.textBeforeCaret)
         }
         lastEvent = "suggesting \"\(shown.prefix(40))\""
         if shown != lastLoggedSuggestion {
@@ -1125,149 +727,26 @@ final class SuggestionController {
         if !Settings.onboardingCompleted {
             onboardingWindow?.updateStatusSuggestionActive(true)
         }
+        return true
     }
 
-    // MARK: - Reply
+    // MARK: - Reply (`ReplyHost`'s side that moves pipeline state)
 
-    /// Write the user's next message for them: OCR the conversation in front of
-    /// them, ask the engine to answer it, and offer the whole thing as one ghost
-    /// the normal accept keys take (⇥ word by word, ⇧⇥ all of it, ⎋ to drop it).
-    /// Asked for by the chord, or — `auto`, with "Offer replies in chats" on —
-    /// by the caret landing in an empty message box. Nothing is typed unasked.
-    /// An automatic reply stays silent when it can't run: no hints, no
-    /// download of a fix model nobody asked for. Returns whether it started.
-    ///
-    /// It borrows `query` for the duration, so the thinking dots run, a
-    /// keystroke or a focus change cancels it, and it can't race a completion.
-    /// Never call inside the event-tap callback: it does synchronous AX reads.
-    @discardableResult
-    private func composeReply(auto: Bool = false) -> Bool {
-        // Every stop below says why, in the console and in the menu's "Last:"
-        // line: an explicitly-pressed chord that does nothing, silently, is
-        // indistinguishable from a broken build.
-        DebugLog.shared.log("REPLY", auto ? "offered — empty message box"
-            : "requested (\(Settings.replyGesture.label) / \(Settings.hotkeyStyle.replyLabel))")
-        func stop(_ why: String) -> Bool {
-            if !auto { lastEvent = "reply: \(why)" }
-            DebugLog.shared.log("REPLY", "not composing — \(why)")
-            return false
-        }
-        guard Settings.enabled else { return stop("Pretype is paused") }
-        guard !isOwnUIFrontmost else { return stop("our own window is frontmost") }
-        // A hands-free capture owns the overlay; a reply would hide its pill.
-        guard !dictationController.isBusy else { return stop("dictation is listening") }
-        // Element first: it reads the site the blacklist check needs.
-        guard let element = currentTextElement() else {
-            return stop("no text field in focus")
-        }
-        guard !AppPolicy.isBlacklisted(typingContext) else {
-            return stop("off in \(typingContext.site ?? typingContext.appName ?? "this app")")
-        }
-        // allowEmpty: an empty chat box is the case this feature exists for —
-        // the completion pipeline's "nothing to continue" is not a refusal here.
-        guard let ctx = AXText.context(for: element, allowEmpty: true),
-              let rect = ctx.caretRect else {
-            return stop("cannot read the field or place the ghost")
-        }
-        if auto {
-            guard (ctx.textBeforeCaret + ctx.textAfterCaret).allSatisfy(\.isWhitespace) else {
-                return stop("the message box isn't empty")
-            }
-            guard engine.isCorrectionReady else { return stop("the reply model isn't loaded") }
-        }
-        noteCaret(rect: rect, host: ctx.host)
-        // We just read the field — make that the cache marker, so the result
-        // lands on the cached context instead of paying for another AX read
-        // (and so an accept advances from the right place).
-        latestTextBeforeCaret = ctx.textBeforeCaret
-        // Without the screen there is nothing to reply *to*: say so at the caret
-        // instead of answering from the empty field.
-        guard Settings.screenContextEnabled, ScreenContext.hasPermission,
-              AppPolicy.allowsScreenContext(typingContext) else {
-            _ = stop("needs screen context — \(screenContextStatus)")
-            if auto { return false }
-            // Say which of the three is missing, in the words the fix is found
-            // under — "needs screen context" left the user to work out which.
-            let why = !Settings.screenContextEnabled
-                ? String(localized: "reply reads the screen — turn on “Use screen context” in Settings")
-                : !ScreenContext.hasPermission
-                    ? String(localized: "reply needs Screen Recording — allow Pretype in System Settings, then relaunch")
-                    : typingContext.appName.map { String(localized: "reply doesn't read the screen in \($0)") }
-                        ?? String(localized: "reply doesn't read the screen in this app")
-            indicator.flashTransient(.hint(why), hideAfter: 3.5)
-            return false
-        }
+    func adoptReplyField(_ context: TextContext, caret: CGRect) {
+        noteCaret(rect: caret, host: context.host)
+        field.adoptRead(context.textBeforeCaret)
+    }
+
+    func startReply(run: (_ id: Int) -> Task<Void, Never>) {
         clearActiveCompletion()
         window.hide()
         indicator.start()
-        lastEvent = "composing a reply…"
+        queries.start(.reply, run: run)
+    }
 
-        let request = makeRequest(text: ctx.textBeforeCaret, after: ctx.textAfterCaret)
-        let engine = engine
-        let pid = focusTracker.observedPID
-        let generation = focusGeneration
-        querySeq += 1
-        let queryID = querySeq
-        query = Query(id: queryID, kind: .reply, task: Task { [weak self] in
-            // A fresh, wider capture — not the 25 s-cached completion context:
-            // the message being answered may have landed a second ago. No caret
-            // ROI either: that band is ±250 pt of the input box, while a reply
-            // needs the exchange above it — the whole window, capped from the
-            // bottom, which is where the recent messages are.
-            let conversation = await ScreenContext.capture(
-                pid: pid, excluding: ctx.textBeforeCaret, caretRect: nil, maxChars: 1200)
-            if Task.isCancelled { return }
-            let outcome: Result<String?, Error>
-            if let conversation {
-                do {
-                    outcome = .success(try await engine.reply(to: conversation, request: request))
-                } catch is CancellationError {
-                    return
-                } catch {
-                    outcome = .failure(error)
-                }
-            } else {
-                outcome = .success(nil)
-            }
-            guard let self, !Task.isCancelled else { return }
-            self.finishQuery(queryID)
-            self.indicator.stop()
-            guard self.focusGeneration == generation else {
-                DebugLog.shared.log("REPLY", "dropped — focus changed")
-                return
-            }
-            // Count only, never the text: this is OTHER people's on-screen
-            // text and the log is exportable (same rule as the OCR log).
-            DebugLog.shared.log(
-                "REPLY", "\(conversation?.count ?? 0) chars of screen context")
-            switch outcome {
-            case .success(let reply?):
-                // Through the normal apply path: same anchoring, settle and
-                // journal rules as a completion — only longer, reading an
-                // empty field as a real (empty) context, and never trimmed to
-                // the line: a reply cut to its first 70 chars lost the rest.
-                let shown = self.apply(reply, requestText: ctx.textBeforeCaret,
-                                       cachedContext: ctx, reply: true)
-                DebugLog.shared.log("REPLY", shown ? "shown" : "dropped — \(self.lastEvent)")
-            case .success(nil):
-                // Two different silences: nothing readable on screen, or the
-                // model had nothing to say about it.
-                let why = conversation == nil ? "nothing to reply to" : "no answer from the model"
-                DebugLog.shared.log("REPLY", why)
-                guard !auto else { return }
-                self.lastEvent = "reply: \(why)"
-                self.indicator.flashTransient(.hint(conversation == nil
-                    ? String(localized: "nothing to reply to") : String(localized: "no answer from the model")),
-                    orAtPointer: true)
-            case .failure(let error):
-                DebugLog.shared.log("ERROR", "reply failed: \(error.localizedDescription)")
-                guard !auto else { return }
-                self.lastEvent = "reply failed: \(error.localizedDescription)"
-                self.indicator.flashTransient(Self.failureNotice(error, fallback: String(localized: "reply failed")),
-                                              orAtPointer: true)
-            }
-        })
-        return true
+    func endReply(_ id: Int) {
+        queries.finish(id)
+        indicator.stop()
     }
 
     // MARK: - Key handling
@@ -1293,6 +772,13 @@ final class SuggestionController {
         // moment later anyway, having already eaten the key. A terminal is
         // let through, as `begin` lets its agent prompt through.
         guard AppPolicy.allowsCompletions(typingContext) else { return false }
+        // The same for a panel holding the keys whose app Pretype stays out of
+        // (a password manager's quick-access panel): `begin` refuses it
+        // silently. A capture already running still stops on the chord.
+        if !dictationController.isBusy, let owner = focusedPanelOwner,
+           DictationFocus.panel(ownedBy: env.bundleIdentifier(owner), hasTextField: { true }) == .offLimits {
+            return false
+        }
         // Our own Settings window: `begin` refuses while we are frontmost, so
         // swallowing here would take a keystroke out of our own text fields to
         // do nothing with it. A launcher holding the keys is not excluded:
@@ -1302,7 +788,7 @@ final class SuggestionController {
         return !isOwnUIFrontmost
     }
 
-    private func handleKeyDown(_ event: CGEvent) -> Bool {
+    func handleKeyDown(_ event: CGEvent) -> Bool {
         guard Settings.enabled else { return false }
         if event.getIntegerValueField(.eventSourceUserData) == TextInjector.magicTag { return false }
         // A real keystroke means a held modifier is part of a chord, not a tap.
@@ -1310,7 +796,7 @@ final class SuggestionController {
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let flags = event.flags
-        if flags.contains(.maskCommand) { warmPromptIfClipboardChanges() }
+        if flags.contains(.maskCommand) { promptContext.warmIfClipboardChanges() }
 
         // Hands-free dictation, started and ended by the same chord.
         //
@@ -1321,7 +807,7 @@ final class SuggestionController {
         // reach for ⌃⌥D to carry on hands-free, and the sentence would vanish
         // with a notice blaming you for typing.
         if isLatchChord(keyCode: keyCode, flags: flags) {
-            undoable = nil
+            field.undoable = nil
             // Autorepeat is swallowed and otherwise ignored. The WindowServer
             // sends these at ~15 Hz for as long as the chord is held, and a
             // toggle apiece would tear the capture down and re-open the input
@@ -1331,7 +817,7 @@ final class SuggestionController {
             if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
                 // Off the tap before the AX reads `begin` makes, same rule as
                 // the reply chord.
-                DispatchQueue.main.async { [weak self] in self?.dictationController.toggleLatch() }
+                env.hop { [weak self] in self?.dictationController.toggleLatch() }
             }
             return true
         }
@@ -1352,151 +838,87 @@ final class SuggestionController {
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
+        // Everything else is the pipeline's: one table decides
+        // (`SuggestionController+Keys`), and this executes it.
         let keyEvent = NSEvent(cgEvent: event)
-
-        // Exact ⌘Z undoes the last accepted chunk. The cached-text check decides
-        // consume vs pass-through synchronously (no AX read inside the tap): a
-        // caret moved since the accept (mouse click) means the app's own undo is
-        // the right handler, not our backspaces. On a miss the key falls through
-        // and the bottom of this function clears `undoable`.
-        if let undo = undoable, latestTextBeforeCaret == undo.snapshot,
-           Self.isPlainCommandZ(keyCode: keyCode,
-                                key: keyEvent?.charactersIgnoringModifiers?.lowercased(),
-                                flags: flags) {
-            undoable = nil
+        let undo = field.pendingUndo
+        let key = KeyState(
+            keyCode: keyCode, flags: flags,
+            isCommandZ: Self.isPlainCommandZ(keyCode: keyCode,
+                                             key: keyEvent?.charactersIgnoringModifiers?.lowercased(),
+                                             flags: flags),
+            canUndo: undo != nil,
+            offHere: AppPolicy.isBlacklisted(typingContext) || dictationController.isBusy,
+            ghost: field.ghost, ghostOnScreen: window.showsSuggestion,
+            style: Settings.hotkeyStyle)
+        let action = Self.keyAction(for: key,
+                                    fix: { correctionController.handleKey(keyCode: keyCode, flags: flags) },
+                                    focusElsewhere: { keyboardFocusIsElsewhere })
+        switch action {
+        case .undo:
+            field.undoable = nil
             // Delete off the tap, after a live re-read: the cache trails typing
             // in Electron, and blind backspaces at a moved caret eat text.
-            DispatchQueue.main.async { [weak self] in self?.undoAccept(undo) }
+            if let undo { env.hop { [weak self] in self?.undoAccept(undo) } }
             return true
-        }
-
-        // Compose a reply from what's on screen (⌥⇧⇥). Checked before the fix
-        // flows only for symmetry — the two chords differ by ⇧ and the fix
-        // matcher demands exact flags, so neither can swallow the other. Hops
-        // off the tap: the flow does synchronous AX reads.
-        // In an app (or site) Pretype stays out of, neither chord is ours: the
-        // keystroke goes to the app, and nothing of the field reaches a model.
-        // Nor while a hands-free capture listens (typing is allowed then): the
-        // capture owns the overlay, and a reply or fix would fight its pill.
-        let offHere = AppPolicy.isBlacklisted(typingContext) || dictationController.isBusy
-        if !offHere, Settings.hotkeyStyle.matchesReply(keyCode: keyCode, flags: flags) {
-            undoable = nil
-            DispatchQueue.main.async { [weak self] in self?.composeReply() }
+        case .reply:
+            field.undoable = nil
+            env.hop { [weak self] in self?.replyComposer.compose() }
             return true
-        }
-
-        // Fix flows (⌥⇥, plus the keys that apply/dismiss a fix preview) get
-        // first refusal — a fix preview is only ever up when no completion is.
-        switch offHere ? .ignored : correctionController.handleKey(keyCode: keyCode, flags: flags) {
-        case .consumed:
-            undoable = nil
+        case .fix(let swallowed):
+            field.undoable = nil
+            return swallowed
+        case .accept(let chunk):
+            // ponytail: no IME/marked-text check on the tap. The tap only
+            // swallows while a ghost is up, and a composition kills the ghost
+            // first: the keystroke that starts it doesn't match the ghost, so
+            // `narrowActive()` drops it, and the ≤60 ms AX refresh then reads a
+            // nil context (`AXText.isComposing`) and dismisses. Ceiling: a ghost
+            // whose first character equals the keystroke that starts a
+            // composition — narrowActive keeps it — with Tab landing inside that
+            // same ≤60 ms window, where Tab accepts instead of picking a
+            // candidate. Upgrade path if that's ever seen in the wild: query
+            // `AXText.isComposing` on the focused element here too.
+            accept(chunk: chunk)
             return true
-        case .passThrough:
-            undoable = nil
+        case .decline(let before, let after):
+            // Escape still reaches the app (close a dialog, clear a field).
+            resolveJournal(.dismissed)
+            dismiss()
+            field.decline(before: before, after: after)
             return false
-        case .ignored:
-            break
+        case .type:
+            // Keep the ghost truthful before this keystroke reaches the app:
+            // the re-read below is a 60 ms *throttle*, and an accept landing
+            // inside that window would re-inject characters the OS already
+            // typed (duplicating them). Worst in Electron apps, where AX
+            // notifications are unreliable and the timer is the only update path.
+            narrowActive(typed: keyEvent?.characters ?? "", flags: flags)
+            // AX change notifications are unreliable in some apps (notably
+            // Electron), so every keystroke also schedules a context re-read.
+            reread.keyPressed()
+            scheduleKeystrokeRefresh(keystrokeFallback: true)
+            field.undoable = nil
+            return false
         }
-
-        // ponytail: no IME/marked-text check on the tap. The tap only swallows
-        // while a ghost is up, and a composition kills the ghost first: the
-        // keystroke that starts it doesn't match the ghost, so `narrowActive()`
-        // drops it, and the ≤60 ms AX refresh then reads a nil context
-        // (`AXText.isComposing`) and dismisses. Ceiling: a ghost whose first
-        // character equals the keystroke that starts a composition — narrowActive
-        // keeps it — with Tab landing inside that same ≤60 ms window, where Tab
-        // accepts instead of picking a candidate.
-        // Upgrade path if that's ever seen in the wild: query
-        // `AXText.isComposing` on the focused element here too.
-        // `showsSuggestion`, not `isVisible`: the ghost is only acceptable while
-        // it is the thing on screen. Anything else holding the window — a
-        // dictation notice, a correction pill, an engine status — means ⇥ would
-        // be inserting text the user can no longer see.
-        if let current = active, window.showsSuggestion {
-            let style = Settings.hotkeyStyle
-            // Only an accept key pays for the focus check (one AX read): a
-            // launcher holding the keys must get its ⇥, not our ghost.
-            let acceptAll = style.matchesAcceptAll(keyCode: keyCode, flags: flags)
-            let acceptWord = !acceptAll && style.matchesAcceptWord(keyCode: keyCode, flags: flags)
-            if acceptAll || acceptWord, !keyboardFocusIsElsewhere {
-                accept(chunk: acceptAll ? current.text : Self.firstWordChunk(of: current.text))
-                return true
-            }
-            if keyCode == KeyCode.escape {
-                // Drop the ghost, but let Escape still reach the app (close a
-                // dialog, clear a field) — it isn't ours to swallow.
-                resolveJournal(.dismissed)
-                dismiss()
-                declinedKey = (current.anchor, current.after)
-                undoable = nil
-                return false
-            }
-        }
-
-        // Keep `active` truthful before this keystroke reaches the app: the
-        // re-read below is a 60 ms *throttle*, and an accept landing inside
-        // that window would re-inject characters the OS already typed
-        // (duplicating them). Worst in Electron apps, where AX notifications
-        // are unreliable and the timer is the only update path.
-        narrowActive(typed: keyEvent?.characters ?? "", flags: flags)
-
-        // AX change notifications are unreliable in some apps (notably
-        // Electron), so every keystroke also schedules a context re-read.
-        axSeenSinceKey = (false, false)
-        axReadSinceKey = false
-        scheduleKeystrokeRefresh(keystrokeFallback: true)
-        undoable = nil
-        return false
     }
 
     /// Synchronously shrinks (or drops) the live suggestion to match a
     /// pass-through keystroke, using the characters `typed` carried by the
-    /// event itself — no AX round-trip, so it can't block on a hung target app.
+    /// event itself (`FieldState.keystroke`).
     private func narrowActive(typed: String, flags: CGEventFlags) {
-        // Command/control chords carry no typed text but can mutate the field
-        // arbitrarily (⌘V, ⌘X, the app's own ⌘Z): both the synchronous cache
-        // and the ghost stop being trustworthy — invalidate them and let the
-        // scheduled AX refresh re-read the truth, exactly like control input.
-        guard !flags.contains(.maskCommand), !flags.contains(.maskControl) else {
-            latestTextBeforeCaret = nil
-            if active != nil { retire(.abandoned) }
-            return
-        }
-        guard !typed.isEmpty else { return }   // dead keys, bare modifiers
-        let isControl = Self.isControlInput(typed)
-        // Keep the cache marker truthful for EVERY pass-through keystroke,
-        // ghost or not: a streamed partial landing inside the ≤60 ms refresh
-        // window anchors on this cache, and pre-keystroke text would make Tab
-        // duplicate the typed character. Control input (backspace, arrows)
-        // can't be replayed onto the cache — nil it so apply() falls back to a
-        // fresh AX read. Typed text is appended with no re-cap: the AX read
-        // window's start holds still (`AXText.windowStart`), so a fresh read is
-        // this plus what was typed — a cap counted in Characters sat at a
-        // different offset than the UTF-16 window and failed the settle/undo
-        // equality gates. Every AX read re-syncs it, so it can't grow unbounded.
-        if isControl {
-            latestTextBeforeCaret = nil
-        } else {
-            latestTextBeforeCaret? += typed
-        }
-        guard var current = active else { return }
-        // Control input can't be replayed onto the ghost either. The typed
-        // text alone, not appended to the anchor: a mark typed onto the
-        // anchor's last letter (Thai, Devanagari) merges into it, and the
-        // joined text no longer starts with the anchor.
-        let update = isControl ? .retired(.abandoned)
-            : Self.ghostUpdate(anchor: "", remaining: current.text, text: typed)
-        guard case .narrowed(let remaining) = update else {
-            if case .retired(let outcome) = update { retire(outcome) }
-            return
-        }
-        current.anchor += typed
-        current.text = remaining
-        active = current
-        // The pill re-render inside advance can flip back into a trimmed ghost
-        // — same contract as show: never accept more than is on screen.
-        if let shown = window.advance(past: typed, remaining: remaining), shown != remaining {
-            active?.text = shown
+        let chord = flags.contains(.maskCommand) || flags.contains(.maskControl)
+        switch field.keystroke(typed, chord: chord) {
+        case .narrowed(let remaining)?:
+            // The pill re-render inside advance can flip back into a trimmed
+            // ghost — same contract as show: never accept more than is on screen.
+            if let shown = window.advance(past: typed, remaining: remaining), shown != remaining {
+                field.ghost?.text = shown
+            }
+        case .retired(let outcome)?:
+            retire(outcome)
+        case .unchanged?, nil:
+            break
         }
     }
 
@@ -1512,32 +934,24 @@ final class SuggestionController {
     @discardableResult
     func inject(_ text: String, deleting deleted: String = "",
                 over before: String?) -> String? {
-        let keys = Self.keystrokes(replacing: deleted, with: text)
+        let keys = FieldState.keystrokes(replacing: deleted, with: text)
         if !keys.delete.isEmpty {
-            TextInjector.deleteBackward(over: keys.delete, perCharacter: AppPolicy.isTerminal(typingContext.bundleID))
+            // The field decides, not the app: xterm.js in VS Code or Cursor
+            // deletes a cluster per press like a terminal app does.
+            let element = env.trackedElement() ?? field.untracked?.element
+            env.deleteBackward(keys.delete, element.map(env.isTerminalField)
+                                  ?? AppPolicy.isTerminal(typingContext.bundleID))
         }
-        if !keys.type.isEmpty { TextInjector.insert(keys.type) }
-        latestTextBeforeCaret = Self.textAfterInjection(text, deleting: deleted, over: before)
-        injectionSettleDeadline = Date().addingTimeInterval(0.3)
-        return latestTextBeforeCaret
+        if !keys.type.isEmpty { env.insert(keys.type) }
+        return field.injected(text, deleting: deleted, over: before, at: env.now())
     }
 
-    /// `keystrokeFallback`: only the keystroke's own re-read, for apps whose
-    /// AX notifications don't come. It stands down when they did — both of
-    /// the edit's notifications landed and a read ran after them, so it would
-    /// repeat that read (each one a round of IPC the typed-in app's main
-    /// thread answers). A retry riding on the same timer keeps it.
+    /// `keystrokeFallback`: only the keystroke's own re-read, which stands
+    /// down when the edit's notifications brought one (`RereadSchedule`).
     func scheduleKeystrokeRefresh(after delay: TimeInterval = 0.06, keystrokeFallback: Bool = false) {
-        guard !keyRefreshScheduled else {
-            if !keystrokeFallback { keyRefreshIsFallback = false }
-            return
-        }
-        keyRefreshScheduled = true
-        keyRefreshIsFallback = keystrokeFallback
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self else { return }
-            self.keyRefreshScheduled = false
-            if self.keyRefreshIsFallback, self.axReadSinceKey { return }
+        guard reread.requestKeyReread(fallback: keystrokeFallback) else { return }
+        env.after(delay) { [weak self] in
+            guard let self, self.reread.keyRereadFired() else { return }
             self.textDidChange()
         }
     }
@@ -1546,13 +960,13 @@ final class SuggestionController {
     /// callback (synchronous AX read) and skips the deletion unless the live
     /// text still reads exactly like the post-accept snapshot — same
     /// validate-before-delete rule as `CorrectionController.inject`.
-    private func undoAccept(_ undo: Undoable) {
+    func undoAccept(_ undo: FieldState.Undoable) {
         // Fail closed: an unreadable context (active selection, hung app,
         // secure input) skips the undo rather than deleting blindly — the
         // first backspace would eat a whole selection. The chunk stays cleared,
         // so the next ⌘Z reaches the app.
         guard let element = currentTextElement(),
-              let ctx = AXText.context(for: element) else {
+              let ctx = env.context(of: element) else {
             DebugLog.shared.log("UNDO", "skipped — context unreadable")
             return
         }
@@ -1561,7 +975,7 @@ final class SuggestionController {
             // trailing the injected text (Electron): restore the state so the
             // next ⌘Z retries once AX catches up — any other keystroke still
             // clears it in handleKeyDown.
-            undoable = undo
+            field.undoable = undo
             DebugLog.shared.log("UNDO", "skipped — field no longer matches the post-accept snapshot")
             return
         }
@@ -1576,8 +990,8 @@ final class SuggestionController {
         // the ghost was offered on, and the next refresh would query the same
         // context and draw the same ghost for ⇥ to type again. Declined like
         // a ⎋ until the field changes. A spoken chunk was no ghost.
-        if !wasDictated, let before = latestTextBeforeCaret {
-            declinedKey = (before, ctx.textAfterCaret)
+        if !wasDictated, let before = field.cache {
+            field.decline(before: before, after: ctx.textAfterCaret)
         }
         // A dictated chunk is a spoken sentence: it may be named by length
         // here, never quoted — the debug buffer is exported into bug reports
@@ -1593,59 +1007,60 @@ final class SuggestionController {
         // journal is on disk, the flow promises it never records a transcript,
         // and an `.undone` row only ever acts as a negative filter against a
         // phrase this pipeline suggested — which a spoken sentence never was.
-        if Settings.suggestionJournalEnabled, !wasDictated {
-            SuggestionJournal.shared.append(SuggestionJournal.Entry(
+        if !wasDictated {
+            env.book(.undo(SuggestionJournal.Entry(
                 ts: SuggestionJournal.timestamp(),
                 app: typingContext.bundleID,
                 engine: engine.name,
-                ctx: String((latestTextBeforeCaret ?? "").suffix(1000)),
+                ctx: String((field.cache ?? "").suffix(1000)),
                 after: "",
                 suggestion: accepted,
                 outcome: .undone,
                 acceptedChars: -accepted.count,
                 shownForMs: 0,
-                screen: false))
+                screen: false)))
         }
         scheduleKeystrokeRefresh(after: 0.09)
     }
 
+    /// Type `chunk` — an accepted suggestion, or a dictation (`dictated`) —
+    /// over `before`, and arm ⌘Z to take it back. `thenReturn`: a dictation
+    /// into a chat that sends on Return; the app sends the text or opens a
+    /// line, so the text before the caret is unknown and nothing is left for ⌘Z.
+    func typeChunk(_ chunk: String, over before: String?, dictated: Bool, thenReturn: Bool = false) {
+        let snapshot = inject(chunk, over: before)
+        guard thenReturn else { return field.typed(chunk, snapshot: snapshot, dictated: dictated) }
+        env.pressReturn()
+        field.sent()
+    }
+
     private func accept(chunk: String) {
-        guard var current = active, !chunk.isEmpty else { return }
+        guard let current = field.ghost, !chunk.isEmpty else { return }
         // The cache advances in step with the injection (mirrors narrowActive
         // for user-typed keys). Until the 0.09 s AX refresh lands, a streamed
         // partial and the ⌘Z gate both read it — a stale marker re-arms the
         // just-accepted word (double insert on a second Tab) and makes an
         // immediate ⌘Z fall through to the app.
-        undoable = inject(chunk, over: latestTextBeforeCaret).map {
-            Undoable(chunk: chunk, snapshot: $0, dictated: false)
-        }
-        // Count the suggestion once even when accepted word-by-word (chars still
-        // accrue per chunk), so the menu's "accepted of shown" can't exceed 100%.
-        Stats.recordAccepted(chunk: chunk, countSuggestion: !current.accepted,
-                             app: typingContext.bundleID)
-        current.accepted = true
+        typeChunk(chunk, over: field.cache, dictated: false)
+        env.book(.accepted(chunk: chunk, countSuggestion: !current.accepted, app: typingContext.bundleID))
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
-        pendingJournal?.entry.acceptedChars += chunk.count
-        if chunk.count >= current.text.count {
-            retire(.accepted)
-            // A fully-accepted suggestion ends its stream. Otherwise a later
-            // partial re-mints `active` (with no recordShown), re-showing and
-            // re-counting a continuation at the stale caret. The 0.09s refresh
-            // below re-queries the extended context and re-streams cleanly.
-            cancelQuery()
-        } else {
-            current.anchor += chunk
-            current.text = String(current.text.dropFirst(chunk.count))
-            active = current
+        offer.accepted(chunk)
+        if let remaining = field.advanceGhost(past: chunk) {
             // Slide the remaining ghost forward in place so accepting word by
             // word stays smooth; the keystroke refresh then re-anchors it on
             // the real caret. Its pill path can flip back into a trimmed ghost
             // — narrow what ⇧⇥ accepts to what it actually rendered.
-            if let shown = window.advance(past: chunk, remaining: current.text),
-               shown != current.text {
-                active?.text = shown
+            if let shown = window.advance(past: chunk, remaining: remaining), shown != remaining {
+                field.ghost?.text = shown
             }
+        } else {
+            retire(.accepted)
+            // A fully-accepted suggestion ends its stream. Otherwise a later
+            // partial re-mints the ghost (with no recordShown), re-showing and
+            // re-counting a continuation at the stale caret. The 0.09s refresh
+            // below re-queries the extended context and re-streams cleanly.
+            queries.cancel()
         }
         if !Settings.onboardingCompleted {
             Settings.onboardingCompleted = true
@@ -1660,16 +1075,10 @@ final class SuggestionController {
 // MARK: - Focus tracking (wired to `FocusTracker`'s handlers in `init`)
 
 extension SuggestionController {
+    /// A real focus change — `FocusTracker` drops the duplicates.
     private func focusDidChange() {
-        // Apps fire the focus notification in duplicate bursts; identical
-        // context + identical element means nothing actually changed.
-        let newContext = focusTracker.typingContext
-        if newContext == trackedContext, focusTracker.focusedTextElement == lastFocusedElement { return }
-
         focusGeneration += 1
-        lastFocusedElement = focusTracker.focusedTextElement
-        lastCaretRect = nil
-        lastHostStyle = HostTextStyle()
+        field.focusMoved()
         // The overlay's remembered field style and the probe's pixel verdict
         // describe the field we just left; carried across they outrank what the
         // new field reports about itself (dark verdict from the previous app on
@@ -1677,9 +1086,6 @@ extension SuggestionController {
         // prevent).
         window.fieldChanged()
         correctionController.focusChanged()
-        trackedContext = newContext
-        fallbackSiteElement = nil
-        fallbackSite = nil
         let policy = !AppPolicy.allowsCompletions(typingContext) ? " — suggestions off (blacklisted)"
             : AppPolicy.isTerminal(typingContext.bundleID) ? " — terminal, AI agent prompts only"
             : (AppPolicy.isCodeEditor(typingContext.bundleID) ? " — code editor, no screen context" : "")
@@ -1689,19 +1095,7 @@ extension SuggestionController {
             detail: "window: \(typingContext.windowTitle ?? "—")\nfield: \(typingContext.fieldLabel ?? "—")"
         )
         // Stale window text must not leak into the new context.
-        screenSummary = nil
-        screenCapturedAt = .distantPast
-        // The cache and any live settle window are field-scoped: carried into
-        // the new app they would hold textDidChange hostage to the OLD field's
-        // text (retry loop until the deadline) and the next keystroke would be
-        // glued onto it.
-        latestTextBeforeCaret = nil
-        injectionSettleDeadline = nil
-        declinedKey = nil
-        // Examples anchored to the previous app's text go stale too; the next
-        // keystroke in the new field re-retrieves immediately.
-        personalExamples = []
-        examplesRefreshedAt = .distantPast
+        promptContext.focusChanged()
         dismiss()
         // A capture belongs to the field it started in: carried across a focus
         // change it would type a sentence meant for one app into another.
@@ -1713,34 +1107,31 @@ extension SuggestionController {
         // should still have context before the first keystroke lands.
         // Paused (or on battery), blacklisted or quiet: no reload, no
         // indicator, no screenshot.
-        if let element = focusTracker.focusedTextElement, Settings.enabled,
-           !AppPolicy.pausedForBattery, AppPolicy.allowsCompletions(typingContext),
-           !Stats.isUnproductive(typingContext.bundleID) {
+        if let element = env.trackedElement(), Settings.enabled, completionsWelcome {
             // Entered a text field — start reloading the model now (no-op unless
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
             engine.prewarmIfNeeded()
             if case .preparing = engine.state {
-                if let ctx = AXText.context(for: element) {
-                    lastCaretRect = ctx.caretRect
-                    lastHostStyle = ctx.host
+                if let ctx = env.context(of: element) {
+                    field.noteCaret(ctx.caretRect, style: ctx.host)
                     indicator.start()
                 }
             }
             let generation = focusGeneration
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            env.after(0.8) { [weak self] in
                 guard let self, self.focusGeneration == generation else { return }
                 // An empty message box in a chat: the reply's own, wider
                 // capture replaces the completion's.
-                if Settings.autoReply, AppPolicy.isChat(self.typingContext), self.composeReply(auto: true) {
+                if Settings.autoReply, AppPolicy.isChat(self.typingContext), self.replyComposer.compose(auto: true) {
                     return
                 }
-                self.refreshScreenContextIfNeeded(typed: "")
+                self.promptContext.refreshScreenIfNeeded(typed: "")
                 // No capture coming (context off, no permission, blocked app):
                 // warm the new field's prompt now — its first keystroke would
                 // otherwise prefill the whole text. A capture warms on landing.
-                if !self.screenCaptureInFlight {
-                    self.warmPromptForCurrentText(self.currentTextElement().flatMap {
-                        AXText.context(for: $0)?.textBeforeCaret
+                if !self.promptContext.screenCaptureInFlight {
+                    self.promptContext.warm(self.currentTextElement().flatMap {
+                        self.env.context(of: $0)?.textBeforeCaret
                     })
                 }
             }
@@ -1751,18 +1142,12 @@ extension SuggestionController {
     /// value) and the main queue drains between them: one short wait answers
     /// both with a single read instead of two identical ones.
     private func focusedTextDidChange(valueChanged: Bool) {
-        if valueChanged { axSeenSinceKey.value = true } else { axSeenSinceKey.selection = true }
-        guard !axRefreshScheduled else { return }
-        axRefreshScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.004) { [weak self] in
+        guard reread.notified(valueChanged: valueChanged) else { return }
+        env.after(0.004) { [weak self] in
             guard let self else { return }
-            axRefreshScheduled = false
-            let bothSeen = axSeenSinceKey.value && axSeenSinceKey.selection
-            let reads = contextReads
+            reread.notifiedReadStarts()
             textDidChange()
-            // Only a read that got the field stands in for the fallback: a
-            // timed-out one (Electron) still wants its second chance.
-            if bothSeen, contextReads != reads { axReadSinceKey = true }
+            reread.notifiedReadEnded()
         }
     }
 

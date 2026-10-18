@@ -17,7 +17,7 @@ final class TextShapingTests: XCTestCase {
     }
 
     func testKeystrokesRetypeOnlyTheTail() {
-        let keys = SuggestionController.keystrokes
+        let keys = FieldState.keystrokes
         XCTAssertTrue(keys("12*7=", "12*7=84") == ("", "84"))
         XCTAssertTrue(keys("teh", "the") == ("eh", "he"))
         XCTAssertTrue(keys(":smile:", "😄") == (":smile:", "😄"))
@@ -29,7 +29,7 @@ final class TextShapingTests: XCTestCase {
     }
 
     func testGhostUpdate() {
-        let update = SuggestionController.ghostUpdate
+        let update = FieldState.ghostUpdate
         // Typing the suggestion's head shrinks it.
         XCTAssertEqual(update("go", "ing to the store", "goi"), .narrowed("ng to the store"))
         XCTAssertEqual(update("", " привет мир", " "), .narrowed("привет мир"))
@@ -80,7 +80,7 @@ final class TextShapingTests: XCTestCase {
     // through this one rule — the settle window and the undo snapshot compare
     // against what it returns.
     func testTextAfterInjection() {
-        typealias C = SuggestionController
+        typealias C = FieldState
         XCTAssertEqual(C.textAfterInjection("lo there", deleting: "", over: "hel"), "hello there")
         XCTAssertEqual(C.textAfterInjection("hello", deleting: "helo", over: "say helo"), "say hello")
         XCTAssertEqual(C.textAfterInjection("", deleting: " there", over: "hello there"), "hello")
@@ -198,5 +198,40 @@ final class TextShapingTests: XCTestCase {
         XCTAssertEqual(seamed("yes", "", ", then"), "yes")            // punctuation hugs it
         XCTAssertEqual(seamed("(", "", "word"), "(")                  // opened a bracket
         XCTAssertEqual(seamed("世界", "", "です"), "世界")             // no space either side
+    }
+
+    // What can reach the field from an engine: one line, tabs as spaces,
+    // runs of spaces as one, no trailing space, and never past the cap.
+    @MainActor
+    func testWhatAnAnswerIsCutTo() {
+        let cut = SuggestionController.sanitized
+        XCTAssertEqual(cut("a\tb", 120), "a b")
+        XCTAssertEqual(cut("line one\nline two", 120), "line one")
+        XCTAssertEqual(cut("line one\r\nline two", 120), "line one")
+        XCTAssertEqual(cut("a   b  c", 120), "a b c")
+        XCTAssertEqual(cut("word ", 120), "word")
+        XCTAssertEqual(cut("word  ", 120), "word")
+        XCTAssertEqual(cut(" lead", 120), " lead")
+        XCTAssertEqual(cut(String(repeating: "x", count: 130), 120).count, 120)
+        XCTAssertEqual(cut(String(repeating: "x", count: 120), 120).count, 120)
+        XCTAssertEqual(cut(String(repeating: "x", count: 119) + " y", 120).count, 119, "a space left at the cut goes")
+        XCTAssertEqual(cut("\nnothing", 120), "")
+    }
+
+    // The blocks written without spaces end where they end: the first code
+    // point past each one takes the ordinary seam.
+    func testTheScriptioContinuaBlocksEdges() {
+        func seam(_ text: String) -> String { SuggestionController.spacedForInsertion(text, after: "x") }
+        XCTAssertEqual(seam("\u{3001}"), "\u{3001}", "、 opens the CJK block")
+        XCTAssertEqual(seam("\u{30FF}"), "\u{30FF}", "ヿ closes katakana")
+        XCTAssertEqual(seam("\u{3105}"), " \u{3105}", "bopomofo is past it")
+        XCTAssertEqual(seam("\u{3100}"), " \u{3100}")
+        XCTAssertEqual(seam("\u{2FFF}"), " \u{2FFF}")
+        XCTAssertEqual(seam("\u{FF00}"), "\u{FF00}", "the fullwidth block's first point")
+        XCTAssertEqual(seam("\u{FF01}"), "\u{FF01}", "！ fullwidth")
+        XCTAssertEqual(seam("\u{FF71}"), "\u{FF71}", "ｱ halfwidth katakana")
+        XCTAssertEqual(seam("\u{FFEF}"), "\u{FFEF}")
+        XCTAssertEqual(seam("\u{FFF0}"), " \u{FFF0}")
+        XCTAssertEqual(seam("\u{FEFF}a"), " \u{FEFF}a")
     }
 }
