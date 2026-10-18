@@ -500,6 +500,9 @@ extension MLXEngine {
         parameters: GenerateParameters,
         promptCache: PromptCache?,
         logProbSink: LockedValue<Double?>? = nil,
+        /// Each shown token's log-probability, in order — for tests that
+        /// compare a decode token by token.
+        tokenLogProbSink: LockedValue<[Float]>? = nil,
         trimLogProb: Float? = nil,
         /// Entropy trim (nats): see `confidenceTrimmed`. nil = off.
         trimEntropy: Float? = nil,
@@ -631,7 +634,8 @@ extension MLXEngine {
             // samples from — "the engine's confidence in what it showed".
             var processor: LogitProcessor?
             var recorder: LogProbRecorder?
-            if logProbSink != nil || trimLogProb != nil || trimEntropy != nil || gateLogProb != nil {
+            if logProbSink != nil || tokenLogProbSink != nil || trimLogProb != nil || trimEntropy != nil
+                || gateLogProb != nil {
                 let r = LogProbRecorder()
                 processor = r
                 recorder = r
@@ -776,6 +780,7 @@ extension MLXEngine {
                 let n = min(firstWord, perToken.count)
                 let firstWordSum = perToken.prefix(n).reduce(0.0) { $0 + Double($1) }
                 logProbSink?.set(n > 0 ? firstWordSum / Double(n) : nil)
+                tokenLogProbSink?.set(perToken)
                 // Confidence trim: show only the prefix before the first weak
                 // token. Display-only — the KV cache is untouched.
                 if trimLogProb != nil || trimEntropy != nil,

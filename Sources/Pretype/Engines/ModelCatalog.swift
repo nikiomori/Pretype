@@ -128,7 +128,7 @@ enum ModelCatalog {
         // restored, p<0.001) and proposes a change on a clean line far less (10
         // vs 28%, p<0.001 — the Base half's doing: the post-trained build at the
         // same 6-bit stays at 24%). No second download: fixes run on the primary
-        // (`MLXEngine.fixesOnPrimary`). An alternative, not the 8 GB default.
+        // (`ModelResidency.fixesOnPrimary`). An alternative, not the 8 GB default.
         ModelOption(
             id: "nikimori/Qwen3.5-2B-M40-6bit",
             title: String(localized: "Qwen3.5 2B M40 — one model for typing and fixes"),
@@ -189,17 +189,12 @@ enum ModelCatalog {
     }
 
     /// The tiers `defaultID(forRamGB:)` climbs, best first: the least physical
-    /// memory (GiB) each needs, and why it was picked — kept with the tier so
-    /// the RECOMMENDED tooltip never tells the wrong tier's story.
-    private static let ramLadder: [(minRam: Double, id: String, why: String)] = [
-        (27.2, "mlx-community/gemma-4-e4b-6bit",
-         String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~5 GB resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores 69% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory.")),
-        (20, "mlx-community/gemma-4-e2b-8bit",
-         String(localized: "Auto-picked for this Mac's memory (~3.4 GB resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (65% exact restores, 87% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less.")),
-        (14, "mlx-community/gemma-4-e2b-4bit",
-         String(localized: "Auto-picked for this Mac's memory (~2.5 GB resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores half of noisy lines exactly where the small models manage 11–33%.")),
-        (0, "nikimori/Qwen3.5-2B-Base-6bit",
-         String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — 1.5 GB. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (33% / 35%) through its post-trained sibling, a one-time 1.1 GB download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")),
+    /// memory (GiB) each needs. Why each was picked is `rationale(for:)`.
+    private static let ramLadder: [(minRam: Double, id: String)] = [
+        (27.2, "mlx-community/gemma-4-e4b-6bit"),
+        (20, "mlx-community/gemma-4-e2b-8bit"),
+        (14, "mlx-community/gemma-4-e2b-4bit"),
+        (0, "nikimori/Qwen3.5-2B-Base-6bit"),
     ]
 
     /// The fit rule `defaultID` sizes on, for any resident size: past about a
@@ -208,9 +203,42 @@ enum ModelCatalog {
         residentGB * 4 > ramGB
     }
 
-    /// Why the current `defaultID` was picked (see `ramLadder`).
-    static var defaultRationale: String {
-        ramLadder.first { $0.id == defaultID }?.why ?? ""
+    /// Why the current `defaultID` was picked (see `rationale(for:)`).
+    static var defaultRationale: String { rationale(for: defaultID) }
+
+    /// Why the ladder picks `id` — told per tier, so the RECOMMENDED tooltip
+    /// never tells the wrong tier's story; "" off the ladder. The figures are
+    /// the ones the rows and the rail show, read when asked: the resident size
+    /// through `HostPLE.residentGB` (on the 14–16 GB tier "Reduce memory use"
+    /// is on by default, and E2B 4-bit keeps about half its 2.5 GB), the
+    /// chords from `ModelMetrics.tasks`. The p-values stay prose: they are
+    /// verdicts, not booked figures — and a range is drawn only from rows of
+    /// one run, so it never implies a ranking the eval didn't test.
+    static func rationale(for id: String, servesTable: (String) -> Bool = { HostPLE.servesTable(of: $0) }) -> String {
+        func resident(_ id: String) -> String {
+            gbLabel(HostPLE.residentGB(ModelMetrics.metrics(for: id)?.ramGB ?? 0, of: id, servesTable: servesTable))
+        }
+        func chords(_ id: String) -> ModelMetrics.TaskMetrics? {
+            ModelMetrics.taskMetrics(for: id, style: recommended(for: id).style)?.m
+        }
+        let (gb, fix, reply) = (resident(id), chords(id)?.fixPct ?? 0, chords(id)?.replyPct ?? 0)
+        switch id {
+        case "mlx-community/gemma-4-e4b-6bit":
+            return String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~\(gb) resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores \(fix)% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory.")
+        case "mlx-community/gemma-4-e2b-8bit":
+            return String(localized: "Auto-picked for this Mac's memory (~\(gb) resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (\(fix)% exact restores, \(reply)% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less.")
+        case "mlx-community/gemma-4-e2b-4bit":
+            // On the table's own run only: M40's 41% was never tested against
+            // E2B-it's 50% (`TaskMetrics.ownRun`).
+            let small = options.filter { !$0.id.contains("gemma") }.compactMap { chords($0.id) }
+                .filter { $0.ownRun == nil }.map(\.fixPct)
+            return String(localized: "Auto-picked for this Mac's memory (~\(gb) resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores \(fix)% of noisy lines exactly where the small models manage \(small.min() ?? 0)–\(small.max() ?? 0)%.")
+        case "nikimori/Qwen3.5-2B-Base-6bit":
+            let download = gbLabel(option(for: id).flatMap { ModelMetrics.taskRamGB(for: $0.correctionModelID) } ?? 0)
+            return String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — \(gb). It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (\(fix)% / \(reply)%) through its post-trained sibling, a one-time \(download) download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")
+        default:
+            return ""
+        }
     }
 
     /// Google's multi-token-prediction drafter for a Gemma 4 instruct model

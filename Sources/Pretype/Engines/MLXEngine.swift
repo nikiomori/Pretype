@@ -18,10 +18,11 @@ import Tokenizers
 /// decided the rest would never be shown. Per-keystroke cost is a handful of
 /// decode steps instead of re-reading the whole context.
 ///
-/// The model catalog lives in `ModelCatalog.swift`; the
-/// token-iteration core, KV-cache and logit processors in
-/// `MLXEngine+Generation.swift`; the shared output/correction gates in
-/// `CompletionGates`/`CorrectionGates`.
+/// The model catalog lives in `ModelCatalog.swift`; which models are in
+/// memory, and for how long, in `ModelResidency`; the token-iteration core,
+/// KV-cache and logit processors in `MLXEngine+Generation.swift`; how a model
+/// is built and rebuilt in `MLXEngine+Loading.swift`; the shared
+/// output/correction gates in `CompletionGates`/`CorrectionGates`.
 final class MLXEngine: CompletionEngine {
     /// Pre-caret context-tail cap (chars).
     static let maxContextChars = 1000
@@ -65,111 +66,18 @@ final class MLXEngine: CompletionEngine {
     /// row, correct chars unchanged, p50 a tie in interleaved pairs
     /// (Eval/runs-2026-10-11-audit, analyze-ient.py).
     private static let trimEntropyThreshold: Float = 2.5
-    /// The PRIMARY model's state, written only by its own load and unload.
-    private let stateBox = LockedValue<EngineState>(.preparing(String(localized: "starting…")))
-    private var loadTask: Task<ModelContainer, Error>?
-    /// Instruct model for fix-selection; loaded lazily on first ⌥Tab.
-    private var correctionLoadTask: Task<ModelContainer, Error>?
-    /// The fix model's load progress while that load runs, else nil. Kept
-    /// apart from `stateBox`: the two loads overlap, and snapshotting the
-    /// primary's state to restore it afterwards put back one that had moved
-    /// on ("loading…" after the primary went ready pinned it busy for good).
-    private let correctionStatus = LockedValue<String?>(nil)
-    /// "The fix model's weights are on this machine" — see `isCorrectionReady`.
-    /// Outlives an idle unload on purpose: unloading frees memory, not disk.
-    private let correctionFetched = LockedValue(false)
 
-    /// Serializes model lifecycle (load · idle-unload · reload) across the
-    /// generation tasks, the idle timer, and the memory-pressure source.
-    private let modelLock = NSLock()
-    /// True once the initial load was started (false when Metal is missing), so
-    /// reload/prewarm only ever rebuild a model we genuinely had.
-    private var didInitLoad = false
-    /// Requests currently holding the model; the idle/pressure unload waits for 0.
-    private var inFlightCount = 0
-    /// Last time the model was used — drives the idle-unload timer.
-    private var lastActivity = Date()
-    /// The base style's fix sibling idles on its own clock: timed off
-    /// `lastActivity`, every keystroke kept gigabytes of a model last used for
-    /// one ⌥⇥ hours ago resident (E4B-it: ~4 GB). Both guarded by modelLock.
-    private var lastSiblingUse = Date()
-    private var siblingInFlight = 0
-    /// After a load failure, back off before retrying so a genuinely unavailable
-    /// model (offline, bad repo id) isn't re-attempted on every keystroke — each
-    /// retry otherwise re-hits the Hub and flips state preparing↔failed per press.
-    private static let loadRetryCooldown: TimeInterval = 30
-    /// When the last load attempt failed; nil once a load succeeds. Guarded by modelLock.
-    private var lastLoadFailure: Date?
-    private let maintenanceQueue = DispatchQueue(label: "app.pretype.mlx.maintenance")
-    private var idleTimer: DispatchSourceTimer?
-    private var memoryPressureSource: DispatchSourceMemoryPressure?
+    /// What is in memory, and for how long (see `ModelResidency`).
+    let residency: ModelResidency
 
     /// KV-cache + token snapshots reused between keystrokes (LRU; type lives in
     /// `MLXEngine+Generation.swift`).
-    private let promptCache = PromptCache()
-
-    /// MTP drafters (see `ModelCatalog.mtpDrafterID`) for the instruct primary
-    /// and for the base style's fix sibling, loaded and released with their
-    /// model; nil = plain decoding.
-    private let drafter = LockedValue<(any MTPDrafterModel)?>(nil)
-    private let correctionDrafter = LockedValue<(any MTPDrafterModel)?>(nil)
-
-    /// How to rebuild each unloaded model without the build leak, by repo —
-    /// see `keepBlueprint`. Stored as a task the moment the model is let go,
-    /// so a load right after waits for it instead of racing it. Handed to the
-    /// engine that replaces this one (see `init`).
-    private let blueprints: LockedValue<[String: Task<Blueprint?, Never>]>
-
-    /// An unloaded model's configuration, plus a placeholder for each of its
-    /// quantized layers. The tokenizer stays with `tokenizers` — held here it
-    /// could never be let go. `vlm`: the MTP-capable build (see `loadTarget`).
-    /// `husk`: the model itself, emptied, with its arrays, when it has
-    /// compiled traces (see `husk(of:)`).
-    struct Blueprint: @unchecked Sendable {
-        let configuration: ModelConfiguration
-        let tokenizerDirectory: URL
-        let layers: [(path: String, placeholder: () -> Module)]
-        let vlm: Bool
-        let husk: Husk?
-    }
-
-    typealias Husk = (model: any LanguageModel, arrays: [(path: String, array: MLXArray)])
-
-    /// Pretype feeds models token arrays it builds itself, never a
-    /// `UserInput`: a rebuilt context needs no input processor — and the
-    /// factory's holds the tokenizer, which `tokenizers` must be able to drop.
-    private struct UnusedInputProcessor: UserInputProcessor {
-        func prepare(input: UserInput) async throws -> LMInput { throw EngineNotReady() }
-    }
-
-    /// Parsed tokenizers, kept across idle unloads. Parsing tokenizer.json is
-    /// most of a reload — Gemma 1.45 s of ~1.9 s, the weights loading in
-    /// parallel finish first — for ~120 MB resident (Qwen3.5 ~86 MB) against
-    /// the gigabytes the unload frees. Handed to the engine that replaces
-    /// this one for the models they share, else dropped with it; dropped too
-    /// when memory pressure forces the unload.
-    private let tokenizers: TokenizerCache
+    let promptCache = PromptCache()
 
     /// The fix model's progress while it loads, else the primary's state.
-    var state: EngineState { correctionStatus.get().map(EngineState.preparing) ?? stateBox.get() }
+    var state: EngineState { residency.state }
 
-    var isLoading: Bool {
-        modelLock.withLock {
-            Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
-                           correctionStatus: correctionStatus.get())
-        }
-    }
-
-    /// `.preparing` with a live task = loading or downloading; `.preparing`
-    /// with no task = the idle-unloaded resting state, where nothing runs and
-    /// nothing writes — the protocol's default (any `.preparing` is busy)
-    /// would report the app's most common state as busy forever. A finished
-    /// fix model doesn't count: its task outlives its load.
-    static func isLoading(primary: EngineState, primaryTaskLive: Bool, correctionStatus: String?) -> Bool {
-        if correctionStatus != nil { return true }
-        guard case .preparing = primary else { return false }
-        return primaryTaskLive
-    }
+    var isLoading: Bool { residency.isLoading }
 
     /// The RESOLVED primary model (instruct sibling in instruct style) — what
     /// the journal must stamp. `modelID` is already post-resolution here (see
@@ -196,9 +104,11 @@ final class MLXEngine: CompletionEngine {
 
     /// `previous`: the engine this one replaces, already shut down — its
     /// blueprints and tokenizers carry over (see `EngineCoordinator.rebuild`).
-    init(modelID: String, after previous: MLXEngine? = nil) {
-        blueprints = previous?.blueprints ?? LockedValue([:])
-        tokenizers = previous?.tokenizers ?? TokenizerCache()
+    /// `load` and `shadersPresent` are seams for tests: a tiny model's
+    /// loader, and whether MLX's Metal shaders are here.
+    init(modelID: String, after previous: MLXEngine? = nil,
+         load: @escaping ModelResidency.Loader = ModelResidency.loadFromDisk,
+         shadersPresent: Bool = MLXEngine.metalShadersPresent) {
         let baseOption = ModelCatalog.option(for: modelID)
         let config = CompletionConfig.resolved()
         self.style = config.style
@@ -241,21 +151,16 @@ final class MLXEngine: CompletionEngine {
                 ?? baseOption?.instructModelID ?? modelID
         }
         self.modelID = primaryID
-        // A settings change rebuilt the engine (`previous`): models it shares
-        // with the old one reload without the build leak or a tokenizer parse;
-        // the rest go.
-        let repos: Set<String> = [ModelCatalog.repo(for: primaryID), ModelCatalog.repo(for: correctionModelID)]
-        blueprints.mutate { kept in kept = kept.filter { repos.contains($0.key) } }
-        let folders = repos.compactMap { ModelStorage.cacheDirectory(repo: $0).map { $0.path + "/" } }
-        tokenizers.retain { directory in folders.contains { directory.path.hasPrefix($0) } }
+        residency = ModelResidency(primaryID: primaryID, style: config.style, promptCache: promptCache,
+                                   after: previous?.residency, load: load)
         // Once per engine, not per keystroke: the reason never changes while
         // it lives, and logged inline it filled the 400-entry ring.
         if config.style == .instruct, !Self.isFIMCapable(primaryID) {
             DebugLog.shared.log("GATE", "fill-in-the-middle off — \(primaryID) is not E4B-class (unreliable here)")
         }
 
-        guard Self.metalShadersPresent else {
-            stateBox.set(.failed(String(localized: "Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh")))
+        guard shadersPresent else {
+            residency.fail(String(localized: "Metal shaders missing — build with Scripts/make-app.sh or run Scripts/dev.sh"))
             return
         }
         // MLX's freed-buffer pool fills to whatever cap it gets: 512 MB sat
@@ -263,16 +168,16 @@ final class MLXEngine: CompletionEngine {
         // per-keystroke latency on E4B-8bit and E2B-4bit (16 MB starts to
         // show in p90). ~450 MB back for the rest of the Mac.
         Memory.cacheLimit = 64 * 1024 * 1024
-        loadTask = makeLoadTask()
-        didInitLoad = true
-        startIdleMaintenance()
+        residency.start()
     }
 
-    /// MLX needs its compiled Metal shaders at runtime. `swift build` cannot
-    /// produce them (xcodebuild only), so a plain SwiftPM dev binary would
-    /// crash deep in C++ on first use — detect the situation up front.
+    /// MLX needs its compiled Metal shaders at runtime: `default.metallib`,
+    /// which `swift build` and xcodebuild both put in
+    /// `mlx-swift_Cmlx.bundle` — when the toolchain has the Metal component
+    /// (`xcodebuild -downloadComponent MetalToolchain`). Built without it, a
+    /// binary would crash deep in C++ on first use; detect that up front.
     /// Mirrors the lookup order in mlx's device.cpp.
-    private static var metalShadersPresent: Bool {
+    static var metalShadersPresent: Bool {
         let fm = FileManager.default
         let executableDir = Bundle.main.executableURL?.deletingLastPathComponent()
         let candidates: [URL?] = [
@@ -284,427 +189,14 @@ final class MLXEngine: CompletionEngine {
         return candidates.compactMap { $0 }.contains { fm.fileExists(atPath: $0.path) }
     }
 
-    // MARK: - Model lifecycle (load · idle-unload · reload)
-
-    private func makeLoadTask() -> Task<ModelContainer, Error> {
-        let stateBox = self.stateBox
-        let id = self.modelID
-        let tokenizers = self.tokenizers
-        let blueprints = self.blueprints
-        let drafterBox = self.drafter
-        let drafterID = style == .instruct ? ModelCatalog.mtpDrafterID(for: id) : nil
-        stateBox.set(.preparing(String(localized: "loading…")))
-        return Task { [weak self] in
-            // Resolved once, so the load report names the build that loaded.
-            let repo = ModelCatalog.repo(for: id)
-            do {
-                let loaded = try await Self.loadTarget(
-                    repo: repo, drafterID: drafterID, into: drafterBox,
-                    tokenizers: tokenizers, blueprints: blueprints,
-                    progressHandler: { progress in stateBox.set(.preparing(Self.downloadStatus(progress))) })
-                await HostPLE.install(in: loaded, repo: repo)
-                ModelStorage.noteLoad(repo: repo, succeeded: true)
-                // Retired mid-load (a model switch, `shutdown`): don't warm up
-                // weights nobody will use next to the replacement's.
-                try Task.checkCancellation()
-                // The first generation pays for Metal kernel compilation; do it
-                // now so the first real keystroke doesn't. The prompt is long
-                // enough to take the split-prefill path too — a 2-token warm-up
-                // left those kernels to the first keystroke (up to +120 ms on a
-                // cold Metal shader cache, measured).
-                // A warm-up failure shouldn't block readiness (the next real
-                // request surfaces it), but it must not be swallowed silently.
-                // Reloads after an idle unload warm up too: kernels survive the
-                // unload, but the fresh weights and buffer pool don't — skipping
-                // it moved +30–140 ms onto the first keystroke (measured).
-                stateBox.set(.preparing(String(localized: "warming up…")))
-                do {
-                    _ = try await Self.generate(
-                        in: loaded, makeTokens: { $0.tokenizer.encode(text: Self.warmUpPrompt) },
-                        parameters: GenerateParameters(maxTokens: 3, temperature: 0.0),
-                        promptCache: nil
-                    )
-                } catch {
-                    DebugLog.shared.log("ERROR", "warm-up generation failed: \(error.localizedDescription)")
-                }
-                try Task.checkCancellation()
-                stateBox.set(.ready)
-                if let self { self.modelLock.withLock { self.lastLoadFailure = nil } }
-                return loaded
-            } catch {
-                if !(error is CancellationError) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
-                stateBox.set(.failed(error.localizedDescription))
-                if let self {
-                    self.modelLock.withLock {
-                        self.loadTask = nil
-                        self.lastLoadFailure = Date()
-                    }
-                }
-                throw error
-            }
-        }
-    }
-
-    private static let warmUpPrompt = String(repeating: "The weekly update covers hiring, the roadmap and next steps. ", count: 7)
-
-    /// Frees the weights of a multimodal build's vision/audio towers: the
-    /// engine only ever sends text (−320 MB on E2B-it).
-    private static func dropUnusedTowers(_ container: ModelContainer) async {
-        await container.perform { (context: ModelContext) in
-            let towers = context.model.parameters().flattened().filter { key, _ in
-                ["vision_tower", "audio_tower", "embed_vision", "embed_audio"].contains { key.hasPrefix($0) }
-            }
-            guard !towers.isEmpty else { return }
-            // Lazy zeros of the real shape: never evaluated, so never
-            // allocated, and the model's blueprint keeps the true shapes.
-            let empty = Dictionary(uniqueKeysWithValues: towers.map {
-                ($0.0, MLXArray.zeros($0.1.shape, dtype: $0.1.dtype))
-            })
-            try? context.model.update(parameters: ModuleParameters.unflattened(empty), verify: [.none])
-        }
-        Memory.clearCache()
-    }
-
-    /// Drafters whose background fetch already ran this launch. An idle-unload
-    /// reload retried it every time — offline, a failure per reload; on a slow
-    /// line, a second 150 MB fetch overlapping the first.
-    private static let drafterFetches = LockedValue<Set<String>>([])
-    /// Drafters on disk that failed to load this launch. Without the memo every
-    /// idle reload paid two loads (the VLM build, then the plain fallback) and
-    /// never matched a blueprint again.
-    private static let brokenDrafters = LockedValue<Set<String>>([])
-
-    /// Loads `repo` — from its downloaded snapshot (no network round trip, see
-    /// `ModelStorage.localSnapshot`), else from the Hub at the pinned revision —
-    /// with its MTP drafter into `drafterBox` when `drafterID` names one that
-    /// is already on disk. A missing drafter downloads in the background for
-    /// the next load — 150 MB must not hold up this one — once per launch. It
-    /// is part of the model the user already chose (listed and deleted with
-    /// it, see `ModelStorage.repos`), so it rides that consent.
-    private static func loadTarget(
-        repo: String, drafterID: String?,
-        into drafterBox: LockedValue<(any MTPDrafterModel)?>, tokenizers: TokenizerCache,
-        blueprints: LockedValue<[String: Task<Blueprint?, Never>]>,
-        progressHandler: @escaping @Sendable (Progress) -> Void
-    ) async throws -> ModelContainer {
-        // The same bytes a background fetch is already bringing in.
-        await ModelStorage.waitForQuietFetch(repo: repo)
-        try Task.checkCancellation()
-        let snapshot = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
-        let configuration = snapshot.map { ModelConfiguration(directory: $0) }
-            ?? ModelConfiguration(id: repo, revision: ModelCatalog.revision(for: repo))
-        drafterBox.set(nil)
-        let drafterID = drafterID.flatMap { brokenDrafters.get().contains($0) ? nil : $0 }
-        let drafterDirectory = drafterID.flatMap(ModelStorage.localSnapshot(for:))
-        if let blueprint = await blueprints.mutate({ $0.removeValue(forKey: repo) })?.value,
-           blueprint.vlm == (drafterDirectory != nil), let directory = snapshot,
-           // Drawn from this snapshot: an upgrade since gets a fresh load.
-           case .directory(directory) = blueprint.configuration.id {
-            do {
-                let container = try await rebuild(blueprint, from: directory, tokenizers: tokenizers)
-                if let drafterDirectory {
-                    await dropUnusedTowers(container)
-                    drafterBox.set(try await loadDrafter(at: drafterDirectory))
-                }
-                return container
-            } catch {
-                drafterBox.set(nil)
-                if error is CancellationError { throw error }
-                DebugLog.shared.log("MLX", "rebuild from the blueprint failed (\(error.localizedDescription)) — loading afresh")
-            }
-        }
-        if let drafterID {
-            if let local = drafterDirectory {
-                // MTP needs the target's last hidden state, which only the VLM
-                // build of Gemma 4 emits; its unused vision tower is freed right
-                // after, so the drafter is the whole extra cost.
-                do {
-                    let vlm = try await withRandomState(MLXRandom.RandomState(seed: 0)) {
-                        try await VLMModelFactory.shared.loadContainer(
-                            from: #hubDownloader(), using: tokenizers,
-                            configuration: configuration, progressHandler: progressHandler)
-                    }
-                    await dropUnusedTowers(vlm)
-                    do {
-                        drafterBox.set(try await loadDrafter(at: local))
-                    } catch {
-                        // The drafter itself, not the target's load (a dropped
-                        // download, memory): only that is worth remembering.
-                        if !(error is CancellationError) { brokenDrafters.mutate { _ = $0.insert(drafterID) } }
-                        throw error
-                    }
-                    return vlm
-                } catch {
-                    drafterBox.set(nil)
-                    // Cancelled is not "no drafter": falling through would start
-                    // a second, plain load for an engine already retired.
-                    if error is CancellationError { throw error }
-                    DebugLog.shared.log("MLX", "MTP drafter unavailable (\(error.localizedDescription)) — plain decoding")
-                }
-            } else if drafterFetches.mutate({ $0.insert(drafterID).inserted }) {
-                Task.detached(priority: .utility) {
-                    do {
-                        _ = try await #hubDownloader().download(
-                            id: drafterID, revision: ModelCatalog.revision(for: drafterID),
-                            matching: ["*.safetensors", "*.json"],
-                            useLatest: false, progressHandler: { _ in })
-                    } catch {
-                        DebugLog.shared.log("MLX", "MTP drafter download failed: \(error.localizedDescription)")
-                    }
-                }
-            }
-        }
-        // LLMModelFactory, not loadModelContainer: with MLXVLM linked the generic
-        // loader picks the VLM classes first (Qwen3.5's lacks the raw-token call
-        // the decode loop uses). A scoped random state: building a model draws
-        // placeholder weights for every layer, and from the global state each
-        // draw grew a lazy key chain that state holds for the app's life.
-        return try await withRandomState(MLXRandom.RandomState(seed: 0)) {
-            try await LLMModelFactory.shared.loadContainer(
-                from: #hubDownloader(), using: tokenizers,
-                configuration: configuration, progressHandler: progressHandler)
-        }
-    }
-
-    /// Builds the model again from `blueprint`: a fresh instance with every
-    /// quantized layer already in place as a lazy-zero placeholder, so
-    /// `loadWeights` finds nothing to quantize and only replaces placeholders.
-    private static func rebuild(_ blueprint: Blueprint, from directory: URL,
-                                tokenizers: TokenizerCache) async throws -> ModelContainer {
-        // A cache hit, unless memory pressure let it go: then parsed alongside
-        // the weights, as the factory does.
-        async let tokenizer = tokenizers.load(from: blueprint.tokenizerDirectory)
-        let configData = try Data(contentsOf: directory.appendingPathComponent("config.json"))
-        let decoder = JSONDecoder()
-        decoder.allowsJSON5 = true
-        let base = try decoder.decode(BaseConfiguration.self, from: configData)
-        let registry = blueprint.vlm ? VLMModelFactory.shared.typeRegistry : LLMModelFactory.shared.typeRegistry
-        let model = try await withRandomState(MLXRandom.RandomState(seed: 0)) {
-            try await registry.createModel(configuration: configData, modelType: base.modelType)
-        }
-        try model.update(modules: ModuleChildren.unflattened(blueprint.layers.map { ($0.path, $0.placeholder()) }),
-                         verify: [.none])
-        try await loadWeights(modelDirectory: directory, model: model,
-                              perLayerQuantization: base.perLayerQuantization)
-        let served = blueprint.husk.flatMap { adopt(model, into: $0) } ?? model
-        return ModelContainer(context: ModelContext(
-            configuration: blueprint.configuration, model: served,
-            processor: UnusedInputProcessor(), tokenizer: try await tokenizer))
-    }
-
-    /// A model with compiled traces (Qwen3.5), emptied to be kept: every array
-    /// it holds becomes lazy zeros, so the weights go and the traces stay. A
-    /// rebuilt model brings new traces, and erasing the old ones leaks their
-    /// tapes in the bundled MLX: ~22 MB per Qwen3.5 2B reload (measured; MLX
-    /// #4453 and #4440 don't fix it). nil without traces: the blueprint alone
-    /// rebuilds such a model leak-free.
-    /// ponytail: delete once the bundled MLX frees an erased tape.
-    private static func husk(of model: any LanguageModel) -> Husk? {
-        let (arrays, traced) = arrays(of: model)
-        guard traced else { return nil }
-        for (_, array) in arrays { array._updateInternal(MLXArray.zeros(array.shape, dtype: array.dtype)) }
-        return (model, arrays)
-    }
-
-    /// `husk` with `fresh`'s arrays written into its own, the ones its traces
-    /// read — or nil when the two don't line up: then `fresh` serves, and the
-    /// husk's traces leak once.
-    private static func adopt(_ fresh: any LanguageModel, into husk: Husk) -> (any LanguageModel)? {
-        let new = arrays(of: fresh).arrays, old = husk.arrays
-        guard new.count == old.count, zip(new, old).allSatisfy({
-            $0.path == $1.path && $0.array.shape == $1.array.shape && $0.array.dtype == $1.array.dtype
-        }) else {
-            DebugLog.shared.log("MLX", "kept model doesn't match its rebuild — serving the rebuild")
-            return nil
-        }
-        for (new, old) in zip(new, old) { old.array._updateInternal(new.array) }
-        return husk.model
-    }
-
-    /// Every array `model` holds, by its path through the object graph, and
-    /// whether that graph holds a compiled trace. Reflection, not
-    /// `parameters()`: derived state such as a fused projection is no
-    /// registered parameter, and it is found without naming library internals.
-    private static func arrays(of model: any LanguageModel) -> (arrays: [(path: String, array: MLXArray)], traced: Bool) {
-        var found: [(path: String, array: MLXArray)] = []
-        var traced = false
-        var seen = Set<ObjectIdentifier>()
-        func walk(_ value: Any, _ path: String) {
-            if let array = value as? MLXArray {
-                if seen.insert(ObjectIdentifier(array)).inserted { found.append((path, array)) }
-                return
-            }
-            if value is CompiledTraceInvalidating { traced = true }
-            let mirror = Mirror(reflecting: value)
-            switch mirror.displayStyle {
-            case .class:
-                guard seen.insert(ObjectIdentifier(value as AnyObject)).inserted else { return }
-            case .dictionary:
-                // Sorted: a dictionary's order differs between two equal ones.
-                let entries = mirror.children.map { Array(Mirror(reflecting: $0.value).children) }
-                for entry in entries.sorted(by: { "\($0[0].value)" < "\($1[0].value)" }) {
-                    walk(entry[1].value, "\(path)[\(entry[0].value)]")
-                }
-                return
-            default:
-                break
-            }
-            var level: Mirror? = mirror
-            while let current = level {
-                for (index, child) in current.children.enumerated() {
-                    walk(child.value, "\(path).\(child.label ?? String(index))")
-                }
-                level = current.superclassMirror
-            }
-        }
-        walk(model, "")
-        return (found, traced)
-    }
-
-    /// Records how to rebuild an unloaded model (see `Blueprint`), so the next
-    /// load doesn't leak. A build leaked ~5 MB (E4B) to ~20 MB (Qwen3.5 2B)
-    /// for good, and idle unloads made one of every return to the keyboard:
-    /// the bundled MLX predates the fix for sibling arrays released by
-    /// assignment (ml-explore/mlx#4453), and `loadWeights` quantizes each
-    /// layer's placeholder weights into such sibling triples that the loaded
-    /// weights then replace by assignment. Placeholders made here have no
-    /// siblings.
-    /// ponytail: delete once mlx-swift bundles an MLX with #4453 (0.32.3 doesn't).
-    private func keepBlueprint(_ task: Task<ModelContainer, Error>?, repo: String, vlm: Bool) {
-        guard let task else { return }
-        let blueprints = self.blueprints
-        // The sole owner of the old model now (the engine dropped its task):
-        // let go of it before clearing the buffer pool, or its freed weights
-        // fill the pool the unload just emptied and sit there all idle.
-        let owner = LockedValue<Task<ModelContainer, Error>?>(task)
-        blueprints.mutate { $0[repo] = Task.detached(priority: .userInitiated) {
-            let blueprint: Blueprint? = await {
-                guard let container = try? await owner.exchange(nil)?.value,
-                      let tokenizerDirectory = try? await container.tokenizerDirectory else { return nil }
-                return await container.perform { context in
-                    let layers = context.model.leafModules().flattened().compactMap(Self.placeholder)
-                    return Blueprint(configuration: context.configuration, tokenizerDirectory: tokenizerDirectory,
-                                     layers: layers, vlm: vlm, husk: Self.husk(of: context.model))
-                }
-            }()
-            Memory.clearCache()
-            return blueprint
-        } }
-    }
-
-    /// A lazy-zero stand-in for a loaded quantized layer, same shapes and
-    /// settings — what `quantize` would have built, minus the siblings. Only
-    /// shapes are captured: an array captured here would keep its weights.
-    private static func placeholder(_ path: String, _ module: Module) -> (path: String, placeholder: () -> Module)? {
-        typealias Spec = (shape: [Int], dtype: DType)
-        func spec(_ array: MLXArray) -> Spec { (array.shape, array.dtype) }
-        func zeros(_ spec: Spec) -> MLXArray { MLXArray.zeros(spec.shape, dtype: spec.dtype) }
-        // Exact classes: a subclass (QLoRA, a rotated or sharded layer) is no
-        // plain layer to stand in for.
-        if type(of: module) == QuantizedLinear.self, let layer = module as? QuantizedLinear, layer.globalScale == nil {
-            let (weight, scales) = (spec(layer.weight), spec(layer.scales))
-            let (bias, biases) = (layer.bias.map(spec), layer.biases.map(spec))
-            let (groupSize, bits, mode) = (layer.groupSize, layer.bits, layer.mode)
-            return (path, {
-                QuantizedLinear(weight: zeros(weight), bias: bias.map(zeros), scales: zeros(scales),
-                                biases: biases.map(zeros), groupSize: groupSize, bits: bits, mode: mode)
-            })
-        }
-        // Served from the file, but the rebuild loads it as the table it was.
-        if let host = module as? HostPLE {
-            let (tensors, groupSize, bits, mode) = (host.tensors.map { ($0.shape, $0.dtype) }, host.groupSize, host.bits, host.mode)
-            return (path, {
-                QuantizedEmbedding(weight: zeros(tensors[0]), scales: zeros(tensors[1]), biases: zeros(tensors[2]),
-                                   groupSize: groupSize, bits: bits, mode: mode)
-            })
-        }
-        if type(of: module) == QuantizedEmbedding.self, let layer = module as? QuantizedEmbedding, layer.globalScale == nil {
-            let (weight, scales, biases) = (spec(layer.weight), spec(layer.scales), layer.biases.map(spec))
-            let (groupSize, bits, mode) = (layer.groupSize, layer.bits, layer.mode)
-            return (path, {
-                QuantizedEmbedding(weight: zeros(weight), scales: zeros(scales), biases: biases.map(zeros),
-                                   groupSize: groupSize, bits: bits, mode: mode)
-            })
-        }
-        return nil
-    }
-
-    private static func loadDrafter(at directory: URL) async throws -> any MTPDrafterModel {
-        let config = try JSONDecoder().decode(
-            Gemma4AssistantConfiguration.self,
-            from: Data(contentsOf: directory.appendingPathComponent("config.json")))
-        // Scoped random state, as for the target's build (see `loadTarget`).
-        let model = withRandomState(MLXRandom.RandomState(seed: 0)) { Gemma4AssistantDraftModel(config) }
-        try await loadWeights(modelDirectory: directory, model: model)
-        return model
-    }
-
-    /// Marks a request in-flight and returns the model-load task, reloading it if
-    /// it was idle-unloaded. Returns nil when the engine never initialized (e.g.
-    /// Metal missing) or is in its post-failure cooldown — callers then abstain.
-    /// Pair with `endRequest()`.
-    func beginRequest() -> Task<ModelContainer, Error>? {
-        modelLock.withLock {
-            guard didInitLoad else { return nil }
-            if loadTask == nil {
-                // Back off after a failure: don't recreate the load task (and re-hit
-                // the Hub) until the cooldown passes, so an unavailable model isn't
-                // retried on every keystroke. Abstain meanwhile without leaking the
-                // in-flight count.
-                if let failedAt = lastLoadFailure, Date().timeIntervalSince(failedAt) < Self.loadRetryCooldown {
-                    return nil
-                }
-                DebugLog.shared.log("MLX", "loading model (idle-unloaded or retry after failure)")
-                loadTask = makeLoadTask()
-            }
-            inFlightCount += 1
-            lastActivity = Date()
-            return loadTask
-        }
-    }
-
-    /// `beginRequest` for work that runs on the fix sibling only (base style's
-    /// fix and reply): holds off the idle unload without reloading — or, in its
-    /// failure cooldown, refusing on behalf of — the completion model, which
-    /// this request never touches. Returns the sibling's load task, started if
-    /// needed. Pair with `endRequest(sibling: true)`.
-    private func beginSiblingRequest() -> Task<ModelContainer, Error>? {
-        let started = modelLock.withLock {
-            guard didInitLoad else { return false }
-            inFlightCount += 1
-            siblingInFlight += 1
-            lastActivity = Date()
-            lastSiblingUse = lastActivity
-            return true
-        }
-        return started ? correctionLoadTaskOrCreate() : nil
-    }
-
-    func endRequest(sibling: Bool = false) {
-        modelLock.withLock {
-            inFlightCount = max(0, inFlightCount - 1)
-            lastActivity = Date()
-            if sibling {
-                siblingInFlight = max(0, siblingInFlight - 1)
-                lastSiblingUse = lastActivity
-            }
-        }
-    }
+    // MARK: - Model lifecycle (see `ModelResidency`)
 
     /// Starts a background reload if the model was idle-unloaded, so a focus
     /// change or first keystroke hides the reload latency. Cheap no-op (lock +
     /// nil check) when the model is already loaded or loading.
-    func prewarmIfNeeded() {
-        modelLock.withLock {
-            guard didInitLoad, loadTask == nil else { return }
-            // Same failure backoff as beginRequest — a focus change shouldn't retry a
-            // model that just failed to load.
-            if let failedAt = lastLoadFailure, Date().timeIntervalSince(failedAt) < Self.loadRetryCooldown { return }
-            DebugLog.shared.log("MLX", "prewarming model after idle")
-            lastActivity = Date()
-            loadTask = makeLoadTask()
-        }
-    }
+    func prewarmIfNeeded() { residency.prewarm(.completion) }
+
+    func prewarmCorrection() { residency.prewarm(.fix) }
 
     /// Prefills `request`'s prompt into the KV cache without decoding. The
     /// context blocks at the head of the prompt (window OCR, retrieved
@@ -715,136 +207,20 @@ final class MLXEngine: CompletionEngine {
     /// with the model resident or already loading (it then prefills once the
     /// load lands) — a context refresh is no reason to start a load.
     func warmPrompt(for request: CompletionRequest) {
-        guard modelLock.withLock({ loadTask != nil }) else { return }
+        guard residency.primaryLoadedOrLoading else { return }
         Task { [weak self] in
             _ = try? await self?.run(request, prefillOnly: true)
         }
     }
 
-    /// Free the resident model right now (menu action). Reloads on next use.
-    func releaseModelNow() {
-        unload(reason: "manual", force: true)
-    }
+    /// Free the resident models right now (menu action). Reloads on next use.
+    func releaseModelNow() { residency.releaseNow() }
 
-    /// Releases the resident model (weights + buffer cache) so an idle menu-bar
-    /// app doesn't hold several GB. The next request or prewarm reloads it from
-    /// disk. No-op while a request is in flight, mid-load, or just used.
-    private func unload(reason: String, force: Bool = false) {
-        modelLock.lock()
-        let idleEnough = force || Date().timeIntervalSince(lastActivity) > 3
-        // Not mid-load. An idle-unloaded or failed primary (its task is nil
-        // either way) still lets a fix model that loaded on its own
-        // (prewarmCorrection, a base-style ⌥⇥) be freed.
-        let primary = stateBox.get()
-        guard inFlightCount == 0, idleEnough,
-              loadTask != nil || correctionLoadTask != nil,
-              !Self.isLoading(primary: primary, primaryTaskLive: loadTask != nil,
-                              correctionStatus: correctionStatus.get()) else {
-            modelLock.unlock(); return
-        }
-        let before = Memory.snapshot().activeMemory
-        let pressure = reason == "memory pressure"
-        if pressure { blueprints.set([:]) }
-        // Still under the lock: a request arriving the moment it drops starts
-        // a reload, and these writes landing after it would erase that load's
-        // drafter and paint "idle" over its "loading…".
-        letGo(sibling: false, keep: !pressure)
-        letGo(sibling: true, keep: !pressure)
-        promptCache.clear()
-        // After the KV snapshots go, not before: freeing them refills the
-        // buffer pool, and it then sat at its 64 MB cap for the whole idle.
-        Memory.clearCache()
-        if pressure { tokenizers.retain { _ in false } }
-        // A failure stays on screen until a retry replaces it.
-        if case .failed = primary {} else { stateBox.set(.preparing(String(localized: "idle — model unloaded"))) }
-        modelLock.unlock()
+    func shutdown() { residency.shutdown() }
 
-        let freed = Int64(max(0, before - Memory.snapshot().activeMemory))
-        let amount = ByteCountFormatter.string(fromByteCount: freed, countStyle: .memory)
-        DebugLog.shared.log("MLX", "unloaded model (\(reason)) — freed ~\(amount)")
-    }
-
-    /// Frees the base style's fix sibling alone once it has sat unused for
-    /// `limit` while completions keep the primary busy. Not mid-load, not
-    /// mid-request; the next fix, reply or dictation reloads it.
-    private func unloadSibling(idleFor limit: TimeInterval) {
-        let idle: TimeInterval? = modelLock.withLock {
-            let idle = Date().timeIntervalSince(lastSiblingUse)
-            guard style == .base, correctionLoadTask != nil, siblingInFlight == 0,
-                  correctionStatus.get() == nil, idle >= limit else { return nil }
-            letGo(sibling: true, keep: true)
-            return idle
-        }
-        guard let idle else { return }
-        Memory.clearCache()
-        DebugLog.shared.log("MLX", "unloaded fix model (idle \(Int(idle))s)")
-    }
-
-    /// Lets go of the primary or the fix sibling, under `modelLock`: its load
-    /// task, cancelled, and its drafter — the blueprint recorded first when
-    /// `keep` (see `keepBlueprint`).
-    private func letGo(sibling: Bool, keep: Bool) {
-        let task = sibling ? correctionLoadTask : loadTask
-        let drafterBox = sibling ? correctionDrafter : drafter
-        if keep {
-            keepBlueprint(task, repo: ModelCatalog.repo(for: sibling ? correctionModelID : modelID),
-                          vlm: drafterBox.get() != nil)
-        }
-        task?.cancel()
-        if sibling { correctionLoadTask = nil } else { loadTask = nil }
-        drafterBox.set(nil)
-    }
-
-    /// A minute without typing: keep the newest KV snapshot only, and hand the
-    /// buffer pool back — ~100 MB of other fields' snapshots plus up to 64 MB
-    /// (and tens of thousands of tiny Metal buffers) pooled for a keystroke
-    /// that isn't coming. Not mid-request; the next one refills what it needs.
-    private func trimWhileIdle() {
-        modelLock.withLock {
-            guard inFlightCount == 0, loadTask != nil else { return }
-            promptCache.keepNewest()
-            Memory.clearCache()
-        }
-    }
-
-    /// Idle-unload timer + memory-pressure source: both free the model when it
-    /// is unused or the system needs RAM; the next use reloads it.
-    private func startIdleMaintenance() {
-        let pressure = DispatchSource.makeMemoryPressureSource(
-            eventMask: [.warning, .critical], queue: maintenanceQueue
-        )
-        pressure.setEventHandler { [weak self] in
-            self?.unload(reason: "memory pressure")
-        }
-        pressure.resume()
-        memoryPressureSource = pressure
-
-        // The idle timer always runs; the timeout is read live so the Settings
-        // control takes effect without an engine reload (0 minutes = never
-        // unload — the idle trim still runs).
-        let timer = DispatchSource.makeTimerSource(queue: maintenanceQueue)
-        timer.schedule(deadline: .now() + 60, repeating: 60, leeway: .seconds(10))
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            let limit = TimeInterval(Settings.idleUnloadMinutes) * 60
-            let (idle, busy) = self.modelLock.withLock {
-                (Date().timeIntervalSince(self.lastActivity), self.inFlightCount > 0)
-            }
-            if limit > 0, !busy, idle >= limit {
-                self.unload(reason: "idle \(Int(idle))s")
-            } else {
-                if limit > 0 { self.unloadSibling(idleFor: limit) }
-                if !busy, idle >= 60 { self.trimWhileIdle() }
-            }
-        }
-        timer.resume()
-        idleTimer = timer
-    }
-
-    deinit {
-        idleTimer?.cancel()
-        memoryPressureSource?.cancel()
-    }
+    /// Whether a fix would cost at most a load, never a download (see
+    /// `ModelResidency.isCorrectionReady`).
+    var isCorrectionReady: Bool { residency.isCorrectionReady }
 
     // MARK: - Completion
 
@@ -871,9 +247,9 @@ final class MLXEngine: CompletionEngine {
             if !prefillOnly { DebugLog.shared.log("GATE", "no suggestions in this script for this model — not querying it") }
             return nil
         }
-        guard let task = beginRequest() else { return nil }
-        defer { endRequest() }
-        let container = try await task.value
+        guard let lease = residency.begin(.completion) else { return nil }
+        defer { residency.end(lease) }
+        let container = try await lease.task.value
         try Task.checkCancellation()
 
         // A base model given only 3-4 tokens lands in random-language territory
@@ -1151,9 +527,9 @@ final class MLXEngine: CompletionEngine {
     /// a bigger token cap — without this, `short` clips Russian mid-phrase
     /// (eval: instruct short ru 50 vs medium ru 54). The directive stays in
     /// *words*; only the hard cap scales with the script.
-    private func tokenBudget(for request: CompletionRequest) -> Int {
-        let cyrillic = Self.isCyrillicHeavy(request.textBeforeCaret)
-        var budget = lengthBox.get().maxTokens
+    static func tokenBudget(for request: CompletionRequest, length: CompletionLength) -> Int {
+        let cyrillic = isCyrillicHeavy(request.textBeforeCaret)
+        var budget = length.maxTokens
         if cyrillic { budget = Int((Double(budget) * 1.7).rounded()) }
         let chatCap = cyrillic ? 13 : 8
         return request.isChatApp ? min(budget, chatCap) : budget
@@ -1169,7 +545,7 @@ final class MLXEngine: CompletionEngine {
     /// name, a term, the project you're writing about) are exactly the ones it
     /// suppresses, and its processor also skews the logprobs the gate reads.
     private func completionParameters(for request: CompletionRequest) -> GenerateParameters {
-        GenerateParameters(maxTokens: tokenBudget(for: request), temperature: 0)
+        GenerateParameters(maxTokens: Self.tokenBudget(for: request, length: lengthBox.get()), temperature: 0)
     }
 
     func updateCompletion(length: CompletionLength, instructions: String) {
@@ -1239,10 +615,9 @@ final class MLXEngine: CompletionEngine {
     /// nothing, and that path was never measured.
     private func chatGenerate(_ content: String, maxTokens: Int, copiesInput: Bool = false,
                               logRaw: Bool = true) async throws -> String {
-        let sibling = !fixesOnPrimary
-        guard let task = sibling ? beginSiblingRequest() : beginRequest() else { throw EngineNotReady() }
-        defer { endRequest(sibling: sibling) }
-        let container = try await task.value
+        guard let lease = residency.begin(.fix) else { throw EngineNotReady() }
+        defer { residency.end(lease) }
+        let container = try await lease.task.value
         try Task.checkCancellation()
         let messages: [[String: any Sendable]] = [["role": "user", "content": content]]
         return try await Self.generate(
@@ -1257,7 +632,7 @@ final class MLXEngine: CompletionEngine {
             },
             parameters: GenerateParameters(maxTokens: maxTokens, temperature: 0.0),
             promptCache: nil,
-            drafter: sibling ? correctionDrafter.get() : drafter.get(),
+            drafter: lease.drafter,
             lookup: copiesInput,
             logRaw: logRaw
         )
@@ -1268,149 +643,5 @@ final class MLXEngine: CompletionEngine {
     /// treated as not capable, so auto-FIM stays conservative.
     static func isFIMCapable(_ modelID: String) -> Bool {
         modelID.lowercased().contains("e4b")
-    }
-
-    /// A reassuring download line. A multi-GB model otherwise sits at "0%" for
-    /// minutes — the percent only reaches 1% after ~1% of several GB, and the
-    /// large shards stream over HF's slower Xet path. Showing the byte counts
-    /// proves it is alive and moving.
-    private static func downloadStatus(_ progress: Progress, fixModel: Bool = false) -> String {
-        let pct = Int((progress.fractionCompleted * 100).rounded())
-        guard progress.totalUnitCount > 0 else {
-            return fixModel ? String(localized: "fix model \(pct)%") : String(localized: "downloading \(pct)%")
-        }
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        formatter.allowedUnits = [.useMB, .useGB]
-        let done = formatter.string(fromByteCount: progress.completedUnitCount)
-        let total = formatter.string(fromByteCount: progress.totalUnitCount)
-        return fixModel ? String(localized: "fix model \(done) / \(total) (\(pct)%)")
-                        : String(localized: "downloading \(done) / \(total) (\(pct)%)")
-    }
-
-    func shutdown() {
-        idleTimer?.cancel(); idleTimer = nil
-        memoryPressureSource?.cancel(); memoryPressureSource = nil
-        modelLock.withLock {
-            // A late `warmPrompt` or prewarm on this retired engine must not
-            // rebuild a whole model next to the replacement's.
-            didInitLoad = false
-            // For the replacement (see `init`). Not mid-request (the husk
-            // would be emptied under a running generation) nor mid-load (the
-            // replacement's load would wait on this cancelled one).
-            let keep = inFlightCount == 0 && !Self.isLoading(primary: stateBox.get(), primaryTaskLive: loadTask != nil,
-                                                             correctionStatus: correctionStatus.get())
-            letGo(sibling: false, keep: keep)
-            letGo(sibling: true, keep: keep)
-        }
-    }
-
-    /// Whether a fix would cost at most a LOAD, never a download.
-    ///
-    /// Deliberately not "is the model resident": an idle-unloaded model is
-    /// still on disk, and re-reading it is exactly the kind of wait the
-    /// tidy-up's own budget is there to bound. What no budget can absorb is a
-    /// multi-gigabyte fetch — so that, and only that, answers false.
-    ///
-    /// Both styles are probed, and the first draft of this was wrong to skip
-    /// instruct: it fixes with the PRIMARY model, which is only "already here"
-    /// after its own first download — on a fresh install that is the same
-    /// multi-gigabyte wait, reached by a different branch.
-    ///
-    /// Memoized once true: the answer can only go from "not fetched" to
-    /// "fetched" while an engine lives. The first probe is still a small
-    /// directory read on whatever thread asks (often main); the memo only
-    /// spares every call after it.
-    var isCorrectionReady: Bool {
-        if correctionFetched.get() { return true }
-        let fetched = ModelStorage.isFetched(fixesOnPrimary ? modelID : correctionModelID)
-        if fetched { correctionFetched.set(true) }
-        return fetched
-    }
-
-    func prewarmCorrection() {
-        guard !fixesOnPrimary else { return prewarmIfNeeded() }
-        _ = correctionLoadTaskOrCreate()
-    }
-
-    /// Fixes and replies run on the loaded primary: an instruct primary, or a
-    /// model that is its own fix sibling (Ternary Bonsai) — loading that one
-    /// again would hold it twice, both copies sharing one blueprint slot.
-    private var fixesOnPrimary: Bool { style == .instruct || correctionModelID == modelID }
-
-    /// The sibling `correct` would use — resolved the same way
-    /// `correctionLoadTaskOrCreate` resolves it.
-    private var correctionModelID: String {
-        ModelCatalog.option(for: modelID)?.correctionModelID ?? ModelCatalog.options[0].correctionModelID
-    }
-
-    private func correctionLoadTaskOrCreate() -> Task<ModelContainer, Error> {
-        modelLock.withLock {
-            // A prewarm counts as use: the timer must not free the model a
-            // dictation just asked to have ready.
-            lastSiblingUse = Date()
-            if let correctionLoadTask { return correctionLoadTask }
-            let id = correctionModelID
-            let status = self.correctionStatus
-            let correctionFetched = self.correctionFetched
-            let tokenizers = self.tokenizers
-            let blueprints = self.blueprints
-            let drafterBox = self.correctionDrafter
-            // Set under the lock, before the task runs, so `unload` can't cancel
-            // a load that hasn't reported itself yet.
-            status.set(String(localized: "loading fix model…"))
-            let task = Task<ModelContainer, Error> { [weak self] in
-                let repo = ModelCatalog.repo(for: id)
-                do {
-                    let container = try await Self.loadTarget(
-                        repo: repo, drafterID: ModelCatalog.mtpDrafterID(for: id), into: drafterBox,
-                        tokenizers: tokenizers, blueprints: blueprints,
-                        progressHandler: { progress in
-                            status.set(Self.downloadStatus(progress, fixModel: true))
-                        }
-                    )
-                    await HostPLE.install(in: container, repo: repo)
-                    ModelStorage.noteLoad(repo: repo, succeeded: true)
-                    status.set(nil)
-                    // Whatever the disk probe thought, the weights are provably
-                    // here now — and after an idle unload nils the task, this is
-                    // what keeps the next fix from being skipped as "not fetched".
-                    correctionFetched.set(true)
-                    return container
-                } catch {
-                    if !(error is CancellationError) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
-                    // Before the slot frees: a retry's fresh status must not be cleared.
-                    status.set(nil)
-                    if let self { self.modelLock.withLock { self.correctionLoadTask = nil } }
-                    throw error
-                }
-            }
-            correctionLoadTask = task
-            return task
-        }
-    }
-}
-
-/// `TokenizerLoader` that parses each tokenizer directory once per engine.
-final class TokenizerCache: TokenizerLoader, @unchecked Sendable {
-    private let byDirectory = LockedValue<[URL: any MLXLMCommon.Tokenizer]>([:])
-
-    func load(from directory: URL) async throws -> any MLXLMCommon.Tokenizer {
-        if let hit = byDirectory.get()[directory] { return hit }
-        let tokenizer = try await #huggingFaceTokenizerLoader().load(from: directory)
-        // A superseded build's (~100 MB): another snapshot of this repo, or
-        // a directory gone from disk (the original a re-pack replaced).
-        let snapshots = directory.deletingLastPathComponent()
-        byDirectory.mutate { cache in
-            cache = cache.filter {
-                $0.key.deletingLastPathComponent() != snapshots && FileManager.default.fileExists(atPath: $0.key.path)
-            }
-            cache[directory] = tokenizer
-        }
-        return tokenizer
-    }
-
-    func retain(where keep: (URL) -> Bool) {
-        byDirectory.mutate { $0 = $0.filter { keep($0.key) } }
     }
 }

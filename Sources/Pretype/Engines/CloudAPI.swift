@@ -171,6 +171,9 @@ enum APIError: LocalizedError {
 /// never in the log.
 enum APIKeychain {
     private static let service = "app.pretype.api-key"
+    /// A test process keeps its keys in memory: the login keychain is the
+    /// user's, and a key stored there would raise an access prompt mid-run.
+    private static let testKeys: LockedValue<[String: String]>? = Settings.isTestProcess ? LockedValue([:]) : nil
 
     private static func query(_ provider: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
@@ -179,6 +182,7 @@ enum APIKeychain {
     }
 
     static func key(for provider: String) -> String? {
+        if let testKeys { return testKeys.get()[provider] }
         var q = query(provider)
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -192,6 +196,7 @@ enum APIKeychain {
     /// Empty or nil deletes the key.
     static func set(_ key: String?, for provider: String) {
         let key = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let testKeys { return testKeys.mutate { $0[provider] = key.isEmpty ? nil : key } }
         SecItemDelete(query(provider) as CFDictionary)
         guard !key.isEmpty else { return }
         var q = query(provider)

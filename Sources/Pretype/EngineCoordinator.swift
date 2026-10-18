@@ -14,8 +14,14 @@ final class EngineCoordinator {
     /// belonged to the previous engine (the controller wires this to `dismiss`).
     var onRebuild: (() -> Void)?
 
-    init() {
-        engine = Self.makeEngine(modelID: Settings.mlxModelID)
+    /// How a local engine is built — after the one it replaces, if any;
+    /// tests build theirs on a tiny model.
+    typealias MakeMLX = (_ modelID: String, _ previous: MLXEngine?) -> MLXEngine
+    private let makeMLX: MakeMLX
+
+    init(makeMLX: @escaping MakeMLX = { MLXEngine(modelID: $0, after: $1) }) {
+        self.makeMLX = makeMLX
+        engine = Self.makeEngine(modelID: Settings.mlxModelID, mlx: makeMLX)
     }
 
     /// Tear down the current engine and build a fresh one for the current
@@ -23,7 +29,7 @@ final class EngineCoordinator {
     /// build-time setting change — and the way back from `.failed`.
     func rebuild() {
         engine.shutdown()
-        engine = Self.makeEngine(modelID: Settings.mlxModelID, after: engine)
+        engine = Self.makeEngine(modelID: Settings.mlxModelID, after: engine, mlx: makeMLX)
         onRebuild?()
     }
 
@@ -67,14 +73,15 @@ final class EngineCoordinator {
         engine.updateCompletion(length: Settings.completionLength, instructions: instructions)
     }
 
-    private static func makeEngine(modelID: String, after previous: CompletionEngine? = nil) -> CompletionEngine {
+    private static func makeEngine(modelID: String, after previous: CompletionEngine? = nil,
+                                   mlx: MakeMLX) -> CompletionEngine {
         let engine: CompletionEngine
         if Settings.apiText.enabled {
             engine = CloudEngine(Settings.apiText)
         } else if modelID == ModelCatalog.appleIntelligenceID {
             engine = FoundationModelsEngine()
         } else {
-            engine = MLXEngine(modelID: modelID, after: previous as? MLXEngine)
+            engine = mlx(modelID, previous as? MLXEngine)
         }
         let config = CompletionConfig.resolved()
         engine.updateCompletion(length: config.length, instructions: config.instructions)

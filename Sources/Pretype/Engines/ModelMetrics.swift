@@ -175,38 +175,9 @@ struct ModelMetrics {
             ["ar": 6, "cs": 3, "de": 10, "en": 22, "es": 14, "fr": 16, "he": 6, "it": 9, "ja": 0, "ko": 2, "nl": 13, "pl": 12, "pt": 9, "ro": 7, "ru": 10, "sv": 10, "tr": 3, "uk": 9, "zh": 1],
     ]
 
-    /// How often the model offers anything at all, per language, same matched
-    /// cells and same booking rule as `perLangOfAll` (book-per-lang-coverage.py).
-    /// Split out because coverage moves FURTHER by language than accuracy does —
-    /// MiniCPM5 answers 86% of English and 58% of Hebrew, Apple Intelligence 98%
-    /// of English and 9% of Polish — so one merged "offers a suggestion X% of the
-    /// time" was wrong on every axis but the one it was measured on.
-    static let perLangCoverage: [String: [String: Int]] = [
-        "mlx-community/gemma-4-e4b-8bit":
-            ["ar": 73, "cs": 84, "de": 94, "en": 85, "es": 91, "fr": 84, "he": 83, "it": 86, "ja": 72, "ko": 61, "nl": 88, "pl": 86, "pt": 90, "ro": 80, "ru": 83, "sv": 92, "tr": 80, "uk": 76, "zh": 54],
-        "mlx-community/gemma-4-e4b-6bit":
-            ["ar": 70, "cs": 85, "de": 92, "en": 85, "es": 90, "fr": 84, "he": 83, "it": 85, "ja": 70, "ko": 59, "nl": 86, "pl": 84, "pt": 89, "ro": 81, "ru": 82, "sv": 89, "tr": 80, "uk": 76, "zh": 55],
-        "mlx-community/gemma-4-e2b-8bit":
-            ["ar": 69, "cs": 83, "de": 93, "en": 84, "es": 89, "fr": 88, "he": 81, "it": 87, "ja": 70, "ko": 60, "nl": 89, "pl": 82, "pt": 91, "ro": 80, "ru": 83, "sv": 91, "tr": 83, "uk": 78, "zh": 55],
-        "mlx-community/gemma-4-e2b-4bit":
-            ["ar": 72, "cs": 82, "de": 91, "en": 85, "es": 89, "fr": 88, "he": 82, "it": 87, "ja": 68, "ko": 61, "nl": 90, "pl": 81, "pt": 91, "ro": 82, "ru": 83, "sv": 92, "tr": 82, "uk": 74, "zh": 55],
-        "nikimori/MiniCPM5-1B-Base-8bit":
-            ["ar": 60, "cs": 62, "de": 88, "en": 86, "es": 90, "fr": 84, "he": 65, "it": 84, "ja": 71, "ko": 55, "nl": 75, "pl": 69, "pt": 89, "ro": 62, "ru": 76, "sv": 79, "tr": 56, "uk": 59, "zh": 53],
-        "mlx-community/Qwen2.5-0.5B-bf16":
-            ["ar": 69, "cs": 64, "de": 88, "en": 88, "es": 91, "fr": 82, "he": 70, "it": 81, "ja": 72, "ko": 51, "nl": 79, "pl": 73, "pt": 89, "ro": 65, "ru": 76, "sv": 72, "tr": 63, "uk": 60, "zh": 55],
-        "nikimori/Qwen3.5-2B-Base-6bit":
-            ["ar": 71, "cs": 79, "de": 89, "en": 87, "es": 87, "fr": 85, "he": 75, "it": 85, "ja": 72, "ko": 58, "nl": 85, "pl": 80, "pt": 90, "ro": 79, "ru": 78, "sv": 89, "tr": 76, "uk": 75, "zh": 53],
-        "nikimori/Qwen3.5-2B-M40-6bit":
-            ["ar": 69, "cs": 77, "de": 89, "en": 86, "es": 87, "fr": 84, "he": 75, "it": 86, "ja": 71, "ko": 58, "nl": 85, "pl": 79, "pt": 91, "ro": 79, "ru": 75, "sv": 86, "tr": 74, "uk": 74, "zh": 53],
-        "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
-            ["ar": 59, "cs": 63, "de": 85, "en": 87, "es": 85, "fr": 82, "he": 65, "it": 82, "ja": 73, "ko": 49, "nl": 76, "pl": 68, "pt": 83, "ro": 71, "ru": 76, "sv": 75, "tr": 63, "uk": 62, "zh": 55],
-        "system.apple-intelligence":
-            ["ar": 84, "cs": 83, "de": 96, "en": 99, "es": 89, "fr": 91, "he": 87, "it": 85, "ja": 82, "ko": 78, "nl": 88, "pl": 87, "pt": 85, "ro": 84, "ru": 95, "sv": 88, "tr": 66, "uk": 79, "zh": 74],
-    ]
-
-    /// Rows behind each language's cell — the denominator both per-language
-    /// tables are computed over (matched registers; EN excludes the 200 Enron
-    /// rows no other language has). A percentage without this is a number
+    /// Rows behind each language's cell — the denominator `perLangOfAll` is
+    /// computed over (matched registers; EN excludes the 200 Enron rows no
+    /// other language has). A percentage without this is a number
     /// without a tolerance, which is why the UI now shows both.
     static let sampleSize: [String: Int] = [
         "ar": 280, "cs": 280, "de": 280, "en": 560, "es": 280, "fr": 280, "he": 280,
@@ -237,11 +208,6 @@ struct ModelMetrics {
         return Int((100 * half).rounded())
     }
 
-    /// Coverage on one axis, matching whatever `axisAccuracy` reports there.
-    static func axisCoverage(for id: String, axis: String) -> Int? {
-        axisValue(axis, core: metrics(for: id)?.coveragePct, perLanguage: perLangCoverage[id])
-    }
-
     /// The languages the eval set measures, alphabetical.
     static let evalLanguages: [String] =
         Set(perLangOfAll.values.flatMap(\.keys)).sorted()
@@ -251,18 +217,12 @@ struct ModelMetrics {
     /// mean of the per-language values, else one language's cell (the last
     /// two are "of all": staying silent counts as a miss).
     static func axisAccuracy(for id: String, axis: String) -> Int? {
-        axisValue(axis, core: metrics(for: id)?.firstWordPct, perLanguage: perLangOfAll[id])
-    }
-
-    /// One axis of a figure: the core value, the equal-weight per-language
-    /// mean, or one language's cell.
-    private static func axisValue(_ axis: String, core: Int?, perLanguage: [String: Int]?) -> Int? {
         switch axis {
-        case "core": return core
+        case "core": return metrics(for: id)?.firstWordPct
         case "*":
-            guard let t = perLanguage, !t.isEmpty else { return nil }
+            guard let t = perLangOfAll[id], !t.isEmpty else { return nil }
             return Int((Double(t.values.reduce(0, +)) / Double(t.count)).rounded())
-        default: return perLanguage?[axis]
+        default: return perLangOfAll[id]?[axis]
         }
     }
 
@@ -362,10 +322,12 @@ struct ModelMetrics {
     /// only one side (MiniCPM5's "best replier" verdict was its echoes), it
     /// ran with the developer's own persona (which turned every Gemma reply
     /// English), on a debug build, and before Gemma 4 stopped at `<turn|>`.
-    /// Verdicts at the p<0.01 rule, paired over the shared rows: the fix
-    /// column is a clean ladder — every adjacent gap (69 > 65 > 50 > 33 > 19
-    /// > 11) significant at p<0.001, E4B-it 6-bit ahead of its 4-bit build
-    /// (p=9e-4). On replies E4B-it 6-bit > E2B-it 4-bit (p=0.002; the
+    /// Verdicts at the p<0.01 rule, paired over the shared rows: on the
+    /// 10-15 run the fix column is a clean ladder — every adjacent gap (69 >
+    /// 65 > 50 > 33 > 19 > 11) significant at p<0.001, E4B-it 6-bit ahead of
+    /// its 4-bit build (p=9e-4). The M40 merge's 41%, from its own run
+    /// (2026-10-16), beats the Qwen3.5 sibling's 33% (p<0.001); its gap to
+    /// E2B-it's 50% was never tested. On replies E4B-it 6-bit > E2B-it 4-bit (p=0.002; the
     /// adjacent Gemma gaps n.s.), then a cliff to Qwen3.5 (p=8e-41) > Bonsai
     /// (p=2e-4) > Qwen0.5B-it (p=1e-14). The 10-15 re-run reproduced every
     /// fix output (97–100% identical). MiniCPM5's own row (fix 4% / reply
@@ -385,6 +347,12 @@ struct ModelMetrics {
         let replyPct: Int
         let replyCI: ClosedRange<Int>
         let replyP50Ms: Int
+        /// Set when the row was booked on a run of its own rather than the
+        /// table's (`taskSource`): how that run differs, and its figure for
+        /// a sibling the table holds too. No gap between it and the table's
+        /// rows was tested, so its name carries a ¹ (`taskModelNames`) and
+        /// rankings drawn from the table leave it out (`ModelCatalog.rationale`).
+        var ownRun: String?
     }
 
     /// eval-correct / eval-reply, re-run 2026-10-15 on the shipping engine
@@ -392,7 +360,9 @@ struct ModelMetrics {
     /// pinned empty, MTP drafters and prompt-lookup on as shipped, slim
     /// re-packs, draft rows out of the reply denominator; those reply dumps
     /// judged 2026-10-16. p50s are the run's own, measured straight.
-    static let taskSource = "eval-correct 2026-10-15 · eval-reply judged by GPT-6 Luna 2026-10-16 (Qwen3.5 2B M40: Qwen3.8 27B)"
+    static let taskSource = "eval-correct 2026-10-15 · eval-reply judged by GPT-6 Luna 2026-10-16"
+        + tasks.compactMap { id, t in t.ownRun.map { "; ¹ \(siblingNames[id] ?? id): \($0)" } }
+            .sorted().joined()
 
     static let tasks: [String: TaskMetrics] = [
         "mlx-community/gemma-4-e4b-it-6bit": TaskMetrics(
@@ -415,7 +385,8 @@ struct ModelMetrics {
         // (paired p=2.5e-8).
         "nikimori/Qwen3.5-2B-M40-6bit": TaskMetrics(
             fixPct: 41, fixCI: 37...45, falseFixPct: 10, fixP50Ms: 173,
-            replyPct: 56, replyCI: 50...60, replyP50Ms: 156),
+            replyPct: 56, replyCI: 50...60, replyP50Ms: 156,
+            ownRun: "booked on its own run (2026-10-16), replies judged by Qwen3.8 27B, which rates the Qwen3.5 2B sibling 37% [32–42] there"),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
             fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 33,
             replyPct: 3, replyCI: 2...6, replyP50Ms: 78),
@@ -425,8 +396,13 @@ struct ModelMetrics {
     ]
 
     /// Display names for the measured siblings — they are not catalog
-    /// entries, so `metrics(for:)` doesn't know them.
-    static let taskModelNames: [String: String] = [
+    /// entries, so `metrics(for:)` doesn't know them. A row from a run of its
+    /// own (`TaskMetrics.ownRun`) is marked ¹, which `taskSource` explains.
+    static let taskModelNames: [String: String] = siblingNames.reduce(into: [:]) { names, entry in
+        names[entry.key] = entry.value + (tasks[entry.key]?.ownRun == nil ? "" : "¹")
+    }
+
+    private static let siblingNames: [String: String] = [
         "mlx-community/gemma-4-e4b-it-6bit": "Gemma E4B-it 6-bit",
         "mlx-community/gemma-4-e4b-it-4bit": "Gemma E4B-it 4-bit",
         "mlx-community/gemma-4-e2b-it-4bit": "Gemma E2B-it 4-bit",

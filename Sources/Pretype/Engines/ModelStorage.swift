@@ -8,7 +8,7 @@ import Network
 /// Models tab can show what a model costs on disk and hand back the space.
 ///
 /// The cache is located via `HubCache.default` — the very instance
-/// `MLXEngine.makeLoadTask` ends up using — rather than a hardcoded
+/// `MLXEngine.loadTarget` ends up using — rather than a hardcoded
 /// `~/.cache/huggingface/hub`, because that resolution honours HF_HUB_CACHE /
 /// HF_HOME (the eval harness sets them) and the sandbox container. Measuring
 /// one directory while the downloader writes another is the whole bug class
@@ -18,6 +18,14 @@ import Network
 /// (this machine has PaddleOCR and TTS repos sitting next to ours), so only ids
 /// reachable from `ModelCatalog` may ever reach `delete`.
 enum ModelStorage {
+    /// `HubCache.default`. A test swaps in a scratch cache for one task
+    /// (`$hub.withValue`), so the code that deletes weights runs for real
+    /// against folders nobody needs; a test process starts from an empty one,
+    /// so a test that forgets never reads or deletes the user's downloads.
+    @TaskLocal static var hub = Settings.isTestProcess
+        ? HubCache(cacheDirectory: URL(fileURLWithPath: NSTemporaryDirectory() + "pretype-tests-hub-\(UUID().uuidString)"))
+        : HubCache.default
+
     /// The cache directory a catalog id occupies, or nil when there is nothing
     /// on disk to account for: the Apple Intelligence pseudo-id (system model,
     /// zero download) and filesystem paths, which are the user's OWN
@@ -31,7 +39,7 @@ enum ModelStorage {
     static func cacheDirectory(repo id: String) -> URL? {
         guard id != ModelCatalog.appleIntelligenceID, !id.hasPrefix("/"),
               let repo = Repo.ID(rawValue: id) else { return nil }
-        return HubCache.default.repoDirectory(repo: repo, kind: .model)
+        return hub.repoDirectory(repo: repo, kind: .model)
     }
 
     /// Whether loading `id` would cost at most a read from disk — no network.
@@ -129,10 +137,8 @@ enum ModelStorage {
         // URLSession temp file and only copies in on success; the `.incomplete`
         // path is the resume branch, which needs the file to exist already).
         // The honest question is therefore whether the WEIGHTS are here.
-        if let data = try? Data(contentsOf: root.appendingPathComponent("model.safetensors.index.json")),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let shards = json["weight_map"] as? [String: String] {
-            return Set(shards.values).allSatisfy(present)
+        if let shards = shards(listedIn: root.appendingPathComponent("model.safetensors.index.json")) {
+            return shards.allSatisfy(present)
         }
         // No shard index to go by. Anything that looks like weights — by
         // extension, or simply by being far too big to be metadata — counts
@@ -151,6 +157,27 @@ enum ModelStorage {
             return (size ?? 0) > 20_000_000
         }
     }
+
+    /// The shard files a `model.safetensors.index.json` names, or nil without
+    /// a readable one. Memoized by the file it resolves to and that file's
+    /// size and date: `ModelCatalog.repo(for:)` asks this on every call, from
+    /// SwiftUI bodies among others, and a Gemma original's ~145 KB index took
+    /// ~1 ms to parse each time. A re-download (a new blob) or a rewrite
+    /// re-reads it; a deleted one reads as absent.
+    static func shards(listedIn index: URL) -> Set<String>? {
+        let file = index.resolvingSymlinksInPath().path
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: file) else { return nil }
+        let stamp = "\(attributes[.size] ?? "")|\((attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)"
+        if let hit = shardLists.get()[file], hit.stamp == stamp { return hit.shards }
+        guard let data = FileManager.default.contents(atPath: file),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let map = json["weight_map"] as? [String: String] else { return nil }
+        let shards = Set(map.values)
+        shardLists.mutate { $0[file] = (stamp, shards) }
+        return shards
+    }
+
+    private static let shardLists = LockedValue<[String: (stamp: String, shards: Set<String>)]>([:])
 
     /// Bytes on disk for one repo. Blocking I/O — callers must keep it off the
     /// main actor.
@@ -220,7 +247,7 @@ enum ModelStorage {
         guard quietFetches.get()[id] == nil, let directory = cacheDirectory(repo: id),
               directory.lastPathComponent.hasPrefix("models--"),
               directory.deletingLastPathComponent().standardizedFileURL.path
-                == HubCache.default.cacheDirectory.standardizedFileURL.path
+                == hub.cacheDirectory.standardizedFileURL.path
         else { return }
         try FileManager.default.removeItem(at: directory)
     }
@@ -245,8 +272,8 @@ enum ModelStorage {
         guard isReplacement(repo) else { return }
         if succeeded {
             _ = failedLoads.mutate { $0.remove(repo) }
-            var loaded = Set(UserDefaults.standard.stringArray(forKey: loadedKey) ?? [])
-            if loaded.insert(repo).inserted { UserDefaults.standard.set(Array(loaded), forKey: loadedKey) }
+            var loaded = Set(Settings.store.stringArray(forKey: loadedKey) ?? [])
+            if loaded.insert(repo).inserted { Settings.store.set(Array(loaded), forKey: loadedKey) }
         } else {
             _ = failedLoads.mutate { $0.insert(repo) }
             DebugLog.shared.log("MLX", "\(repo) failed to load — falling back to the build it replaces this launch")
@@ -265,7 +292,7 @@ enum ModelStorage {
     /// launch says nothing about this one: while the replacement is failing,
     /// the original is the build the engine fell back to.
     static func hasLoaded(repo: String) -> Bool {
-        !loadFailed(repo: repo) && UserDefaults.standard.stringArray(forKey: loadedKey)?.contains(repo) ?? false
+        !loadFailed(repo: repo) && Settings.store.stringArray(forKey: loadedKey)?.contains(repo) ?? false
     }
 
     /// Moves an install that downloaded an original Gemma build before the
@@ -283,7 +310,10 @@ enum ModelStorage {
     /// gigabytes of the user's bandwidth. Skipped on an expensive (cellular,
     /// hotspot) or Low Data Mode network and when the disk can't hold both
     /// builds at once; the next pass (`AppDelegate`, hourly) tries again.
-    static func upgradeToSlim(selected: String) async {
+    /// `fetch` is `fetchQuietly`; tests record the fetches instead.
+    static func upgradeToSlim(selected: String, fetch: (_ repo: String, _ sizeHint: Int64) async -> Bool = {
+        await fetchQuietly(repo: $0, sizeHint: $1)
+    }) async {
         let inUse = repos(for: selected)
         for (original, slim, keepOriginal) in upgradePairs where inUse.contains(original) && inUse.contains(slim) {
             guard let originalDir = cacheDirectory(repo: original), let slimDir = cacheDirectory(repo: slim),
@@ -292,7 +322,7 @@ enum ModelStorage {
                 // Half an original: the engine already loads (and fetches) the
                 // re-pack; this one is deleted on a later pass, once it's here.
                 guard isFetched(at: originalDir),
-                      await fetchQuietly(repo: slim, sizeHint: bytes(at: originalDir)) else { continue }
+                      await fetch(slim, bytes(at: originalDir)) else { continue }
             }
             guard !keepOriginal, hasLoaded(repo: slim), !stillServes(original, selected: selected) else { continue }
             // An engine holding the original keeps it: its weights are in
@@ -406,7 +436,7 @@ enum ModelStorage {
     /// Background fetches in flight, by repo. A load of the same repo waits for
     /// one (two hub downloaders moving blobs into one cache fail each other),
     /// and a delete leaves the repo alone until it ends.
-    private static let quietFetches = LockedValue<[String: Task<Bool, Never>]>([:])
+    static let quietFetches = LockedValue<[String: Task<Bool, Never>]>([:])
 
     static func waitForQuietFetch(repo: String) async {
         if let running = quietFetches.get()[repo] { _ = await running.value }

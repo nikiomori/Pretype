@@ -34,8 +34,9 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
-    init() {
-        switch SystemLanguageModel.default.availability {
+    /// `availability`: the system model's; tests pin it.
+    init(availability: SystemLanguageModel.Availability = SystemLanguageModel.default.availability) {
+        switch availability {
         case .available:
             state = .ready
             // Warm the system model so the first keystroke doesn't pay.

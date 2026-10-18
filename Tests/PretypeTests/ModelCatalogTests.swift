@@ -59,6 +59,90 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(auto.logprobGate)
     }
 
+    // Each gesture's whole effect on the configuration, every field.
+    func testEachGesturesWholeEffect() {
+        let e4b6 = "mlx-community/gemma-4-e4b-6bit", e4b8 = "mlx-community/gemma-4-e4b-8bit"
+        let mini = "nikimori/MiniCPM5-1B-Base-8bit"
+        func cfg(_ id: String, _ style: CompletionStyle, _ length: CompletionLength,
+                 gate: Bool, auto: Bool) -> ProjectionConfig {
+            ProjectionConfig(modelID: id, style: style, length: length, logprobGate: gate, useRecommended: auto)
+        }
+        // A model switch keeps a manual setup; recommended mode re-snaps it.
+        XCTAssertEqual(cfg(e4b6, .base, .medium, gate: true, auto: false).applying(.model(mini)),
+                       cfg(mini, .base, .medium, gate: true, auto: false))
+        XCTAssertEqual(cfg(mini, .instruct, .long, gate: true, auto: true).applying(.model(e4b8)),
+                       cfg(e4b8, .base, .short, gate: false, auto: true))
+        // Style and length are manual choices: they leave recommended mode;
+        // Instruct drops the Base-only gate, Base keeps it.
+        XCTAssertEqual(cfg(e4b6, .base, .short, gate: true, auto: true).applying(.style(.instruct)),
+                       cfg(e4b6, .instruct, .short, gate: false, auto: false))
+        XCTAssertEqual(cfg(e4b6, .instruct, .short, gate: true, auto: false).applying(.style(.base)),
+                       cfg(e4b6, .base, .short, gate: true, auto: false))
+        XCTAssertEqual(cfg(e4b6, .base, .short, gate: true, auto: true).applying(.length(.long)),
+                       cfg(e4b6, .base, .long, gate: true, auto: false))
+        XCTAssertEqual(cfg(e4b6, .base, .short, gate: false, auto: true).applying(.logprobGate(true)),
+                       cfg(e4b6, .base, .short, gate: true, auto: true))
+        XCTAssertEqual(cfg(e4b6, .instruct, .long, gate: true, auto: false).applying(.useRecommended(true)),
+                       cfg(e4b6, .base, .short, gate: false, auto: true))
+        XCTAssertEqual(cfg(e4b6, .instruct, .long, gate: true, auto: true).applying(.useRecommended(false)),
+                       cfg(e4b6, .instruct, .long, gate: true, auto: false))
+        // A preset lands on the measured protocol, keeping the gate.
+        XCTAssertEqual(cfg(mini, .instruct, .long, gate: true, auto: false).applying(.preset(e4b6)),
+                       cfg(e4b6, .base, .short, gate: true, auto: true))
+        XCTAssertEqual(cfg(mini, .base, .long, gate: false, auto: true).applying(.preset(ModelCatalog.appleIntelligenceID)),
+                       cfg(ModelCatalog.appleIntelligenceID, .base, .short, gate: false, auto: false))
+        let target = cfg(mini, .base, .long, gate: true, auto: false)
+        XCTAssertEqual(cfg(e4b6, .instruct, .short, gate: false, auto: true).applying(.config(target)), target)
+        // The map's markers compare runtime state, not the auto flag.
+        let runtime = cfg(e4b6, .base, .short, gate: true, auto: true)
+        XCTAssertTrue(runtime.sameRuntime(as: cfg(e4b6, .base, .short, gate: true, auto: false)))
+        for other in [cfg(e4b8, .base, .short, gate: true, auto: true), cfg(e4b6, .instruct, .short, gate: true, auto: true),
+                      cfg(e4b6, .base, .long, gate: true, auto: true), cfg(e4b6, .base, .short, gate: false, auto: true)] {
+            XCTAssertFalse(runtime.sameRuntime(as: other), "\(other)")
+        }
+    }
+
+    // The rail's meters, chips and labels, at their edges.
+    func testTheRailsMetersChipsAndLabels() {
+        func proj(acc: Int? = nil, ms: Int? = nil, gb: Double? = nil, compute: Double? = nil) -> ConfigProjection {
+            ConfigProjection(accuracyPct: acc, accuracyText: "", accuracySub: "", coveragePct: nil, p50Ms: ms,
+                             latencyIsApprox: false, latencySub: "", ramGB: gb, memorySub: "",
+                             computeRel: compute, computeSub: "")
+        }
+        // Bars: clamped into 0.04…1 (memory 0.06…1), longer = better.
+        XCTAssertEqual(proj(acc: 0).accuracyFraction, 0.04)
+        XCTAssertEqual(proj(acc: 100).accuracyFraction, 1)
+        XCTAssertEqual(proj(acc: 36).accuracyFraction ?? 0, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(proj(ms: 15).speedFraction, 1)
+        XCTAssertEqual(proj(ms: 800).speedFraction, 0.04)
+        XCTAssertEqual(proj(gb: 0).memoryFraction, 1)
+        XCTAssertEqual(proj(gb: 0.5).memoryFraction ?? 0, 1 - 0.5 / 8.6, accuracy: 1e-9)
+        XCTAssertEqual(proj(gb: 8.6).memoryFraction, 0.06)
+        XCTAssertEqual(proj().computeFraction, 0.95, "the system model: off-chart light")
+        XCTAssertEqual(proj(compute: 0.4).computeFraction, 1)
+        XCTAssertEqual(proj(compute: 24).computeFraction, 0.04)
+        XCTAssertEqual(proj(compute: 3.25).computeText, oneDecimal(3.25) + "×")
+        XCTAssertEqual(proj(compute: 10).computeText, "10×")
+        XCTAssertEqual(proj(compute: 10.4).computeText, "10×")
+
+        func chips(_ from: ConfigProjection, _ to: ConfigProjection) -> [String] {
+            ConfigProjection.deltas(from: from, to: to).map { "\($0.label) \($0.text) \($0.improved)" }
+        }
+        XCTAssertEqual(chips(proj(acc: 30), proj(acc: 31)), ["Accuracy +1 pp true"])
+        XCTAssertEqual(chips(proj(acc: 31), proj(acc: 30)), ["Accuracy −1 pp false"])
+        XCTAssertEqual(chips(proj(acc: 30), proj(acc: 30)), [])
+        XCTAssertEqual(chips(proj(ms: 346), proj(ms: 100)), ["Speed 3.5× faster true"])
+        XCTAssertEqual(chips(proj(ms: 100), proj(ms: 1040)), ["Speed 10× slower false"])
+        XCTAssertEqual(chips(proj(ms: 100), proj(ms: 100)), [])
+        XCTAssertEqual(chips(proj(gb: 5), proj(gb: 3.4)), ["Memory −\(oneDecimal(1.6)) GB true"])
+        XCTAssertEqual(chips(proj(gb: 0.1), proj(gb: 0)), ["Memory −\(oneDecimal(0.1)) GB true"])
+        XCTAssertEqual(chips(proj(gb: 3.4), proj(gb: 3.45)), [])
+        XCTAssertEqual(chips(proj(compute: 0.2), proj(compute: 0.1)), ["Compute 2× lighter true"])
+        XCTAssertEqual(chips(proj(compute: 1), proj(compute: 1.1)), ["Compute 1.1× heavier false"])
+        XCTAssertEqual(chips(proj(compute: 10), proj(compute: 10.5)), [], "5% is no chip")
+        XCTAssertEqual(chips(proj(compute: 0.5), proj(compute: 0.55)), [], "nor is 0.05")
+    }
+
     func testConfigProjectionFigures() {
         let e4b6 = "mlx-community/gemma-4-e4b-6bit"
         let mini = "nikimori/MiniCPM5-1B-Base-8bit"
@@ -110,6 +194,14 @@ final class ModelCatalogTests: XCTestCase {
         // inside Short's budget); Instruct scales by its measured factor.
         XCTAssertEqual(cfg(mini, .base, .long).p50Ms, 18)
         XCTAssertEqual(cfg(e4b6, .instruct, .long).p50Ms, Int((91 * 1.7).rounded()))
+        // Measured is shown as measured; only a scaled figure is approximate.
+        for measured in [cfg(mini, .base, .long), cfg(mini, .base, logprob: true), instruct, base] {
+            XCTAssertFalse(measured.latencyText.hasPrefix("≈"), measured.latencySub)
+        }
+        XCTAssertEqual(cfg(mini, .base).latencySub, cfg(mini, .base, .long).latencySub)
+        XCTAssertNotEqual(instruct.latencySub, cfg(e4b6, .instruct, .long).latencySub)
+        XCTAssertTrue(cfg(e4b6, .instruct, .long).latencyText.hasPrefix("≈"))
+        XCTAssertTrue(cfg(ModelCatalog.appleIntelligenceID, .instruct).latencyText.hasPrefix("≈"), "an upper bound")
 
         // System model: no app memory, compute is the Neural Engine.
         let ai = cfg(ModelCatalog.appleIntelligenceID, .instruct)
@@ -125,11 +217,13 @@ final class ModelCatalogTests: XCTestCase {
     /// `revision(for:)` falls back to "main" without a word, which would hand
     /// that one download whatever was pushed last — so every repo the catalog
     /// can fetch, or still loads from an older install, must be pinned.
-    func testEveryDownloadableRepoIsPinned() {
+    func testEveryDownloadableRepoIsPinned() throws {
         let models = ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] }
         var repos = Set(models).union(ModelCatalog.slimRepos.values).union(ModelCatalog.previousBuilds.keys)
             .union(models.compactMap(ModelCatalog.mtpDrafterID(for:)))
-        for option in ModelCatalog.options { repos.formUnion(ModelStorage.repos(for: option.id)) }
+        try withScratchHub {
+            for option in ModelCatalog.options { repos.formUnion(ModelStorage.repos(for: option.id)) }
+        }
         for repo in repos { XCTAssertNotNil(ModelCatalog.pinnedRevisions[repo], repo) }
     }
 
@@ -137,17 +231,20 @@ final class ModelCatalogTests: XCTestCase {
     /// rail's meter and the idle-unload line both read the projection, which
     /// reads `HostPLE.residentGB` — and compute does not move with it.
     func testResidentMemoryFollowsThePLEToggle() {
+        let served = { (_: String) in true }
         let e4b6 = ProjectionConfig(modelID: "mlx-community/gemma-4-e4b-6bit", style: .base, length: .short,
                                     logprobGate: false, useRecommended: false)
-        let off = ConfigProjection.project(e4b6, pleFromDisk: false)
-        let on = ConfigProjection.project(e4b6, pleFromDisk: true)
+        let off = ConfigProjection.project(e4b6, pleFromDisk: false, servesTable: served)
+        let on = ConfigProjection.project(e4b6, pleFromDisk: true, servesTable: served)
         XCTAssertEqual(off.ramGB ?? 0, 5.03, accuracy: 0.001)
         XCTAssertEqual(on.ramGB ?? 0, 5.03 - 1.6, accuracy: 0.001)
         XCTAssertEqual(on.computeRel, off.computeRel)
         // Instruct runs the sibling, and the saving is the sibling's table.
         let e2bInstruct = ProjectionConfig(modelID: "mlx-community/gemma-4-e2b-8bit", style: .instruct, length: .short,
                                            logprobGate: false, useRecommended: false)
-        XCTAssertEqual(ConfigProjection.project(e2bInstruct, pleFromDisk: true).ramGB ?? 0, 4.57 - 1.6, accuracy: 0.001)
+        XCTAssertEqual(ConfigProjection.project(e2bInstruct, pleFromDisk: true, servesTable: served).ramGB ?? 0, 4.57 - 1.6, accuracy: 0.001)
+        // Off an internal disk, or after `install` declined: no saving claimed.
+        XCTAssertEqual(ConfigProjection.project(e4b6, pleFromDisk: true, servesTable: { _ in false }).ramGB ?? 0, 5.03, accuracy: 0.001)
         // No per-layer table, nothing to subtract.
         XCTAssertEqual(HostPLE.residentGB(1.5, of: "nikimori/Qwen3.5-2B-Base-6bit", pleFromDisk: true), 1.5)
     }
@@ -195,6 +292,9 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "*"), "mlx-community/gemma-4-e4b-8bit")
         XCTAssertEqual(ModelPriority.quick.pick(axis: "*"), "mlx-community/gemma-4-e2b-8bit")
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "ru"), "mlx-community/gemma-4-e2b-8bit")
+        // A tie on speed goes to the catalog's earlier entry: on Portuguese
+        // Qwen3.5 2B and its M40 merge are both in reach at 32 ms.
+        XCTAssertEqual(ModelPriority.quick.pick(axis: "pt"), "nikimori/Qwen3.5-2B-Base-6bit")
         // Balanced is the fresh-install rule — sized to THIS Mac's memory,
         // not to the axis (language dropped out of the default on 2026-07-25;
         // no per-language gap between the small models survives p<0.01).
@@ -274,6 +374,28 @@ final class ModelCatalogTests: XCTestCase {
         var dotAuto = dot; dotAuto.useRecommended = true
         XCTAssertTrue(dot.sameRuntime(as: dotAuto))
         XCTAssertFalse(dot.sameRuntime(as: custom))
+    }
+
+    /// The RECOMMENDED tooltip tells each tier's story in the figures the
+    /// rows show: the resident size `HostPLE.residentGB` gives (E2B 4-bit's
+    /// "~2.5 GB" stood next to a row reading 1.2 with "Reduce memory use"
+    /// on) and the chords as booked — and "the most in the catalog" holds.
+    func testLadderRationaleUsesTheRowsFigures() {
+        let served = { (_: String) in true }
+        for ram in [8.0, 16, 24, 32] {
+            let id = ModelCatalog.defaultID(forRamGB: ram)
+            let why = ModelCatalog.rationale(for: id, servesTable: served)
+            let resident = HostPLE.residentGB(ModelMetrics.metrics(for: id)?.ramGB ?? 0, of: id, servesTable: served)
+            XCTAssertTrue(why.contains("~\(gbLabel(resident))") || why.contains("— \(gbLabel(resident))"), why)
+            let fix = ModelMetrics.taskMetrics(for: id, style: .base)?.m.fixPct ?? -1
+            XCTAssertTrue(why.contains("\(fix)%"), why)
+        }
+        XCTAssertEqual(ModelCatalog.rationale(for: "mlx-community/gemma-4-e4b-8bit", servesTable: served), "", "not a ladder tier")
+        XCTAssertEqual(ModelMetrics.tasks["mlx-community/gemma-4-e4b-it-6bit"]?.fixPct,
+                       ModelMetrics.tasks.values.map(\.fixPct).max())
+        // The small models' range comes from the table's run: M40's 41% is
+        // from its own, never tested against E2B-it's 50%.
+        XCTAssertTrue(ModelCatalog.rationale(for: "mlx-community/gemma-4-e2b-4bit", servesTable: served).contains("where the small models manage 11–33%."))
     }
 
     func testTypedLanguageSignal() {
@@ -358,13 +480,6 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertNotNil(ModelCatalog.option(for: id), "\(id) has metrics but no catalog entry")
         }
 
-        // Coverage is shown beside accuracy on the same axis, so it has to cover
-        // the same models and the same languages or a per-language view silently
-        // falls back to the pooled figure for some of them.
-        XCTAssertEqual(Set(ModelMetrics.perLangCoverage.keys), Set(table.keys))
-        for (id, cells) in ModelMetrics.perLangCoverage {
-            XCTAssertEqual(Set(cells.keys), languages, "\(id) coverage covers a different language set")
-        }
         // A figure with no sample size behind it can't state its own tolerance.
         for language in ModelMetrics.evalLanguages {
             XCTAssertNotNil(ModelMetrics.sampleSize[language], "\(language) has no booked n")
@@ -436,6 +551,20 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNotNil(ModelCatalog.pinnedRevisions[m40ID])
         // Not measured: only the system model.
         XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
+    }
+
+    /// The table is one run's, its reply column one judge's (GPT-6 Luna). The
+    /// chord map ranks every row side by side, so a row booked on a run of
+    /// its own — the M40 merge, replies rated by Qwen3.8 — is marked wherever
+    /// its name shows and explained, with that run's figure for a sibling the
+    /// table holds too, in the source line.
+    func testRowsFromAnotherRunAreMarked() {
+        for (id, t) in ModelMetrics.tasks {
+            XCTAssertEqual(ModelMetrics.taskModelNames[id]?.hasSuffix("¹"), t.ownRun != nil, id)
+            if let run = t.ownRun { XCTAssertTrue(ModelMetrics.taskSource.contains(run), id) }
+        }
+        XCTAssertNotNil(ModelMetrics.tasks["nikimori/Qwen3.5-2B-M40-6bit"]?.ownRun)
+        XCTAssertEqual(ModelMetrics.taskMetrics(for: "nikimori/Qwen3.5-2B-M40-6bit", style: .base)?.runsOn, "Qwen3.5 2B M40¹")
     }
 
     /// The confidence figure is the whole point of showing n, so it has to be
@@ -516,6 +645,7 @@ final class ModelCatalogTests: XCTestCase {
         // Chinese and Korean keep a τ with the gate off: the script's, else the model's.
         let qwen = ModelCatalog.alwaysOnGateTau(for: "nikimori/Qwen3.5-2B-Base-6bit")
         XCTAssertEqual(qwen, [.han: -1.18, .hangul: -0.57])
+        XCTAssertEqual(ModelCatalog.alwaysOnGateTau(for: "mlx-community/gemma-4-e2b-4bit"), [.han: -0.75, .hangul: -1.07])
         XCTAssertEqual(ModelCatalog.alwaysOnGateTau(for: ModelCatalog.appleIntelligenceID), [:])
         // gate off → the floor; hand-tuned looser τ → raised to it; stricter stays.
         let floor: [GateScript: Double] = [.han: -0.94]

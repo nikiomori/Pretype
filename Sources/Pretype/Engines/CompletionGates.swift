@@ -275,6 +275,9 @@ struct PreparedPrompt {
         let trailing = trailingSpaces
         let endsMidWord = self.endsMidWord
         let endsCompleteWord = self.endsCompleteWord
+        // Flush after a sentence or clause mark ("there." + "How"): the
+        // separator not typed yet, like after a finished word.
+        let endsPunctuated = trailing == 0 && text.last.map { ".,;:!?…".contains($0) } == true
         let after = textAfterCaret
         return { output in
             var raw = output
@@ -287,9 +290,9 @@ struct PreparedPrompt {
                 // Instruct models answer flush (no leading space). Restore the
                 // separator the shared gate expects when the user already typed
                 // it (trailing > 0) OR the caret sits right after a finished
-                // word (the space they haven't typed yet), so the new word
-                // doesn't glue onto the previous one.
-                if trailing > 0 || endsCompleteWord, !raw.hasPrefix(" ") { raw = " " + raw }
+                // word or a sentence mark (the space they haven't typed yet),
+                // so the new word doesn't glue onto the previous one.
+                if trailing > 0 || endsCompleteWord || endsPunctuated, !raw.hasPrefix(" ") { raw = " " + raw }
             }
             return CompletionGates.postProcess(
                 raw, prompt: text, trailingSpaces: trailing,

@@ -26,61 +26,102 @@ final class ModelStorageTests: XCTestCase {
     // other Hugging Face tool on the Mac — pin what may and may not be a target,
     // and the symlink trap that would otherwise double every reported size.
     func testModelStorage() throws {
-        // A filesystem path is the user's OWN directory: never a cache repo.
-        XCTAssertNil(ModelStorage.directory(for: "/Users/someone/models/my-finetune"))
-        // The system model downloads nothing.
-        XCTAssertNil(ModelStorage.directory(for: ModelCatalog.appleIntelligenceID))
+        try withScratchHub {
+            // A filesystem path is the user's OWN directory: never a cache repo.
+            XCTAssertNil(ModelStorage.directory(for: "/Users/someone/models/my-finetune"))
+            // The system model downloads nothing.
+            XCTAssertNil(ModelStorage.directory(for: ModelCatalog.appleIntelligenceID))
 
-        let repoDir = try XCTUnwrap(ModelStorage.cacheDirectory(repo: "mlx-community/gemma-4-e2b-4bit"))
-        XCTAssertEqual(repoDir.lastPathComponent, "models--mlx-community--gemma-4-e2b-4bit")
-        // A catalog id resolves to the repo it downloads from: its slim re-pack,
-        // or the original when that is already on disk (whichever this Mac has).
-        let id = "mlx-community/gemma-4-e2b-4bit"
-        XCTAssertTrue([id, "nikimori/gemma-4-e2b-4bit-slim"].contains(ModelCatalog.repo(for: id)))
-        XCTAssertEqual(ModelStorage.directory(for: id),
-                       ModelStorage.cacheDirectory(repo: ModelCatalog.repo(for: id)))
-        // Every slim re-pack replaces something the catalog actually downloads.
-        let downloaded = Set(ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] })
-        XCTAssertTrue(Set(ModelCatalog.slimRepos.keys).isSubset(of: downloaded))
-        XCTAssertEqual(ModelCatalog.repo(for: "mlx-community/Qwen2.5-0.5B-bf16"), "mlx-community/Qwen2.5-0.5B-bf16")
-        // The re-pack wins whenever it's here; the original only while it's all there is.
-        let slim = "nikimori/gemma-4-e2b-4bit-slim"
-        for (have, expected) in [([String](), slim), ([id], id), ([id, slim], slim), ([slim], slim)] {
-            XCTAssertEqual(ModelCatalog.repo(for: id, isFetched: have.contains), expected, "\(have)")
+            let repoDir = try XCTUnwrap(ModelStorage.cacheDirectory(repo: "mlx-community/gemma-4-e2b-4bit"))
+            XCTAssertEqual(repoDir.lastPathComponent, "models--mlx-community--gemma-4-e2b-4bit")
+            // A catalog id resolves to the repo it downloads from: its slim re-pack,
+            // or the original when that is already on disk (whichever this Mac has).
+            let id = "mlx-community/gemma-4-e2b-4bit"
+            XCTAssertTrue([id, "nikimori/gemma-4-e2b-4bit-slim"].contains(ModelCatalog.repo(for: id)))
+            XCTAssertEqual(ModelStorage.directory(for: id),
+                           ModelStorage.cacheDirectory(repo: ModelCatalog.repo(for: id)))
+            // Every slim re-pack replaces something the catalog actually downloads.
+            let downloaded = Set(ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] })
+            XCTAssertTrue(Set(ModelCatalog.slimRepos.keys).isSubset(of: downloaded))
+            XCTAssertEqual(ModelCatalog.repo(for: "mlx-community/Qwen2.5-0.5B-bf16"), "mlx-community/Qwen2.5-0.5B-bf16")
+            // The re-pack wins whenever it's here; the original only while it's all there is.
+            let slim = "nikimori/gemma-4-e2b-4bit-slim"
+            for (have, expected) in [([String](), slim), ([id], id), ([id, slim], slim), ([slim], slim)] {
+                XCTAssertEqual(ModelCatalog.repo(for: id, isFetched: have.contains), expected, "\(have)")
+            }
+            // Both builds are this entry's to count and delete — an install may hold either.
+            XCTAssertTrue(ModelStorage.repos(for: id).isSuperset(of: [id, slim]))
+
+            // Nothing is deletable when the entry being inspected is the selected one.
+            XCTAssertTrue(ModelStorage.deletableRepos(
+                for: "mlx-community/gemma-4-e2b-4bit",
+                selected: "mlx-community/gemma-4-e2b-4bit"
+            ).isEmpty)
+            // MiniCPM5 borrows Qwen3.5's post-trained build for its chords:
+            // dropping MiniCPM5 while Qwen3.5 is selected frees MiniCPM5's own
+            // weights, never the shared fix model or its re-pack.
+            let minicpm = "nikimori/MiniCPM5-1B-Base-8bit", qwen = "nikimori/Qwen3.5-2B-Base-6bit"
+            let shared: Set = ["mlx-community/Qwen3.5-2B-4bit", "nikimori/Qwen3.5-2B-4bit-slim"]
+            let freed = ModelStorage.deletableRepos(for: minicpm, selected: qwen)
+            XCTAssertTrue(freed.isDisjoint(with: shared), "\(freed)")
+            XCTAssertTrue(freed.isSuperset(of: [minicpm, "openbmb/MiniCPM5-1B-Base"]), "\(freed)")
+            XCTAssertTrue(ModelStorage.deletableRepos(for: qwen, selected: minicpm).isDisjoint(with: shared))
+
+            // The symlink trap: snapshots/ points into blobs/, and resourceValues
+            // stats THROUGH symlinks, so a naive recursive walk reports double.
+            let manager = FileManager.default
+            let root = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("ModelStorageTests-\(UUID().uuidString)")
+            defer { try? manager.removeItem(at: root) }
+
+            let fakeRepo = root.appendingPathComponent("models--acme--tiny")
+            let blobs = fakeRepo.appendingPathComponent("blobs")
+            let snapshot = fakeRepo.appendingPathComponent("snapshots/deadbeef")
+            try manager.createDirectory(at: blobs, withIntermediateDirectories: true)
+            try manager.createDirectory(at: snapshot, withIntermediateDirectories: true)
+            for name in ["aaaa1111", "bbbb2222"] {
+                let blob = blobs.appendingPathComponent(name)
+                try Data(repeating: 0x41, count: 8 * 1024).write(to: blob)
+                try manager.createSymbolicLink(
+                    at: snapshot.appendingPathComponent("\(name).safetensors"),
+                    withDestinationURL: blob
+                )
+            }
+
+            let measured = ModelStorage.bytes(at: fakeRepo)
+            XCTAssertGreaterThanOrEqual(measured, 16 * 1024)
+            XCTAssertLessThan(measured, 24 * 1024, "snapshot symlinks are being counted as real bytes")
         }
-        // Both builds are this entry's to count and delete — an install may hold either.
-        XCTAssertTrue(ModelStorage.repos(for: id).isSuperset(of: [id, slim]))
+    }
 
-        // Nothing is deletable when the entry being inspected is the selected one.
-        XCTAssertTrue(ModelStorage.deletableRepos(
-            for: "mlx-community/gemma-4-e2b-4bit",
-            selected: "mlx-community/gemma-4-e2b-4bit"
-        ).isEmpty)
-
-        // The symlink trap: snapshots/ points into blobs/, and resourceValues
-        // stats THROUGH symlinks, so a naive recursive walk reports double.
+    /// `ModelCatalog.repo(for:)` reads shard indexes from SwiftUI bodies, so
+    /// the parse is memoized — and must still follow the file: a rewrite or
+    /// a re-download (the snapshot link moved to a new blob) is re-read, a
+    /// deleted index is gone.
+    func testShardIndexMemoFollowsTheFile() throws {
         let manager = FileManager.default
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("ModelStorageTests-\(UUID().uuidString)")
+        let root = manager.temporaryDirectory.appendingPathComponent("pretype-index-\(UUID().uuidString)")
+        try manager.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? manager.removeItem(at: root) }
-
-        let fakeRepo = root.appendingPathComponent("models--acme--tiny")
-        let blobs = fakeRepo.appendingPathComponent("blobs")
-        let snapshot = fakeRepo.appendingPathComponent("snapshots/deadbeef")
-        try manager.createDirectory(at: blobs, withIntermediateDirectories: true)
-        try manager.createDirectory(at: snapshot, withIntermediateDirectories: true)
-        for name in ["aaaa1111", "bbbb2222"] {
-            let blob = blobs.appendingPathComponent(name)
-            try Data(repeating: 0x41, count: 8 * 1024).write(to: blob)
-            try manager.createSymbolicLink(
-                at: snapshot.appendingPathComponent("\(name).safetensors"),
-                withDestinationURL: blob
-            )
+        func blob(_ name: String, _ shards: [String]) throws -> URL {
+            let url = root.appendingPathComponent(name)
+            let map = Dictionary(uniqueKeysWithValues: shards.enumerated().map { ("w\($0.offset)", $0.element) })
+            try JSONSerialization.data(withJSONObject: ["weight_map": map]).write(to: url)
+            return url
         }
-
-        let measured = ModelStorage.bytes(at: fakeRepo)
-        XCTAssertGreaterThanOrEqual(measured, 16 * 1024)
-        XCTAssertLessThan(measured, 24 * 1024, "snapshot symlinks are being counted as real bytes")
+        let index = root.appendingPathComponent("model.safetensors.index.json")
+        try manager.createSymbolicLink(at: index, withDestinationURL: try blob("blob-a", ["a.safetensors"]))
+        XCTAssertEqual(ModelStorage.shards(listedIn: index), ["a.safetensors"])
+        XCTAssertEqual(ModelStorage.shards(listedIn: index), ["a.safetensors"])
+        // A re-download: the link now points at a new blob.
+        try manager.removeItem(at: index)
+        try manager.createSymbolicLink(at: index, withDestinationURL: try blob("blob-b", ["a.safetensors", "b.safetensors"]))
+        XCTAssertEqual(ModelStorage.shards(listedIn: index), ["a.safetensors", "b.safetensors"])
+        // Rewritten in place.
+        _ = try blob("blob-b", ["c.safetensors"])
+        XCTAssertEqual(ModelStorage.shards(listedIn: index), ["c.safetensors"])
+        try manager.removeItem(at: root.appendingPathComponent("blob-b"))
+        XCTAssertNil(ModelStorage.shards(listedIn: index))
     }
 
     /// The gate the dictation tidy-up asks before spending its budget: it must
@@ -88,10 +129,12 @@ final class ModelStorageTests: XCTestCase {
     /// Anything with no Hugging Face cache directory of its own — the Apple
     /// Intelligence pseudo-id, a filesystem path — is already on the
     /// machine and must never be treated as an unfetched download.
-    func testCorrectionFetchGateAnswersForLocalIDs() {
-        XCTAssertTrue(ModelStorage.isFetched(ModelCatalog.appleIntelligenceID))
-        XCTAssertTrue(ModelStorage.isFetched("/Users/someone/models/my-finetune"))
-        XCTAssertFalse(ModelStorage.isFetched("pretype-test/definitely-not-downloaded"))
+    func testCorrectionFetchGateAnswersForLocalIDs() throws {
+        try withScratchHub {
+            XCTAssertTrue(ModelStorage.isFetched(ModelCatalog.appleIntelligenceID))
+            XCTAssertTrue(ModelStorage.isFetched("/Users/someone/models/my-finetune"))
+            XCTAssertFalse(ModelStorage.isFetched("pretype-test/definitely-not-downloaded"))
+        }
     }
 
     /// The gate has to fail closed on a download IN FLIGHT, which is the whole
@@ -179,5 +222,22 @@ final class ModelStorageTests: XCTestCase {
         try repo("rolling", revision: "new-head", files: ["config.json": "{}"],
                  head: "new-head")
         XCTAssertFalse(ModelStorage.isFetched(at: rolling))
+    }
+
+    /// A delete leaves a repo being fetched in the background alone: the
+    /// downloader is still moving blobs into that folder.
+    func testADeleteLeavesARepoBeingFetchedAlone() throws {
+        try withScratchHub {
+            let repo = "test/fetching"
+            let directory = try XCTUnwrap(ModelStorage.cacheDirectory(repo: repo))
+            try FileManager.default.createDirectory(at: directory.appendingPathComponent("blobs"), withIntermediateDirectories: true)
+            ModelStorage.quietFetches.mutate { $0[repo] = Task { true } }
+            defer { ModelStorage.quietFetches.mutate { $0[repo] = nil } }
+            try ModelStorage.delete(repo: repo)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path), "deleted under a running fetch")
+            ModelStorage.quietFetches.mutate { $0[repo] = nil }
+            try ModelStorage.delete(repo: repo)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        }
     }
 }

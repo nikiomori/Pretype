@@ -210,7 +210,10 @@ struct ConfigProjection {
     /// A fixed yardstick (the default when it was set), not today's default.
     private static let computeReferenceGB = 2.2
 
-    static func project(_ c: ProjectionConfig, pleFromDisk: Bool = Settings.pleFromDisk) -> ConfigProjection {
+    /// `servesTable`: whether the table is served from disk on a model
+    /// (`HostPLE.servesTable`); tests pin it instead of reading this Mac's disk.
+    static func project(_ c: ProjectionConfig, pleFromDisk: Bool = Settings.pleFromDisk,
+                        servesTable: (String) -> Bool = { HostPLE.servesTable(of: $0) }) -> ConfigProjection {
         guard let m = ModelMetrics.metrics(for: c.modelID) else {
             return ConfigProjection(
                 accuracyPct: nil, accuracyText: "—",
@@ -237,7 +240,7 @@ struct ConfigProjection {
         if c.style == .instruct {
             let usable = ModelCatalog.instructCompletes(c.modelID)
             let gb = ModelMetrics.instructRamGB(for: c.modelID) ?? m.ramGB
-            let resident = HostPLE.residentGB(gb, of: c.primaryModelID, pleFromDisk: pleFromDisk)
+            let resident = HostPLE.residentGB(gb, of: c.primaryModelID, pleFromDisk: pleFromDisk, servesTable: servesTable)
             if !usable {
                 return ConfigProjection(
                     accuracyPct: 0, accuracyText: "~0%",
@@ -260,7 +263,7 @@ struct ConfigProjection {
 
         // Base style — the only path the gate applies to.
         let ms = Int((Double(m.p50Ms) * lf).rounded())
-        let resident = HostPLE.residentGB(m.ramGB, of: c.modelID, pleFromDisk: pleFromDisk)
+        let resident = HostPLE.residentGB(m.ramGB, of: c.modelID, pleFromDisk: pleFromDisk, servesTable: servesTable)
         if c.logprobGate, let g = ModelMetrics.gated[c.modelID] {
             return ConfigProjection(
                 accuracyPct: g.firstWordPct, accuracyText: "\(g.firstWordPct)%",
