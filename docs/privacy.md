@@ -17,7 +17,7 @@ Do not trust this page without proof. These files read your input or type text b
 | [`TextInjector.swift`](../Sources/Pretype/TextInjector.swift) | Types the text back. |
 | [`ScreenContext.swift`](../Sources/Pretype/ScreenContext.swift) | Optional. Reads the focused window with OCR. |
 | [`BackgroundProbe.swift`](../Sources/Pretype/BackgroundProbe.swift) | Only with Screen Recording. Measures the brightness beside the caret. |
-| [`SuggestionController.swift`](../Sources/Pretype/SuggestionController.swift) (`currentClipboardContext`) | Optional. Reads the clipboard. |
+| [`PromptContext.swift`](../Sources/Pretype/PromptContext.swift) (`currentClipboardContext`) | Optional. Reads the clipboard. |
 | [`AudioCapture.swift`](../Sources/Pretype/Dictation/AudioCapture.swift) | Optional. Records the microphone for dictation. |
 
 ## What Pretype does with your data
@@ -139,7 +139,7 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
 
 2. Delete the downloaded models (several GB).
 
-   **Settings → Model** shows each model with its size and a Delete button. This button deletes only models from the Pretype catalog. But it does not show the model that you use now. Thus, for a full removal, use the command below.
+   In **Settings → Model**, the list of models shows the disk size of each downloaded model, with a trash button that deletes it. The list shows only the models of the Pretype catalog. It has no trash button for the model that you use now. Thus, for a full removal, use the command below.
 
    > **WARNING:** This command deletes the full `mlx-community`, `openbmb` and `prism-ml` organizations from the shared Hugging Face cache. If a different MLX tool (LM Studio, mlx_lm, …) uses this cache, do not delete those three lines. The `nikimori` organization contains only Pretype's own re-packs (Qwen3.5 2B Base, the default on 8 GB Macs, and the slim Gemma tiers).
 
@@ -164,7 +164,7 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
    rm -rf ~/Library/Application\ Support/Pretype
    ```
 
-5. Delete the API keys. Do this step only if you added a key in **Settings → API**. Do the command one time for each provider (`openai`, `anthropic`, `gemini`, `groq`, `mistral`, `openrouter`, `deepseek`, `custom`).
+5. Delete the API keys. Do this step only if you added a key in **Settings → API**. Do the command one time for each provider (`openai`, `anthropic`, `gemini`, `groq`, `mistral`, `openrouter`, `deepseek`, `ollama`, `lmstudio`, `refrain`, `custom`).
 
    ```bash
    security delete-generic-password -s app.pretype.api-key -a openai

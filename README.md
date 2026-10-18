@@ -198,7 +198,8 @@ If Pretype is useful to you, give it a star (⭐). Stars help other people find 
 | [Gemma](https://ai.google.dev/gemma) | The default model on Macs with 16 GB or more |
 | [Qwen](https://huggingface.co/Qwen) | The default model on 8 GB Macs |
 | [MiniCPM](https://huggingface.co/openbmb) | One of the two fastest models in the catalog |
-| [swift-transformers](https://github.com/huggingface/swift-transformers) | The tokenizers and the Hugging Face hub client |
+| [swift-transformers](https://github.com/huggingface/swift-transformers) | The tokenizers |
+| [swift-huggingface](https://github.com/huggingface/swift-huggingface) | The Hugging Face hub client and cache |
 | [Cotypist](https://cotypist.app) | The original idea |
 
 ## License

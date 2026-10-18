@@ -21,7 +21,7 @@ Do the checks from left to right. Each check reads one line of **Diagnostics**.
 | `Accessibility: NOT granted ✗`<br>after a local build | The code signature changed. | Reset the grant with `tccutil reset Accessibility app.pretype.Pretype`. Then grant Accessibility again. |
 | `Text element: none` | The app does not show its<br>text fields to the<br>Accessibility API. | No remedy is possible from Pretype. |
 | `Last: engine returned`<br>`no suggestion` | The context is too short, or<br>the output gates rejected<br>the result of the model. | Type more text. |
-| No suggestions in all apps.<br>The MLX engine is missing. | A source build without<br>compiled Metal shaders. | Build with `./Scripts/make-app.sh`. Do not use plain `swift build`. |
+| No suggestions in all apps.<br>The MLX engine is missing. | A source build without<br>compiled Metal shaders. | Install the Metal Toolchain with `xcodebuild -downloadComponent MetalToolchain`. Then build again with `./Scripts/make-app.sh` or `./Scripts/dev.sh`. |
 | `open build/Pretype.app` fails<br>with `-600`, or Finder shows<br>"the application is not open<br>anymore" (source builds) | An old instance was running<br>when you replaced its bundle.<br>LaunchServices activates the<br>old process, not the new build. | Quit Pretype from the menu bar before you rebuild. Or start the build with `open -n build/Pretype.app`. On a current checkout, `make-app.sh` quits the running instance of that build first. It does not quit a copy in `/Applications`, so you can use that copy while you rebuild. |
 | macOS asks for Accessibility<br>again after an update | Releases up to 2.4.0 have<br>an ad-hoc signature. Later<br>releases have a different one. | Grant the permission one more time. Later updates keep it. |
 | Gatekeeper blocks<br>the first launch | Releases up to 2.4.0 have<br>an ad-hoc signature. | Releases 2.5.0 and later are notarized and open normally. For an older release, remove the quarantine flag with `xattr -dr com.apple.quarantine /Applications/Pretype.app`. Or click **System Settings → Privacy & Security → Open Anyway**. |
@@ -77,7 +77,7 @@ First, open **Settings → Dictation**. That pane shows the name of the blocker.
 | The first press shows<br>"getting the dictation<br>model ready…" | macOS downloads the model<br>for that language one time. | Wait approximately one minute, then try again. The download continues after you release the key. |
 | The pill does not appear | Dictation starts on a hold,<br>not on a tap. Another key or<br>a mouse click cancels it. | Hold the key for approximately half a second before you speak. The modifier key on the left or the right side operates. Do not type while you speak. If this occurs frequently, use the hands-free chord (next row). |
 | You cannot speak and use<br>the keyboard at the same time | The hold gesture is strict<br>by design. If not, each<br><kbd>⌥</kbd>-arrow opens the microphone. | Use the hands-free chord: **Settings → Dictation → Hands-free chord**, <kbd>⌃⌥D</kbd> by default. Press it one time to start and one time to stop. Typing, clicks and scrolling do not stop it. <kbd>⎋</kbd> discards the capture. A move to a different field stops the capture, because the words go to the field where you started. |
-| A hands-free capture<br>stopped by itself | The capture stops after a few<br>seconds of silence. This<br>prevents an open microphone. | Pretype types the words that it heard before the stop. To change the time, or to disable the stop, use **Stop after silence**. Before your first word, the limit is 30 seconds. With the silence stop disabled, a capture stops at 10 minutes. |
+| A hands-free capture<br>stopped by itself | The capture stops after a few<br>seconds of silence. This<br>prevents an open microphone. | Pretype types the words that it heard before the stop. To change the time, or to disable the stop, use **Settings → Dictation → Advanced → Stop after silence**. Before your first word, the limit is 30 seconds. With the silence stop disabled, a capture stops at 10 minutes. |
 | Music becomes flat and quiet<br>while you dictate | The headset changed to call<br>mode. Bluetooth carries good<br>playback or a two-way call,<br>not both at the same time. | Set **Settings → Dictation → Advanced → Microphone** to *Automatic* (the default). Then Pretype records from the built-in microphone when your earbuds also play your audio. If you selected the headset there, this effect is the cost. The sound becomes normal when the capture stops. |
 | The headset stopped<br>during a sentence | The microphone of the<br>capture disconnected. | No action is necessary. The capture continues on the default input. It stops if no microphone is available, or if the input changes more than 3 times in 3 seconds. Then Pretype types the words that it heard. A headset that connects during a capture does not replace the microphone of that capture. |
 | A long dictation has<br>no punctuation | The tidy-up pass is for one<br>short line. Text longer than<br>500 characters skips it. | Pretype types that text exactly as it heard it. To get punctuation, dictate a long passage in a few shorter parts. |
@@ -97,7 +97,7 @@ If dictation still does not operate:
 
 The model stays in memory while you type. This makes suggestions fast. The default model uses approximately 1.2–5 GB, which is less than one quarter of the memory of your Mac.
 
-* After five minutes without typing, the model unloads and releases its memory. On Macs with 32 GB or more, this time is fifteen minutes. The model loads again at your next keystroke.
+* After five minutes without typing, the model unloads and releases its memory. On Macs with 32 GB or more, this time is fifteen minutes. The model loads again at your next keystroke. To change the time, use **Settings → Model → Advanced → Free memory when idle**.
 * If macOS reports memory pressure, the model unloads earlier.
 * The model computes only while you type in a field that Pretype can read.
 * Pretype waits for a short pause in your typing before it starts a suggestion. When you type fast, new work replaces old work, and no queue occurs.
@@ -113,7 +113,7 @@ The default model depends on the memory of your Mac:
 | 16 GB and more | A Gemma 4 tier, which has the widest language coverage |
 | 8 GB | Qwen3.5 2B, which is the strongest small model outside English |
 
-In **Settings → Model**, set the accuracy axis to the language that you type. Each figure on that tab then shows the result for that language, with its sample size and tolerance.
+In **Settings → Model**, set **Accuracy in** to the language that you type. Each figure on that tab then shows the result for that language, with its sample size and tolerance.
 
 Inline typo fixes use the macOS spell checker, in the language that it detects. All dictionaries that macOS has installed operate. English and Russian have the most tests.
 

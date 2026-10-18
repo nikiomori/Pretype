@@ -231,6 +231,7 @@ The outputs are the same as the originals, row for row. The downloads are 13–3
 
 | Model | Original | Re-pack | Measured model memory |
 |---|--:|--:|--:|
+| Gemma 4 E2B 4-bit | 3.6 GB | 2.7 GB | 2.5 GB |
 | Gemma 4 E2B 8-bit | 5.9 GB | 3.6 GB | 3.4 GB |
 | Gemma 4 E4B 6-bit | 7.1 GB | 5.3 GB | 5.0 GB |
 | Gemma 4 E4B 8-bit | 9.0 GB | 6.3 GB | 6.0 GB |
@@ -247,18 +248,20 @@ If your install downloaded an original build before the re-packs, Pretype moves 
 
 The resident figure is the memory that a model uses *while you type*. The model does not stay in memory all day:
 
-* After five idle minutes, the model unloads. On Macs with 32 GB or more, this time is fifteen minutes.
+* After five idle minutes, the model unloads. On Macs with 32 GB or more, this time is fifteen minutes. To change the time, use **Settings → Model → Advanced → Free memory when idle**.
 * The model loads again at your next keystroke.
 * If macOS reports memory pressure, the model unloads earlier.
 
 ### Reduce memory use (Gemma)
 
-A Gemma model keeps a large table, but each word of a suggestion reads only one row of it. The table is 1.3 GB on E2B and 1.6 GB on E4B. With **Model → Runtime → Reduce memory use**, Pretype reads this table from disk and does not keep it in memory.
+A Gemma model keeps a large table, but each word of a suggestion reads only one row of it. The table is 1.3 GB on E2B and 1.6 GB on E4B. With **Settings → Model → Advanced → Reduce memory use**, Pretype reads this table from disk and does not keep it in memory.
 
 * The suggestions are the same, row for row.
 * Each suggestion comes a few milliseconds later (5–7 ms on an M4 Max).
+* A load from the model files on the Mac does not read the table into memory. Thus the memory peak during a load is also lower (on an M4 Max: E2B 4-bit 2.6 GB → 1.3 GB, E4B 6-bit 5.3 GB → 3.6 GB). The first load after a download still reads the table one time.
 * The setting is on by default on Macs with 16 GB of memory or less.
 * A change applies at your next keystroke.
+* The setting operates only when the model files are on an internal disk of the Mac. If your Hugging Face cache is on an external or network drive, the table stays in memory. This prevents a crash if the drive disconnects.
 
 ### The fix chord can add a download
 
@@ -306,6 +309,6 @@ We checked these presets against the documentation of each provider on 2026-10-1
 * **Latency.** The network adds to each suggestion. **Test connection** shows the round trip from your Mac.
 * **Cost.** Each suggestion is one request. The provider charges for each request.
 * **Local servers.** Ollama and LM Studio run on your Mac and need no key. The data does not leave the Mac. Pretype can connect to `http://localhost`.
-* **Refrain.** [Refrain](https://github.com/nikiomori/Refrain) is the speech engine that other apps on the Mac, such as Reprise, share. With it as the dictation provider, Pretype dictates through Refrain's models instead of loading its own, and sends the names in the field as spelling hints. The audio does not leave the Mac. As with any server on your Mac, Pretype re-sends the take about once a second for the live preview, as Parakeet does on device; a hosted provider gets the take once, when you stop speaking.
+* **Refrain.** [Refrain](https://github.com/nikiomori/Refrain) is the speech engine that other apps on the Mac, such as Reprise, share. With it as the dictation provider, Pretype dictates through Refrain's models instead of loading its own, and sends the names in the field as spelling hints. The audio does not leave the Mac. As with any server on your Mac, Pretype sends the take again about once a second for the live preview, as Parakeet does on device. A hosted provider gets the take when you stop speaking. If that upload fails because of the network, a timeout or a server error (HTTP 429 or 5xx), Pretype sends it one more time.
 
 For quantization tiers, the engine split and the confidence gate, see [Architecture](ARCHITECTURE.md).

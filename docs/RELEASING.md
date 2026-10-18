@@ -27,12 +27,13 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
    git switch main
    ```
 
-   With `PRETYPE_VERSION`, the scripts stop before the build in these conditions:
+   The scripts stop before the build in these conditions:
+   * `PRETYPE_VERSION` is not set. `dist.sh` signs only an app that it builds from the tag. It never signs an existing `build/Pretype.app`.
    * The working tree has a change or an untracked file.
    * `HEAD` is not at the tag `vX.Y.Z`.
    * The "Developer ID Application" certificate is not in the keychain.
 
-   > **NOTE:** `notarytool --wait` can stop after a short network failure. The submission continues on the server. Do not submit again. Check the status with `xcrun notarytool history --keychain-profile pretype`.
+   > **NOTE:** `notarytool --wait` can stop after a short network failure. The submission continues on the server. Do not submit again. Do the steps in [If notarytool stops](#if-notarytool-stops).
 
 3. **Create a draft release with the zip.** GitHub generates the release notes.
 
@@ -59,3 +60,36 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
    1. Set `version` to `X.Y.Z`.
    2. Set `sha256` to the output of `shasum -a 256 build/Pretype.app.zip`.
    3. Commit with the message `pretype X.Y.Z`.
+
+## If notarytool stops
+
+`dist.sh` stops when `notarytool --wait` stops. The signed app is in `build/dist/Pretype.app`, but it has no ticket yet. Do not run `dist.sh` again. Do these steps:
+
+1. Find the ID of the submission. Use the entry with the newest `createdDate`.
+
+   ```sh
+   xcrun notarytool history --keychain-profile pretype
+   ```
+
+2. Wait for the result. The status must be `Accepted`. If the status is `Invalid`, read the reason with `xcrun notarytool log <id> --keychain-profile pretype`.
+
+   ```sh
+   xcrun notarytool wait <id> --keychain-profile pretype
+   ```
+
+3. Staple the ticket to the app. Then make the zip again from the stapled app.
+
+   ```sh
+   xcrun stapler staple build/dist/Pretype.app
+   rm -f build/Pretype.app.zip
+   ditto -c -k --keepParent build/dist/Pretype.app build/Pretype.app.zip
+   ```
+
+4. Validate the app.
+
+   ```sh
+   xcrun stapler validate build/dist/Pretype.app   # expect: The validate action worked!
+   spctl -a -t exec -vv build/dist/Pretype.app     # expect: source=Notarized Developer ID
+   ```
+
+5. Continue with step 3 of the [procedure](#procedure).

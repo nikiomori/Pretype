@@ -38,6 +38,21 @@ Before a request, `SuggestionController` does these checks, in this sequence:
 | *Pause on Battery* is on and the Mac is on battery | No completion. Typo fixes and emoji shortcodes continue. |
 | Your personal n-gram model has a confident match | That suggestion shows at once. The model output replaces it later. |
 
+`FieldState.admit` decides about each read: use it, read again, or drop the
+suggestion. `RereadSchedule` decides if a key press needs its own read 60 ms
+later, or if an AX notification already gave one.
+
+The collaborators of `SuggestionController` see it only through narrow
+protocols: `CorrectionHost`, `PromptContextHost`, `IndicatorHost`,
+`ReplyHost` and `DictationHost`. Tests drive a real `SuggestionController`
+with fakes through `SuggestionController.Environment`, and a real
+`FocusTracker` through `FocusTracker.AXCalls`. The pipeline writes `Stats` and
+the journal only through `Environment.book`, and every synthetic key goes out
+through `TextInjector.post`, so tests see both. The clock (`Environment.now`)
+and the journal lookup (`Environment.similarAcceptedPhrases`) are injectable
+too. In a test process, `Settings` uses a private defaults file for each run
+(`Settings.store`), so parallel test runs do not share settings.
+
 When you press the accept key, `KeyTap` holds the key, and the app does not
 get it. `TextInjector` then types the text as synthetic key events. The tap
 holds the key only while a suggestion is on the screen.
@@ -261,7 +276,8 @@ they stop in different ways:
 | <kbd>Esc</kbd> | Drops the capture. | Drops the capture. |
 | Other key, click or scroll | Drops the capture. | No effect. |
 | Focus moves to a different field | Drops the capture. | The capture stops. The words that it heard go to the clipboard. |
-| Key press or click while Working | Drops the transcript, with a notice. If the focus moved, the transcript goes to the clipboard. | Same as for a hold. |
+| Key press or click while Working | The transcript goes to the clipboard, with a notice. A voice command is dropped, with a notice. | Same as for a hold. |
+| The final pass fails or times out | The preview goes to the clipboard, with a notice. | Same as for a hold. |
 | New hold while Working | Waits. It starts after the insert of the previous transcript. | Waits. A second press removes it from the queue. |
 
 * **The gesture.** `ModifierHold` in `KeyTap.swift` is the complement of
@@ -273,8 +289,8 @@ they stop in different ways:
 * **Unit tests.** `ModifierHold` is pure and gets the time as an input. Each
   rule about what does *not* open the microphone is a unit test.
 * **The state machine.** `DictationController` talks to the app through the
-  `DictationHost` protocol. Its session, audio capture and environment checks
-  are injectable. Thus unit tests cover the full lifecycle (queued holds,
+  `DictationHost` protocol. Its session and audio capture are injectable, and
+  it asks the host whether Pretype's own window or secure input is active. Thus unit tests cover the full lifecycle (queued holds,
   focus changes, device loss, watchdogs) without a microphone.
 
 ### Which microphone
@@ -383,10 +399,10 @@ All app code is in `Sources/Pretype/`:
 | Area | Files | Job |
 |---|---|---|
 | Startup and menu | `main.swift`, `AppDelegate`, `StatusMenuController`, `MenuHeaderView`, `BrandMark`, `OnboardingWindow`, `Permissions`, `UpdateChecker` | Entry point and `--ax-probe`. Menu bar, menu-bar icon and Diagnostics. Onboarding, permissions, and the daily release check. |
-| Read the field | `FocusTracker`, `AXText`, `AgentPrompt`, `ScreenContext`, `AppPolicy` | Follow the focused element with `AXObserver`. Read text, caret and font. Find an agent prompt in a terminal. Opt-in OCR. Rules for each app and site. |
+| Read the field | `FocusTracker`, `AXText`, `RereadSchedule`, `AgentPrompt`, `ScreenContext`, `AppPolicy` | Follow the focused element with `AXObserver`. Read text, caret and font. Read again 60 ms after a key press when no AX notification gave a read. Find an agent prompt in a terminal. Opt-in OCR. Rules for each app and site. |
 | Input and output | `KeyTap`, `TextInjector`, `SuggestionWindow`, `CaretIndicator`, `BackgroundProbe` | Event tap, accept keys and modifier gestures. Synthetic key events. The panel, inline ghost text and pills. Light or dark below the overlay. |
-| Pipeline | `SuggestionController`, `EngineCoordinator`, `CorrectionController`, `SpellChecker`, `EmojiShortcodes`, `InlineCalculator` | `SuggestionController` is the hub: text → engine → overlay → accept → inject, and dictation inserts. `EngineCoordinator` controls the life of the engine. `CorrectionController` runs ⌥⇥, last-word fixes and inline spell fixes. |
-| Engines (`Engines/`) | `CompletionEngine`, `MLXEngine`, `MLXEngine+Generation`, `FoundationModelsEngine`, `CloudAPI`, `CompletionGates`, `CorrectionGates`, `ModelCatalog`, `ModelMetrics`, `ModelStorage`, `ConfigProjection` | The protocol. Load, KV cache and decode loop. The Apple Intelligence engine. API presets, keys, the HTTP client and `CloudEngine`. Shared output gates. Catalog entries, RAM ladder and recommended settings. Measured figures. Disk, deletes and the slim upgrade. |
+| Pipeline | `SuggestionController` (+`Keys`, +`Text`, +`Dictation`, +`Environment`), `FieldState`, `QuerySlot`, `OfferRecord`, `PromptContext`, `ReplyComposer`, `EngineCoordinator`, `CorrectionController`, `SpellChecker`, `EmojiShortcodes`, `InlineCalculator` | `SuggestionController` is the hub: text → engine → overlay → accept → inject, and dictation inserts. It orders the steps. The rules are in pure types: `FieldState` keeps the ghost, the text cache, the settle time after an injection, the declined suggestion and the ⌘Z record. `QuerySlot` keeps the request that is in flight. `OfferRecord` keeps the journal record of the suggestion on the screen. `keyAction` (+`Keys`) is one table that decides each key press: accept, decline, undo, reply, fix or pass the key to the app. `PromptContext` collects OCR, clipboard and personal examples. `ReplyComposer` writes replies through the `ReplyHost` protocol. `EngineCoordinator` controls the life of the engine. `CorrectionController` runs ⌥⇥, last-word fixes and inline spell fixes. |
+| Engines (`Engines/`) | `CompletionEngine`, `MLXEngine`, `MLXEngine+Generation`, `MLXEngine+Loading`, `ModelResidency`, `HostPLE`, `FoundationModelsEngine`, `CloudAPI`, `CompletionGates`, `CorrectionGates`, `ModelCatalog`, `ModelMetrics`, `ModelStorage`, `ConfigProjection` | The protocol. Requests, KV cache and decode loop. Model building and the reload-leak blueprints. Which models are resident: one slot for the primary and one for the fix sibling, loads, idle and memory-pressure unloads, and which slot serves fixes. `MLXEngine.routes` sets the load order: a blueprint, then a Gemma build with its per-layer table served from disk (`HostPLE`), then the library factory. The Apple Intelligence engine. API presets, keys, the HTTP client and `CloudEngine`. Shared output gates. Catalog entries, RAM ladder and recommended settings. Measured figures. Disk, deletes and the slim upgrade. |
 | Personalization | `SuggestionJournal`, `PersonalNgram`, `TypedLanguage`, `Stats` | The local journal, the personal n-gram model, the typed language and the usage statistics. |
 | Dictation (`Dictation/`) | `DictationController`, `DictationHost`, `AudioCapture`, `AudioDevices`, `Transcription`, `Parakeet`, `CloudTranscription` | The state machine and its host protocol. Microphone capture and device selection. Apple's `SpeechAnalyzer`. The opt-in Parakeet engine. The opt-in API transcription. |
 | Settings UI | `Settings`, `SettingsWindowController`, `SettingsStore`, `SettingsView`, `SettingsUI`, `ModelTabView`, `ImpactRailView`, `APITabView` | Stored defaults. The observable bridge to the pipeline, and its alerts. Tabs. Presets and sharing. The model map and list. The Live Impact meters. The API tab. |

@@ -47,10 +47,9 @@ To build and run the app:
 
 For a fast inner loop:
 
-1. Run `./Scripts/make-app.sh` one time. This step makes the MLX metallib.
-2. Run `./Scripts/dev.sh`. This script runs `swift build` and copies the MLX metallib next to the dev binary.
+* Run `./Scripts/dev.sh`. This script runs `swift build`, puts the per-app styles and the translations next to the binary, and starts it.
 
-Plain `swift build` compiles the app, but MLX cannot run from a SwiftPM binary. Pretype finds that the shaders are missing and disables the MLX engine. It does not crash.
+`swift build` also compiles the Metal shaders of MLX. For this, Xcode needs the Metal Toolchain component (`xcodebuild -downloadComponent MetalToolchain`). If the shaders are missing, Pretype disables the MLX engine. It does not crash.
 
 > **Permissions.** Pretype needs these permissions:
 >
@@ -100,6 +99,15 @@ The eval is a tool for **comparison**. The absolute first-word accuracy is lower
 * Comments tell *why*, not *what*. The codebase uses short comments with much information. For examples, see the output-gate comments in `Engines/CompletionGates.swift` and `Engines/CorrectionGates.swift`.
 * Do not add dependencies before you discuss them in an issue.
 
+## Write tests
+
+Each test process is isolated. `Settings` writes to a private defaults file, API keys stay in memory, and the Hugging Face cache is an empty scratch folder. Thus a test never changes your own settings, keys or downloads.
+
+* **Pipeline.** Subclass `PipelineTestCase`. It drives a real `SuggestionController` against `FakeWorld` (`PipelineTestSupport.swift`): fake fields, keys, clipboard, clock and bookings. Use `set(\.someSetting, value)` for a setting; the test puts it back.
+* **Engines.** Subclass `MLXTestCase`. It runs MLX on the CPU and skips when the Mac has no Metal device. `tinyContainer()` and `TinyGemma` give a tiny synthetic Gemma, so no test downloads a model. Use `withScratchHub` when a test writes model folders.
+* **Rules.** Test pure types directly: for example `FieldState`, `keyAction`, `RereadSchedule`, `ModelCatalog` and the output gates.
+* Assert what the user sees or what the app types, not internal state. A good test fails when you break the rule it names.
+
 ## Translations
 
 The interface is in 17 languages: English (the source) and cs, de, es, fr, it, ja, ko, nl, pl, pt-BR, ro, ru, sv, tr, uk and zh-Hans. The strings are in `Localization/Localizable.xcstrings`, a String Catalog. The English text in the code is the key.
@@ -109,13 +117,13 @@ The interface is in 17 languages: English (the source) and cs, de, es, fr, it, j
 * After you add or change strings, run `Scripts/sync-strings.py`. The script adds the new keys to the catalog. It marks removed keys as stale, or deletes them if they have no translations. Then it shows the untranslated keys.
 * To translate, open the catalog in Xcode, or edit the JSON.
 * CI runs `Scripts/sync-strings.py --check`. The check fails if a key has no translation in one of the languages of the catalog.
-* If you cannot translate a new string, write this in the pull request. The maintainer then adds the missing translations.
+* If you cannot translate a new string, write this in the pull request. The strings check in CI then fails. This is expected: the maintainer adds the missing translations before the merge.
 * To add a language, add its translations to the catalog. `Scripts/make-app.sh` compiles each language into the app, and **Settings → General → Language** shows it.
 
 ## Add an engine
 
 1. Make the engine conform to the `CompletionEngine` protocol (`Sources/Pretype/Engines/CompletionEngine.swift`).
-2. Implement `complete(_:)`. You can also implement `correct(selection:request:)`.
+2. Implement the members that have no default: `name`, `state`, `statusLine`, `complete(_:)`, `correct(selection:redactLog:)`, `reply(to:request:)`, `rewrite(selection:instruction:)` and `updateCompletion(length:instructions:)`. An engine that cannot reply or rewrite can return `nil`. An engine that cannot run a fix must throw `EngineNotReady`: for `correct`, `nil` means "nothing to fix", and the user sees "✓ looks fine". The protocol extension supplies the other members. Override `completions(for:)` if the engine can stream.
 3. Use the shared output gates through `CompletionGates.postProcess(...)`.
 4. Report the progress through `EngineState`. Then the menu and the caret indicator show the correct state.
 
@@ -132,7 +140,7 @@ flowchart LR
     Q -- no --> V
 ```
 
-- [ ] `swift build --build-tests` and `swift test` pass, and `swiftlint --strict` shows no problems. If you changed text that the user sees, `Scripts/sync-strings.py --check` passes. CI runs all of these checks.
+- [ ] `swift build --build-tests` and `swift test` pass, and `swiftlint --strict` shows no problems. If you changed text that the user sees, you ran `Scripts/sync-strings.py`. CI runs all of these checks. The strings check fails only on translations you could not write: say so in the pull request (see *Translations*).
 - [ ] The app starts, and the change operates in a real text field. TextEdit and Notes have the best Accessibility support.
 - [ ] For prompt, model, or gate changes: you asked for eval numbers. A maintainer runs the harness. See *Quality eval* above.
 - [ ] The diff contains only the change. Comments explain the decisions that are not obvious.
