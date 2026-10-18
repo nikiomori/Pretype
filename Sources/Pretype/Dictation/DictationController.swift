@@ -65,7 +65,7 @@ final class DictationController {
         case latch
     }
 
-    private(set) var trigger: Trigger = .hold
+    var trigger: Trigger = .hold
 
     /// A hands-free capture that has not been stopped yet. The hold gesture is
     /// inert under it (`modifierChanged`, `apply`); `.preparing` counts, for
@@ -78,12 +78,12 @@ final class DictationController {
     /// the caret it was headed for has moved, so `finish` hands it to
     /// `rescueDictated` instead of typing it behind whatever was just typed or
     /// clicked. Reset by `begin`.
-    private var caretMoved = false
+    var caretMoved = false
 
     /// Keyboard focus is still in the field this capture started in — the
     /// only place its words may be typed. Opening or closing a launcher fires
     /// no focus change, hence the second half.
-    private var focusHeld: Bool {
+    var focusHeld: Bool {
         guard let owner else { return false }
         return owner.focusGeneration == focusGeneration && owner.focusIsInLauncher == startedInLauncher
     }
@@ -200,7 +200,7 @@ final class DictationController {
         return action
     }
 
-    private(set) var phase: Phase = .idle {
+    var phase: Phase = .idle {
         didSet {
             if (oldValue == .idle) != (phase == .idle) { owner?.dictationBusyChanged() }
             // The status item mirrors the microphone: only the open/closed
@@ -250,7 +250,7 @@ final class DictationController {
     let maxLatchedSeconds: TimeInterval = 600
 
     /// The ceiling this capture is running under.
-    private var ceilingSeconds: TimeInterval {
+    var ceilingSeconds: TimeInterval {
         trigger == .latch ? maxLatchedSeconds : maxCaptureSeconds
     }
 
@@ -260,25 +260,25 @@ final class DictationController {
     /// Readable so a test can `fire()` one instead of waiting out its
     /// interval. Every handler runs on the main run loop with no actor hop, so
     /// the fire is the effect — and an `invalidate()` is a true cancel.
-    private(set) var armTimer: Timer?
-    private(set) var limitTimer: Timer?
-    private(set) var silenceTimer: Timer?
+    var armTimer: Timer?
+    var limitTimer: Timer?
+    var silenceTimer: Timer?
     /// A start that arrived while the previous capture was still being written
     /// down, and what asked for it. Honored by `resumePendingHold` the moment
     /// that write resolves — the alternative was a generation bump that
     /// silently threw away the finished transcript, which is exactly what
     /// happens when someone dictates two sentences back to back with the
     /// tidy-up pass on.
-    private var pendingBegin: Trigger?
+    var pendingBegin: Trigger?
     /// Voice activity for the capture in flight, written on the delivery queue
     /// and read by `silenceTimer`. Replaced per capture, so a straggling buffer
     /// from the previous one cannot keep this one alive.
-    private var meter: VoiceMeter?
-    private let capture: any AudioCapturing
-    private var session: (any TranscriptionSession)?
+    var meter: VoiceMeter?
+    let capture: any AudioCapturing
+    var session: (any TranscriptionSession)?
     /// Readable so a test can await the step in flight — the session start,
     /// or the write-down — instead of guessing how long it takes.
-    private(set) var sessionTask: Task<Void, Never>?
+    var sessionTask: Task<Void, Never>?
 
     init(capture: any AudioCapturing = AudioCapture()) {
         self.capture = capture
@@ -287,24 +287,24 @@ final class DictationController {
     /// Bumped by every start and every discard: an async step that finishes
     /// after its capture was abandoned checks this and drops its result rather
     /// than typing it into whatever is focused now.
-    private var generation = 0
+    var generation = 0
 
     /// Bumped by every `capture.start` — begin's and a mid-capture restart's.
     /// A device-loss notification already in flight when the tap restarts
     /// carries the OLD epoch and is dropped: one physical unplug can post both
     /// the disconnect and the session's runtime error, and counting the second
     /// against the circuit breaker (plus a redundant stop/start) helped nobody.
-    private var captureEpoch = 0
+    var captureEpoch = 0
 
     /// Where the capture started — the field the words belong to. A result is
     /// only ever inserted while the focus generation still matches.
-    private var focusGeneration = 0
-    private var startedInLauncher = false
-    private var caretRect: CGRect?
-    private var hostStyle = HostTextStyle()
+    var focusGeneration = 0
+    var startedInLauncher = false
+    var caretRect: CGRect?
+    var hostStyle = HostTextStyle()
     /// The selection this capture's words are an instruction for (voice
     /// command mode), or nil for ordinary dictation.
-    private var commandSelection: String?
+    var commandSelection: String?
 
     /// Dictation events go to the *unified* log as well as the in-app console.
     ///
@@ -429,7 +429,7 @@ final class DictationController {
     /// preview is not enough on its own: a hosted API sends none, so its
     /// minutes of speech sit behind an empty `.listening("")` — the level
     /// meter is what knows someone spoke there.
-    private var heardSomething: Bool {
+    var heardSomething: Bool {
         guard case .listening(let partial) = phase else { return false }
         return !partial.isEmpty || meter?.heardVoice == true
     }
@@ -501,657 +501,11 @@ final class DictationController {
         }
     }
 
-    // MARK: - Capture
-
-    private func begin(trigger requested: Trigger = .hold) {
-        guard let owner else { return }
-        // The previous transcript is still being finalized (or tidied up — a
-        // whole model generation, with polish on). Starting over here would
-        // bump the generation and silently discard it, so the new hold WAITS
-        // instead: the pill keeps saying "writing it down…", and the moment
-        // the pending insert lands `resumePendingHold` starts this capture for
-        // real. The key is still down by then, or it isn't and nothing happens.
-        if phase == .working {
-            pendingBegin = requested
-            Self.note("still writing the last one down — capture queued")
-            return
-        }
-        // One microphone, one capture. Only reachable now that two gestures can
-        // ask for one, and cheap insurance against a third ever being added:
-        // the paths that could double up are guarded at their own ends, and
-        // this is where the damage would land if one of them ever isn't.
-        guard phase == .idle else {
-            Self.note("already capturing — ignoring a second start")
-            return
-        }
-        trigger = requested
-        // Every refusal below ends in "then <do the thing again>", and the
-        // thing differs: telling someone who just pressed a chord to hold a key
-        // sends them looking for a gesture that isn't the one they used.
-        let latchKey = requested == .latch ? Settings.dictationLatch.label : nil
-        // `at` is threaded through so a refusal can still be *shown*: the caret
-        // rect from this hold's own AX read, not the host's fallback rect, which
-        // is nil until the user has typed something in this field — which is
-        // exactly the case where someone reaches for dictation. Refusing
-        // silently there is indistinguishable from a broken build.
-        func refuse(_ why: String, notice: SuggestionDisplayMode? = nil,
-                    at rect: CGRect? = nil) {
-            owner.report("dictation: \(why)")
-            Self.note("not listening — \(why)")
-            guard let notice else { return }
-            // Falls all the way back to the POINTER when there is no caret to
-            // hang a pill on. Every silent refusal in this flow has read as
-            // "the feature is broken" — including to the person who wrote it —
-            // so a notice with nowhere to go goes to where the user is looking.
-            let anchor = rect ?? owner.fallbackCaretRect ?? Self.pointerAnchor()
-            owner.showTransientOverlay(notice, at: anchor, host: owner.fallbackHostStyle)
-        }
-        // The "we should not be here at all" cases draw nothing on purpose — a
-        // paused or blacklisted app is one Pretype has been told to keep out
-        // of, pills included. A terminal is let through to the agent
-        // check below, as for completions.
-        guard Settings.enabled else { return refuse("Pretype is paused") }
-        guard !owner.isOwnUIFrontmost else { return refuse("our own window is frontmost") }
-        guard AppPolicy.allowsCompletions(owner.typingContext) else {
-            return refuse("off in \(owner.typingContext.appName ?? "this app")")
-        }
-        // Something has to receive the words. This is the only hard requirement:
-        // typing into a window with no text focus would fire shortcuts instead
-        // of writing a sentence.
-        switch owner.dictationFocus() {
-        case .field:
-            break
-        case .offLimits:
-            // A password manager's quick-access panel over an app that is on:
-            // as off limits as the app itself, so the same silence — and
-            // "click into a text field" would be wrong twice over, drawn over
-            // the password manager at someone already in a field.
-            return refuse("off in the panel that has the keys")
-        case .noField:
-            return refuse("no text field in focus",
-                          notice: .hint(latchKey.map { String(localized: "click into a text field, then press \($0) again") }
-                              ?? String(localized: "click into a text field, then hold to talk")))
-        }
-        // Again: finding the field can read the site of one the focus tracker
-        // missed, and that site may be switched off.
-        guard AppPolicy.allowsCompletions(owner.typingContext) else {
-            return refuse("off on \(owner.typingContext.site ?? "this site")")
-        }
-        // An open IME composition is the one focused-field state synthetic
-        // keystrokes must never touch: they land inside the marked text and
-        // garble or force-commit it, IME-dependent. Precise-only by design —
-        // see `AXText.hasMarkedText` for why the coarse input-source fallback
-        // is not consulted here.
-        guard !owner.isComposingInFocusedField() else {
-            return refuse("an IME composition is open",
-                          notice: .hint(latchKey.map { String(localized: "finish composing that word, then press \($0) again") }
-                              ?? String(localized: "finish composing that word, then hold to talk")))
-        }
-        // The privacy floor `AXText.context` normally enforces has to be
-        // restated here, because the anchor read is no longer a gate: while
-        // macOS reports secure input, a password field is focused somewhere and
-        // nothing may be captured or typed.
-        guard !owner.isSecureInputActive else {
-            return refuse("secure input is active",
-                          notice: .hint(String(localized: "dictation stays out of password fields")))
-        }
-        // Everything the anchor gives is ADVISORY. Web and Electron fields
-        // routinely publish no `AXSelectedTextRange` until their first
-        // keystroke: the field is focused, the caret is blinking in it, and AX
-        // still reports nothing. Gating on that produced this feature's most
-        // confusing failure — "click into a text field" while the cursor is
-        // already in it, curable by typing one letter — for no benefit, since
-        // dictation needs no coordinates at all. `TextInjector` types into
-        // whatever holds keyboard focus; the read only buys the pill's position
-        // and the sentence the tidy-up pass is continuing.
-        let anchor = owner.dictationAnchor()
-        // A terminal's field reads only as an AI agent's input box (see
-        // `AgentPrompt`); anywhere else in it is a shell, which would run what
-        // it heard. Silent, like the blacklist this used to be.
-        if AppPolicy.isTerminal(owner.typingContext.bundleID), anchor == nil {
-            return refuse("a terminal outside an agent's prompt")
-        }
-        if anchor == nil {
-            Self.note("field publishes no caret yet — listening anyway, without the pill")
-        }
-        // Caret geometry is optional for the same reason: terminal panes,
-        // Electron canvases and web views that expose a field but no caret box
-        // are exactly where someone would rather talk than type. No rect simply
-        // means no pill; the words still land.
-        let rect = anchor?.caretRect
-        // Before the microphone checks, because it decides what they mean: an
-        // unbundled binary (`swift run`) has no TCC identity, so `request()`
-        // below would return false without ever prompting — and booking that
-        // as "the user refused" wiped `dictationEnabled` for the built app too.
-        guard gates.micBundled() else {
-            return refuse("not running as an .app — microphone access is granted by bundle",
-                          notice: .error(String(localized: "dictation needs the built app — run make-app.sh")), at: rect)
-        }
-        guard gates.transcriptionSupported() else {
-            return refuse("no system speech model", notice: .error(String(localized: "this Mac can't dictate")), at: rect)
-        }
-        // A released capture's language-pack download is still running (see
-        // `discard`). A second session start now would race it for the same
-        // install and reservation, so wait it out with the same words — but
-        // only a download this capture's engine would wait on.
-        guard !Transcription.isDownloading(for: Settings.resolvedDictationLocale) else {
-            return refuse("the language pack is still downloading",
-                          notice: .hint(String(localized: "getting the dictation model ready…")), at: rect)
-        }
-        guard gates.micStatus() == .authorized else {
-            // Never asked. Dictation can be switched on without passing through
-            // the Settings toggle that normally does the asking — a stored
-            // default, a synced preference, a `defaults write` — and refusing a
-            // key the user is *holding down* because of that is the worst
-            // possible moment to be pedantic. Ask now; the next hold works.
-            if gates.micStatus() == .notDetermined {
-                refuse("microphone never asked for — asking now",
-                       notice: .hint(latchKey.map { String(localized: "allow the microphone, then press \($0) again") }
-                                     ?? String(localized: "allow the microphone, then hold to talk")), at: rect)
-                Task { @MainActor in
-                    let granted = await MicrophoneAccess.request()
-                    Self.note("microphone \(granted ? "granted" : "refused")")
-                    Settings.dictationEnabled = granted
-                }
-                return
-            }
-            return refuse("no microphone permission",
-                          notice: .error(String(localized: "allow the microphone in Settings")), at: rect)
-        }
-
-        owner.prepareForDictation()
-        restarts = 0
-        firstRestartAt = Date()
-        focusGeneration = owner.focusGeneration
-        caretMoved = false
-        startedInLauncher = owner.focusIsInLauncher
-        caretRect = rect
-        hostStyle = anchor?.host ?? HostTextStyle()
-        commandSelection = Settings.dictationCommands
-            ? anchor.flatMap { $0.selectedText.isEmpty ? nil : $0.selectedText } : nil
-        Transcription.contextualWords.set(Transcription.biasWords(in: anchor?.textBeforeCaret ?? ""))
-        if let rect, let anchor { owner.noteCaret(rect: rect, host: anchor.host) }
-        generation += 1
-        let gen = generation
-        phase = .preparing
-        if Settings.dictationPolish || commandSelection != nil { owner.prewarmTidy() }
-        render()
-        owner.report("listening…")
-        Self.note("listening (\(requested == .latch ? Settings.dictationLatch.label + ", hands-free" : Settings.dictationGesture.label))")
-        // Armed here, not at the `.listening` flip, so the ceiling covers
-        // `.preparing` too: a hung session start with the key-up never
-        // delivered (the disabled-event-tap case the ceiling exists for) would
-        // otherwise say "starting dictation…" forever while suppressing the
-        // whole completion pipeline.
-        //
-        // Always the SHORT bound here, whatever the trigger. `maxLatchedSeconds`
-        // is argued as "past any dictation anyone sits through", which says
-        // nothing about how long a session that never opened may hang — and ten
-        // minutes of "starting dictation…" is ten minutes with the completion
-        // pipeline suppressed behind `isBusy`. The capture re-arms itself at the
-        // full ceiling once it is actually listening.
-        armCeiling(maxCaptureSeconds)
-
-        // Built here, not inside the task below: a closure written inside a
-        // `[weak self]` task captures the task's optional `self` *variable*,
-        // which is a data race the moment the transcriber calls it off-actor.
-        let onPartial: @Sendable (String) -> Void = { [weak self] text in
-            Task { @MainActor in self?.updatePartial(text, generation: gen) }
-        }
-        captureEpoch += 1
-        let epoch = captureEpoch
-        // Fresh per capture, so a buffer straggling out of the previous one
-        // cannot count as this one having heard something. Written on the
-        // delivery queue, read by `silenceTimer` — hence the lock inside, and
-        // hence no main-actor hop per buffer: at 16 kHz that would be a
-        // scheduled task every few milliseconds to answer one question every
-        // quarter second.
-        let meter = VoiceMeter(now: clock())
-        self.meter = meter
-        let startSession = gates.startSession
-        sessionTask = Task { @MainActor [weak self] in
-            let locale = Settings.resolvedDictationLocale
-            // Held OUTSIDE the do-block so the catch can see it: a session that
-            // started before the microphone failed (`capture.start` throwing)
-            // is invisible to `discard` — `self.session` is only assigned
-            // further down — and un-cancelled it leaks a live analyzer and its
-            // collector task per attempt.
-            var started: (any TranscriptionSession)?
-            do {
-                // Can be slow exactly once per language — macOS downloads the
-                // dictation model on first use. The key is usually long
-                // released by then; `finish` says so instead of hanging.
-                let session = try await startSession(locale, onPartial)
-                started = session
-                guard let self, self.generation == gen else { return session.cancel() }
-                try await self.openMic(for: session, meter: meter, generation: gen, epoch: epoch)
-                // Re-checked across the device-open suspension: a discard that
-                // landed mid-open already called `capture.stop()`, but ours
-                // may have re-opened the microphone after it. Epoch-guarded,
-                // because a NEWER begin may also have started its own capture
-                // by now — a stale wake must not close that one's microphone
-                // (the newer start's own `stop()`-first already closed ours).
-                guard self.generation == gen else {
-                    if self.captureEpoch == epoch { self.capture.stop() }
-                    return session.cancel()
-                }
-                self.session = session
-                self.phase = .listening("")
-                self.render()
-                // Re-armed from HERE, so the capture's own ceiling is measured
-                // from the microphone actually opening rather than from a
-                // key-down that may have spent a Bluetooth negotiation getting
-                // here — and so a latch gets its long bound only now that there
-                // is speech for it to be long about.
-                self.armCeiling(self.ceilingSeconds)
-                meter.opened(now: self.clock())
-                self.armSilenceWatch()
-            } catch {
-                started?.cancel()
-                guard let self, self.generation == gen else { return }
-                self.fail(error)
-            }
-        }
-    }
-
-    private func updatePartial(_ text: String, generation: Int) {
-        guard self.generation == generation, case .listening(let previous) = phase else { return }
-        phase = .listening(text)
-        // A transcript that is still growing is the most trustworthy "someone
-        // is speaking" signal available, and it is free — the analyzer only
-        // repaints when it has heard words. It backs the energy meter up rather
-        // than replacing it: the fallback transcriber that Russian and most
-        // other locales run on reports far less often than a live level does,
-        // so on its own it would end captures mid-sentence.
-        if text != previous { meter?.noteVoice(now: clock()) }
-        render()
-    }
-
-    /// Arm (or re-arm) the hard ceiling on the capture in flight.
-    ///
-    /// One capture arms this twice — the short bound at `begin`, the real one
-    /// at the microphone opening. The handler runs in the timer's own callout,
-    /// not behind a main-actor hop, so the `invalidate()` here (and in
-    /// `stopTimers`) leaves no queued fire of the old bound to land after the
-    /// re-arm and end the capture on the ceiling it had just been let out of.
-    private func armCeiling(_ seconds: TimeInterval) {
-        limitTimer?.invalidate()
-        limitTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                // The interrupt lives inside the cases: a fire in any other
-                // phase must be a true no-op, not one that ends a second hold
-                // already queued behind the write.
-                switch self.phase {
-                case .listening:
-                    Self.note("capture hit the \(Int(seconds))-second ceiling — finishing")
-                    _ = self.hold.interrupt()
-                    self.finish()
-                case .preparing:
-                    Self.note("still preparing when the capture ceiling hit — giving up on this hold")
-                    _ = self.hold.interrupt()
-                    self.discardPreparing(otherwise: .error(String(localized: "dictation couldn't start — try again")))
-                default:
-                    break
-                }
-            }
-        }
-    }
-
-    /// Start the silence clock.
-    ///
-    /// Latched captures only. A held key already says when the user is done,
-    /// and ending one because they paused to think would take away the single
-    /// thing a hold is unambiguous about.
-    private func armSilenceWatch() {
-        silenceTimer?.invalidate()
-        silenceTimer = nil
-        guard trigger == .latch, Settings.dictationSilence > 0 else { return }
-        // One-shot, re-armed by each tick rather than repeating. A repeating
-        // Timer is retained by the run loop and keeps firing after a `[weak
-        // self]` has gone nil — there is nothing in the block to stop it —
-        // whereas re-arming from the tick makes "no owner left to check"
-        // terminate the clock for free.
-        silenceTimer = Timer.scheduledTimer(
-            withTimeInterval: silenceTick, repeats: false
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.checkSilence() }
-        }
-    }
-
-    private func checkSilence() {
-        // The budget is re-read, not remembered: switching to "Never" while a
-        // capture runs would otherwise make `quiet >= 0` true on the next tick
-        // and end it on the spot.
-        guard case .listening = phase, trigger == .latch,
-              Settings.dictationSilence > 0, let meter else { return }
-        let quiet = meter.quietFor(now: clock())
-        // Before the first word the budget is a far longer one. Someone who
-        // latched and is still gathering their thoughts has said nothing to
-        // measure, and holding them to the same few seconds a mid-sentence
-        // pause gets would break the feature for exactly the long-form
-        // dictation it exists for. (Nothing heard by the end of it finishes
-        // anyway, and an empty transcript says "nothing heard".)
-        let budget = meter.heardVoice ? Settings.dictationSilence : openingSilenceSeconds
-        guard quiet >= budget else { return armSilenceWatch() }
-        Self.note("hands-free capture heard nothing for \(Int(quiet))s — finishing")
-        finish()
-    }
-
-    /// The device this capture opened disappeared, or the capture session
-    /// died — a Bluetooth headset running out of battery, a USB microphone
-    /// pulled out. (A capture session pins the one concrete device it opened:
-    /// a NEW default input arriving posts nothing here, and the capture
-    /// deliberately keeps the microphone it started with — no mid-sentence
-    /// hop, no Bluetooth profile flip.)
-    ///
-    /// First choice is to carry on: reopen whatever the input resolver picks
-    /// now, feeding the same session. The reopen re-reads the device format
-    /// and resamples into the session's pinned one, so a different microphone
-    /// is a hiccup instead of an ending. Only when no usable input is left
-    /// does the capture end — and even then it *finishes* if anything was
-    /// already heard: the words exist, and typing them beats making the user
-    /// say them again. The device-loss error is reserved for a capture that
-    /// had heard nothing.
-    ///
-    /// Guarded on generation, epoch *and* on still capturing, because the
-    /// notification arrives from another thread: one posted for a capture that
-    /// has since been discarded must not kill the capture that replaced it,
-    /// one from the pre-restart session must not burn another restart, and one
-    /// that overtakes `capture.stop()` must not throw away a transcript
-    /// already being finalized.
-    private func deviceChanged(generation: Int, epoch: Int) async {
-        guard self.generation == generation, epoch == captureEpoch,
-              isCapturing, let session else { return }
-        func end() {
-            _ = hold.interrupt()
-            if heardSomething {
-                finish()
-            } else {
-                fail(AudioCapture.Failure.deviceChanged)
-            }
-        }
-        // Circuit breaker. A reopened device can disappear again immediately —
-        // a dying Bluetooth headset does exactly this — and one wrong move
-        // upstream turns that into a loop that restarts the tap dozens of
-        // times a second, with the measured cost being more than a lost
-        // transcript: a Bluetooth headset flips profile on every cycle and its
-        // volume comes back wrong. Nothing legitimate changes the input device
-        // three times in three seconds, so past that the capture ENDS — with
-        // whatever was heard, on the same terms as losing the device outright.
-        let now = Date()
-        if now.timeIntervalSince(firstRestartAt) > Self.restartWindow {
-            firstRestartAt = now
-            restarts = 0
-        }
-        restarts += 1
-        guard restarts <= Self.maxRestarts else {
-            Self.note("input kept changing — ending the capture instead of restarting again")
-            return end()
-        }
-        // Carrying on is only sound when the session PINNED a format: the
-        // restart resamples the new device into it, and the analyzer never
-        // notices. A session that accepted the device's raw format
-        // (`audioFormat == nil`) has a live analyzer mid-stream on the OLD
-        // device's sample rate — feeding it the new device's would trade a
-        // graceful ending for `unexpectedAudioFormat` a moment later.
-        // Claimed before the branch, for the tail below: a SECOND loss can
-        // arrive while this restart is still opening the device (the
-        // replacement session installs its observers before its continuation
-        // suspends), and that newer restart's entry `stop()` is exactly what
-        // fails this one. The no-format branch never suspends, so its
-        // unchanged claim passes the tail by construction.
-        var restartEpoch = captureEpoch
-        if session.audioFormat != nil {
-            let gen = generation
-            captureEpoch += 1
-            let epoch = captureEpoch
-            restartEpoch = epoch
-            do {
-                // The device is re-resolved, not remembered: the loss that
-                // brought us here may be the very headset the automatic rule
-                // steps around leaving the room.
-                // The same meter across the swap: a capture that keeps going
-                // through a device change is still one capture, and handing it
-                // a fresh meter would restart its noise floor from scratch
-                // mid-sentence — on the new device, in the same room.
-                try await openMic(for: session, meter: meter, generation: gen, epoch: epoch)
-                // Re-checked across the device-open suspension: a keystroke's
-                // discard landing mid-open already stopped the capture, and
-                // ours may have re-opened the microphone after it. Same epoch
-                // guard as `begin`'s — a newer capture's session must not be
-                // stopped from a stale wake.
-                guard self.generation == gen, isCapturing else {
-                    if captureEpoch == epoch { capture.stop() }
-                    return
-                }
-                Self.note("input device lost mid-capture — reopened on the current default")
-                return
-            } catch {
-                Self.note("input device lost mid-capture — no usable input left")
-            }
-        } else {
-            Self.note("input changed mid-capture — session has no fixed format, ending the capture")
-        }
-        // The failed-restart path above crossed a suspension: whatever ends
-        // here must still be THIS capture, not whatever replaced it meanwhile
-        // — and no NEWER restart may have claimed the session since, because
-        // then the failure was being displaced by it, and ending here would
-        // kill the very capture that restart just saved.
-        guard self.generation == generation, isCapturing,
-              captureEpoch == restartEpoch else { return }
-        end()
-    }
-
-    /// Open the microphone for `session` under `epoch` (see `captureEpoch`),
-    /// feeding it and `meter` — `begin`'s first open and `deviceChanged`'s
-    /// restart alike.
-    ///
-    /// The device-change callback is built here, in a method, rather than
-    /// inside a `[weak self]` task: there it would capture the task's optional
-    /// `self` *variable*, a data race the moment the capture calls it from
-    /// whatever thread the device-loss notification is posted on.
-    private func openMic(for session: any TranscriptionSession, meter: VoiceMeter?,
-                         generation gen: Int, epoch: Int) async throws {
-        let onDeviceChange: @Sendable () -> Void = { [weak self] in
-            Task { @MainActor in await self?.deviceChanged(generation: gen, epoch: epoch) }
-        }
-        let clock = clock
-        try await capture.start(
-            deviceUID: AudioDevices.current(preference: .init(stored: Settings.dictationInput))?.uid,
-            outputFormat: session.audioFormat, onDeviceChange: onDeviceChange
-        ) { buffer in
-            session.feed(buffer)
-            meter?.feed(buffer, now: clock())
-        }
-    }
-
-    private func finish() {
-        guard let owner else { return }
-        if case .preparing = phase {
-            // Released before the microphone opened. Unless a model download
-            // is what it waits on, that was only the microphone opening (a
-            // Bluetooth input negotiates for 0.5–2 s), and "getting the model
-            // ready" would send the user waiting for a download that isn't.
-            discardPreparing(otherwise: .hint(String(localized: "too quick — the microphone was still opening")))
-            return
-        }
-        guard case .listening(let heard) = phase, let session else { return }
-        capture.stop()
-        stopTimers()
-        phase = .working
-        render()
-        let gen = generation
-        let deadline = session.finishDeadline ?? finalizeSeconds
-        sessionTask = Task { @MainActor [weak self] in
-            do {
-                // Behind a deadline, because `finish` awaits the analyzer's own
-                // finalization: a hung `finalizeAndFinishThroughEndOfInput`
-                // would otherwise leave the pill saying "writing it down…"
-                // forever, with the completion pipeline suppressed. Ten
-                // seconds is far past any real finalization of a two-minute
-                // ceiling's audio — this is a watchdog, not a budget. A
-                // session that re-transcribes or uploads the whole take asks
-                // for longer, growing with the take (`finishDeadline`).
-                let raw = try await Self.withDeadline(seconds: deadline) {
-                    try await session.finish()
-                }
-                guard let self else { return }
-                guard self.generation == gen else {
-                    // A drop is always someone's sentence — it gets a line even
-                    // when it is the right call, so a bug report can tell "the
-                    // user moved on" from "the transcript vanished".
-                    Self.note("dropped a finished transcript — the capture was discarded meanwhile")
-                    return
-                }
-                let transcript = Self.clean(raw)
-                guard !transcript.isEmpty else {
-                    self.discard(notice: .hint(String(localized: "nothing heard")))
-                    return
-                }
-                if let selection = self.commandSelection {
-                    // A spoken instruction, not text to type: no tidy-up (its
-                    // punctuation doesn't matter), and nothing to rescue if the
-                    // focus moved — the selection it was about is gone.
-                    self.phase = .idle
-                    self.session = nil
-                    if self.focusHeld {
-                        owner.hideOverlay()
-                        owner.applyVoiceCommand(transcript, to: selection)
-                    } else {
-                        // Said out loud like every other drop: a command that
-                        // silently does nothing reads as the feature being broken.
-                        Self.note("dropped a voice command — focus changed")
-                        owner.showTransientOverlay(
-                            .hint(String(localized: "voice command dropped — the focus moved")),
-                            at: self.noticeRect, host: self.hostStyle)
-                    }
-                    self.resumePendingHold(noticeIfMissed: true)
-                    return
-                }
-                var text = transcript
-                if Settings.dictationPolish, let polished = await self.polish(transcript) {
-                    text = polished
-                }
-                guard self.generation == gen else {
-                    Self.note("dropped \(text.count) chars — discarded during tidy-up")
-                    return
-                }
-                self.phase = .idle
-                self.session = nil
-                owner.hideOverlay()
-                if self.focusHeld, !self.caretMoved {
-                    owner.insertDictated(text)
-                } else {
-                    Self.note("rescued \(text.count) chars to the clipboard — \(self.caretMoved ? "the caret moved" : "focus changed")")
-                    // Nothing resumes behind a rescue: its notice is how the
-                    // user learns where the words went, and a queued capture's
-                    // pill would paint over it at once. The next press starts it.
-                    self.pendingBegin = nil
-                    owner.rescueDictated(text, because: self.focusHeld ? .caretMoved : .focusMoved)
-                }
-                self.resumePendingHold(noticeIfMissed: true)
-            } catch {
-                guard let self, self.generation == gen else { return }
-                // A final pass that timed out or failed outright — a model
-                // error, a local server that went away — on a take with a live
-                // preview still has that preview: on Parakeet and a local
-                // server, nearly the whole take. Minutes of speech go to the
-                // clipboard, not away. A voice command's preview is an
-                // instruction, not text: it fails.
-                let preview = Self.clean(heard)
-                guard !preview.isEmpty, self.commandSelection == nil else { return self.fail(error) }
-                var timedOut = false
-                if case TranscriptionError.timedOut = error { timedOut = true }
-                // The error itself goes where `fail` puts it, not into the
-                // unified log: a server's message can quote anything.
-                if !timedOut {
-                    let why = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                    DebugLog.shared.log("ERROR", "dictation: \(why)")
-                }
-                Self.note("finish \(timedOut ? "timed out" : "failed") — rescued the \(preview.count)-char preview to the clipboard")
-                self.pendingBegin = nil  // as for a rescue above
-                self.discard(notice: nil)
-                owner.rescueDictated(preview, because: timedOut ? .timedOut : .failed)
-            }
-        }
-    }
-
-    /// Start the capture a hold asked for while the previous one was still
-    /// being written down. Clears the flag either way: if the key has since
-    /// come up (or the hold was interrupted), there is nothing to resume.
-    ///
-    /// `noticeIfMissed` is passed only by the finish-and-insert path: a hold
-    /// that queued behind the write and was RELEASED before it resolved never
-    /// opened the microphone, so whatever was said into it is gone — and the
-    /// only warning was the pill still reading "writing it down…". That earns
-    /// a notice. The discard paths pass nothing: they either just showed a
-    /// more accurate notice of their own ("you kept typing") or are silent by
-    /// design (focus change, app quitting), where this one would be noise.
-    private func resumePendingHold(noticeIfMissed: Bool = false) {
-        guard let queued = pendingBegin else { return }
-        pendingBegin = nil
-        // Only a hold can have gone away while it waited — a latch asked for a
-        // capture with a keypress that is long over, and it still wants one.
-        if queued == .hold, !hold.isActive {
-            if noticeIfMissed, let owner {
-                Self.note("queued hold released before the microphone could open")
-                owner.showTransientOverlay(
-                    .hint(String(localized: "wasn't listening yet — hold and say that again")),
-                    at: noticeRect, host: hostStyle)
-            }
-            return
-        }
-        begin(trigger: queued)
-    }
-
-    /// Run the transcript through the engine's minimal-edit fix — the same pass
-    /// ⌥⇥ uses on a selection. It restores the capitalization and punctuation
-    /// speech doesn't carry, and its divergence guard means a model that starts
-    /// paraphrasing gets rejected instead of rewriting what you said. nil ⇒ keep
-    /// the transcript exactly as heard.
-    ///
-    /// On a hard time budget, because the whole `.working` window is hostile
-    /// territory: any keystroke sends the transcript to the clipboard instead
-    /// of the caret, and a queued next hold hasn't opened its microphone yet.
-    /// The fix is one short generation when the model is loaded — but on an
-    /// idle-unloaded engine it begins with a model RELOAD, tens of seconds the
-    /// sentence must not be hostage to. Past the budget the transcript goes in
-    /// exactly as heard.
-    private func polish(_ text: String) async -> String? {
-        guard let owner else { return nil }
-        // The shared fix path is defined for a single line of at most 500
-        // characters (see `MLXEngine.correct`); a longer dictation goes in as
-        // heard rather than half-corrected.
-        guard text.count <= 500 else { return nil }
-        let fixed: String?
-        do {
-            // The same abandon-not-await race as the finalize watchdog: an
-            // `engine.correct` mid-model-reload does not observe cancellation,
-            // and a task group would wait for it anyway.
-            fixed = try await Self.withDeadline(seconds: polishSeconds) { @MainActor in
-                await owner.tidyDictation(text)
-            }
-        } catch {
-            Self.note("tidy-up passed its budget — typing the transcript as heard")
-            fixed = nil
-        }
-        guard let fixed else { return nil }
-        // Lengths, not words: this line used to carry both versions of the
-        // sentence, and the debug log is exported into bug reports. The counts
-        // ride in the MESSAGE rather than the detail so they reach the unified
-        // log too — a tidy-up that grew the sentence is what "strange
-        // characters at the end" looks like from outside, and the in-app
-        // console can only be read from inside a running app.
-        Self.note("tidied \(text.count) → \(fixed.count) chars (text redacted)")
-        return fixed
-    }
-
     /// See the circuit breaker in `deviceChanged`.
-    private var restarts = 0
-    private var firstRestartAt = Date.distantPast
-    private static let maxRestarts = 3
-    private static let restartWindow: TimeInterval = 3
+    var restarts = 0
+    var firstRestartAt = Date.distantPast
+    static let maxRestarts = 3
+    static let restartWindow: TimeInterval = 3
 
     /// See `polish` — how long the tidy-up may hold the transcript. A var only
     /// so tests can shorten it; nothing in the app writes it.
@@ -1168,318 +522,4 @@ final class DictationController {
     /// What the level meter and `checkSilence` read the time from. A var only
     /// so tests can step it past a budget instead of sleeping through one.
     var clock: @Sendable () -> Date = { Date() }
-
-    /// `body` raced against a deadline. NOT a task group, deliberately: a
-    /// group's scope awaits its children even after `cancelAll()`, so a body
-    /// that ignores cancellation — a genuinely deadlocked finalize, the very
-    /// case the watchdog exists for — would keep the "timeout" suspended right
-    /// alongside it. The losing body task is cancelled and *abandoned*
-    /// instead; what actually unblocks the analyzer afterwards is the
-    /// `session.cancel()` on the failure path. The timer task is allowed to
-    /// sleep out its few seconds when the body wins — a dormant task beats the
-    /// reference cycle cancelling it would take.
-    nonisolated private static func withDeadline<T: Sendable>(
-        seconds: TimeInterval, _ body: @escaping @Sendable () async throws -> T
-    ) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            let resumed = LockedValue(false)
-            @Sendable func resumeOnce(_ result: Result<T, Error>) {
-                if !resumed.exchange(true) { continuation.resume(with: result) }
-            }
-            let work = Task {
-                do { resumeOnce(.success(try await body())) } catch { resumeOnce(.failure(error)) }
-            }
-            Task {
-                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                work.cancel()
-                resumeOnce(.failure(TranscriptionError.timedOut))
-            }
-        }
-    }
-
-    private func fail(_ error: Error) {
-        let why = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        owner?.report("dictation failed: \(why)")
-        DebugLog.shared.log("ERROR", "dictation: \(why)")
-        // Whatever failed, the session is gone — take the task with it.
-        sessionTask?.cancel()
-        sessionTask = nil
-        discard(notice: .error(why))
-    }
-
-    /// The capture's ceiling and silence timers and its level meter, gone with
-    /// it — on the way to `.working` or to `.idle`.
-    private func stopTimers() {
-        limitTimer?.invalidate()
-        limitTimer = nil
-        silenceTimer?.invalidate()
-        silenceTimer = nil
-        meter = nil
-    }
-
-    /// Give up on a capture still in `.preparing`. While the model download it
-    /// waits on runs (a first-use language pack, Parakeet's 610 MB), that is
-    /// the news rather than `notice`: the download carries on (see `discard`)
-    /// and `begin` answers with the same words until it lands.
-    private func discardPreparing(otherwise notice: SuggestionDisplayMode) {
-        discard(notice: Transcription.isDownloading(for: Settings.resolvedDictationLocale)
-            ? .hint(String(localized: "getting the dictation model ready…")) : notice)
-    }
-
-    /// Stop everything and forget it.
-    ///
-    /// A task still *preparing* is left running only while it downloads the
-    /// language pack: cancelling that would mean starting the download over
-    /// on the next press. The generation bump is what makes that safe — the
-    /// session it eventually produces is cancelled on arrival — and `begin`
-    /// refuses while the download runs, so it is never one of two session
-    /// starts racing each other. A preparing task that is only opening the
-    /// microphone is cancelled like any other.
-    private func discard(notice: SuggestionDisplayMode?) {
-        guard isBusy else { return }
-        generation += 1
-        capture.stop()
-        session?.cancel()
-        session = nil
-        if phase != .preparing || !Transcription.isDownloading(for: Settings.resolvedDictationLocale) {
-            sessionTask?.cancel()
-            sessionTask = nil
-        }
-        phase = .idle
-        armTimer?.invalidate()
-        armTimer = nil
-        stopTimers()
-        // A queued LATCH does not survive a discard. What made the resume below
-        // safe was that every interrupt path calls `hold.interrupt()` first, so
-        // a queued hold could only still be there if the key was genuinely
-        // still down — the user asking, right now. A latch has no such tell:
-        // its press is long over, and every discard reaching here is an
-        // explicit ⎋, a focus change, or a failure. Re-opening the microphone
-        // on the far side of any of those is the opposite of what was asked,
-        // and after ⎋ it is visibly so — `begin`'s repaint would wipe the
-        // "dictation cancelled" pill with "starting dictation…".
-        if pendingBegin == .latch { pendingBegin = nil }
-        // Either the notice or the hide, never both: `hide` runs a fade whose
-        // completion is only cancelled by a later show, so hiding first would
-        // race a transient shown a line later against its own fade-out.
-        if let owner {
-            if let notice {
-                // `noticeRect`, pointer included: fields that publish no
-                // caret (web/Electron inputs before their first keystroke) are
-                // exactly where dictation still runs, and a notice quietly
-                // skipped there is the silent-vanish bug all over again.
-                owner.showTransientOverlay(notice, at: noticeRect, host: hostStyle)
-            } else {
-                owner.hideOverlay()
-            }
-        }
-        // A hold that queued behind the discarded capture: interrupts have
-        // already ended the hold itself by this point, so this only ever fires
-        // for a key that is genuinely still down (say, after a failed capture).
-        resumePendingHold()
-    }
-
-    // MARK: - Caret display
-
-    private func render() {
-        guard let owner else { return }
-        // A capture with no readable caret still has to LOOK like one. The pill
-        // is the only sign at the caret that the microphone is open, and the
-        // fields that publish no caret — web and Electron inputs, before their
-        // first keystroke and again whenever the app replaces the focused node
-        // — are exactly where someone reaches for dictation. Reported from real
-        // use: the second sentence recorded fine but showed nothing at all,
-        // only the menu-bar dot. Hence `noticeRect`, pointer and all.
-        let mode: SuggestionDisplayMode
-        switch phase {
-        case .idle:
-            owner.hideOverlay()
-            return
-        case .preparing:
-            mode = .status(String(localized: "starting dictation…"))
-        case .listening(let text):
-            mode = .listening(Self.tail(text))
-        case .working:
-            mode = .status(String(localized: "writing it down…"))
-        }
-        owner.showOverlay(mode, at: noticeRect, host: hostStyle)
-    }
-
-    /// Where this capture draws: its own caret, then the last one the field
-    /// drew at, then the pointer — the same ladder a refusal notice uses.
-    private var noticeRect: CGRect {
-        caretRect ?? owner?.fallbackCaretRect ?? Self.pointerAnchor()
-    }
-
-    /// Where to draw a notice that has no caret to belong to: a one-point box
-    /// just under the pointer, in the same Cocoa screen coordinates the caret
-    /// rects use. Internal, not private: `insertDictated`'s own drop notices
-    /// fall back to it too.
-    static func pointerAnchor() -> CGRect {
-        let point = NSEvent.mouseLocation
-        return CGRect(x: point.x, y: point.y - 22, width: 1, height: 18)
-    }
-
-    /// The END of a long dictation, not its beginning: what the pill is for is
-    /// showing that the words being said right now are being heard.
-    nonisolated static func tail(_ text: String, limit: Int = 64) -> String {
-        guard text.count > limit else { return text }
-        return "…" + String(text.suffix(limit))
-    }
-
-    /// One clean line: a transcript with a newline in it would *send* the
-    /// message in half the apps this types into, and trailing whitespace is
-    /// never wanted at a caret.
-    nonisolated static func clean(_ raw: String) -> String {
-        raw.split(whereSeparator: { $0.isNewline || $0 == " " }).joined(separator: " ")
-            .trimmingCharacters(in: .whitespaces)
-    }
-}
-
-/// Voice activity for one capture: written on the audio delivery queue, read
-/// from the main actor, which is the whole reason it is a class with a lock
-/// rather than a couple of fields on the controller.
-///
-/// Deliberately not a neural detector. The only question asked of it is "has
-/// anything been said in the last few seconds", and it is asked in order to
-/// decide whether to KEEP a capture alive — an asymmetric question. A frame
-/// wrongly called speech costs a few more seconds of a capture the user can end
-/// with the same chord that started it; a frame wrongly called silence cuts
-/// somebody off mid-sentence. So the bar sits where speech clears it
-/// comfortably, and the floor is learned rather than configured: a fanless
-/// laptop in a quiet flat, a desk fan and a café all sit at different levels,
-/// and none of them should be a setting the user has to find.
-///
-/// The floor only ever learns from frames it judged quiet. Averaging speech
-/// into it is the classic way these drift — the floor climbs toward the talker,
-/// the margin closes, and a long sentence reads as silence right when it
-/// matters most.
-final class VoiceMeter: Sendable {
-    /// How far over the learned floor a frame must sit to count as speech.
-    private static let marginDB: Float = 10
-    /// An absolute bar under that, so a near-silent digital input — whose floor
-    /// would otherwise learn its way down to the noise of the last bit — can't
-    /// promote its own dither to speech.
-    private static let absoluteDB: Float = -60
-    /// How fast the floor follows the room. One buffer is a few tens of
-    /// milliseconds, so this settles within about a second of the microphone
-    /// opening and still tracks a fan that starts up mid-capture.
-    private static let floorRate: Float = 0.05
-    /// The floor is held inside this band whatever it is fed. The bottom stops
-    /// a device that opens on digital silence (a warming USB microphone, a
-    /// hardware-muted headset, the first frames after `startRunning`) from
-    /// dragging the floor to −95 on a handful of all-zero buffers, which would
-    /// leave ordinary room tone permanently clearing the bar. The top keeps a
-    /// recalibration from a very loud room out of the range where speech itself
-    /// would fail to clear it.
-    private static let floorRange: ClosedRange<Float> = -65 ... -30
-    /// A stretch with no quiet frame in it at all is itself a measurement —
-    /// see `feed`.
-    private static let recalibrateAfter: TimeInterval = 6
-
-    private struct State {
-        /// Starts pessimistically high: until the room has been measured, the
-        /// margin above it is what keeps a noisy office from reading as speech
-        /// on the very first buffer.
-        var floorDB: Float = -50
-        var lastVoiceAt: Date?
-        var openedAt: Date
-        /// The quietest thing heard since the last frame judged quiet, and when
-        /// that was. Only used by the recalibration below.
-        var quietestSinceQuiet: Float = .greatestFiniteMagnitude
-        var lastQuietAt: Date
-    }
-
-    private let state: OSAllocatedUnfairLock<State>
-
-    init(now: Date = Date()) {
-        state = OSAllocatedUnfairLock(initialState: State(openedAt: now, lastQuietAt: now))
-    }
-
-    /// One delivered buffer. Runs on the capture's delivery queue.
-    func feed(_ buffer: AVAudioPCMBuffer, now: Date = Date()) {
-        let db = Self.decibels(buffer)
-        state.withLock { state in
-            guard db > state.floorDB + Self.marginDB, db > Self.absoluteDB else {
-                // Quiet: this is the room, and the only thing the floor learns
-                // from. Averaging speech in is how these estimators go deaf —
-                // the floor climbs toward the talker, the margin closes, and a
-                // long sentence reads as silence exactly when it matters.
-                state.floorDB = min(max(state.floorDB + Self.floorRate * (db - state.floorDB),
-                                        Self.floorRange.lowerBound),
-                                    Self.floorRange.upperBound)
-                state.lastQuietAt = now
-                state.quietestSinceQuiet = .greatestFiniteMagnitude
-                return
-            }
-            state.lastVoiceAt = now
-            state.quietestSinceQuiet = min(state.quietestSinceQuiet, db)
-            // ...but a room that is never quiet never gets measured at all. A
-            // café, a desk fan, a microphone with the gain wound up: the very
-            // first buffer clears the starting floor, so nothing ever takes the
-            // branch above, the floor stays where it began, and every frame for
-            // the rest of the capture reads as speech — which quietly turns the
-            // silence auto-stop off altogether. So a long stretch without a
-            // single quiet frame is itself the measurement: the quietest thing
-            // in it is the room. Real speech never gets here — the stops
-            // between words are quiet frames, and any one of them resets this.
-            guard now.timeIntervalSince(state.lastQuietAt) >= Self.recalibrateAfter else { return }
-            state.floorDB = min(max(state.quietestSinceQuiet, Self.floorRange.lowerBound),
-                                Self.floorRange.upperBound)
-            state.lastQuietAt = now
-            state.quietestSinceQuiet = .greatestFiniteMagnitude
-        }
-    }
-
-    /// The transcript grew — the analyzer heard words, whatever the level said.
-    func noteVoice(now: Date = Date()) {
-        state.withLock { $0.lastVoiceAt = now }
-    }
-
-    /// Restamp the clock to the moment the microphone actually opened.
-    ///
-    /// The meter has to be built before `capture.start` — the delivery closure
-    /// captures it — but `begin` can be a whole language-pack download away
-    /// from the first buffer, and the pre-first-word silence budget measured
-    /// from there is spent on a wait nobody could have spoken into. Long
-    /// enough, and the first check after the microphone opened would end the
-    /// capture as "nothing heard" before the user got a word in.
-    func opened(now: Date) {
-        state.withLock { state in
-            state.openedAt = now
-            state.lastQuietAt = now
-        }
-    }
-
-    /// Anything at all has been heard since the microphone opened. Splits the
-    /// two silence budgets apart — see `DictationController.checkSilence`.
-    var heardVoice: Bool { state.withLock { $0.lastVoiceAt != nil } }
-
-    /// How long since the last voiced frame, or since the microphone opened if
-    /// there has never been one.
-    func quietFor(now: Date = Date()) -> TimeInterval {
-        state.withLock { now.timeIntervalSince($0.lastVoiceAt ?? $0.openedAt) }
-    }
-
-    /// RMS of one buffer as dBFS.
-    ///
-    /// An unreadable layout returns 0 dB — full scale, unconditionally voiced.
-    /// The failure mode to avoid is a silence clock running blind on a format
-    /// it cannot measure and ending captures that were going fine; a capture
-    /// that never auto-stops still has its chord and its ceiling.
-    nonisolated static func decibels(_ buffer: AVAudioPCMBuffer) -> Float {
-        let frames = Int(buffer.frameLength)
-        guard frames > 0 else { return -120 }
-        let rms: Float
-        if let channel = buffer.floatChannelData?[0] {
-            rms = vDSP.rootMeanSquare(UnsafeBufferPointer(start: channel, count: frames))
-        } else if let channel = buffer.int16ChannelData?[0] {
-            let samples = UnsafeBufferPointer(start: channel, count: frames)
-            rms = vDSP.rootMeanSquare(vDSP.integerToFloatingPoint(samples, floatingPointType: Float.self)) / 32768
-        } else {
-            return 0
-        }
-        guard rms > 0 else { return -120 }
-        return 20 * log10(rms)
-    }
 }
