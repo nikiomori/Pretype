@@ -8,21 +8,35 @@ import XCTest
 /// EngineCoordinatorTests. MLX opens the
 /// Metal device even for work on the CPU — its allocator is Metal's — and
 /// without one it aborts in C++, taking the whole test process down with it.
-/// A hosted CI runner may have no usable Metal device; there these suites
-/// skip, saying why. Everywhere else they run on the CPU device: they compare
-/// numbers, not speed.
+/// It aborts the same way when the build has no compiled shaders
+/// (`default.metallib`), as on a CI runner whose cached build predates the
+/// Metal toolchain. Without either, these suites skip, saying why. Everywhere
+/// else they run on the CPU device: they compare numbers, not speed.
 class MLXTestCase: XCTestCase {
+    /// Why MLX can't run in this process, or nil. The shader lookup is mlx's
+    /// own (device.cpp): `mlx-swift_Cmlx.bundle` in a loaded bundle's resources.
+    static let whyMLXCannotRun: String? = {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            return "No Metal device: MLX would abort the test process"
+        }
+        let shaders = (Bundle.allBundles + [Bundle(for: MLXTestCase.self)]).contains {
+            guard let resources = $0.resourceURL else { return false }
+            let lib = resources.appendingPathComponent("mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib")
+            return FileManager.default.fileExists(atPath: lib.path)
+        }
+        return shaders ? nil : "No compiled MLX shaders (default.metallib): MLX would abort the test process"
+    }()
+
     override func setUpWithError() throws {
         try super.setUpWithError()
-        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil,
-                      "No Metal device: MLX would abort the test process")
+        if let why = Self.whyMLXCannotRun { throw XCTSkip(why) }
     }
 
     override func invokeTest() {
         // Even `Device.cpu` starts MLX's default (GPU) stream, which aborts
-        // with no Metal device — so `setUpWithError` must get to skip first.
+        // without a device or shaders — so `setUpWithError` must skip first.
         let run = { super.invokeTest() }
-        guard MTLCreateSystemDefaultDevice() != nil else { return run() }
+        guard Self.whyMLXCannotRun == nil else { return run() }
         Device.withDefaultDevice(.cpu, run)
         // A load the test let go can still be warming up: the next test's
         // measurements, or MLX's static teardown at exit, must not run under it.
