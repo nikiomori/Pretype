@@ -406,11 +406,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func showModelsForTypedLanguage() {
         if let language = TypedLanguage.dominant {
             Settings.accuracyAxis = language
-            // Written directly, so the store didSet that normally clears map
-            // mode on a language pick never runs (sync() assigns under its
-            // syncing guard) — clear it here or the tab opens on the pooled
-            // EN+RU sample with this language selected in the picker.
+            // Written directly, so the store's picker path that normally clears
+            // map mode never runs (sync() assigns under its syncing guard) —
+            // clear it here or the tab opens on the pooled EN+RU sample. And
+            // the ranked list, not the map: the ranking is the evidence.
             Settings.settingsMapMode = false
+            Settings.modelsAsMap = false
         }
         openSettings()
         // After present(): sync() would otherwise be the last writer, and the

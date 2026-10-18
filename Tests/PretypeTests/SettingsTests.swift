@@ -6,7 +6,7 @@ final class SettingsTests: XCTestCase {
     /// back — and answers an unset key with the declared default. Strengths
     /// stored before personalization became on/off all read as on.
     func testPrefStoresRawValuesAndDefaults() {
-        let defaults = UserDefaults.standard
+        let defaults = Settings.store
         let saved = (defaults.object(forKey: "hotkeyStyle"), defaults.object(forKey: "personalizationLevel"))
         defer {
             defaults.set(saved.0, forKey: "hotkeyStyle")
@@ -22,6 +22,50 @@ final class SettingsTests: XCTestCase {
             defaults.set(stored, forKey: "personalizationLevel")
             XCTAssertEqual(Settings.personalizationLevel, level, stored)
         }
+    }
+
+    // The settings map moves the Model tab onto the pooled EN+RU sample. Left
+    // on behind the list, it ranked the list on that sample under a picker
+    // that read another language — and it persisted across launches.
+    @MainActor
+    func testSettingsMapAxisOnlyWhileTheMapShows() {
+        let defaults = Settings.store
+        let keys = ["accuracyAxis", "settingsMapMode", "modelsAsMap"]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer { for (key, value) in zip(keys, saved) { defaults.set(value, forKey: key) } }
+        Settings.accuracyAxis = "ru"
+        Settings.settingsMapMode = true
+        Settings.modelsAsMap = false
+        let store = SettingsStore(controller: nil)
+        XCTAssertEqual(store.effectiveAxis, "ru")
+        XCTAssertEqual(store.axisSelection, "ru")
+        store.modelsAsMap = true
+        XCTAssertEqual(store.effectiveAxis, "core")
+        XCTAssertEqual(store.axisSelection, "core", "the picker names the sample the figures are on")
+        // Picking the language already stored still ends the settings map.
+        store.axisSelection = "ru"
+        XCTAssertFalse(Settings.settingsMapMode)
+        XCTAssertEqual(store.effectiveAxis, "ru")
+        // The pooled entry is never stored as the language.
+        store.settingsMapMode = true
+        store.axisSelection = "core"
+        XCTAssertEqual(Settings.accuracyAxis, "ru")
+        XCTAssertEqual(store.effectiveAxis, "core")
+    }
+
+    // "Better models for <language>" in the status menu writes the stored flag
+    // and relies on the window's `sync()` to pick it up: a store that kept its
+    // own copy reopened the Model tab on the map instead of the ranked list.
+    @MainActor
+    func testSyncRereadsTheModelsView() {
+        let saved = Settings.modelsAsMap
+        defer { Settings.modelsAsMap = saved }
+        Settings.modelsAsMap = true
+        let store = SettingsStore(controller: nil)
+        XCTAssertTrue(store.modelsAsMap)
+        Settings.modelsAsMap = false
+        store.sync()
+        XCTAssertFalse(store.modelsAsMap)
     }
 
     // A wrong answer here nags every user toward a downgrade, so pin the compare.

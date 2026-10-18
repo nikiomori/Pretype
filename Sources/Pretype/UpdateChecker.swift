@@ -14,7 +14,7 @@ import Security
 @MainActor
 enum UpdateChecker {
     private static let page = URL(string: "https://github.com/nikiomori/Pretype/releases/latest")!
-    private static let defaults = UserDefaults.standard
+    private static let defaults = Settings.store
 
     /// Version of a newer published release, or nil when we're current / haven't
     /// checked. Read by the status menu to show the "Update to …" item.

@@ -172,6 +172,7 @@ struct AdvancedRow: View {
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(shown ? 90 : 0))
                         .animation(.easeInOut(duration: 0.2), value: shown)
+                        .accessibilityHidden(true)  // the value below says it
                 }
                 .contentShape(Rectangle())
             }
@@ -766,7 +767,7 @@ struct DictationTab: View {
                 Text("Automatic").tag("auto")
                 Text("System default").tag("system")
                 Divider()
-                ForEach(store.dictationInputs, id: \.uid) { device in
+                ForEach(store.dictationInputs ?? [], id: \.uid) { device in
                     Text(device.name).tag(device.uid)
                 }
                 // A pinned microphone that is currently
@@ -774,11 +775,18 @@ struct DictationTab: View {
                 // whose selection matches no tag renders
                 // EMPTY — which reads as "no microphone
                 // chosen" while captures still honor the pin
-                // the moment it returns.
+                // the moment it returns. Before the first
+                // device list lands it is most likely plugged
+                // in, so it isn't called unplugged yet.
                 if store.dictationInput != "auto",
                    store.dictationInput != "system",
-                   !store.dictationInputs.contains(where: { $0.uid == store.dictationInput }) {
-                    Text("Unplugged microphone").tag(store.dictationInput)
+                   !(store.dictationInputs ?? []).contains(where: { $0.uid == store.dictationInput }) {
+                    if store.dictationInputs == nil {
+                        Text("Checking…", comment: "Settings → Dictation → Microphone: the chosen microphone for a moment, while the list of microphones loads.")
+                            .tag(store.dictationInput)
+                    } else {
+                        Text("Unplugged microphone").tag(store.dictationInput)
+                    }
                 }
             } label: {
                 Text("Microphone")

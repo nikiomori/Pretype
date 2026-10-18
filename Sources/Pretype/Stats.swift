@@ -3,7 +3,7 @@ import Foundation
 /// Daily usage counters, persisted in UserDefaults and shown in the menu.
 @MainActor
 enum Stats {
-    private static let defaults = UserDefaults.standard
+    private static let defaults = Settings.store
     private static let dailyKeys = [
         "stats.shown", "stats.accepted", "stats.acceptedChars",
         "stats.corrections", "stats.latencySumMs", "stats.latencyCount",

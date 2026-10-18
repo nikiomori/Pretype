@@ -49,7 +49,10 @@ final class SettingsStore {
             refreshDictationInput() }
     }
     /// Input devices to offer, and the one a capture would open right now.
-    var dictationInputs: [AudioDevices.Device] = []
+    /// nil until the first device list lands (~¼ s, off the main actor): an
+    /// empty list would call a pinned microphone unplugged every time the
+    /// window opens.
+    var dictationInputs: [AudioDevices.Device]?
     var dictationInputNote: String?
     var dictationLanguage = "auto" {
         didSet { guard !syncing, oldValue != dictationLanguage else { return }
@@ -245,11 +248,7 @@ final class SettingsStore {
     /// tab, never touches the pipeline.
     var accuracyAxis = Settings.accuracyAxis {
         didSet { guard !syncing, oldValue != accuracyAxis else { return }
-            Settings.accuracyAxis = accuracyAxis
-            // Picking a language is a request to see that language. Leaving the
-            // pooled settings-map sample on would silently override it and show
-            // English+Russian figures under a "Russian" selection.
-            if settingsMapMode { settingsMapMode = false } }
+            Settings.accuracyAxis = accuracyAxis }
     }
 
     /// Settings-map mode: the whole tab moves to the pooled English+Russian
@@ -260,9 +259,29 @@ final class SettingsStore {
             Settings.settingsMapMode = settingsMapMode }
     }
 
+    /// "All models" as the map instead of the ranked list.
+    var modelsAsMap = Settings.modelsAsMap {
+        didSet { guard !syncing, oldValue != modelsAsMap else { return }
+            Settings.modelsAsMap = modelsAsMap }
+    }
+
     /// What the tab actually measures against: the pooled sample while the
-    /// settings map is on, the chosen language otherwise.
-    var effectiveAxis: String { settingsMapMode ? "core" : accuracyAxis }
+    /// settings map shows, the chosen language otherwise. A switch left on
+    /// behind the list must not move the list's figures off its language.
+    var effectiveAxis: String { modelsAsMap && settingsMapMode ? "core" : accuracyAxis }
+
+    /// The "Accuracy in" picker. It shows the axis the figures are on — the
+    /// pooled sample too — so its label and the data never disagree. A pick
+    /// is a request to see that language, even the one already stored, so it
+    /// ends settings-map mode.
+    var axisSelection: String {
+        get { effectiveAxis }
+        set {
+            guard newValue != "core" else { return }
+            settingsMapMode = false
+            accuracyAxis = newValue
+        }
+    }
 
     /// Pane selected in the sidebar.
     var activeTab = SettingsTab.general {
@@ -955,6 +974,7 @@ final class SettingsStore {
         loginStatus = LoginItem.status  // the user may have flipped it in System Settings
         accuracyAxis = Settings.accuracyAxis
         settingsMapMode = Settings.settingsMapMode
+        modelsAsMap = Settings.modelsAsMap
         // Journal stats deliberately NOT read here: sync() runs on every ⌘, and
         // after every model/style/gate change, and `fileSize` is a flush barrier
         // that can queue behind a whole-file n-gram replay. PersonalTab refreshes

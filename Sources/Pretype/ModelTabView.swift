@@ -16,11 +16,10 @@ struct ModelTab: View {
     @State private var mapLens = MapLens.completion
     @AppStorage("idleUnloadMinutes") private var idleUnloadMinutes = Settings.idleUnloadMinutes
     @AppStorage("showAdvancedSettings") private var showAdvanced = false
-    /// Whether "All models" shows the map instead of the list.
-    @AppStorage("modelsAsMap") private var modelsAsMap = false
     /// The accuracy axis every surface on this tab reads ("*" = all
-    /// languages, "core" = EN+RU, or one language) — one store-persisted
-    /// selection, so cards, map and ranking always tell the same story.
+    /// languages, "core" = EN+RU pooled, or one language) — one
+    /// store-persisted selection, so cards, map, ranking and the picker
+    /// always tell the same story.
     private var axis: String { store.effectiveAxis }
 
     /// Priority cards for the current axis with duplicates collapsed: when two
@@ -77,14 +76,18 @@ struct ModelTab: View {
             }
 
             Section {
-                Picker("Accuracy in", selection: $store.accuracyAxis) {
+                Picker("Accuracy in", selection: $store.axisSelection) {
                     Text("All languages").tag("*")
+                    // Only while the figures are on it (the settings map).
+                    if axis == "core" {
+                        Text(ModelMetrics.axisDisplayName("core")).tag("core")
+                    }
                     Divider()
                     ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
                         Text(ModelMetrics.axisDisplayName(code)).tag(code)
                     }
                 }
-                if modelsAsMap {
+                if store.modelsAsMap {
                     map
                 } else {
                     list
@@ -94,15 +97,19 @@ struct ModelTab: View {
                     Text("All models")
                     Spacer()
                     // Two views of one choice: the list carries downloads and
-                    // deletes, the map shows the trade at a glance.
-                    Picker("View", selection: $modelsAsMap) {
-                        Image(systemName: "list.bullet").accessibilityLabel(Text("List")).tag(false)
-                        Image(systemName: "chart.dots.scatter").accessibilityLabel(Text("Map")).tag(true)
+                    // deletes, the map shows the trade at a glance. The
+                    // segments are AppKit's and announce their image's own
+                    // description: an .accessibilityLabel or a Label title
+                    // never reaches them, and VoiceOver read "Scatter plot
+                    // with dots".
+                    Picker("View", selection: $store.modelsAsMap) {
+                        Image(nsImage: Self.segmentIcon("list.bullet", String(localized: "List"))).tag(false)
+                        Image(nsImage: Self.segmentIcon("chart.dots.scatter", String(localized: "Map"))).tag(true)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
-                    .help(modelsAsMap ? Text("Map") : Text("List"))
+                    .help(store.modelsAsMap ? Text("Map") : Text("List"))
                 }
             }
 
@@ -164,9 +171,9 @@ struct ModelTab: View {
             (MapLens.reply, String(localized: "Reply")),
         ], selection: mapLens, select: { mapLens = $0 })
         ModelMapView(store: store, lens: mapLens)
-        // Not disabled while the map is on: picking a language turns the map
-        // off (see SettingsStore.accuracyAxis), so the control the user
-        // reaches for is the one that answers.
+        // The language picker stays live: picking a language turns this off
+        // (see SettingsStore.axisSelection), so the control the user reaches
+        // for is the one that answers. The list ignores it (effectiveAxis).
         Toggle(isOn: $store.settingsMapMode) {
             Text("Show settings on the map")
             if store.settingsMapMode {
@@ -204,6 +211,11 @@ struct ModelTab: View {
                 .help("Reads one of the model's tables from disk instead of keeping it in memory. Suggestions stay exactly the same. On by default on Macs with 16 GB of memory or less.")
             }
         }
+    }
+
+    /// An SF Symbol that names itself to VoiceOver as `name`.
+    private static func segmentIcon(_ symbol: String, _ name: String) -> NSImage {
+        NSImage(systemSymbolName: symbol, accessibilityDescription: name) ?? NSImage()
     }
 
     /// Download size of what a click on `id` would load, while it isn't on
@@ -294,8 +306,10 @@ struct ModelRow: View {
         Button(action: select) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
+                    // The row's .isSelected trait says it; the glyph's name would not.
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                        .accessibilityHidden(true)
                     Text(title)
                         .fontWeight(isSelected ? .semibold : .regular)
                         .lineLimit(1).truncationMode(.tail)
@@ -532,6 +546,7 @@ private struct PriorityCard: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.caption)
                             .foregroundStyle(Color.accentColor)
+                            .accessibilityHidden(true)  // the card's .isSelected trait
                     }
                 }
                 if let m = ModelMetrics.metrics(for: pick) {

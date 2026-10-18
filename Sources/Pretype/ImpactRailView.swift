@@ -131,6 +131,7 @@ private struct MeterView: View {
                     .font(.caption)
                     .foregroundStyle(tint)
                     .frame(width: 14)
+                    .accessibilityHidden(true)  // decoration: the label names the meter
                 Text(label)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)

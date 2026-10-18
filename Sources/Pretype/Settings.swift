@@ -312,8 +312,8 @@ struct Pref<Value> {
     }
 
     var wrappedValue: Value {
-        get { UserDefaults.standard.object(forKey: key).flatMap(decode) ?? defaultValue }
-        nonmutating set { UserDefaults.standard.set(encode(newValue), forKey: key) }
+        get { Settings.store.object(forKey: key).flatMap(decode) ?? defaultValue }
+        nonmutating set { Settings.store.set(encode(newValue), forKey: key) }
     }
 }
 
@@ -327,7 +327,23 @@ extension Pref where Value: RawRepresentable, Value.RawValue == String {
 }
 
 enum Settings {
-    private static let defaults = UserDefaults.standard
+    /// Where the settings — and `Stats`' counters — are kept: the app's own
+    /// defaults. A test process gets a store of its own, in its temporary
+    /// directory and gone when it exits: `UserDefaults.standard` there is the
+    /// xctest tool's domain, which every test run on the Mac shares, and
+    /// parallel runs (or two checkouts testing at once) rewrote each other's
+    /// settings mid-test. Named for the run, not just the pid: a run that
+    /// crashed leaves its file behind, and the next process given that pid
+    /// would start from its settings.
+    static let store: UserDefaults = {
+        guard isTestProcess else { return .standard }
+        atexit { try? FileManager.default.removeItem(atPath: Settings.testStorePath + ".plist") }
+        return UserDefaults(suiteName: testStorePath) ?? .standard
+    }()
+    private static let testStorePath = NSTemporaryDirectory() + "pretype-tests-\(getpid())-\(UUID().uuidString)"
+    /// XCTest is loaded only into a test process, never into the app.
+    static let isTestProcess = NSClassFromString("XCTestCase") != nil
+    private static let defaults = store
 
     /// Starter persona auto-filled from on-device system data — the account
     /// full name and the user's preferred languages — so the persona is
@@ -585,6 +601,11 @@ enum Settings {
     /// tab onto that sample and says so; the language you picked is remembered
     /// and comes back when you turn it off.
     @Pref("settingsMapMode", false) static var settingsMapMode: Bool
+
+    /// The Model tab's "All models" section as the map (true) or the ranked
+    /// list. Settings-map mode applies only while the map shows: the list has
+    /// no settings dots to justify the pooled sample.
+    @Pref("modelsAsMap", false) static var modelsAsMap: Bool
 
     /// Base (raw continuation) vs instruct (persona-aware) completion. Ships
     /// pre-matched to the default model's recommendation: nothing applies it
