@@ -31,7 +31,7 @@ enum SuggestionDisplayMode: Equatable {
 /// Draws one line of attributed text with its **baseline pinned to the view's
 /// bottom edge** (plus the font descender), so the completion sits exactly on
 /// the line it continues — no NSTextField vertical-centering guesswork.
-private final class GhostTextView: NSView {
+final class GhostTextView: NSView {
     var attributed = NSAttributedString() {
         didSet { needsDisplay = true }
     }
@@ -56,7 +56,7 @@ private final class GhostTextView: NSView {
 /// is exactly the size it draws in — the field cell's private insets clipped
 /// the last glyph ("receiv…") — and so a fix preview can wrap. A truncating
 /// paragraph style keeps every other mode on one ellipsized line.
-private final class PillTextView: NSView {
+final class PillTextView: NSView {
     var attributed = NSAttributedString() {
         didSet { needsDisplay = true }
     }
@@ -85,19 +85,19 @@ private final class PillTextView: NSView {
 /// / error / the ⌥⇥-fix affordance) fall back to a small HUD pill so they stay
 /// legible against any background.
 final class SuggestionWindow: NSPanel {
-    private let container = NSView()
-    private let pillText = PillTextView()
-    private let ghost = GhostTextView()
-    private var highlightLayer: CALayer?
+    let container = NSView()
+    let pillText = PillTextView()
+    let ghost = GhostTextView()
+    var highlightLayer: CALayer?
 
     /// Panel background: Liquid Glass. The label (`pillText`) is a SIBLING
     /// stacked above the backdrop — not inside it.
     /// NOTE: never dim the backdrop via alphaValue — glass/blur materials lose
     /// their blending when translucent, and the text behind bleeds through sharp
     /// (tried; unreadable). The pill must stay opaque to do its job.
-    private let backdrop = NSGlassEffectView()
+    let backdrop = NSGlassEffectView()
 
-    private let pillPadH: CGFloat = 9
+    let pillPadH: CGFloat = 9
 
     /// Inline ghost text vs a floating panel beside the caret. Set by the
     /// controller from `Settings.suggestionPresentation`.
@@ -109,17 +109,17 @@ final class SuggestionWindow: NSPanel {
     /// for the ghost: it needs Screen Recording, and where that isn't granted
     /// the ghost took the system theme — white-on-white in a light app under a
     /// dark system. `host.color` answers the same question for free.
-    private let backgroundProbe = BackgroundProbe()
+    let backgroundProbe = BackgroundProbe()
 
     /// Font the ghost draws in — the host's own when AX exposed it.
-    private var ghostFont: NSFont = .systemFont(ofSize: 13)
+    var ghostFont: NSFont = .systemFont(ofSize: 13)
     /// Width of the ⇥-acceptable chunk of the current ghost: the part that must
     /// fit inline for inline to be worth doing at all.
-    private var ghostHeadWidth: CGFloat = 0
+    var ghostHeadWidth: CGFloat = 0
     /// Resolved host-font size for the current caret — drives both the ghost size
     /// and the vertical anchoring of every mode, so placement stays consistent
     /// across apps regardless of the caret box height they report.
-    private var lineFont: CGFloat = 13
+    var lineFont: CGFloat = 13
     /// The caret of the current suggestion, so a panel can re-place on accept.
     private var lastCaret = CGRect.zero
     /// The last `show`'s inputs and what it rendered. The same call again — an
@@ -129,18 +129,18 @@ final class SuggestionWindow: NSPanel {
     private var lastShow: (mode: SuggestionDisplayMode, caret: CGRect, host: HostTextStyle,
                            trimToLine: Bool, shown: String?)?
     /// A `hide()` fade is running; `place` must pull it back to opaque.
-    private var fadingOut = false
+    var fadingOut = false
     /// The window just came on screen, or just left it.
     var onVisibilityChange: (() -> Void)?
     /// Font/color/box of the field under that caret.
-    private var lastHost = HostTextStyle()
+    var lastHost = HostTextStyle()
     /// Writing direction of the ghost currently drawn: an Arabic or Hebrew
     /// completion grows LEFT from the caret, not right.
-    private var ghostRTL = false
+    var ghostRTL = false
     /// The caret edge the ghost hangs off (its right edge in LTR, left in RTL),
     /// advanced in place by `advance` so a word-by-word accept doesn't wait for
     /// the next AX read to know where the caret got to.
-    private var ghostAnchorX: CGFloat = 0
+    var ghostAnchorX: CGFloat = 0
 
     init() {
         super.init(
@@ -305,7 +305,7 @@ final class SuggestionWindow: NSPanel {
 
     /// Monotonic token: a `show` between fade-out start and completion cancels
     /// the pending `orderOut`, so a new suggestion never gets yanked away.
-    private var hideGeneration = 0
+    var hideGeneration = 0
 
     /// What the window is currently offering, or nil when it offers nothing.
     ///
@@ -453,7 +453,7 @@ final class SuggestionWindow: NSPanel {
     /// being room at the caret — see `inlineHasRoom`.
     /// The ⌥⇥ affordance and preview: anchored on a selection box (or the
     /// caret, for a last-word fix) rather than on a caret line.
-    private func anchorsOnSelection(_ mode: SuggestionDisplayMode?) -> Bool {
+    func anchorsOnSelection(_ mode: SuggestionDisplayMode?) -> Bool {
         switch mode {
         case .shortcut, .fixPreview: return true
         default: return false
@@ -467,779 +467,17 @@ final class SuggestionWindow: NSPanel {
         }
     }
 
-    private static let pillFont = NSFont.systemFont(ofSize: 13)
-
-    private func applyContent(_ mode: SuggestionDisplayMode, ghost ghostMode: Bool) {
-        switch mode {
-        case .suggestion(let s):
-            if ghostMode {
-                ghost.attributed = suggestionGhost(s)
-            } else {
-                // Wraps: ⇧⇥ accepts all of it, so all of it must be on screen —
-                // an ellipsized pill offered a tail nobody saw. Ten lines at
-                // 460 pt hold more than the longest reply (400 chars).
-                setPill(panelSuggestion(s), wraps: true)
-            }
-        case .thinking(let phase):
-            if ghostMode {
-                ghost.attributed = thinkingGhost(phase)
-                ghostHeadWidth = 0
-            } else {
-                setPill(Self.dots(phase, beside: Self.pillFont) { Self.dynamicAlpha(.labelColor, 0.7 * $0) })
-            }
-        case .status(let s):
-            // The mark says whose "loading…" this is — at the caret, a bare
-            // engine notice reads as the host app's own.
-            let text = NSMutableAttributedString(attributedString: Self.mark(.ready, .secondaryLabelColor))
-            text.append(Self.plain(s, .secondaryLabelColor))
-            setPill(text)
-        case .error(let s):
-            // Orange marks the severity; the words stay full-strength ink —
-            // orange text on a light pill was the hardest line here to read.
-            let text = NSMutableAttributedString(attributedString: Self.mark(.failed, .systemOrange))
-            text.append(Self.plain(s, .labelColor))
-            setPill(text)
-        case .hint(let s):
-            // Wraps: the actionable notices ("allow Pretype in System
-            // Settings, then relaunch") run past one line, and the clipped
-            // tail was the instruction itself.
-            setPill(Self.plain(s, .secondaryLabelColor), wraps: true)
-        case .shortcut(let key, let action):
-            let text = NSMutableAttributedString(attributedString: Self.keycap(key))
-            text.append(Self.plain(" " + action, .secondaryLabelColor))
-            setPill(text)
-        case .fixPreview(let original, let fix):
-            setPill(fixPreview(original: original, fix: fix), wraps: true)
-        case .correction(let original, let fix):
-            let text = NSMutableAttributedString(attributedString: Self.replacement(original, fix))
-            text.append(Self.plain("   "))
-            text.append(Self.keycap(Settings.hotkeyStyle.label))
-            setPill(text)
-        case .listening(let s):
-            setPill(listening(s))
-        }
-    }
-
     /// Whether the current pill may wrap (a fix preview, a notice) — it then
     /// gets a height cap instead of one line.
-    private var pillWraps = false
+    var pillWraps = false
     /// Set by `pillSize`: a pill that actually wrapped gets a little more
     /// vertical padding than a one-line capsule.
-    private var pillPadV: CGFloat = 4
-
-    /// One ellipsized line unless `wraps`; any paragraph settings the content
-    /// already carries (an RTL base direction) are kept.
-    private func setPill(_ text: NSAttributedString, wraps: Bool = false) {
-        let out = NSMutableAttributedString(attributedString: text)
-        let existing = out.length > 0
-            ? out.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle : nil
-        let paragraph = (existing?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
-        paragraph.lineBreakMode = wraps ? .byWordWrapping : .byTruncatingTail
-        out.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: out.length))
-        pillWraps = wraps
-        pillText.attributed = out
-    }
-
-    private static func plain(_ s: String, _ color: NSColor = .labelColor,
-                              _ font: NSFont = pillFont) -> NSAttributedString {
-        NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
-    }
-
-    /// The dictation pill: a red dot — the universal "live" — then the words as
-    /// they are recognized. The point of showing them is that you can tell
-    /// you're being heard *before* you finish the sentence, so the caller feeds
-    /// the tail of the transcript rather than its start.
-    private func listening(_ text: String) -> NSAttributedString {
-        let result = NSMutableAttributedString(string: "●  ", attributes: [
-            .font: NSFont.systemFont(ofSize: 10),
-            .foregroundColor: NSColor.systemRed,
-        ])
-        result.append(Self.plain(text.isEmpty ? String(localized: "Listening…") : text,
-                                 text.isEmpty ? .secondaryLabelColor : .labelColor))
-        // The leading dot forces the line's base direction LTR, which renders
-        // an Arabic or Hebrew transcript backwards: words in RTL order but the
-        // line laid out from the left, ellipsis on the wrong side. Basing the
-        // paragraph on the transcript mirrors the whole pill — dot on the
-        // right, tail growing leftwards — which is what an RTL reader expects.
-        if Self.isRightToLeft(text) {
-            let paragraph = NSMutableParagraphStyle()
-            paragraph.baseWritingDirection = .rightToLeft
-            result.addAttribute(.paragraphStyle, value: paragraph,
-                                range: NSRange(location: 0, length: result.length))
-        }
-        return result
-    }
-
-    /// A key drawn as a key: a rounded, hairline-edged cap with the label
-    /// centred on it, the cap centred on `font`'s cap height so it sits level
-    /// with the words around it. The old flat background-colour run hugged the
-    /// glyphs in a hard box. Rendered at draw time (`cacheMode = .never`), so
-    /// its colours resolve against the window's appearance like every other
-    /// colour here, async tone flips included. `strength` dims the whole cap
-    /// to sit inside a ghost.
-    static func keycap(_ key: String, size: CGFloat = 10, beside font: NSFont = pillFont,
-                       strength: CGFloat = 1) -> NSAttributedString {
-        let labelFont = NSFont.systemFont(ofSize: size, weight: .semibold)
-        let label = NSAttributedString(string: key, attributes: [
-            .font: labelFont,
-            .foregroundColor: dynamicAlpha(.labelColor, 0.62 * strength),
-        ])
-        let textWidth = ceil(label.size().width)
-        let cap = NSSize(width: textWidth + 2 * ceil(size * 0.45), height: ceil(size * 1.5))
-        let image = NSImage(size: cap, flipped: false) { rect in
-            let path = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5),
-                                    xRadius: min(4, rect.height / 3), yRadius: min(4, rect.height / 3))
-            dynamicAlpha(.labelColor, 0.07 * strength).setFill()
-            path.fill()
-            dynamicAlpha(.labelColor, 0.2 * strength).setStroke()
-            path.lineWidth = 0.5
-            path.stroke()
-            // Optical centre: the cap-height midline, not the line box's.
-            label.draw(at: NSPoint(x: (rect.width - textWidth) / 2,
-                                   y: rect.height / 2 + labelFont.descender - labelFont.capHeight / 2
-                                      - (labelFont.ascender + labelFont.descender - labelFont.capHeight) / 2))
-            return true
-        }
-        return attachment(image, y: ((font.capHeight - cap.height) / 2).rounded())
-    }
-
-    /// `image` inline, its bottom `y` off the baseline. Drawn at draw time
-    /// (`cacheMode = .never`), so its colours follow the window's appearance.
-    private static func attachment(_ image: NSImage, y: CGFloat) -> NSAttributedString {
-        image.cacheMode = .never
-        let attachment = NSTextAttachment()
-        attachment.image = image
-        attachment.bounds = NSRect(origin: NSPoint(x: 0, y: y), size: image.size)
-        return NSAttributedString(attachment: attachment)
-    }
-
-    /// The Pretype mark in `color`, leading an engine notice.
-    private static func mark(_ state: BrandMark.State, _ color: NSColor) -> NSAttributedString {
-        let template = BrandMark.statusItemImage(state, phase: 2)
-        let image = NSImage(size: template.size, flipped: false) { rect in
-            template.draw(in: rect)
-            // sourceIn, not sourceAtop: the colour REPLACES the black template
-            // (its own alpha kept), where atop blended a translucent grey over
-            // black and drew the mark near-black on a light pill.
-            color.set()
-            rect.fill(using: .sourceIn)
-            return true
-        }
-        let out = NSMutableAttributedString(
-            attributedString: attachment(image, y: ((pillFont.capHeight - template.size.height) / 2).rounded()))
-        out.append(plain("  "))
-        return out
-    }
-
-    /// Three dots, one lit, the light walking left to right. Constant width,
-    /// so it pulses in place instead of growing and shrinking at the caret the
-    /// way the old 1-2-3 ellipsis did. The dots sit on `font`'s x-height
-    /// midline; a zero-width space in `font` keeps the line box the host's, so
-    /// the inline ghost places them on the line like any other ghost text.
-    private static func dots(_ phase: Int, beside font: NSFont,
-                             extra: [NSAttributedString.Key: Any] = [:],
-                             ink: (CGFloat) -> NSColor) -> NSAttributedString {
-        let dotFont = NSFont.systemFont(ofSize: max(8, (font.pointSize * 0.7).rounded()))
-        let lift = (font.xHeight - dotFont.xHeight) / 2
-        let out = NSMutableAttributedString(string: "\u{200B}", attributes: extra.merging([.font: font]) { $1 })
-        for i in 0..<3 {
-            out.append(NSAttributedString(string: i == 0 ? "•" : "\u{2009}•", attributes: extra.merging([
-                .font: dotFont,
-                .baselineOffset: lift,
-                .foregroundColor: ink(i == phase % 3 ? 1 : 0.3),
-            ]) { $1 }))
-        }
-        return out
-    }
-
-    private func thinkingGhost(_ phase: Int) -> NSAttributedString {
-        let strength = ghostStrength(1)
-        return Self.dots(phase, beside: ghostFont, extra: ghostAttributes(dim: 1)) {
-            Self.dynamicAlpha(.labelColor, strength * $0)
-        }
-    }
-
-    /// "original → fix": the original muted under a quiet red-tinted
-    /// strikethrough (a hint of "wrong", not a shout), a muted arrow, then the
-    /// fix in full-strength semibold ink. Not the accent colour: with the
-    /// Graphite accent that drew the fix in the same grey as the word it
-    /// replaces, and the one word that matters came out the faintest.
-    private static func replacement(_ original: String, _ fix: String) -> NSAttributedString {
-        let result = NSMutableAttributedString(attributedString: removedRun(original))
-        result.append(plain("  →  ", .tertiaryLabelColor, .systemFont(ofSize: 11)))
-        result.append(insertedRun(fix, highlighted: false))
-        return result
-    }
-
-    private static func removedRun(_ s: String) -> NSAttributedString {
-        NSAttributedString(string: s, attributes: [
-            .font: pillFont,
-            .foregroundColor: NSColor.secondaryLabelColor,
-            .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-            .strikethroughColor: dynamicAlpha(.systemRed, 0.6),
-        ])
-    }
-
-    private static func insertedRun(_ s: String, highlighted: Bool) -> NSAttributedString {
-        var attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: NSColor.labelColor,
-        ]
-        if highlighted { attributes[.backgroundColor] = dynamicAlpha(.systemGreen, 0.18) }
-        return NSAttributedString(string: s, attributes: attributes)
-    }
-
-    /// A proposed fix, as what it CHANGES: a sentence re-typed in full left the
-    /// user proofreading it against their own to find the two words that
-    /// moved, and a long one was cut to a single ellipsized line — ⏎ applied
-    /// text nobody could read. Now the edits are marked in place and the pill
-    /// wraps, so everything ⏎ will type is on screen. A single word reads as
-    /// the same "old → new" the spell pill uses. Then the two keys, with verbs.
-    private func fixPreview(original: String, fix: String) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-        let trimmed = original.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty, !trimmed.contains(where: \.isWhitespace), !fix.contains(where: \.isWhitespace) {
-            result.append(Self.replacement(original, fix))
-        } else if let runs = Self.wordDiff(from: original, to: fix) {
-            var previous: DiffRun?
-            for run in runs {
-                switch run {
-                case .same(let s): result.append(Self.plain(s))
-                case .removed(let s): result.append(Self.removedRun(s))
-                case .inserted(let s):
-                    // "their" struck, then "they're": keep them two words.
-                    if case .removed(let r)? = previous, r.last?.isWhitespace == false,
-                       s.first?.isWhitespace == false {
-                        result.append(Self.plain(" "))
-                    }
-                    result.append(Self.insertedRun(s, highlighted: true))
-                }
-                previous = run
-            }
-        } else {
-            result.append(Self.plain(fix))
-        }
-        result.append(Self.plain("   "))
-        result.append(Self.keycap("⏎"))
-        result.append(Self.plain(" " + String(localized: "apply") + "   ", .secondaryLabelColor, .systemFont(ofSize: 11)))
-        result.append(Self.keycap("esc"))
-        result.append(Self.plain(" " + String(localized: "cancel"), .secondaryLabelColor, .systemFont(ofSize: 11)))
-        return result
-    }
-
-    enum DiffRun: Equatable {
-        case same(String), removed(String), inserted(String)
-    }
-
-    /// Word-level diff of a fix against the text it replaces. Tokens are runs
-    /// of letters/digits, single punctuation marks, and whitespace runs, so
-    /// "their" → "they're" is one replaced word, not a smear of characters.
-    /// nil when the fix rewrote most of a longer text: a paragraph of
-    /// strikethrough reads worse than the fix itself. Pinned by a test.
-    nonisolated static func wordDiff(from old: String, to new: String) -> [DiffRun]? {
-        func tokens(_ s: String) -> [String] {
-            var out: [String] = []
-            var current = ""
-            var kind = 0
-            for ch in s {
-                let k = ch.isLetter || ch.isNumber ? 1 : ch.isWhitespace ? 2 : 3
-                if k != kind || k == 3, !current.isEmpty { out.append(current); current = "" }
-                current.append(ch)
-                kind = k
-            }
-            if !current.isEmpty { out.append(current) }
-            return out
-        }
-        let a = tokens(old), b = tokens(new)
-        var removed = Set<Int>(), inserted = Set<Int>()
-        for change in b.difference(from: a) {
-            switch change {
-            case .remove(let offset, _, _): removed.insert(offset)
-            case .insert(let offset, _, _): inserted.insert(offset)
-            }
-        }
-        // "Most of it" by characters, not tokens: "they're" is three tokens
-        // and one word, and counting tokens tipped a two-word fix into "a
-        // rewrite" and dropped its diff.
-        let isWord = { (t: String) in t.contains { $0.isLetter || $0.isNumber } }
-        let words = b.filter(isWord).count
-        let total = b.filter(isWord).reduce(0) { $0 + $1.count }
-        let changed = inserted.filter { isWord(b[$0]) }.reduce(0) { $0 + b[$1].count }
-        guard words > 0, words < 4 || changed * 2 <= total else { return nil }
-
-        var runs: [DiffRun] = []
-        func push(_ run: DiffRun) {
-            switch (runs.last, run) {
-            case (.same(let x)?, .same(let y)): runs[runs.count - 1] = .same(x + y)
-            case (.removed(let x)?, .removed(let y)): runs[runs.count - 1] = .removed(x + y)
-            case (.inserted(let x)?, .inserted(let y)): runs[runs.count - 1] = .inserted(x + y)
-            default: runs.append(run)
-            }
-        }
-        var i = 0, j = 0
-        while i < a.count || j < b.count {
-            if i < a.count, removed.contains(i) {
-                push(.removed(a[i])); i += 1
-            } else if j < b.count, inserted.contains(j) {
-                push(.inserted(b[j])); j += 1
-            } else {
-                if j < b.count { push(.same(b[j])) }
-                i += 1; j += 1
-            }
-        }
-        return runs
-    }
-
-    /// The classic panel content: the suggestion text (⇥-acceptable chunk a step
-    /// brighter) plus a faint accept hint. The keycap tutoring disappears once
-    /// accepting is muscle memory, so the pill stays compact for regulars.
-    private func panelSuggestion(_ s: String) -> NSAttributedString {
-        let head = SuggestionController.firstWordChunk(of: s)
-        let result = NSMutableAttributedString(attributedString: Self.plain(head))
-        let tail = String(s.dropFirst(head.count))
-        if !tail.isEmpty { result.append(Self.plain(tail, .secondaryLabelColor)) }
-        guard Stats.tutorsAccept else { return result }
-        let style = Settings.hotkeyStyle
-        let hint = NSFont.systemFont(ofSize: 11)
-        result.append(Self.plain("   "))
-        result.append(Self.keycap(style.label))
-        result.append(Self.plain(" " + String(localized: "word") + "   ", .secondaryLabelColor, hint))
-        result.append(Self.keycap(style.shiftLabel))
-        result.append(Self.plain(" " + String(localized: "all"), .secondaryLabelColor, hint))
-        return result
-    }
+    var pillPadV: CGFloat = 4
 
     /// Whether the ghost currently on screen carries the accept keycap — kept
     /// for `advance`, which re-renders the remainder in place.
-    private var ghostShowsKeycap = false
+    var ghostShowsKeycap = false
 
-    /// The accept keycap that trails a new user's inline ghost: a small key
-    /// dimmed to the ghost's own strength, so it reads as part of the offer
-    /// rather than as UI stuck onto the user's text.
-    private func ghostKeycap() -> NSAttributedString {
-        let out = NSMutableAttributedString(attributedString: ghostString("  ", dim: 1))
-        out.append(Self.keycap(Settings.hotkeyStyle.label, size: max(8, (ghostFont.pointSize * 0.7).rounded()),
-                               beside: ghostFont, strength: min(1, ghostStrength(1) / 0.7)))
-        return out
-    }
-
-    /// Ghost text with the ⇥-acceptable chunk (same split the controller uses)
-    /// a step brighter than the tail, so what one Tab takes is visible at a glance.
-    private func suggestionGhost(_ s: String) -> NSAttributedString {
-        let head = SuggestionController.firstWordChunk(of: s)
-        let result = NSMutableAttributedString(attributedString: ghostString(head, dim: 1))
-        ghostHeadWidth = ceil(result.size().width)
-        let tail = String(s.dropFirst(head.count))
-        if !tail.isEmpty { result.append(ghostString(tail, dim: 0.72)) }
-        if ghostShowsKeycap { result.append(ghostKeycap()) }
-        return result
-    }
-
-    /// Point the whole overlay at the appearance of what the caret actually sits
-    /// on, not at the system theme. ONE channel for every mode: the ghost's ink
-    /// and halo, the pill's label, the correction diff, and the backdrop
-    /// materials are all semantic colors, so they resolve against this together
-    /// and cannot contradict each other. (On macOS 26 the pill's glass is clear
-    /// — it takes the backdrop's tone, so a black label on a dark app was as
-    /// unreadable as an invisible ghost.)
-    ///
-    /// Four sources, strictly in this order, because each later one is weaker
-    /// evidence:
-    ///   1. the probe *looked* at the pixels under the caret (Screen Recording);
-    ///      nothing an app reports about itself outranks having looked,
-    ///   2. the field's own background, when AX reports a concrete one — the
-    ///      same question answered directly, free, no permission,
-    ///   3. the field's ink, which answers it by implication,
-    ///   4. nil: follow the system theme, which knows nothing about a themed app.
-    private func resolveAppearance() {
-        func adopt(_ surface: CGFloat, _ source: String) {
-            let name: NSAppearance.Name = surface < 0.5 ? .darkAqua : .aqua
-            logTone("\(source) → \(name == .darkAqua ? "dark" : "light")")
-            if appearance?.name != name { appearance = NSAppearance(named: name); repaint() }
-        }
-        if let probed = backgroundProbe.appearance {
-            return adopt(probed.name == .darkAqua ? 0 : 1, "probe")
-        }
-        if let bg = lastHost.background.flatMap(Self.staticLuminance) {
-            return adopt(bg, "field bg \(String(format: "%.2f", bg))")
-        }
-        // Only an ink at the extremes is evidence: a mid-gray (a placeholder, a
-        // secondary label) is legible on either surface and would flip the whole
-        // overlay on a coin toss. Dark ink ⇒ light surface, and vice versa.
-        if let ink = lastHost.color.flatMap(Self.staticLuminance), ink < 0.25 || ink > 0.75 {
-            return adopt(1 - ink, "field ink \(String(format: "%.2f", ink))")
-        }
-        logTone("system")
-        if appearance != nil { appearance = nil; repaint() }
-    }
-
-    /// Nothing here caches an appearance-aware color, so a flip just repaints.
-    private func repaint() {
-        container.needsDisplay = true
-        ghost.needsDisplay = true
-    }
-
-    /// One line in the Debug Console whenever that decision changes: which of
-    /// the four sources answered, and what it said. This is the only way to tell
-    /// from the outside why an overlay came out unreadable in some app.
-    private var lastToneLog = ""
-    private func logTone(_ verdict: String) {
-        guard verdict != lastToneLog else { return }
-        lastToneLog = verdict
-        DebugLog.shared.log("SHOW", "overlay tone: \(verdict)")
-    }
-
-    /// A color's sRGB luminance — but only when it means the same thing under
-    /// both appearances. AppKit archives *semantic* colors across the AX
-    /// boundary intact, and an unarchived dynamic color resolves against OUR
-    /// process's appearance, not the host's: a dark-themed field under a light
-    /// system then reports black ink for text it draws white, which painted a
-    /// black ghost on black. Such a color describes our theme, not the field —
-    /// discard it and let the appearance path answer. Internal: the polarity and
-    /// this discard are what the ghost's readability turns on, so both are pinned
-    /// by a test.
-    static func staticLuminance(_ color: NSColor) -> CGFloat? {
-        var resolved: [CGFloat] = []
-        for name in [NSAppearance.Name.aqua, .darkAqua] {
-            guard let appearance = NSAppearance(named: name) else { return nil }
-            appearance.performAsCurrentDrawingAppearance {
-                guard let c = color.usingColorSpace(.sRGB) else { return }
-                resolved.append(0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent)
-            }
-        }
-        guard resolved.count == 2, abs(resolved[0] - resolved[1]) < 0.02 else { return nil }
-        return resolved[0]
-    }
-
-    /// A semantic color with alpha that STAYS semantic. `withAlphaComponent`
-    /// on a catalog color resolves it against the calling context's appearance
-    /// and returns a frozen component color — the ghost built its ink that
-    /// way, so it wore the SYSTEM tone no matter what the resolver set the
-    /// window to: white-on-white on a light page under a dark system, with
-    /// the halo frozen dark to match. A dynamic-provider color defers both
-    /// the resolution and the alpha to draw time, against the window's
-    /// appearance — back in the same tone channel as everything else, async
-    /// probe flips included (repaint re-resolves, no string rebuild). Pinned
-    /// by a test.
-    static func dynamicAlpha(_ base: NSColor, _ alpha: CGFloat) -> NSColor {
-        NSColor(name: nil) { appearance in
-            var resolved = base
-            appearance.performAsCurrentDrawingAppearance {
-                resolved = base.usingColorSpace(.sRGB) ?? base
-            }
-            return resolved.withAlphaComponent(alpha)
-        }
-    }
-
-    /// `dim` scales the opacity setting: 1 for the ⇥ chunk, less for the tail.
-    private func ghostString(_ string: String, dim: CGFloat) -> NSAttributedString {
-        NSAttributedString(string: string, attributes: ghostAttributes(dim: dim))
-    }
-
-    /// The ghost's ink strength for `dim`: the opacity setting scaled by it.
-    private func ghostStrength(_ dim: CGFloat) -> CGFloat {
-        // "Increase contrast" exists to stop exactly this: text you have to
-        // squint at. Floor the opacity SETTING, not the finished ink: `dim`
-        // still scales it, so the head-vs-tail split survives (it's what shows
-        // how far one ⇥ reaches) and the ⇥ chunk stays visibly lighter than the
-        // words the user actually typed — at full label alpha the ghost reads
-        // as already committed text.
-        var opacity = CGFloat(Settings.ghostOpacity)
-        if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast { opacity = max(0.85, opacity) }
-        return opacity * dim
-    }
-
-    private func ghostAttributes(dim: CGFloat) -> [NSAttributedString.Key: Any] {
-        // Both semantic, so they resolve together at draw time against the
-        // window's appearance (see resolveAppearance) and can never disagree:
-        // the paper tone is by definition the label tone's opposite. The ghost
-        // has no backdrop, so that opposite becomes a soft halo — an outline
-        // separating it from whatever the host draws underneath, where the old
-        // window-background tone was a gray smudge over the glyph edges.
-        let halo = NSShadow()
-        halo.shadowColor = Self.dynamicAlpha(.textBackgroundColor, 0.4)
-        halo.shadowBlurRadius = 2.5
-        halo.shadowOffset = .zero
-        // Single line, ellipsized when the window can't fit the tail. An RTL
-        // ghost hangs off the caret on its right edge, so it has to be laid out
-        // right-aligned in its own writing direction — left-aligned it would
-        // start at the far end of the window with a gap at the caret.
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
-        if ghostRTL {
-            paragraph.baseWritingDirection = .rightToLeft
-            paragraph.alignment = .right
-        }
-        return [
-            .font: ghostFont,
-            .foregroundColor: Self.dynamicAlpha(.labelColor, ghostStrength(dim)),
-            .shadow: halo,
-            .paragraphStyle: paragraph,
-        ]
-    }
-
-    /// How far the inline ghost may draw *in its writing direction*: the far
-    /// edge of the field it belongs to, else the screen's. Without the field
-    /// bound the ghost ran past the input over the send button beside it — and
-    /// with a caret near the screen edge the old `max(40, …)` floor pushed a
-    /// sliver of window clean off the display.
-    private func inlineBound(at caretRect: CGRect, rtl: Bool) -> CGFloat? {
-        guard let screen = screenContaining(CGPoint(x: caretRect.midX, y: caretRect.midY)) else { return nil }
-        let visible = screen.visibleFrame
-        var bound = rtl ? visible.minX + 2 : visible.maxX - 2
-        // Only trust the box when the caret really sits in it — a stale or
-        // mis-reported frame must not clamp the ghost to nothing.
-        if let field = lastHost.fieldRect, field.width > 20,
-           field.insetBy(dx: -8, dy: -8).contains(CGPoint(x: caretRect.midX, y: caretRect.midY)) {
-            bound = rtl ? max(bound, field.minX + 2) : min(bound, field.maxX - 2)
-        }
-        return bound
-    }
-
-    /// Space between the caret and that bound — what the ghost has to live in.
-    private func inlineRoom(at caretRect: CGRect, rtl: Bool) -> CGFloat? {
-        guard let bound = inlineBound(at: caretRect, rtl: rtl) else { return nil }
-        return max(0, rtl ? caretRect.minX - bound : bound - caretRect.maxX)
-    }
-
-    /// Inline needs room for at least the chunk one ⇥ takes. Less than that and
-    /// the ghost is a sliver hanging off the end of the input, so the pill above
-    /// the line takes over — it says the same thing, in full, and is clamped
-    /// on-screen. (A suggestion is trimmed to the room in `show`, so this only
-    /// still decides for the thinking dots and as a backstop.)
-    private func inlineHasRoom(at caretRect: CGRect) -> Bool {
-        guard let room = inlineRoom(at: caretRect, rtl: ghostRTL) else { return false }
-        return room >= min(ghostHeadWidth + 4, ghost.measuredSize.width)
-    }
-
-    /// Where the ghost's window sits for a caret anchor and a rendered text
-    /// width. LTR grows right from the caret's right edge, RTL grows LEFT from
-    /// its left edge, and neither crosses `bound` (the field's far edge, else
-    /// the screen's). Both the first placement and the post-accept slide go
-    /// through this, so they cannot drift apart. Pinned by a test.
-    nonisolated static func ghostSpan(anchorX: CGFloat, textWidth: CGFloat,
-                                      bound: CGFloat, rtl: Bool) -> (x: CGFloat, width: CGFloat) {
-        let width = min(textWidth, max(0, rtl ? anchorX - bound : bound - anchorX))
-        return (rtl ? anchorX - width : anchorX, width)
-    }
-
-    /// True when the text's first *letter* is right-to-left — Hebrew through
-    /// Arabic Extended-A is one contiguous block, plus the Arabic presentation
-    /// forms. Digits, punctuation and spaces are direction-neutral and keep the
-    /// search going, so "50 ₪ שלום" still reads as RTL. Pinned by a test.
-    nonisolated static func isRightToLeft(_ text: String) -> Bool {
-        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
-            return (0x0590...0x08FF).contains(scalar.value)
-                || (0xFB1D...0xFDFF).contains(scalar.value)
-                || (0xFE70...0xFEFF).contains(scalar.value)
-        }
-        return false
-    }
-
-    /// The longest prefix of `text` that renders inside `width`, cut where the
-    /// line would break (a word boundary in prose, a cluster in Chinese) and
-    /// with the trailing space dropped. "" when not even the first word fits —
-    /// the caller then falls back to the pill, which draws it whole.
-    ///
-    /// This is what keeps ⇧⇥ honest: it accepts the WHOLE suggestion, so a tail
-    /// that only ellipsized into "…" was text the user took unseen. Past the end
-    /// of the line the host would have wrapped that tail anyway, so the
-    /// single-line ghost was never a truthful preview of it either.
-    nonisolated static func fittingPrefix(of text: String, font: NSFont, width: CGFloat) -> String {
-        guard width > 0, !text.isEmpty else { return "" }
-        let attributed = NSAttributedString(string: text, attributes: [.font: font])
-        guard attributed.size().width > width else { return text }
-        let ns = text as NSString
-        // CoreText's own line-breaker: one call, and it knows where every
-        // script may break (walking word boundaries would cost a measurement
-        // per word on the keystroke path).
-        let count = CTTypesetterSuggestLineBreak(
-            CTTypesetterCreateWithAttributedString(attributed), 0, Double(width))
-        guard count > 0, count < ns.length else { return "" }
-        var cut = ns.substring(to: count)
-        while cut.hasSuffix(" ") { cut.removeLast() }
-        // A first word longer than the room comes back whole regardless (there
-        // is always at least one break candidate) — that one doesn't fit.
-        guard (cut as NSString).size(withAttributes: [.font: font]).width <= width else { return "" }
-        return cut
-    }
-
-    private func place(ghost ghostMode: Bool, at caretRect: CGRect) {
-        // Never clamp garbage coordinates into a screen corner: no screen under
-        // the caret → no overlay.
-        guard let screen = screenContaining(CGPoint(x: caretRect.midX, y: caretRect.midY)) else {
-            hide()
-            return
-        }
-        let visible = screen.visibleFrame
-        hideGeneration += 1   // cancel any in-flight fade-out
-        let appearing = !isVisible
-
-        ghost.isHidden = !ghostMode
-        // Both the floating panel and the over-word correction draw in the pill.
-        backdrop.isHidden = ghostMode
-        pillText.isHidden = ghostMode
-        // The inline ghost casts no shadow; the floating pill / over-word fix do.
-        let wantShadow = !ghostMode
-        if hasShadow != wantShadow { hasShadow = wantShadow }
-
-        let target: NSRect
-        if ghostMode {
-            // Inline ghost text: it starts at the caret and runs in the writing
-            // direction, hard-stopped at the field (see inlineBound) so it never
-            // leaves the input, and the text ellipsizes rather than being sliced.
-            let size = ghost.measuredSize
-            ghostAnchorX = ghostRTL ? caretRect.minX : caretRect.maxX
-            let bound = inlineBound(at: caretRect, rtl: ghostRTL)
-                ?? (ghostRTL ? visible.minX + 2 : visible.maxX - 2)
-            let span = Self.ghostSpan(anchorX: ghostAnchorX, textWidth: size.width,
-                                      bound: bound, rtl: ghostRTL)
-            let lift = Self.ghostLift(caretHeight: caretRect.height, lineHeight: size.height)
-            var origin = CGPoint(x: span.x, y: caretRect.minY + lift)
-            origin.y = min(max(visible.minY, origin.y), visible.maxY - size.height)
-            target = NSRect(x: origin.x, y: origin.y,
-                            width: max(1, span.width), height: size.height)
-        } else {
-            // HUD pill — the floating panel suggestion AND the inline spell-fix
-            // diff. Lifted just ABOVE the line so it never covers the text you're
-            // typing (panel) or the word it's correcting (fix). The left edge
-            // tracks the anchor — the caret for the panel, the word start for the
-            // fix — and it drops just below the line only when the caret is too
-            // near the top of the screen to fit above.
-            let size = pillSize()
-            // Sit just above the TEXT top (font-derived), not the caret box top —
-            // an inflated caret box pushed the panel too high above the line.
-            let gap: CGFloat = 3
-            // A fix anchors on the selection's whole box, which spans every
-            // line a wrapped selection covers: sit above its TOP line (and, with
-            // no room there, flip below its bottom one) — measured from the
-            // box's bottom, the pill landed on the selection's own upper lines,
-            // over the very text it was fixing.
-            let textTop = anchorsOnSelection(currentMode)
-                ? max(caretRect.maxY, caretRect.minY + lineFont)
-                : caretRect.minY + lineFont
-            var origin = CGPoint(x: caretRect.minX, y: textTop + gap)
-            if origin.y + size.height > visible.maxY - 2 {
-                origin.y = caretRect.minY - size.height - gap
-            }
-            origin.x = min(max(visible.minX, origin.x), visible.maxX - size.width)
-            origin.y = min(max(visible.minY, origin.y), visible.maxY - size.height)
-            target = NSRect(origin: origin, size: size)
-        }
-
-        setFrame(target, display: false)
-        layoutSubviews(ghost: ghostMode)
-        displayIfNeeded()
-
-        if appearing {
-            // A quick fade so the suggestion doesn't pop; repositions don't re-fade.
-            alphaValue = 0
-            orderFrontRegardless()
-            onVisibilityChange?()
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.09
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                animator().alphaValue = 1
-            }
-        } else if fadingOut {
-            // Caught mid-fade-out: retarget the alpha animation back to opaque.
-            // On the flag, not on alpha: a hide() earlier in this same pass still
-            // reads 1.0 here (AppKit steps alpha on later frames), and its
-            // completion is already cancelled — skipping this left the window
-            // ordered in at 0. A plain reposition animates nothing.
-            fadingOut = false
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.06
-                animator().alphaValue = 1
-            }
-        }
-    }
-
-    /// How far above the caret box's bottom the ghost's line box sits.
-    /// TRUE centring, negative included: identical to the bottom-pin when the
-    /// caret box IS the line box (native fields, glyph-anchored); a taller
-    /// caret (padded single-line inputs, web line-height) lifts by the real
-    /// half-leading — the old 0.4-line cap under-lifted the generous ones and
-    /// sat the ghost low; a SHORTER caret (a cap-height sliver whose bottom is
-    /// the baseline) drops the ghost by about the descender, which is where
-    /// that baseline actually is. Past a couple of line-heights the box is the
-    /// degenerate whole-view span some Electron builds report — assume typing
-    /// at its bottom line and keep the old capped nudge. Pinned by a test.
-    nonisolated static func ghostLift(caretHeight: CGFloat, lineHeight: CGFloat) -> CGFloat {
-        caretHeight <= lineHeight * 2.2
-            ? (caretHeight - lineHeight) / 2
-            : lineHeight * 0.4
-    }
-
-    private func layoutSubviews(ghost ghostMode: Bool) {
-        let bounds = container.bounds
-        if ghostMode {
-            ghost.frame = bounds
-        } else {
-            // Pill modes and the over-word correction share the panel layout.
-            backdrop.frame = bounds
-            pillText.frame = bounds.insetBy(dx: pillPadH, dy: pillPadV)
-            // Capsule the glass to the pill height — the signature Liquid Glass shape.
-            backdrop.cornerRadius = min(16, bounds.height / 2)
-        }
-        
-        if let highlightLayer {
-            CATransaction.begin()
-            CATransaction.setValue(kCFBooleanTrue, forKey: kCATransactionDisableActions)
-            highlightLayer.frame = bounds
-            // Match the backdrop: glass capsule (macOS 26+) or the HUD's 6 pt.
-            highlightLayer.cornerRadius = ghostMode ? 4 : min(16, bounds.height / 2)
-            CATransaction.commit()
-        }
-    }
-
-    func setHighlight(_ highlighted: Bool) {
-        if highlighted {
-            if highlightLayer == nil {
-                let layer = CALayer()
-                layer.borderColor = NSColor.controlAccentColor.cgColor
-                layer.borderWidth = 2.0
-                layer.shadowColor = NSColor.controlAccentColor.cgColor
-                layer.shadowOffset = .zero
-                layer.shadowRadius = 8.0
-                layer.shadowOpacity = 0.8
-                
-                // Pulse draws the eye to the caret, but an infinite autoreversing
-                // glow is exactly what Reduce Motion exists to suppress. The static
-                // border + glow already carries the meaning on its own.
-                if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-                    let anim = CABasicAnimation(keyPath: "shadowOpacity")
-                    anim.fromValue = 0.4
-                    anim.toValue = 0.9
-                    anim.duration = 1.0
-                    anim.autoreverses = true
-                    anim.repeatCount = .infinity
-                    layer.add(anim, forKey: "pulse")
-                }
-
-                self.highlightLayer = layer
-                container.layer?.addSublayer(layer)
-            }
-            layoutSubviews(ghost: !ghost.isHidden)
-        } else {
-            highlightLayer?.removeFromSuperlayer()
-            highlightLayer = nil
-        }
-    }
-
-    private func pillSize() -> NSSize {
-        // Measured with the same options it draws with, so the box fits the
-        // text exactly. A wrapping pill (fix preview, suggestion) is capped at
-        // ten lines — past that the last visible line ellipsizes rather than
-        // the pill growing over half the screen. A point of slack absorbs rounding.
-        let line = Self.pillFont.boundingRectForFont.height
-        let text = pillText.fittingSize(maxWidth: 460, maxHeight: pillWraps ? ceil(line * 10) : 10_000)
-        pillPadV = text.height > line * 1.5 ? 6 : 4
-        return NSSize(width: text.width + 1 + pillPadH * 2, height: text.height + pillPadV * 2)
-    }
-
-    private func screenContaining(_ point: CGPoint) -> NSScreen? {
-        // Slight inset tolerance: a caret at the very screen edge still counts.
-        NSScreen.screens.first { $0.frame.insetBy(dx: -10, dy: -10).contains(point) }
-    }
+    /// See `logTone`.
+    var lastToneLog = ""
 }
