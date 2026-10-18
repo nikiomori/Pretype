@@ -1,0 +1,225 @@
+import AppKit
+import AVFoundation
+import Carbon
+import SwiftUI
+
+struct SuggestionLineMock: View {
+    static let typed = String(localized: "Write ", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 1, the text typed before the caret. Keep the trailing space.")
+    static let chunk = String(localized: "a reply", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 2, the suggestion's first chunk right after the caret.")
+    static let rest = String(localized: " to Anna", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 3, the rest of the suggestion up to its end. Keep the leading space.")
+
+    let presentation: SuggestionPresentation
+    let opacity: Double
+    let hotkey: String
+    private let ink = Color.primary
+
+    var body: some View {
+        // The slider dims inline ghost text; the panel pill is an opaque HUD and
+        // stays full-strength, so the preview must not move it either — else it
+        // promises an effect the real panel never applies.
+        let effective = presentation == .inline ? opacity : 1.0
+        // Same split the real ghost draws with (SuggestionWindow.suggestionGhost):
+        // the ⇥ chunk at full strength, the tail at 0.72 — a preview that dimmed
+        // differently promised a look the caret never delivered.
+        let head = ink.opacity(1.0 * effective)
+        let tail = ink.opacity(0.72 * effective)
+        let (typed, chunk, rest) = (Self.typed, Self.chunk, Self.rest)
+        return Group {
+            if presentation == .inline {
+                // The ghost, then the accept keycap a new user sees beside it.
+                HStack(spacing: 6) {
+                    Text("\(Text(typed).foregroundColor(ink))\(Text(chunk).foregroundColor(head))\(Text(rest).foregroundColor(tail))")
+                    MenuHintsView.keycap(hotkey)
+                        .opacity(min(1, effective / 0.7))
+                }
+            } else {
+                // The pill floats just ABOVE the line, starting at the caret —
+                // where the real one sits — never beside the typed words.
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 0) {
+                        Text(typed).hidden()
+                        HStack(spacing: 6) {
+                            Text("\(Text(chunk).foregroundColor(ink))\(Text(rest).foregroundColor(ink.opacity(0.55)))")
+                            MenuHintsView.keycap(hotkey)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(ink.opacity(0.07), in: Capsule())
+                        .overlay(Capsule().stroke(ink.opacity(0.15), lineWidth: 0.5))
+                    }
+                    Text(typed).foregroundColor(ink)
+                }
+            }
+        }
+        .font(.system(size: 13))
+        .lineLimit(1)
+        // One description for VoiceOver instead of the sample sentence read
+        // word by word.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(presentation == .inline
+            ? Text("Preview: grey suggestion text continues the line after the cursor")
+            : Text("Preview: the suggestion floats in a small box above the line"))
+    }
+}
+
+/// Selectable preview card rendering a miniature of how that mode looks at the
+/// caret, so the choice is visual, not abstract.
+struct PresentationCard: View {
+    let mode: SuggestionPresentation
+    let title: String
+    /// Short status tag beside the title (e.g. "Unstable").
+    var badge: String? = nil
+    let isSelected: Bool
+    /// The chosen accept key, shown in the mockup so it matches the live
+    /// overlay instead of a hardcoded ⇥.
+    let hotkeyLabel: String
+    /// The configured ghost opacity, so the inline mockup dims like the caret.
+    let ghost: Double
+    let action: () -> Void
+    /// Local hover only — a card highlight, never published to the store the
+    /// Form observes (that path hitches list scrolling).
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(nsColor: .textBackgroundColor))
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
+                    SuggestionLineMock(presentation: mode, opacity: ghost, hotkey: hotkeyLabel)
+                        .padding(.horizontal, 10)
+                }
+                .frame(height: 44)
+                HStack {
+                    Text(title).font(.subheadline.weight(.semibold))
+                    if let badge {
+                        Text(badge)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.orange.opacity(0.15)))
+                    }
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Color.accentColor.opacity(0.08)
+                          : (hovering ? Color.primary.opacity(0.04) : Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? Color.accentColor
+                            : (hovering ? Color.primary.opacity(0.22) : Color(nsColor: .separatorColor)),
+                            lineWidth: isSelected ? 2 : 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .frame(maxWidth: .infinity)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+// MARK: - Suggestion tuning
+
+/// Style and length: the Model pane's advanced section. "Use recommended
+/// settings" sets both per model, and most people never leave it.
+struct TuningSection: View {
+    @Bindable var store: SettingsStore
+
+    var body: some View {
+        Section("Suggestions") {
+            // Apple Intelligence runs as the macOS system model on the Neural
+            // Engine: Style and the precision gate never reach it
+            // (EngineCoordinator sends only length + persona).
+            if store.isAppleIntelligence {
+                Caption(String(localized: "Style and precision don't apply to Apple Intelligence."))
+            } else {
+                Toggle(isOn: $store.useRecommended) {
+                    Text("Use recommended settings")
+                    if store.useRecommended {
+                        Text("Now \(store.recommendation.summary). Changing Style or Length turns this off.")
+                    } else {
+                        Text("Best for this model: \(store.recommendation.summary).")
+                    }
+                }
+                .onHover { store.setHover(.useRecommended(!store.useRecommended), $0) }
+                LabeledContent {
+                    HoverSegments(title: String(localized: "Style"),
+                                  options: CompletionStyle.allCases.map { ($0, $0.label) },
+                                  selection: store.style,
+                                  select: { style in
+                                      // Base↔Instruct inserts/removes the
+                                      // length row and the precision cards.
+                                      withAnimation(.easeInOut(duration: 0.18)) { store.style = style }
+                                  },
+                                  hover: { style, hovering in
+                                      store.setHover(.style(style), hovering)
+                                  })
+                        .frame(width: 220)
+                } label: {
+                    Text("Style")
+                    if store.style == .instruct {
+                        Text("Follows your persona. Loads a second model.")
+                    } else {
+                        Text("Continues your text. Most accurate on everyday typing.")
+                    }
+                }
+                if store.style == .instruct, store.instructUnusable {
+                    RequirementRow(met: false,
+                                   text: String(localized: "Instruct doesn't work on \(store.selectedModelName)"),
+                                   fixTitle: String(localized: "Switch to Base")) { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
+                        .help("It answers the text instead of continuing it. Instruct needs a Gemma E4B model.")
+                }
+            }
+            // Base style's entropy stop ends a suggestion inside even Short's
+            // budget (identical output at all three lengths, 2026-10-15), so
+            // the control only shows where it does something. Apple
+            // Intelligence reads length whatever the style says.
+            if store.style != .base || store.isAppleIntelligence {
+                LabeledContent {
+                    HoverSegments(title: String(localized: "Length"),
+                                  options: CompletionLength.allCases.map { ($0, $0.label) },
+                                  selection: store.length,
+                                  select: { store.length = $0 },
+                                  hover: { length, hovering in
+                                      store.setHover(.length(length), hovering)
+                                  })
+                        .frame(width: 260)
+                } label: {
+                    Text("Length")
+                    Text(lengthLine)
+                }
+            }
+        }
+    }
+
+    /// How far one suggestion runs and what it costs, from the projection
+    /// the rail reads (measured on the EN+RU core, 2026-10-15).
+    private var lengthLine: String {
+        // One whole sentence per case, with and without the latency.
+        let each = ConfigProjection.project(store.committedConfig).p50Ms.map { latencyLabel(ms: $0) }
+        switch store.length {
+        case .short:
+            return each.map { String(localized: "2–3 words ahead, about \($0) each.") }
+                ?? String(localized: "2–3 words ahead.")
+        case .medium:
+            return each.map { String(localized: "Up to ~6 words ahead, about \($0) each.") }
+                ?? String(localized: "Up to ~6 words ahead.")
+        case .long:
+            return each.map { String(localized: "Up to a sentence ahead, about \($0) each.") }
+                ?? String(localized: "Up to a sentence ahead.")
+        }
+    }
+}
