@@ -13,6 +13,7 @@ xcuserdata/
 .crush/
 .factory/
 .skill-archive/
+/.files_listing.txt
 
 # Loose screen captures in the repo root (raw; cropped versions live in docs/)
 /image*.png

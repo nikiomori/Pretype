@@ -31,6 +31,9 @@ jobs:
     name: swift test (macOS)
     # mlx-swift 0.32.3 needs swift-tools 6.3: the macOS 26 image's default Xcode 26.6 has it.
     runs-on: macos-26
+    # A hung test would otherwise bill the 6-hour default at the macOS rate.
+    # A cold run (two module trees plus the Release bundle) fits well inside.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -44,10 +47,13 @@ jobs:
 
       # ponytail: swiftlint stays unpinned (brew) — a release that adds rules can
       # redden an unrelated PR. Pin the formula if that ever bites twice.
+      # dist.sh never runs here (it needs the signing identity), so a syntax
+      # error in it would first show in the maintainer's release build.
       - name: Lint
         run: |
           command -v swiftlint >/dev/null || brew install swiftlint
           swiftlint --strict
+          for script in Scripts/*.sh docs/diagrams/render.sh; do bash -n "$script"; done
 
       - name: Cache SwiftPM
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -68,9 +74,17 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain || true
 
       # `swift test` builds the app target too, so it is also the compile check.
-      # The unit tests cover only pure logic (output gates, hotkey matching,
-      # spell-check helpers, app policy) — no Metal/MLX inference — so they run
-      # headless on the runner even though the full engine can't.
+      # Most unit tests cover pure logic (output gates, hotkey matching,
+      # spell-check helpers, app policy). Six suites run MLX on the CPU
+      # device — HostPLETests, MLXEngineTests, ModelLoadingTests,
+      # ModelResidencyTests, GenerationTests and EngineCoordinatorTests: small arrays and a tiny
+      # synthetic Gemma, no real model, no GPU kernels. MLX still opens the
+      # Metal device for its allocator and loads the metallib `swift build`
+      # bundles (the Metal toolchain step above); without a Metal device it
+      # aborts the whole test process, so those suites skip themselves when
+      # MTLCreateSystemDefaultDevice() is nil (Tests/PretypeTests/MLXTestCase).
+      # They have never run on this runner: watch the first push that runs
+      # them, and check the log for whether they ran or skipped.
       - name: Test
         run: swift test
 

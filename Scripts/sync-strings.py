@@ -54,6 +54,10 @@ def extract():
 def main():
     check = "--check" in sys.argv
     stringsdata = extract()
+    # No files means the extraction broke, not that the app has no strings:
+    # --check would pass on "0 keys", and a sync would mark every key stale.
+    if not stringsdata:
+        sys.exit(f"no .stringsdata for {SOURCES} in {OUT} — string extraction failed")
     # --check never writes the catalog: it syncs a copy in the scratch path.
     path = shutil.copy(CATALOG, SCRATCH) if check else CATALOG
     subprocess.run(["xcrun", "xcstringstool", "sync", path, "--stringsdata", *stringsdata], check=True)
