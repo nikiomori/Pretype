@@ -472,7 +472,9 @@ struct ModelMapView: View {
     }
 
     /// The task colors, shared with the ranked rows' Fix · Reply figures.
-    private var chordTint: Color { lens == .fix ? .orange : .purple }
+    /// Pink, not orange, for Fix: orange is the pane's warning color
+    /// ("Heavy for this Mac", a worse preview delta).
+    private var chordTint: Color { lens == .fix ? .pink : .purple }
 
     /// The sibling the current pick actually loads for the chords.
     private var currentSiblingID: String? {

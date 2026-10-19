@@ -421,7 +421,7 @@ struct ModelRow: View {
         VStack(alignment: .leading, spacing: 3) {
             Text("Fix · Reply").font(.caption2).foregroundStyle(.secondary)
             if let chord {
-                let fixText = Text("\(chord.m.fixPct)%").foregroundStyle(Color.orange.legible)
+                let fixText = Text("\(chord.m.fixPct)%").foregroundStyle(Color.pink.legible)
                 let dotText = Text(" · ").foregroundStyle(Color.secondary)
                 let replyText = Text("\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
                 Text("\(fixText)\(dotText)\(replyText)")

@@ -153,4 +153,31 @@ final class StatusMenuTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(menu.size.height, header.frame.height + hints.frame.height)
     }
+
+    /// `legible` keeps every metric tint readable as caption text — the menu's
+    /// gain figure, the Settings cards, badges and map stats: 4.5:1 or better on
+    /// the grouped form's card fill in both appearances (HIG › Accessibility).
+    func testLegibleTintsClearTextContrast() {
+        func luminance(_ c: NSColor) -> Double {
+            func lin(_ v: CGFloat) -> Double {
+                let v = Double(v)
+                return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * lin(c.redComponent) + 0.7152 * lin(c.greenComponent) + 0.0722 * lin(c.blueComponent)
+        }
+        // The card fills sampled from the Settings window: #f1f1f1 and #2d2d2d.
+        let fills: [(NSAppearance.Name, Double)] = [(.aqua, 241.0 / 255), (.darkAqua, 45.0 / 255)]
+        for (name, gray) in fills {
+            let fill = luminance(NSColor(srgbRed: gray, green: gray, blue: gray, alpha: 1))
+            for tint in [Color.green, .teal, .orange, .pink, .blue, .purple] {
+                var ink = NSColor.black
+                NSAppearance(named: name)?.performAsCurrentDrawingAppearance {
+                    ink = NSColor(tint.legible).usingColorSpace(.sRGB) ?? ink
+                }
+                let text = luminance(ink)
+                let ratio = (max(text, fill) + 0.05) / (min(text, fill) + 0.05)
+                XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(tint) in \(name.rawValue): \(ratio)")
+            }
+        }
+    }
 }

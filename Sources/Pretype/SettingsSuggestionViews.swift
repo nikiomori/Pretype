@@ -97,7 +97,7 @@ struct PresentationCard: View {
                     if let badge {
                         Text(badge)
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.orange.legible)
                             .padding(.horizontal, 6).padding(.vertical, 1)
                             .background(Capsule().fill(Color.orange.opacity(0.15)))
                     }

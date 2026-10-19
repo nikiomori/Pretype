@@ -4,16 +4,19 @@ import Carbon
 import SwiftUI
 
 extension Color {
-    /// This tint as small TEXT: darkened under the light appearance, where
-    /// system green, orange and teal at caption size sit near 2:1 on a light
-    /// form. Dark is untouched — there they already clear 4.5:1.
+    /// This tint as small TEXT, at 4.5:1 or better on a grouped form in both
+    /// appearances. Light: system green, orange and teal at caption size sit
+    /// near 2:1, and a 35% darkening still left them at 3.7:1 — 45% clears
+    /// it. Dark: purple and blue sat at 3.7:1 untouched; a fifth of white
+    /// lifts them.
     var legible: Color {
         let base = NSColor(self)
         return Color(nsColor: NSColor(name: nil) { appearance in
             var resolved = base
             appearance.performAsCurrentDrawingAppearance { resolved = base.usingColorSpace(.sRGB) ?? base }
             return appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-                ? resolved : (resolved.blended(withFraction: 0.35, of: .black) ?? resolved)
+                ? (resolved.blended(withFraction: 0.2, of: .white) ?? resolved)
+                : (resolved.blended(withFraction: 0.45, of: .black) ?? resolved)
         })
     }
 }
