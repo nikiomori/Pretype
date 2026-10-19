@@ -600,7 +600,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         alert.runModal()
     }
 
-    @objc private func openSettings() {
+    @objc func openSettings() {
         guard let controller = suggestionController else { return }
         if settingsWindow == nil {
             let window = SettingsWindowController(controller: controller)

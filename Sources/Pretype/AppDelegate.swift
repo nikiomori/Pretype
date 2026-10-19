@@ -53,6 +53,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Pretype opened again — from Finder, Spotlight or Launchpad — while it
+    /// runs. The menu-bar icon is its only other way in, and macOS hides that
+    /// behind the notch or at the user's request; so a reopen shows Settings,
+    /// or, before Accessibility is granted, the pane that grants it.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if Permissions.isTrusted { statusMenu.openSettings() } else { Permissions.openSettings() }
+        return false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         suggestionController?.shutdown()
     }
