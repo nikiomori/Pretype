@@ -693,23 +693,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openAccessibilitySettings() {
-        // Someone who granted it before almost always finds Pretype already
-        // switched ON — a stale entry (see `regrantInstructions`). Once per
-        // launch: the instructions send them back here after removing it,
-        // and that click wants the prompt, not the same alert again.
-        if Settings.onboardingCompleted, !Permissions.explainedRegrant {
-            Permissions.explainedRegrant = true
-            let alert = NSAlert()
-            alert.messageText = String(localized: "Grant Accessibility again")
-            alert.informativeText = Permissions.regrantInstructions
-            alert.addButton(withTitle: String(localized: "Open System Settings"))
-            alert.addButton(withTitle: String(localized: "Cancel"))
-            NSApp.activate(ignoringOtherApps: true)
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-        }
-        Permissions.prompt()
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
+        Permissions.openSettings()
     }
 }

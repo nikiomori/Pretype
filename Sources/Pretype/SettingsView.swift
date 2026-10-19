@@ -264,6 +264,9 @@ struct SettingsRootView: View {
                 .padding(.horizontal, 22)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
+                ProblemBanner(controller: store.controller)
+                    .frame(maxWidth: 704)
+                    .padding(.horizontal, 22)
                 Group {
                     switch store.activeTab {
                     case .general: GeneralTab(store: store)
@@ -319,6 +322,45 @@ private struct EngineStatusFooter: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
+    }
+}
+
+/// A state that stops Pretype, over every pane with the click that fixes it.
+/// The sidebar footer says the same in a grey caption at the window's
+/// bottom edge — where a window dragged half off-screen hides it, and with
+/// nothing to press. The 1 s clock is the footer's: neither state is observed.
+private struct ProblemBanner: View {
+    let controller: SuggestionController?
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            if !Permissions.isTrusted {
+                banner(String(localized: "Pretype needs Accessibility permission to read the field you're typing in."),
+                       action: String(localized: "Grant Accessibility…")) { Permissions.openSettings() }
+            } else if let controller, case .failed = controller.engine.state {
+                banner(StatusMenuController.status(of: controller).text,
+                       action: String(localized: "Retry Loading the Model")) { controller.engineCoordinator.rebuild() }
+            }
+        }
+    }
+
+    private func banner(_ text: String, action: String, perform: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .accessibilityHidden(true)  // the sentence says it
+            Text(text)
+                .font(.callout)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button(action, action: perform)
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(12)
+        .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.bottom, 4)
+        .accessibilityElement(children: .contain)
     }
 }
 

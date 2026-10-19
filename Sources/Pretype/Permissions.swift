@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 
 enum Permissions {
@@ -31,5 +32,28 @@ enum Permissions {
     static func prompt() {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    }
+
+    /// "Grant Accessibility…", from the menu or the Settings banner: the
+    /// prompt plus the pane it points at.
+    @MainActor static func openSettings() {
+        // Someone who granted it before almost always finds Pretype already
+        // switched ON — a stale entry (see `regrantInstructions`). Once per
+        // launch: the instructions send them back here after removing it,
+        // and that click wants the prompt, not the same alert again.
+        if Settings.onboardingCompleted, !explainedRegrant {
+            explainedRegrant = true
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Grant Accessibility again")
+            alert.informativeText = regrantInstructions
+            alert.addButton(withTitle: String(localized: "Open System Settings"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        prompt()
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
