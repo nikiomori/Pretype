@@ -38793,12 +38793,12 @@
         }
       }
     },
-    "Shapes replies and Instruct suggestions. Stays on this Mac." : {
+    "Shapes replies, and suggestions in the Instruct style. Stays on this Mac." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ovlivňuje odpovědi a návrhy instrukčního stylu. Zůstává v tomto Macu."
+            "value" : "Ovlivňuje odpovědi a návrhy ve stylu „Instrukční“. Zůstává v tomto Macu."
           }
         },
         "de" : {
@@ -38810,31 +38810,31 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Moldea las respuestas y las sugerencias de “Instrucción”. Se queda en este Mac."
+            "value" : "Moldea las respuestas y las sugerencias del estilo “Instrucción”. Se queda en este Mac."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Influence les réponses et les suggestions Instruct. Reste sur ce Mac."
+            "value" : "Influence les réponses et les suggestions du style « Instruct ». Reste sur ce Mac."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Influenza le risposte e i suggerimenti Instruct. Resta su questo Mac."
+            "value" : "Influenza le risposte e i suggerimenti dello stile “Instruct”. Resta su questo Mac."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "返信とインストラクトの候補に反映されます。このMac上にとどまります。"
+            "value" : "返信と「インストラクト」スタイルの候補に反映されます。このMac上にとどまります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "답장과 인스트럭트 제안에 반영됩니다. 이 Mac에만 저장됩니다."
+            "value" : "답장과 '인스트럭트' 스타일의 제안에 반영됩니다. 이 Mac에만 저장됩니다."
           }
         },
         "nl" : {
@@ -38846,43 +38846,43 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wpływa na odpowiedzi i podpowiedzi w stylu instrukcyjnym. Pozostaje na tym Macu."
+            "value" : "Wpływa na odpowiedzi i podpowiedzi w stylu „Instrukcyjny”. Pozostaje na tym Macu."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Molda as respostas e as sugestões de “Instrução”. Fica neste Mac."
+            "value" : "Molda as respostas e as sugestões do estilo “Instrução”. Fica neste Mac."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modelează răspunsurile și sugestiile în stil Instructiv. Rămâne pe acest Mac."
+            "value" : "Modelează răspunsurile și sugestiile în stilul „Instructiv”. Rămâne pe acest Mac."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Влияет на ответы и подсказки инструктивного стиля. Остаётся на этом Mac."
+            "value" : "Влияет на ответы и на подсказки в стиле «Инструктивный». Остаётся на этом Mac."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Påverkar svar och förslag i stilen Instruktion. Stannar på den här Macen."
+            "value" : "Påverkar svar och förslag i stilen ”Instruktion”. Stannar på den här Macen."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yanıtları ve Talimatlı önerileri şekillendirir. Bu Mac’te kalır."
+            "value" : "Yanıtları ve “Talimatlı” stildeki önerileri şekillendirir. Bu Mac’te kalır."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Впливає на відповіді й підказки інструктивного стилю. Залишається на цьому Mac."
+            "value" : "Впливає на відповіді й на підказки в стилі «Інструктивний». Залишається на цьому Mac."
           }
         },
         "zh-Hans" : {
@@ -56976,102 +56976,102 @@
         }
       }
     },
-    "or type part of a bundle ID" : {
+    "or type part of an app ID, like “slack”" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "nebo zadejte část ID balíčku"
+            "value" : "nebo zadejte část ID aplikace, třeba „slack“"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "oder einen Teil einer Bundle-ID eingeben"
+            "value" : "oder Teil einer App-ID eingeben, etwa „slack“"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "o escribe parte de un ID de paquete"
+            "value" : "o escribe parte de un ID de app, como “slack”"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ou saisissez une partie d’un identifiant de paquet"
+            "value" : "ou saisissez une partie d’un identifiant d’app, comme « slack »"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "o digita parte di un ID bundle"
+            "value" : "o digita parte di un ID app, come “slack”"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "またはバンドルIDの一部を入力"
+            "value" : "またはアプリIDの一部を入力（例：「slack」）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "또는 번들 ID의 일부 입력"
+            "value" : "또는 앱 ID의 일부 입력(예: 'slack')"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "of typ een deel van een bundel-ID"
+            "value" : "of typ een deel van een app-ID, bijvoorbeeld “slack”"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "lub wpisz część identyfikatora pakietu"
+            "value" : "lub wpisz część identyfikatora aplikacji, np. „slack”"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ou digite parte de um ID de pacote"
+            "value" : "ou digite parte de um ID de app, como “slack”"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "sau tastați o parte din ID-ul pachetului"
+            "value" : "sau tastați o parte din ID-ul aplicației, de exemplu „slack”"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "или введите часть идентификатора пакета"
+            "value" : "или введите часть ID приложения, например «slack»"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "eller skriv en del av ett paket-ID"
+            "value" : "eller skriv en del av ett app-ID, till exempel ”slack”"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "veya paket kimliğinin bir kısmını yazın"
+            "value" : "veya uygulama kimliğinin bir kısmını yazın, örneğin “slack”"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "або введіть частину ідентифікатора пакета"
+            "value" : "або введіть частину ID програми, наприклад «slack»"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "或输入套装 ID 的一部分"
+            "value" : "或输入 App ID 的一部分，例如“slack”"
           }
         }
       }
@@ -61176,106 +61176,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在更新模型 %lld%%"
-          }
-        }
-      }
-    },
-    "v%@" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@"
           }
         }
       }

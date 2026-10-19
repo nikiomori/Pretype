@@ -237,10 +237,11 @@ struct SettingsRootView: View {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
                     .frame(width: 34, height: 34)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(verbatim: "Pretype").font(.headline)
-                    Text("v\(UpdateChecker.currentVersion)").font(.caption2).foregroundStyle(.tertiary)
-                }
+                // The version on hover, not as a tertiary caption under the
+                // name: at 10 pt that read 1.9:1, for a figure About and
+                // Check for Updates… already give.
+                Text(verbatim: "Pretype").font(.headline)
+                    .help(Text(verbatim: "Pretype \(UpdateChecker.currentVersion)"))
                 Spacer(minLength: 0)
                 // The master switch, on every pane: fix, reply and dictation
                 // stop with it, same as Pause Pretype in the menu bar.
@@ -580,7 +581,7 @@ struct GeneralTab: View {
                 }
                 HStack(spacing: 10) {
                     Button("Add App…", systemImage: "plus") { store.addBlacklistApp() }
-                    TextField("", text: $blacklistDraft, prompt: Text("or type part of a bundle ID"))
+                    TextField("", text: $blacklistDraft, prompt: Text("or type part of an app ID, like “slack”"))
                         .labelsHidden()
                         .textFieldStyle(.roundedBorder)
                         .help("A fragment like “slack” covers Slack everywhere. ⏎ adds it.")

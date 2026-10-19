@@ -29,7 +29,7 @@ struct PersonalTab: View {
                 HStack {
                     Caption(store.isAppleIntelligence
                         ? String(localized: "Sets the voice of Apple Intelligence. Stays on this Mac.")
-                        : String(localized: "Shapes replies and Instruct suggestions. Stays on this Mac."))
+                        : String(localized: "Shapes replies, and suggestions in the Instruct style. Stays on this Mac."))
                     Spacer()
                     Button("Restore Default") { store.resetInstructions() }
                         .controlSize(.small)
