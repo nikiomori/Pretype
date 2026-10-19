@@ -9,7 +9,10 @@ import SwiftUI
 struct ImpactRailView: View {
     @Bindable var store: SettingsStore
 
-    /// The four meters, top to bottom. Indigo, not red, for Compute: that
+    /// The four meters, top to bottom. Accuracy here is the gated figure —
+    /// right among SHOWN suggestions — so it says so: the model list's
+    /// "Accuracy" is the ungated first-word rate, and two meters named alike
+    /// read 22% and 32% for one model. Indigo, not red, for Compute: that
     /// meter is mostly full in the default state (longer = lighter load), and
     /// a full red bar reads as an alarm, not a resting figure. The source
     /// lines are tooltips: four lines of eval provenance under four bars was
@@ -19,10 +22,10 @@ struct ImpactRailView: View {
                                  value: KeyPath<ConfigProjection, String>,
                                  help: KeyPath<ConfigProjection, String>,
                                  fraction: KeyPath<ConfigProjection, Double?>)] = [
-        ("scope", .green, "Accuracy", String(localized: "Accuracy"), \.accuracyText, \.accuracySub, \.accuracyFraction),
+        ("scope", .green, "Accuracy", String(localized: "Right when shown"), \.accuracyText, \.accuracySub, \.accuracyFraction),
         ("bolt.fill", .blue, "Speed", String(localized: "Speed"), \.latencyText, \.latencySub, \.speedFraction),
         ("memorychip", .teal, "Memory", String(localized: "Memory"), \.memoryText, \.memorySub, \.memoryFraction),
-        ("gauge.with.needle", .indigo, "Compute", String(localized: "Compute"), \.computeText, \.computeSub, \.computeFraction),
+        ("gauge.with.needle", .indigo, "Compute", String(localized: "Chip load"), \.computeText, \.computeSub, \.computeFraction),
     ]
 
     var body: some View {

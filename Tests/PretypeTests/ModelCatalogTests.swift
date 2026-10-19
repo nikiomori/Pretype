@@ -279,6 +279,24 @@ final class ModelCatalogTests: XCTestCase {
     // Priority presets resolve by dominance rules over the measured catalog,
     // per accuracy axis — pin the current answers so a catalog edit that
     // flips them is noticed.
+    /// The goal cards never repeat a model, and never show "Most accurate"
+    /// beside a card that matches its figure on less memory — on any axis.
+    func testShownGoalCardsAreDistinctAndUndominated() {
+        for axis in ["*", "core"] + ModelMetrics.evalLanguages {
+            let cards = ModelPriority.shown(axis: axis)
+            let picks = cards.map { $0.pick(axis: axis) }
+            XCTAssertEqual(Set(picks).count, picks.count, axis)
+            XCTAssertEqual(cards.first, .lightest, axis)
+            guard cards.contains(.accurate),
+                  let best = ModelMetrics.metrics(for: ModelPriority.accurate.pick(axis: axis)) else { continue }
+            for card in cards where card != .accurate {
+                guard let m = ModelMetrics.metrics(for: card.pick(axis: axis)) else { continue }
+                XCTAssertFalse(ModelPriority.accuracy(m, axis: axis) >= ModelPriority.accuracy(best, axis: axis)
+                               && m.ramGB < best.ramGB, "\(axis): \(card) matches Most accurate on less memory")
+            }
+        }
+    }
+
     func testModelPriorityPicks() {
         XCTAssertEqual(ModelPriority.lightest.pick(axis: "core"), "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-6bit")    // 32% vs E4B 8-bit's 31

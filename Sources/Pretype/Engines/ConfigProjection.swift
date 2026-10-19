@@ -128,15 +128,35 @@ enum ModelPriority: String, CaseIterable {
         ModelMetrics.all.filter { $0.ramGB > 0 }
     }
 
+    /// The goal cards worth showing on `axis`. One per landing model — when
+    /// two goals land on the same one, the first in `allCases` keeps it — and
+    /// no "Most accurate" that another card matches on less memory: its lead
+    /// is a logP tie-break the card can't show, so beside "Balanced" at the
+    /// same 22% for a gigabyte less it read as a promise it didn't keep.
+    static func shown(axis: String) -> [ModelPriority] {
+        var seen = Set<String>()
+        let cards = allCases.filter { seen.insert($0.pick(axis: axis)).inserted }
+        guard cards.contains(.accurate),
+              let best = ModelMetrics.metrics(for: accurate.pick(axis: axis)) else { return cards }
+        let matched = cards.contains { card in
+            guard card != .accurate, let m = ModelMetrics.metrics(for: card.pick(axis: axis)) else { return false }
+            return accuracy(m, axis: axis) >= accuracy(best, axis: axis) && m.ramGB < best.ramGB
+        }
+        return matched ? cards.filter { $0 != .accurate } : cards
+    }
+
+    /// The figure a card shows for `m` on `axis`.
+    static func accuracy(_ m: ModelMetrics, axis: String) -> Int {
+        ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct
+    }
+
     /// Measured-best model for the goal ON the given accuracy axis (see
     /// `Settings.accuracyAxis`) — the whole tab re-resolves when the axis
     /// changes, so "Most accurate" means most accurate for YOUR language.
     func pick(axis: String) -> String {
         let pool = Self.measured
         guard !pool.isEmpty else { return ModelCatalog.defaultID }
-        func acc(_ m: ModelMetrics) -> Int {
-            ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct
-        }
+        func acc(_ m: ModelMetrics) -> Int { Self.accuracy(m, axis: axis) }
         switch self {
         case .lightest:
             return pool.min {

@@ -437,13 +437,21 @@ final class SettingsStore {
         preview.map(committedConfig.applying)
     }
 
-    /// "MiniCPM5 1B · Base · Short · Confident-only" — what is running now.
+    /// What is running now: "Balanced · Only when sure" when a goal card
+    /// matches (its Base · Short go without saying), else the model's own
+    /// settings — "MiniCPM5 1B · Instruct · Medium". A goal card's name, not
+    /// "E4B 6-bit · Base · Short", is what the pane itself calls it.
     var setupLine: String {
         if apiText.enabled { return String(localized: "API · \(apiText.preset.name) · \(apiText.model)") }
-        var parts = [ModelMetrics.metrics(for: modelID)?.shortName ?? selectedModelName]
-        if !isAppleIntelligence { parts.append(style.label) }
-        parts.append(length.label)
-        if logprobGate { parts.append(String(localized: "Confident-only")) }
+        var parts: [String]
+        if let goal = ModelPriority.shown(axis: effectiveAxis).first(where: priorityIsActive) {
+            parts = [goal.title]
+        } else {
+            parts = [ModelMetrics.metrics(for: modelID)?.shortName ?? selectedModelName]
+            if !isAppleIntelligence { parts.append(style.label) }
+            parts.append(length.label)
+        }
+        if logprobGate { parts.append(String(localized: "Only when sure")) }
         return parts.joined(separator: " · ")
     }
 

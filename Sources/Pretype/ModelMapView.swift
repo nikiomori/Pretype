@@ -238,7 +238,7 @@ struct ModelMapView: View {
             return [ReachableConfig(label: String(localized: "Short"), config: cfg(.instruct, .short))]
         }
         var out = [ReachableConfig(label: String(localized: "Short"), config: cfg(.base, .short)),
-                   ReachableConfig(label: String(localized: "Confident-only"), config: cfg(.base, .short, logprob: true))]
+                   ReachableConfig(label: String(localized: "Only when sure"), config: cfg(.base, .short, logprob: true))]
         if ModelCatalog.instructCompletes(id) {
             out.append(ReachableConfig(label: String(localized: "Instruct"), config: cfg(.instruct, .short)))
         }

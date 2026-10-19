@@ -53,7 +53,7 @@ Most autocomplete tools operate in one editor, and they send your text to a serv
 <img src="docs/demo-fix.gif" alt="The user selects a line with typos. After Option-Tab, a panel shows the fix as a word diff. Return replaces the line." width="720" />
 <p><sub><i><b>Rewrite.</b> <kbd>⏎</kbd> accepts it. <kbd>Esc</kbd> keeps your original text.</i></sub></p>
 
-<img src="docs/shot-settings.png" alt="Model pane of the Settings window: one card for each goal, and a Live Impact column that shows the measured accuracy, speed, memory, and compute." width="720" />
+<img src="docs/shot-settings.png" alt="Model pane of the Settings window: one card for each goal, and a Live Impact column that shows the measured accuracy, speed, memory, and chip load." width="720" />
 <p><sub><i><b>Settings show their cost.</b> Hover over an option to see its effect on accuracy, speed, and memory.</i></sub></p>
 
 <img src="docs/shot-personal.png" alt="Personalization tab with a persona field and style instructions for Mail, Messages, and Notes" width="720" />

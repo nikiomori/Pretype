@@ -22,15 +22,6 @@ struct ModelTab: View {
     /// always tell the same story.
     private var axis: String { store.effectiveAxis }
 
-    /// Priority cards for the current axis with duplicates collapsed: when two
-    /// goals land on the same model (Balanced == Quick & accurate on EN/RU,
-    /// where the default is picked to be the fastest at parity) the first in
-    /// order wins — so no two cards ever render byte-identical.
-    private var distinctPriorities: [ModelPriority] {
-        var seen = Set<String>()
-        return ModelPriority.allCases.filter { seen.insert($0.pick(axis: axis)).inserted }
-    }
-
     var body: some View {
         Form {
             if store.apiText.enabled {
@@ -45,7 +36,7 @@ struct ModelTab: View {
             }
             Section {
                 HStack(spacing: 10) {
-                    ForEach(distinctPriorities, id: \.self) { priority in
+                    ForEach(ModelPriority.shown(axis: axis), id: \.self) { priority in
                         let pick = priority.pick(axis: axis)
                         PriorityCard(priority: priority, pick: pick,
                                      acc: ModelMetrics.axisAccuracy(for: pick, axis: axis),
@@ -488,7 +479,7 @@ private struct GateCard: View {
                 MetricBar(label: String(localized: "Suggests"), fraction: Double(cov) / 100,
                           text: String(localized: "\(cov)%"), color: .indigo,
                           help: String(localized: "Suggests \(cov)% of the time · \(acc)% right"))
-                MetricBar(label: String(localized: "Accuracy"), fraction: Double(acc) / 100,
+                MetricBar(label: String(localized: "Right when shown"), fraction: Double(acc) / 100,
                           text: String(localized: "\(acc)%"), color: .green,
                           help: String(localized: "Suggests \(cov)% of the time · \(acc)% right"))
             }
