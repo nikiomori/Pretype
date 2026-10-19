@@ -62,11 +62,12 @@ final class OnboardingWindow: NSPanel {
         }
     }
 
-    /// The first accept: say it worked before going, instead of vanishing on
-    /// the keystroke — an instant dismissal read as "did I break it?".
+    /// The first accept: say it worked, instead of vanishing on the
+    /// keystroke — an instant dismissal read as "did I break it?". It stays
+    /// until Got It: on a 3 s timer the next tip went before a slow reader
+    /// had it (HIG › Accessibility: no time-boxed elements).
     func celebrate() {
         card.celebrating = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.dismiss() }
     }
 
     /// A blank document to type on: an empty file opened directly, which
@@ -167,12 +168,12 @@ struct OnboardingCardView: View {
         if card.suggestionActive {
             // Not the accent colour: with Graphite it is grey, and this is
             // the one line on the card that has to jump out.
-            return (String(localized: "See the grey text? Press \(hotkey.label) to take a word."), .primary)
+            return (String(localized: "See the suggestion? Press \(hotkey.label) to take a word."), .primary)
         }
         switch card.engine {
         case .preparing(let detail): return (detail, .secondary)
         case .failed(let detail): return (detail, .red)
-        case .ready: return (String(localized: "Type a few words and pause — grey text appears after your cursor."), .secondary)
+        case .ready: return (String(localized: "Type a few words and pause — a suggestion appears at your cursor."), .secondary)
         }
     }
 

@@ -38193,102 +38193,102 @@
         }
       }
     },
-    "See the grey text? Press %@ to take a word." : {
+    "See the suggestion? Press %@ to take a word." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vidíte šedý text? Stiskněte %@ a přijmete slovo."
+            "value" : "Vidíte návrh? Stiskněte %@ a přijmete slovo."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sehen Sie den grauen Text? Drücken Sie %@, um ein Wort zu übernehmen."
+            "value" : "Sehen Sie den Vorschlag? Drücken Sie %@, um ein Wort zu übernehmen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "¿Ves el texto gris? Pulsa %@ para aceptar una palabra."
+            "value" : "¿Ves la sugerencia? Pulsa %@ para aceptar una palabra."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vous voyez le texte grisé ? Appuyez sur %@ pour accepter un mot."
+            "value" : "Vous voyez la suggestion ? Appuyez sur %@ pour accepter un mot."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vedi il testo grigio? Premi %@ per accettare una parola."
+            "value" : "Vedi il suggerimento? Premi %@ per accettare una parola."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "グレーのテキストが見えますか？%@を押すと1単語確定します。"
+            "value" : "候補が見えますか？%@を押すと1単語確定します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "회색 텍스트가 보이나요? %@ 키를 눌러 단어를 수락하세요."
+            "value" : "제안이 보이나요? %@ 키를 눌러 단어를 수락하세요."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zie je de grijze tekst? Druk op %@ om een woord over te nemen."
+            "value" : "Zie je de suggestie? Druk op %@ om een woord over te nemen."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Widzisz szary tekst? Naciśnij %@, aby przyjąć słowo."
+            "value" : "Widzisz podpowiedź? Naciśnij %@, aby przyjąć słowo."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Viu o texto cinza? Pressione %@ para aceitar uma palavra."
+            "value" : "Viu a sugestão? Pressione %@ para aceitar uma palavra."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vedeți textul gri? Apăsați %@ pentru a accepta un cuvânt."
+            "value" : "Vedeți sugestia? Apăsați %@ pentru a accepta un cuvânt."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Видите серый текст? Нажмите %@, чтобы принять слово."
+            "value" : "Видите подсказку? Нажмите %@, чтобы принять слово."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ser du den grå texten? Tryck på %@ för att ta ett ord."
+            "value" : "Ser du förslaget? Tryck på %@ för att ta ett ord."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gri metni görüyor musunuz? Bir sözcük almak için %@ tuşuna basın."
+            "value" : "Öneriyi görüyor musunuz? Bir sözcük almak için %@ tuşuna basın."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Бачите сірий текст? Натисніть %@, щоб прийняти слово."
+            "value" : "Бачите підказку? Натисніть %@, щоб прийняти слово."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "看到灰色文字了吗？按 %@ 接受一个词。"
+            "value" : "看到建议了吗？按 %@ 接受一个词。"
           }
         }
       }
@@ -45845,102 +45845,102 @@
         }
       }
     },
-    "Type a few words and pause — grey text appears after your cursor." : {
+    "Type a few words and pause — a suggestion appears at your cursor." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Napište pár slov a zastavte se — za kurzorem se objeví šedý text."
+            "value" : "Napište pár slov a zastavte se — u kurzoru se objeví návrh."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tippen Sie ein paar Wörter und halten Sie inne – grauer Text erscheint nach dem Cursor."
+            "value" : "Tippen Sie ein paar Wörter und halten Sie inne – am Cursor erscheint ein Vorschlag."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escribe unas palabras y haz una pausa: aparecerá texto gris tras el cursor."
+            "value" : "Escribe unas palabras y haz una pausa: aparecerá una sugerencia junto al cursor."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tapez quelques mots et faites une pause — du texte grisé apparaît après le curseur."
+            "value" : "Tapez quelques mots et faites une pause — une suggestion apparaît au niveau du curseur."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scrivi qualche parola e fermati: dopo il cursore appare del testo grigio."
+            "value" : "Scrivi qualche parola e fermati: vicino al cursore appare un suggerimento."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "いくつか単語を入力して手を止めると、カーソルの後にグレーのテキストが表示されます。"
+            "value" : "いくつか単語を入力して手を止めると、カーソルの位置に候補が表示されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "몇 단어를 입력하고 잠시 멈추세요. 커서 뒤에 회색 텍스트가 나타납니다."
+            "value" : "몇 단어를 입력하고 잠시 멈추세요. 커서 옆에 제안이 나타납니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typ een paar woorden en pauzeer – na je cursor verschijnt grijze tekst."
+            "value" : "Typ een paar woorden en pauzeer – bij je cursor verschijnt een suggestie."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wpisz kilka słów i zatrzymaj się — za kursorem pojawi się szary tekst."
+            "value" : "Wpisz kilka słów i zatrzymaj się — przy kursorze pojawi się podpowiedź."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Digite algumas palavras e pare: um texto cinza aparece após o cursor."
+            "value" : "Digite algumas palavras e pare: uma sugestão aparece junto ao cursor."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tastați câteva cuvinte și faceți o pauză — după cursor apare text gri."
+            "value" : "Tastați câteva cuvinte și faceți o pauză — lângă cursor apare o sugestie."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Наберите несколько слов и остановитесь — после курсора появится серый текст."
+            "value" : "Наберите несколько слов и остановитесь — у курсора появится подсказка."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Skriv några ord och pausa — grå text visas efter markören."
+            "value" : "Skriv några ord och pausa — ett förslag visas vid markören."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Birkaç sözcük yazıp durun — imlecinizin ardından gri metin görünür."
+            "value" : "Birkaç sözcük yazıp durun — imlecinizin yanında bir öneri görünür."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Наберіть кілька слів і зробіть паузу — після курсора з’явиться сірий текст."
+            "value" : "Наберіть кілька слів і зробіть паузу — біля курсора з’явиться підказка."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "输入几个词后停顿一下，光标后就会出现灰色文字。"
+            "value" : "输入几个词后停顿一下，光标处就会出现建议。"
           }
         }
       }
