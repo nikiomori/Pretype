@@ -630,6 +630,9 @@ enum Settings {
     @Pref("suggestionPresentation", SuggestionPresentation.panel)
     static var suggestionPresentation: SuggestionPresentation
 
+    /// The Settings pane last shown: the window reopens on it.
+    @Pref("settingsTab", SettingsTab.general) static var settingsTab: SettingsTab
+
     /// 0.45 read as near-invisible over real app backgrounds; 0.7 is still
     /// clearly "ghost" next to the host text but survives noise.
     /// Floored at 0.4 by `migrate()`, like the Settings slider.

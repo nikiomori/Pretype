@@ -80,7 +80,7 @@ func gbLabel(_ gb: Double) -> String {
 
 // MARK: - Root
 
-enum SettingsTab: CaseIterable {
+enum SettingsTab: String, CaseIterable {
     case general, model, dictation, personalization, api
 
     /// Sidebar icon, drawn as a tile in `tint`.
@@ -199,6 +199,9 @@ struct SettingsRootView: View {
             detail
         }
         .frame(minWidth: 1020, minHeight: 620)
+        // The window's title (Mission Control, the Window menu, VoiceOver)
+        // names the pane, as the visible header does.
+        .navigationTitle(store.activeTab.title)
         // On the root, not a tab: rows, cards and the map ask from Model, the
         // Style picker and "Use recommended settings" from Suggestions.
         .confirmationDialog(store.pendingDownload.map { String(localized: "Download \($0.name)?") } ?? "",
@@ -224,6 +227,10 @@ struct SettingsRootView: View {
             }
         }
         .listStyle(.sidebar)
+        // A settings window's navigation stays put: no button to hide it.
+        // On the column's list, under the width — on the split view it's
+        // ignored, and over the width it let the column drop below 176 pt.
+        .toolbar(removing: .sidebarToggle)
         .navigationSplitViewColumnWidth(min: 176, ideal: 200, max: 240)
         .safeAreaInset(edge: .top) {
             HStack(spacing: 9) {

@@ -17,7 +17,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         store = SettingsStore(controller: controller)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1180, height: 720),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            // No minimize, and zoom dimmed below (HIG › Settings): ⌘, brings
+            // it back faster than the Dock, and a pane of settings gains
+            // nothing from filling the screen.
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -31,6 +34,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         // Assigning contentViewController resizes to the fitting size — restore.
         window.setContentSize(NSSize(width: 1180, height: 720))
         window.minSize = NSSize(width: 1020, height: 620)
+        window.standardWindowButton(.zoomButton)?.isEnabled = false
         window.center()
         // Reopens where the user left it (overrides the centring once saved).
         window.setFrameAutosaveName("PretypeSettings")

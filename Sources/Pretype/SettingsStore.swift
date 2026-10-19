@@ -283,9 +283,12 @@ final class SettingsStore {
         }
     }
 
-    /// Pane selected in the sidebar.
-    var activeTab = SettingsTab.general {
-        didSet { preview = nil }
+    /// Pane selected in the sidebar — the last one shown when the window opens.
+    var activeTab = Settings.settingsTab {
+        didSet {
+            preview = nil
+            Settings.settingsTab = activeTab
+        }
     }
 
     /// Control being hovered right now — the Live Impact rail, the delta
