@@ -609,6 +609,8 @@ final class SuggestionController {
     ///
     /// `reply`: a composed reply — capped at 400 characters, not 120, reads an
     /// empty field as a real (empty) context, and is never trimmed to the line.
+    /// Its leading space is the model's own (`cleanReply`), so landing never
+    /// takes it back: "I may" + " be late" is not "maybe".
     @discardableResult
     func apply(_ result: String?, requestText: String,
                cachedContext: TextContext? = nil, countShown: Bool = true,
@@ -650,7 +652,7 @@ final class SuggestionController {
 
         let current = ctx.textBeforeCaret
         switch RequestGate.landing(sanitized, askedOn: requestText, current: current,
-                                   flush: !instant && engine.answersFlush) {
+                                   flush: !instant && !reply && engine.answersFlush) {
         case .show(let landed):
             suggestion = landed
         case .stale(let why):

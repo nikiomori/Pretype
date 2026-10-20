@@ -562,6 +562,16 @@ final class PipelineLifecycleTests: PipelineTestCase {
         XCTAssertEqual(fake.offers.last?.outcome, .abandoned)
     }
 
+    // A reply's leading space is the model's own (`cleanReply` keeps one only
+    // where the model wrote it), so it stays even where the two words would
+    // make one: "так же" + " не" is not "жене".
+    func testAReplyKeepsTheModelsOwnSpace() {
+        fake.before = "так же"
+        controller.textDidChange()
+        XCTAssertTrue(controller.apply(" не забудь", requestText: "так же", reply: true))
+        XCTAssertEqual(controller.field.ghost?.text, " не забудь")
+    }
+
     // MARK: - Records
 
     // One stream is one offer, however many partials grow it.

@@ -85,6 +85,10 @@ final class CompletionEngineTests: XCTestCase {
         XCTAssertEqual(request.cleanReply("\"Sure, see you at noon\""), " see you at noon")
         XCTAssertNil(request.cleanReply("Sure,"))
         XCTAssertNil(request.cleanReply("Lunch at noon tomorrow", conversation: "Ann: lunch at noon tomorrow?"))
+        // The space comes back only where the model had one.
+        XCTAssertEqual(CompletionRequest(textBeforeCaret: "Hi").cleanReply("Hi, how are you?"), ", how are you?")
+        XCTAssertEqual(CompletionRequest(textBeforeCaret: "Thank").cleanReply("Thanks for the update!"), "s for the update!")
+        XCTAssertEqual(CompletionRequest(textBeforeCaret: "Hello").cleanReply("Hello there"), " there")
     }
 
     // Which conversation lines a reply may not carry: 8 letters and two

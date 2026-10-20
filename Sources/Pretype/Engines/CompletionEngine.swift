@@ -142,8 +142,10 @@ extension CompletionRequest {
 
     /// Normalize a raw reply generation: one clean line (the fix path's cleanup,
     /// shared so it can't drift), minus an echo of the draft the user already
-    /// typed — instruct models like to restate it before continuing. The
-    /// re-joining space is dropped downstream when the draft already ends in one.
+    /// typed — instruct models like to restate it before continuing. A space
+    /// joins the rest back only where the model had one ("Hi" + ", how are
+    /// you?" stays flush, "Thank" + "s for…" finishes the word); landing drops
+    /// it when the draft already ends in one.
     /// nil when nothing usable is left — or when the reply restates the
     /// `conversation` instead of answering it (`isEcho`).
     func cleanReply(_ raw: String, conversation: String = "") -> String? {
@@ -152,8 +154,9 @@ extension CompletionRequest {
         // No length guard: a reply that IS the draft leaves nothing to offer
         // (the alternative is a ghost that types the draft a second time).
         if !draft.isEmpty, text.prefix(draft.count).lowercased() == draft.lowercased() {
-            text = String(text.dropFirst(draft.count)).trimmingCharacters(in: .whitespaces)
-            if !text.isEmpty { text = " " + text }
+            let rest = text.dropFirst(draft.count)
+            text = rest.trimmingCharacters(in: .whitespaces)
+            if rest.first?.isWhitespace == true, !text.isEmpty { text = " " + text }
         }
         if Self.isEcho(text, of: conversation) {
             DebugLog.shared.log("REPLY", "dropped a reply that restates the conversation (\(text.count) chars)")
