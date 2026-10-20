@@ -44,6 +44,18 @@ struct TextContext {
     let caretRect: CGRect?
     /// Font/color/box of the field, so the overlay renders like the host text.
     let host: HostTextStyle
+
+    /// A no-break space reads as a plain one. ProseMirror (Claude Desktop)
+    /// stores the space the user just typed as U+00A0, so the gates saw no
+    /// typed separator and a typed-through suggestion never matched: 0 of 80
+    /// such shows landed (journal 07-22 → 10-16). One UTF-16 unit either way,
+    /// so offsets and backspace counts stay true.
+    init(textBeforeCaret: String, textAfterCaret: String, caretRect: CGRect?, host: HostTextStyle) {
+        self.textBeforeCaret = textBeforeCaret.replacingOccurrences(of: "\u{00A0}", with: " ")
+        self.textAfterCaret = textAfterCaret.replacingOccurrences(of: "\u{00A0}", with: " ")
+        self.caretRect = caretRect
+        self.host = host
+    }
 }
 
 struct SelectionInfo {

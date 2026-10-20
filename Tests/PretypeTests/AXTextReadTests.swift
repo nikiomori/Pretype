@@ -41,6 +41,11 @@ final class AXTextReadTests: XCTestCase {
         let empty = try XCTUnwrap(context(tree.field("")))
         XCTAssertEqual(empty.textBeforeCaret, "")
         XCTAssertEqual(empty.textAfterCaret, "")
+
+        // ProseMirror's typed space is a no-break one; it reads as a space.
+        let nbsp = try XCTUnwrap(context(tree.field("так\u{00A0}же\u{00A0}x", caret: 7)))
+        XCTAssertEqual(nbsp.textBeforeCaret, "так же ")
+        XCTAssertEqual(nbsp.textAfterCaret, "x")
     }
 
     // A selection, a caret it can't place, or no caret at all: nothing.
