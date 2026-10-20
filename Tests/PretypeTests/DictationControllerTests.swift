@@ -1777,15 +1777,16 @@ final class DictationControllerTests: XCTestCase {
 
     /// The chord matcher is exact about modifiers: ⌃⌥D must not fire on ⌃⌥⇧D
     /// or on plain D, or it would eat a keystroke meant for the app.
-    func testLatchChordDemandsExactModifiers() {
+    func testLatchChordDemandsExactModifiers() throws {
         let latch = DictationLatch.controlOptionD
-        XCTAssertTrue(latch.matches(keyCode: KeyCode.d, flags: [.maskControl, .maskAlternate]))
-        XCTAssertFalse(latch.matches(keyCode: KeyCode.d, flags: [.maskControl, .maskAlternate, .maskShift]))
-        XCTAssertFalse(latch.matches(keyCode: KeyCode.d, flags: [.maskControl]))
-        XCTAssertFalse(latch.matches(keyCode: KeyCode.d, flags: []))
+        // The key that types D in this Mac's layout.
+        let d = try XCTUnwrap(latch.keyCode)
+        XCTAssertTrue(latch.matches(keyCode: d, flags: [.maskControl, .maskAlternate]))
+        XCTAssertFalse(latch.matches(keyCode: d, flags: [.maskControl, .maskAlternate, .maskShift]))
+        XCTAssertFalse(latch.matches(keyCode: d, flags: [.maskControl]))
+        XCTAssertFalse(latch.matches(keyCode: d, flags: []))
         XCTAssertFalse(latch.matches(keyCode: KeyCode.space, flags: [.maskControl, .maskAlternate]))
-        XCTAssertFalse(DictationLatch.off.matches(keyCode: KeyCode.d,
-                                                  flags: [.maskControl, .maskAlternate]))
+        XCTAssertFalse(DictationLatch.off.matches(keyCode: d, flags: [.maskControl, .maskAlternate]))
     }
 
     // MARK: - Voice meter

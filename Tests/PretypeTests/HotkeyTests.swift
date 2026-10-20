@@ -43,6 +43,18 @@ final class HotkeyTests: XCTestCase {
         }
     }
 
+    // The latch is the key that types its letter: on Dvorak D is the ANSI H
+    // key and V the ANSI period, on Colemak D is the ANSI G. A layout that
+    // types no D (one that couldn't be read) keeps the ANSI key.
+    func testLatchKeyFollowsTheLayoutsLetter() {
+        let dvorak: [Int64: String] = [2: "e", 4: "d", 9: "k", 47: "v"]
+        let colemak: [Int64: String] = [2: "s", 5: "d", 9: "v"]
+        XCTAssertEqual(DictationLatch.keyCode(typing: "d", ansi: KeyCode.d) { dvorak[$0] }, 4)
+        XCTAssertEqual(DictationLatch.keyCode(typing: "v", ansi: KeyCode.v) { dvorak[$0] }, 47)
+        XCTAssertEqual(DictationLatch.keyCode(typing: "d", ansi: KeyCode.d) { colemak[$0] }, 5)
+        XCTAssertEqual(DictationLatch.keyCode(typing: "d", ansi: KeyCode.d) { _ in "д" }, KeyCode.d)
+    }
+
     // ⌘Z undo-accept must be an EXACT chord: ⇧⌘Z (redo) and ⌥⌘Z belong to the
     // app — matching them swallowed the app's redo and deleted text.
     func testPlainCommandZMatcher() {

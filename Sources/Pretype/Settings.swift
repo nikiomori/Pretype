@@ -181,18 +181,52 @@ enum DictationLatch: String, CaseIterable {
     /// is the wrong one: macOS binds it to "select the next input source", and
     /// this app's dictation language *follows the keyboard layout* — so the
     /// users it would break are exactly the ones the feature is built around.
-    private var keyCode: Int64? {
+    ///
+    /// The key that types the letter, not the ANSI key in its place: on Dvorak
+    /// the ANSI D key is labeled E, so "⌃⌥D" named a key that did nothing.
+    var keyCode: Int64? {
         switch self {
         case .off: return nil
-        case .controlOptionD: return KeyCode.d
-        case .controlOptionV: return KeyCode.v
+        case .controlOptionD: return Self.layoutKeyCode(typing: "d", ansi: KeyCode.d)
+        case .controlOptionV: return Self.layoutKeyCode(typing: "v", ansi: KeyCode.v)
         }
     }
 
+    /// The layout is read only once ⌃⌥ alone is down — a few key presses a
+    /// day — so it is read fresh, with no input-source observer to keep.
     func matches(keyCode: Int64, flags: CGEventFlags) -> Bool {
-        guard let expected = self.keyCode, keyCode == expected else { return false }
-        return flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
-            == [.maskControl, .maskAlternate]
+        flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]) == [.maskControl, .maskAlternate]
+            && keyCode == self.keyCode
+    }
+
+    /// Where `letter` sits in the current ASCII-capable layout, as menus
+    /// resolve their shortcuts — ASCII-capable, so a Russian user (ABC or US
+    /// under the Cyrillic one) keeps the ANSI keys. Text Input Sources is
+    /// main-thread API, and so is the key tap that asks.
+    private static func layoutKeyCode(typing letter: String, ansi: Int64) -> Int64 {
+        guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let dataPtr = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData),
+              let bytes = CFDataGetBytePtr(Unmanaged<CFData>.fromOpaque(dataPtr).takeUnretainedValue()) else {
+            return ansi
+        }
+        return bytes.withMemoryRebound(to: UCKeyboardLayout.self, capacity: 1) { layout in
+            // The character a key types with no modifiers, dead keys spelled out.
+            keyCode(typing: letter, ansi: ansi) { code in
+                var deadKeys: UInt32 = 0
+                var chars = [UniChar](repeating: 0, count: 4)
+                var length = 0
+                guard UCKeyTranslate(layout, UInt16(code), UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
+                                     OptionBits(kUCKeyTranslateNoDeadKeysMask), &deadKeys,
+                                     chars.count, &length, &chars) == noErr else { return nil }
+                return String(utf16CodeUnits: chars, count: length)
+            }
+        }
+    }
+
+    /// The key that types `letter`, by `lookup` (key code → what it types);
+    /// the ANSI key when no key does — a layout that couldn't be read.
+    static func keyCode(typing letter: String, ansi: Int64, lookup: (Int64) -> String?) -> Int64 {
+        (0..<128).first { lookup($0) == letter } ?? ansi
     }
 }
 

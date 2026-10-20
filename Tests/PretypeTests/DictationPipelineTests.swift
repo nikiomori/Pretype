@@ -431,8 +431,10 @@ final class DictationPipelineTests: PipelineTestCase {
     // MARK: - The latch chord
 
     /// ⌃⌥ and `key` — ⌃⌥D is the hands-free chord — as the key tap sees it.
-    private func pressLatch(_ key: Int64 = KeyCode.d, autorepeat: Bool = false) throws -> Bool {
-        let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(key), keyDown: true))
+    /// nil: the key that types D in this Mac's layout.
+    private func pressLatch(_ key: Int64? = nil, autorepeat: Bool = false) throws -> Bool {
+        let code = try XCTUnwrap(key ?? DictationLatch.controlOptionD.keyCode)
+        let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(code), keyDown: true))
         event.flags = [.maskControl, .maskAlternate]
         if autorepeat { event.setIntegerValueField(.keyboardEventAutorepeat, value: 1) }
         return controller.handleKeyDown(event)
@@ -461,7 +463,7 @@ final class DictationPipelineTests: PipelineTestCase {
         set(\.dictationLatch, .off)
         XCTAssertFalse(try pressLatch(), "no chord set")
         set(\.dictationLatch, .controlOptionD)
-        XCTAssertFalse(try pressLatch(KeyCode.v), "another letter")
+        XCTAssertFalse(try pressLatch(DictationLatch.controlOptionV.keyCode), "another letter")
         fake.ownWindowFrontmost = true
         XCTAssertFalse(try pressLatch(), "our own window")
         XCTAssertTrue(fake.hops.isEmpty)
