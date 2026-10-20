@@ -70,6 +70,15 @@ final class OnboardingWindow: NSPanel {
         card.celebrating = true
     }
 
+    /// The first accept of a later suggestion closes the card, as Got It
+    /// does. The panel never becomes key — it must not take the keyboard from
+    /// the field being typed in — so this is the keyboard's way out, and it
+    /// follows the card's last line ("…next time"). ⇥ word by word through
+    /// the celebrated suggestion leaves the card up to be read.
+    func nextSuggestionAccepted() {
+        if card.celebrating { dismiss() }
+    }
+
     /// A blank document to type on: an empty file opened directly, which
     /// skips TextEdit's iCloud Open panel.
     private static func openTextEdit() {
@@ -83,7 +92,11 @@ final class OnboardingWindow: NSPanel {
         NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: config)
     }
 
+    /// Fading out (`dismiss`).
+    private(set) var isDismissing = false
+
     func dismiss() {
+        isDismissing = true
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.2
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)

@@ -496,6 +496,22 @@ final class SuggestionControllerTests: PipelineTestCase {
         XCTAssertTrue(Settings.onboardingCompleted)
     }
 
+    // The card can't take the keyboard, so the next suggestion's first ⇥
+    // closes it; ⇥ through the celebrated one leaves it up to be read.
+    func testTheNextSuggestionAcceptedClosesTheOnboardingCard() throws {
+        set(\.onboardingCompleted, false)
+        let card = OnboardingWindow(controller: controller)
+        controller.onboardingWindow = card
+        showGhost("to be", on: "Hi ")
+        try press(KeyCode.tab)
+        try press(KeyCode.tab)
+        XCTAssertFalse(card.isDismissing)
+        fake.now += 0.5
+        showGhost("again", on: "Hi to be ")
+        try press(KeyCode.tab)
+        XCTAssertTrue(card.isDismissing)
+    }
+
     /// ⌥ pressed and released, as the key tap's modifier handler sees it;
     /// `between` runs while it is down.
     private func tapOption(between: () throws -> Void = {}) throws {

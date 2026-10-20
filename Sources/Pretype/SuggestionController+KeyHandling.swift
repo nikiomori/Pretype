@@ -317,6 +317,8 @@ extension SuggestionController {
         if !Settings.onboardingCompleted {
             Settings.onboardingCompleted = true
             onboardingWindow?.celebrate()
+        } else if !current.accepted {
+            onboardingWindow?.nextSuggestionAccepted()
         }
         // Re-read context once the synthetic keystrokes have landed.
         scheduleKeystrokeRefresh(after: 0.09)
