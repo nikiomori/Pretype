@@ -386,7 +386,7 @@ final class SuggestionWindow: NSPanel {
                        protectFor: TimeInterval = 0) {
         show(mode: mode, at: caretRect, host: host)   // bumps hideGeneration via place()
         if protectFor > 0 { noticeProtectedUntil = Date().addingTimeInterval(protectFor) }
-        // Gone in under two seconds and never focused: VoiceOver reads a
+        // Gone in a few seconds and never focused: VoiceOver reads a
         // notice ("dictation copied, ⌘V to paste") only when told to.
         if case .hint(let text) = mode { Self.announce(text) }
         if case .error(let text) = mode { Self.announce(text) }

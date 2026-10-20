@@ -689,7 +689,8 @@ final class PipelineLifecycleTests: PipelineTestCase {
         controller.insertDictated("hello")   // no field: copied, said at the caret
         let notice = fake.window.currentMode
         XCTAssertNotNil(notice)
-        XCTAssertTrue(fake.window.noticeTimes.map { $0 == (1.8, 1.2) } ?? false, "up the usual time, immune 1.2 s")
+        XCTAssertTrue(fake.window.noticeTimes.map { $0.hideAfter > 1.8 && $0.protectFor == 1.2 } ?? false,
+                      "up long enough to read, immune 1.2 s")
         controller.textDidChange()           // no field: an ordinary dismiss
         XCTAssertEqual(fake.window.currentMode, notice)
         controller.focusTracker.onViewportChange?()

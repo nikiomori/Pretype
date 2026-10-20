@@ -377,6 +377,18 @@ final class DictationPipelineTests: PipelineTestCase {
         XCTAssertNil(controller.field.ghost)
     }
 
+    // A rescue notice is the only sign that the words went to the clipboard,
+    // so it stays up long enough to read; a short notice, the usual time.
+    func testARescueNoticeStaysUpLongEnoughToRead() {
+        controller.rescueDictated("hello", because: .focusMoved)
+        let rescue = fake.window.noticeTimes?.hideAfter ?? 0
+        XCTAssertGreaterThan(rescue, 3)
+        controller.showTransientOverlay(.hint("nothing heard"),
+                                        at: CGRect(x: 100, y: 100, width: 1, height: 16), host: HostTextStyle())
+        XCTAssertEqual(fake.window.noticeTimes?.hideAfter, 1.8)
+        XCTAssertEqual(SuggestionController.noticeSeconds(for: .hint(String(repeating: "a", count: 500))), 7)
+    }
+
     // What is tidied was spoken: the engine keeps it out of its log.
     func testATidyUpKeepsTheSpokenTextOutOfTheLog() async {
         _ = await controller.tidyDictation("hello")

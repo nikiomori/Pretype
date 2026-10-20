@@ -233,7 +233,21 @@ extension SuggestionController: DictationHost {
         // Every dictation notice is raised by something that also wakes the
         // completion pipeline — a keystroke, a release, a focus-adjacent
         // event — so each needs a moment of immunity or it never gets read.
-        window.showTransient(mode, at: rect, host: host, protectFor: 1.2)
+        window.showTransient(mode, at: rect, host: host, hideAfter: Self.noticeSeconds(for: mode), protectFor: 1.2)
+    }
+
+    /// How long a dictation notice stays up: long enough to read. A rescue's
+    /// is the only sign that minutes of speech went to the clipboard, and a
+    /// translation runs longer than the English — so a long one gets half a
+    /// second to find plus a second per 15 characters, from the usual 1.8 s
+    /// up to 7 s at most.
+    nonisolated static func noticeSeconds(for mode: SuggestionDisplayMode) -> TimeInterval {
+        switch mode {
+        case .hint(let text), .error(let text):
+            return min(7, max(CaretIndicator.noticeSeconds, 0.5 + Double(text.count) / 15))
+        default:
+            return CaretIndicator.noticeSeconds
+        }
     }
 
     func hideOverlay() { window.hide() }
