@@ -615,13 +615,38 @@ enum AXText {
         let column = max(0, Int(((cursor.minX - screenFrame.minX) / (screenFrame.width / CGFloat(columns))).rounded()))
         // ponytail: one cell per character — a wide (CJK, emoji) cell before
         // the cursor shifts the split; fine for the box's end-of-input caret.
-        let typed = String(line.prefix(column)) + String(repeating: " ", count: max(0, column - line.count))
+        guard let typed = caretLine(row: String(line), column: column,
+                                    recent: attribute(helper, kAXValueAttribute) ?? "") else { return nil }
         let above = agentBoxRows(above: cursorRow, typed: typed, read: rowText)
         guard let caret = onScreen(flipped(CGRect(x: cursor.minX, y: cursor.minY, width: 1, height: cursor.height)))
         else { return nil }
         return TextContext(textBeforeCaret: (above + [typed]).joined(separator: "\n"),
                            textAfterCaret: String(line.dropFirst(column)) + "\n" + below,
                            caretRect: caret, host: HostTextStyle(fieldRect: cocoaFieldRect(screenFrame)))
+    }
+
+    /// The caret row up to the cursor's `column`, from a row read that may
+    /// trail the terminal: VS Code's AX rows lag 0.3–0.8 s (Chromium defers
+    /// their updates), and the old split padded the missing letters with
+    /// spaces — a ghost for text no longer there, ⇥ landing before a letter.
+    /// The cursor and xterm's helper textarea are live, and the textarea's
+    /// value is the recent input, ending at the caret. So: the row's first
+    /// `column − k` cells plus the textarea's newest `k` characters, for the
+    /// smallest `k` whose textarea characters just before them match the row
+    /// there. The row alone when its length already fits the cursor and no
+    /// split does (a prompt cleared under a textarea that still remembers);
+    /// nil when nothing fits — no ghost until the row catches up.
+    nonisolated static func caretLine(row: String, column: Int, recent: String) -> String? {
+        let row = Array(row), recent = Array(recent)
+        for k in 0...min(recent.count, column) {
+            let a = column - k
+            guard a <= row.count else { continue }
+            let v = min(4, recent.count - k, a)
+            let fits = v == 0 ? a == row.count
+                : recent[(recent.count - k - v)..<(recent.count - k)] == row[(a - v)..<a]
+            if fits { return String(row[..<a] + recent.suffix(k)) }
+        }
+        return row.count == column ? String(row) : nil
     }
 
     /// The rows over the caret line `AgentPrompt.input` reads, oldest first —

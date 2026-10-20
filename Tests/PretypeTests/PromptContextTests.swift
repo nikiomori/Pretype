@@ -64,6 +64,30 @@ final class PromptContextTests: XCTestCase {
         }
     }
 
+    /// VS Code's xterm rows trail the cursor; the helper textarea's recent
+    /// input fills the gap. Cases from a live trace (2026-10-20).
+    func testCaretLineFromATrailingRow() {
+        let row = "❯ ну давай еще раз протестируем как раб"   // 39 cells
+        // In step: the row as is.
+        XCTAssertEqual(AXText.caretLine(row: row, column: 39, recent: "тируем как раб"), row)
+        XCTAssertEqual(AXText.caretLine(row: row, column: 39, recent: ""), row)
+        // Two letters typed, the row hasn't caught up: they come from the textarea.
+        XCTAssertEqual(AXText.caretLine(row: row, column: 41, recent: "тируем как работ"), row + "от")
+        // A typed space the right-trimmed row drops.
+        XCTAssertEqual(AXText.caretLine(row: row, column: 40, recent: "тируем как раб "), row + " ")
+        // Backspace after "работ": the row still shows the deleted "т".
+        XCTAssertEqual(AXText.caretLine(row: row + "от", column: 40, recent: "тируем как рабо"), row + "о")
+        // Backspace and a new letter: same length, other text.
+        XCTAssertEqual(AXText.caretLine(row: row + "от", column: 41, recent: "тируем как рабоа"), row + "оа")
+        // A cleared prompt the textarea still remembers: the row when it fits the cursor…
+        XCTAssertEqual(AXText.caretLine(row: "❯ ", column: 2, recent: "как рабоает,"), "❯ ")
+        // …nothing when it doesn't (the row is behind and the textarea is no help).
+        XCTAssertNil(AXText.caretLine(row: "❯ ", column: 3, recent: "как рабоает,к"))
+        XCTAssertNil(AXText.caretLine(row: row, column: 43, recent: ""))
+        // The cursor not moved yet for a letter the textarea already has.
+        XCTAssertEqual(AXText.caretLine(row: row, column: 39, recent: "тируем как рабо"), row)
+    }
+
     // Terminal.app's AX text around the caret, as read from a live Claude
     // Code session (v2.1): the input box is the only place a terminal gets
     // completions, and its soft wraps must rejoin into the typed prompt.
