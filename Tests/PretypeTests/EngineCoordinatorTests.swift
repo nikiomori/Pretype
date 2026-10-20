@@ -46,8 +46,8 @@ final class EngineCoordinatorTests: MLXTestCase {
         }
     }
 
-    // A build-time change is one write-out and one rebuild, the owner told;
-    // length and persona reach the running engine, no rebuild.
+    // A model or style change is one write-out and one rebuild, the owner
+    // told; length, persona and the gate reach the running engine, no rebuild.
     @MainActor
     func testApplyRebuildsOnceAndTheLiveKnobsReachTheEngine() async throws {
         let saved = (Settings.mlxModelID, Settings.completionStyle, Settings.completionLength, Settings.logprobGate,
@@ -83,6 +83,17 @@ final class EngineCoordinatorTests: MLXTestCase {
             coordinator.apply(target)
             XCTAssertEqual(coordinator.current, target)
             XCTAssertFalse(coordinator.engine === first)
+            XCTAssertEqual(rebuilds, 1)
+
+            // The gate and auto mode keep the loaded model: no rebuild, the
+            // running engine reads the new gate.
+            let second = try XCTUnwrap(coordinator.engine as? MLXEngine)
+            XCTAssertEqual(second.logprobGateThreshold, Settings.logprobGateThreshold)
+            coordinator.apply(.logprobGate(false))
+            XCTAssertNil(second.logprobGateThreshold)
+            coordinator.apply(.useRecommended(true))
+            XCTAssertEqual(coordinator.current.style, .base)
+            XCTAssertTrue(coordinator.engine === second)
             XCTAssertEqual(rebuilds, 1)
         }
     }

@@ -36,14 +36,20 @@ final class MLXEngine: CompletionEngine {
     private let lengthBox: LockedValue<CompletionLength>
     private let instructionsBox: LockedValue<String>
     /// Logprob confidence gate (base only): abstain when the shown suggestion's
-    /// first-word logprob < this. nil = off. Fixed at init; enabled via
-    /// Settings.logprobGate / PRETYPE_LOGPROB_GATE. 0× extra decode — the value
+    /// first-word logprob < this. nil = off. Enabled via Settings.logprobGate /
+    /// PRETYPE_LOGPROB_GATE, live (`updateGate`). 0× extra decode — the value
     /// is already captured by the live decode loop (firstWordLogProbBox).
-    let logprobGateThreshold: Double?
+    var logprobGateThreshold: Double? { gateBox.get().tau }
     /// Per-script overrides of `logprobGateThreshold` (`Recommendation.scriptGateTau`),
     /// recommended settings only: an env pin or a hand-tuned threshold applies
     /// to every script as-is.
-    let scriptGateTau: [GateScript: Double]
+    var scriptGateTau: [GateScript: Double] { gateBox.get().scriptTau }
+    /// Both of the above, read together so a request never pairs one
+    /// setting's τ with the other's script table.
+    private let gateBox: LockedValue<(tau: Double?, scriptTau: [GateScript: Double])>
+    /// The catalog id the gate is calibrated for (`modelID` may be its
+    /// instruct sibling).
+    private let gateModelID: String
     /// Scripts with no suggestions at all, gate on or off (`ModelCatalog.silentScripts`).
     let silentScripts: Set<GateScript>
     /// The τ floor per script, gate on or off (`ModelCatalog.alwaysOnGateTau`).
@@ -116,25 +122,8 @@ final class MLXEngine: CompletionEngine {
         self.lengthBox = LockedValue(config.length)
         self.instructionsBox = LockedValue(config.instructions)
         let env = ProcessInfo.processInfo.environment
-        // A SET env var pins the knob regardless of Settings — non-numeric
-        // ("off") disables. Falling back to Settings on a set-but-non-numeric
-        // value would let eval runs silently inherit the app's live config.
-        // PRETYPE_LOGPROB_GATE=recommended pins the shipped per-model +
-        // per-script τ whatever Settings say (the eval's gate-on arm).
-        let gatePin = env["PRETYPE_LOGPROB_GATE"]
-        let recommended = ModelCatalog.recommended(for: modelID)
-        (logprobGateThreshold, scriptGateTau) = if let gatePin, gatePin != "recommended" {
-            (Double(gatePin), [:])
-        } else if gatePin != nil || (Settings.logprobGate && Settings.useRecommendedSettings) {
-            // Recommended settings follow the model: τ is calibrated per model
-            // (Q4 edges −0.94…−1.34) and per script where that still loses —
-            // see Recommendation.logprobGateTau / scriptGateTau.
-            (recommended.logprobGateTau ?? Settings.logprobGateThreshold,
-             recommended.logprobGateTau == nil ? [:] : recommended.scriptGateTau)
-        } else {
-            // Off, or a hand-tuned threshold (useRecommendedSettings off) as-is.
-            (Settings.logprobGate ? Settings.logprobGateThreshold : nil, [:])
-        }
+        gateModelID = modelID
+        gateBox = LockedValue(Self.gate(for: modelID))
         self.silentScripts = ModelCatalog.silentScripts(for: modelID)
         self.alwaysOnGateTau = ModelCatalog.alwaysOnGateTau(for: modelID)
         self.trimLogProbThreshold = env["PRETYPE_TRIM_LOGPROB"].map { Float($0) } ?? -1.5
@@ -407,8 +396,9 @@ final class MLXEngine: CompletionEngine {
         }
         let healedGate = healed(prepared.gate(cleanInstruct: false))
         // The script of what the user typed — the text the table was calibrated on.
-        let gateTau = Self.gateTau(base: logprobGateThreshold, script: GateScript.of(request.textBeforeCaret),
-                                   scriptTau: scriptGateTau, floor: alwaysOnGateTau)
+        let gate = gateBox.get()
+        let gateTau = Self.gateTau(base: gate.tau, script: GateScript.of(request.textBeforeCaret),
+                                   scriptTau: gate.scriptTau, floor: alwaysOnGateTau)
         let generationText = heal.map { String(prepared.generationText.dropLast($0.dropCount)) }
             ?? prepared.generationText
         let promptCache = self.promptCache
@@ -554,6 +544,33 @@ final class MLXEngine: CompletionEngine {
     func updateCompletion(length: CompletionLength, instructions: String) {
         lengthBox.set(length)
         instructionsBox.set(instructions)
+    }
+
+    /// Re-read the gate from Settings: turning it on or off, or auto mode,
+    /// keeps the loaded model (`EngineCoordinator.apply`).
+    func updateGate() { gateBox.set(Self.gate(for: gateModelID)) }
+
+    /// The gate's τ and per-script table for `modelID`, from the environment
+    /// or Settings. A SET env var pins the knob regardless of Settings —
+    /// non-numeric ("off") disables. Falling back to Settings on a
+    /// set-but-non-numeric value would let eval runs silently inherit the
+    /// app's live config. PRETYPE_LOGPROB_GATE=recommended pins the shipped
+    /// per-model + per-script τ whatever Settings say (the eval's gate-on arm).
+    private static func gate(for modelID: String) -> (tau: Double?, scriptTau: [GateScript: Double]) {
+        let gatePin = ProcessInfo.processInfo.environment["PRETYPE_LOGPROB_GATE"]
+        let recommended = ModelCatalog.recommended(for: modelID)
+        if let gatePin, gatePin != "recommended" {
+            return (Double(gatePin), [:])
+        } else if gatePin != nil || (Settings.logprobGate && Settings.useRecommendedSettings) {
+            // Recommended settings follow the model: τ is calibrated per model
+            // (Q4 edges −0.94…−1.34) and per script where that still loses —
+            // see Recommendation.logprobGateTau / scriptGateTau.
+            return (recommended.logprobGateTau ?? Settings.logprobGateThreshold,
+                    recommended.logprobGateTau == nil ? [:] : recommended.scriptGateTau)
+        } else {
+            // Off, or a hand-tuned threshold (useRecommendedSettings off) as-is.
+            return (Settings.logprobGate ? Settings.logprobGateThreshold : nil, [:])
+        }
     }
 
     /// True when the recent text is majority-Cyrillic — used to widen the token

@@ -1,9 +1,9 @@
 import Foundation
 
 /// Owns the completion engine's lifecycle and the settings that reshape it, so
-/// `SuggestionController` can focus on the input→overlay pipeline. Style, model,
-/// and the logprob gate are build-time choices — changing any of them rebuilds
-/// the engine; length, persona and personalization apply live. The repeated
+/// `SuggestionController` can focus on the input→overlay pipeline. Style and
+/// model are build-time choices — changing either rebuilds the engine; the
+/// logprob gate, length, persona and personalization apply live. The repeated
 /// "shutdown → rebuild → drop the stale suggestion" pattern lives here once.
 @MainActor
 final class EngineCoordinator {
@@ -43,18 +43,30 @@ final class EngineCoordinator {
                          useRecommended: Settings.useRecommendedSettings)
     }
 
-    /// Commit a fully-resolved configuration: one Settings write-out, ONE
-    /// engine rebuild. Every build-time setter below routes through here with
-    /// `ProjectionConfig.applying` as the single cascade authority — the same
-    /// function the settings UI previews with, so preview and commit cannot
-    /// diverge.
+    /// Commit a fully-resolved configuration: one Settings write-out, at most
+    /// ONE engine rebuild. Every build-time setter below routes through here
+    /// with `ProjectionConfig.applying` as the single cascade authority — the
+    /// same function the settings UI previews with, so preview and commit
+    /// cannot diverge.
     func apply(_ target: ProjectionConfig) {
+        let before = current
         Settings.mlxModelID = target.modelID
         Settings.useRecommendedSettings = target.useRecommended
         Settings.completionStyle = target.style
         Settings.completionLength = target.length
         Settings.logprobGate = target.logprobGate
-        rebuild()
+        // The same model in the same style keeps its weights: a rebuild would
+        // read them from disk again, re-run the warm-up and drop the prompt
+        // cache for a gate or auto-mode toggle. A failed engine still gets
+        // its fresh start.
+        let failed = if case .failed = engine.state { true } else { false }
+        if target.modelID == before.modelID, target.style == before.style, !failed {
+            let config = CompletionConfig.resolved()
+            engine.updateCompletion(length: config.length, instructions: config.instructions)
+            (engine as? MLXEngine)?.updateGate()
+        } else {
+            rebuild()
+        }
     }
 
     /// One build-time change (model, style, gate, "use recommended") cascaded
