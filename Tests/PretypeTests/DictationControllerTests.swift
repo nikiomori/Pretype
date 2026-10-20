@@ -1552,6 +1552,24 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.capture.startCount, 1, "the queued capture was taken back")
     }
 
+    /// An empty take is no ⎋, focus change or failure: a hands-free capture
+    /// queued during "writing it down…" still starts after "nothing heard",
+    /// or the user speaks into a closed microphone.
+    func testNothingHeardStillStartsTheQueuedHandsFreeCapture() async {
+        let rig = makeRig { $0.transcript = "" }
+        let writing = holdFinish(rig)
+        await startLatched(rig)
+        rig.controller.toggleLatch()
+        XCTAssertEqual(rig.controller.phase, .working)
+        let write = rig.controller.sessionTask
+        rig.controller.toggleLatch()
+        writing.open()
+        await write?.value
+        XCTAssertEqual(rig.host.transientNotices, [.hint("nothing heard")])
+        await pump(until: { rig.controller.phase == .listening("") })
+        XCTAssertEqual(rig.capture.startCount, 2, "the queued capture started")
+    }
+
     /// `.preparing` is inside the hands-free window, not outside it. Scoping
     /// the relaxed rules to `.listening` alone meant a scroll while the model
     /// was still coming down tore the capture apart with no pill and no notice

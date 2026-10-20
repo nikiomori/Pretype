@@ -59,7 +59,15 @@ extension DictationController {
                 }
                 let transcript = Self.clean(raw)
                 guard !transcript.isEmpty else {
-                    self.discard(notice: .hint(String(localized: "nothing heard")))
+                    // Not a discard: nobody pressed ⎋ and nothing failed, so a
+                    // capture queued behind this one starts, as it does after
+                    // an insert — a latch pressed during "writing it down…"
+                    // is someone about to talk.
+                    self.phase = .idle
+                    self.session = nil
+                    owner.showTransientOverlay(.hint(String(localized: "nothing heard")),
+                                               at: self.noticeRect, host: self.hostStyle)
+                    self.resumePendingHold(noticeIfMissed: true)
                     return
                 }
                 if let selection = self.commandSelection {
