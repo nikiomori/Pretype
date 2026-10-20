@@ -121,12 +121,14 @@ enum RequestGate {
     /// that now reads `current` before the caret. The user may have typed on
     /// while the engine thought: the answer still lands if what they typed is
     /// its head. Then on the main thread (NSSpellChecker is unsafe off it): a
-    /// stray separator the engine prepended to a word continuation goes ("при
-    /// " + "вет" → "привет"), a leading space the field already has goes, and
-    /// a wrongly capitalized mid-sentence continuation is lowered ("я хочу " +
-    /// "Поехать" → "поехать").
+    /// stray separator the gate prepended to a `flush` answer's word
+    /// continuation goes ("при " + "вет" → "привет"; a base model's own space
+    /// stays — "так же" + " не" is not "жене"), a leading space the field
+    /// already has goes, and a wrongly capitalized mid-sentence continuation
+    /// is lowered ("я хочу " + "Поехать" → "поехать").
     @MainActor
-    static func landing(_ suggestion: String, askedOn requestText: String, current: String) -> Landing {
+    static func landing(_ suggestion: String, askedOn requestText: String, current: String,
+                        flush: Bool) -> Landing {
         var suggestion = suggestion
         switch FieldState.ghostUpdate(anchor: requestText, remaining: suggestion, text: current) {
         case .unchanged:
@@ -136,7 +138,7 @@ enum RequestGate {
         case .retired(let outcome):
             return .stale(why: outcome == .abandoned ? "context changed; dropped result" : "typed past the suggestion")
         }
-        suggestion = SpellChecker.strippingStraySeparator(suggestion: suggestion, before: current)
+        if flush { suggestion = SpellChecker.strippingStraySeparator(suggestion: suggestion, before: current) }
         suggestion = SuggestionController.deduplicatingSeamSpace(suggestion, after: current)
         suggestion = SpellChecker.decapitalizeContinuation(suggestion, before: current)
         if SuggestionController.wouldGlueMidWord(current: current, suggestion: suggestion) { return .glued }

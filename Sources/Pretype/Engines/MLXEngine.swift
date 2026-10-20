@@ -92,6 +92,7 @@ final class MLXEngine: CompletionEngine {
     /// to the suggestion that was actually shown, not an abstained draw.
     private let firstWordLogProbBox = LockedValue<Double?>(nil)
     var lastFirstWordLogProb: Double? { firstWordLogProbBox.get() }
+    var answersFlush: Bool { style != .base }
 
     var statusLine: String? {
         let model = loadedModelID ?? modelID

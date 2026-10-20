@@ -129,9 +129,11 @@ final class RequestGateTests: XCTestCase {
             ("fox", "the quick ", "the quick ", .show("fox"), #line),
         ]
         for row in rows {
-            XCTAssertEqual(G.landing(row.suggestion, askedOn: row.asked, current: row.current), row.landing,
-                           line: row.line)
+            XCTAssertEqual(G.landing(row.suggestion, askedOn: row.asked, current: row.current, flush: true),
+                           row.landing, line: row.line)
         }
+        // A base model's own separator is its answer: "так же" + " не", not "жене".
+        XCTAssertEqual(G.landing(" не", askedOn: "так же", current: "так же", flush: false), .show(" не"))
     }
 
     // The glue rule on its own: only mid-word, only a flush answer, only a

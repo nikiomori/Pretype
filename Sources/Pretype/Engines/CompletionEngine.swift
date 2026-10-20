@@ -320,6 +320,12 @@ protocol CompletionEngine: AnyObject {
     /// doesn't capture it.
     var lastFirstWordLogProb: Double? { get }
 
+    /// The model answers flush and the shared gate supplies the separator
+    /// (instruct, Apple Intelligence, API) — so a space at a mid-word caret may
+    /// be the gate's guess, which landing takes back when it splits a word. A
+    /// base model writes its own separator: "так же" + " не" stays apart.
+    var answersFlush: Bool { get }
+
     /// Short live status for the diagnostics menu (model download progress,
     /// connection state, …).
     var statusLine: String? { get }
@@ -399,6 +405,7 @@ protocol CompletionEngine: AnyObject {
 extension CompletionEngine {
     var loadedModelID: String? { nil }
     var lastFirstWordLogProb: Double? { nil }
+    var answersFlush: Bool { true }
     /// For engines without an idle-unload cycle, `.preparing` IS active work.
     var isLoading: Bool {
         if case .preparing = state { return true }

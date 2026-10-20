@@ -649,7 +649,8 @@ final class SuggestionController {
         }
 
         let current = ctx.textBeforeCaret
-        switch RequestGate.landing(sanitized, askedOn: requestText, current: current) {
+        switch RequestGate.landing(sanitized, askedOn: requestText, current: current,
+                                   flush: !instant && engine.answersFlush) {
         case .show(let landed):
             suggestion = landed
         case .stale(let why):
