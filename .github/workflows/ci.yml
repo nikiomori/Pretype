@@ -64,9 +64,9 @@ jobs:
           # The strings check builds a second tree under .build/l10n. An exact
           # key hit never saves again, so the script is in the key: a change
           # to it saves a cache that holds that build too.
-          key: spm-${{ runner.os }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Package.resolved', 'Scripts/sync-strings.py') }}
+          key: spm-swiftbuild-${{ runner.os }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Package.resolved', 'Scripts/sync-strings.py') }}
           restore-keys: |
-            spm-${{ runner.os }}-${{ env.XCODE_VERSION }}-
+            spm-swiftbuild-${{ runner.os }}-${{ env.XCODE_VERSION }}-
 
       # Metal shader compilation is a separate component on Xcode 26+; a no-op
       # on older Xcodes. Tolerated if it isn't available on the runner.
@@ -79,14 +79,15 @@ jobs:
       # device — HostPLETests, MLXEngineTests, ModelLoadingTests,
       # ModelResidencyTests, GenerationTests and EngineCoordinatorTests: small arrays and a tiny
       # synthetic Gemma, no real model, no GPU kernels. MLX still opens the
-      # Metal device for its allocator and loads the metallib `swift build`
-      # bundles (the Metal toolchain step above); without a Metal device it
-      # aborts the whole test process, so those suites skip themselves when
-      # MTLCreateSystemDefaultDevice() is nil (Tests/PretypeTests/MLXTestCase).
-      # They have never run on this runner: watch the first push that runs
-      # them, and check the log for whether they ran or skipped.
+      # Metal device for its allocator and loads the bundled metallib; without
+      # either it aborts the whole test process. Only Swift Build compiles the
+      # shaders (the Metal toolchain step above) — this Xcode's default, the
+      # native build system, bundles none, and all six suites skipped on every
+      # run while CI showed green. They skip without a Metal device
+      # (Tests/PretypeTests/MLXTestCase) but FAIL here when the shaders are
+      # missing, so that can't happen silently again.
       - name: Test
-        run: swift test
+        run: swift test --build-system swiftbuild
 
       # A `String(localized:)` or SwiftUI literal that never reached
       # Localization/Localizable.xcstrings ships untranslated. The script cannot

@@ -9,9 +9,11 @@ import XCTest
 /// Metal device even for work on the CPU — its allocator is Metal's — and
 /// without one it aborts in C++, taking the whole test process down with it.
 /// It aborts the same way when the build has no compiled shaders
-/// (`default.metallib`), as on a CI runner whose cached build predates the
-/// Metal toolchain. Without either, these suites skip, saying why. Everywhere
-/// else they run on the CPU device: they compare numbers, not speed.
+/// (`default.metallib`): SwiftPM's native build system compiles no Metal, only
+/// Swift Build does. Without either, these suites skip, saying why — except on
+/// CI, where a Metal device with no shaders fails them: a skip there went
+/// unnoticed for every run. Everywhere else they run on the CPU device: they
+/// compare numbers, not speed.
 class MLXTestCase: XCTestCase {
     /// Why MLX can't run in this process, or nil. The shader lookup is mlx's
     /// own (device.cpp): `mlx-swift_Cmlx.bundle` in a loaded bundle's resources.
@@ -29,7 +31,12 @@ class MLXTestCase: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        if let why = Self.whyMLXCannotRun { throw XCTSkip(why) }
+        if let why = Self.whyMLXCannotRun {
+            if ProcessInfo.processInfo.environment["CI"] != nil, MTLCreateSystemDefaultDevice() != nil {
+                throw NSError(domain: "MLXTestCase", code: 1, userInfo: [NSLocalizedDescriptionKey: why])
+            }
+            throw XCTSkip(why)
+        }
     }
 
     override func invokeTest() {
