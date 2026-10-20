@@ -430,7 +430,9 @@ final class MLXEngine: CompletionEngine {
                 // next-word logprobs, but under healing lp is the fragment path of the
                 // CURRENT word (forced tokens under constrained decode) — a different
                 // scale that the word-boundary τ mostly rejects, while fragment-match
-                // already holds healed precision at ~77% (mid3, ANALYTICS §6в′).
+                // already holds healed precision at ~77% (mid3, ANALYTICS §6в′). A τ
+                // of its own loses too: every healed τ ≥ −2.75 cost Net-KSS on
+                // eval-live, E4B and Qwen3.5 (Eval/runs-2026-10-20-healed-tau).
                 if let thr = gateTau, result != nil, heal == nil, let lp, lp < thr {
                     DebugLog.shared.log("GATE", "logprob-gate: first-word \(String(format: "%.2f", lp)) < \(thr) — abstaining")
                     return nil
