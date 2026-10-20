@@ -21,17 +21,33 @@ extension DictationController {
         let gen = generation
         let deadline = session.finishDeadline ?? finalizeSeconds
         sessionTask = Task { @MainActor [weak self] in
+            // Set when a failed upload was written down on this Mac instead.
+            var onDevice = false
             do {
-                // Behind a deadline, because `finish` awaits the analyzer's own
-                // finalization: a hung `finalizeAndFinishThroughEndOfInput`
-                // would otherwise leave the pill saying "writing it down…"
-                // forever, with the completion pipeline suppressed. Ten
-                // seconds is far past any real finalization of a two-minute
-                // ceiling's audio — this is a watchdog, not a budget. A
-                // session that re-transcribes or uploads the whole take asks
-                // for longer, growing with the take (`finishDeadline`).
-                let raw = try await Self.withDeadline(seconds: deadline) {
-                    try await session.finish()
+                let raw: String
+                do {
+                    // Behind a deadline, because `finish` awaits the analyzer's
+                    // own finalization: a hung `finalizeAndFinishThroughEndOfInput`
+                    // would otherwise leave the pill saying "writing it down…"
+                    // forever, with the completion pipeline suppressed. Ten
+                    // seconds is far past any real finalization of a two-minute
+                    // ceiling's audio — this is a watchdog, not a budget. A
+                    // session that re-transcribes or uploads the whole take
+                    // asks for longer, growing with the take (`finishDeadline`).
+                    raw = try await Self.withDeadline(seconds: deadline) {
+                        try await session.finish()
+                    }
+                } catch {
+                    // A speech API that failed the take twice, or outran the
+                    // watchdog: a hosted model sends no preview, so without
+                    // this the catch below has nothing to rescue and minutes
+                    // of speech are gone. The audio is still in memory. A
+                    // discarded take (⎋) is not written down anywhere — its
+                    // generation moved on, and `cancel` dropped its audio.
+                    guard let self, self.generation == gen,
+                          let audio = session.unsentAudio, !audio.isEmpty else { throw error }
+                    raw = try await self.writeDownOnDevice(audio, after: error)
+                    onDevice = true
                 }
                 guard let self else { return }
                 guard self.generation == gen else {
@@ -76,8 +92,18 @@ extension DictationController {
                 }
                 self.phase = .idle
                 self.session = nil
-                owner.hideOverlay()
-                if self.focusHeld, !self.caretMoved {
+                let lands = self.focusHeld && !self.caretMoved
+                // Either the notice or the hide, as in `discard`. A rescue
+                // says where the words went, which matters more than how.
+                if onDevice, lands {
+                    owner.showTransientOverlay(
+                        .hint(String(localized: "upload failed — written down on this Mac",
+                                     comment: "Dictation notice at the caret: the hosted speech API failed or timed out, so the take was transcribed by the on-device model and typed.")),
+                        at: self.noticeRect, host: self.hostStyle)
+                } else {
+                    owner.hideOverlay()
+                }
+                if lands {
                     owner.insertDictated(text)
                 } else {
                     Self.note("rescued \(text.count) chars to the clipboard — \(self.caretMoved ? "the caret moved" : "focus changed")")
@@ -111,6 +137,31 @@ extension DictationController {
                 self.discard(notice: nil)
                 owner.rescueDictated(preview, because: timedOut ? .timedOut : .failed)
             }
+        }
+    }
+
+    /// A take its speech API failed on (`error`), written down on this Mac
+    /// instead — see `Transcription.transcribeOnDevice`. Throws `error` again
+    /// when no on-device engine has the language or it fails too, so
+    /// `finish`'s own error path runs as it always did.
+    ///
+    /// On a deadline of its own: the watchdog that may have brought the take
+    /// here has fired already. `fallbackSeconds` covers a cold model load
+    /// (Parakeet's first CoreML compile is ~15 s); a tenth of a second per
+    /// audio second is several times what either engine needs for the words.
+    private func writeDownOnDevice(_ audio: [Float], after error: Error) async throws -> String {
+        var timedOut = false
+        if case TranscriptionError.timedOut = error { timedOut = true }
+        Self.note("upload \(timedOut ? "timed out" : "failed") — writing the take down on this Mac")
+        let transcribe = gates.transcribeOnDevice
+        let locale = sessionLocale
+        do {
+            return try await Self.withDeadline(seconds: fallbackSeconds + 0.1 * Double(audio.count) / 16_000) {
+                try await transcribe(audio, locale)
+            }
+        } catch let fallback {
+            Self.note("no on-device fallback — \(fallback)")
+            throw error
         }
     }
 
@@ -193,22 +244,35 @@ extension DictationController {
     /// `session.cancel()` on the failure path. The timer task is allowed to
     /// sleep out its few seconds when the body wins — a dormant task beats the
     /// reference cycle cancelling it would take.
+    ///
+    /// The body's task is unstructured, so cancelling the caller does not
+    /// reach it by itself: the handler passes it on. Without it a discard
+    /// (⎋ during "writing it down…") left the upload running, and the
+    /// provider billed a take the pill had already called cancelled.
     nonisolated private static func withDeadline<T: Sendable>(
         seconds: TimeInterval, _ body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            let resumed = LockedValue(false)
-            @Sendable func resumeOnce(_ result: Result<T, Error>) {
-                if !resumed.exchange(true) { continuation.resume(with: result) }
+        let running = LockedValue<Task<Void, Never>?>(nil)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let resumed = LockedValue(false)
+                @Sendable func resumeOnce(_ result: Result<T, Error>) {
+                    if !resumed.exchange(true) { continuation.resume(with: result) }
+                }
+                let work = Task {
+                    do { resumeOnce(.success(try await body())) } catch { resumeOnce(.failure(error)) }
+                }
+                running.set(work)
+                // Cancelled before `running` was set: the handler found nothing.
+                if Task.isCancelled { work.cancel() }
+                Task {
+                    try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                    work.cancel()
+                    resumeOnce(.failure(TranscriptionError.timedOut))
+                }
             }
-            let work = Task {
-                do { resumeOnce(.success(try await body())) } catch { resumeOnce(.failure(error)) }
-            }
-            Task {
-                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                work.cancel()
-                resumeOnce(.failure(TranscriptionError.timedOut))
-            }
+        } onCancel: {
+            running.get()?.cancel()
         }
     }
 

@@ -238,6 +238,7 @@ extension DictationController {
                     return session.cancel()
                 }
                 self.session = session
+                self.sessionLocale = locale
                 self.phase = .listening("")
                 self.render()
                 // Re-armed from HERE, so the capture's own ceiling is measured

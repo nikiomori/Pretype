@@ -38,7 +38,8 @@ These lines show in the menu and in **Settings → API → Test connection**.
 | `HTTP 404` or `HTTP 400` with a model name | The provider does not know the model name. | Type a model name from the list of the provider. Or select the provider again to get the preset model. |
 | `Could not connect to the server` with Ollama or LM Studio | The local server does not run. | Start Ollama or the LM Studio server. Make sure that the model is downloaded, for example with `ollama pull gemma4:e4b`. |
 | Suggestions come late with API text on | The network, or a model that reasons before it answers. | Use the preset model of the provider, or a provider near you. Or turn off API text to use the local model. |
-| Dictation types nothing with API dictation on | The upload failed, or the provider did not answer in time. The time limit is 55 s, plus 0.3 s for each second of audio. After a network error, a timeout or a server error, Pretype tries the upload one more time. | Click **Test connection** in the Dictation section. For long takes, use a shorter capture. |
+| Dictation types nothing with API dictation on | The upload failed, or the provider did not answer in time. The time limit is 55 s, plus 0.3 s for each second of audio. After a network error, a timeout or a server error, Pretype tries the upload one more time. If that fails too, Pretype transcribes the audio on this Mac. It can do this only if Apple's speech model for the language is installed, or if Parakeet is downloaded. | Click **Test connection** in the Dictation section. For long takes, use a shorter capture. To get the fallback on this Mac, turn off API dictation and dictate one time. Then macOS installs its speech model for the language. |
+| `upload failed — written down on this Mac` | The upload failed or timed out. Pretype transcribed the same audio with a speech model on this Mac, and typed the result. | Click **Test connection** in the Dictation section. |
 
 ## FAQ
 

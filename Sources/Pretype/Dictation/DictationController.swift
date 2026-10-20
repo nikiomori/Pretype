@@ -37,6 +37,10 @@ final class DictationController {
             async throws -> any TranscriptionSession = {
                 try await Transcription.start(locale: $0, onPartial: $1)
             }
+        /// A speech API's failed take, written down on this Mac (`finish`).
+        var transcribeOnDevice: @Sendable ([Float], Locale) async throws -> String = {
+            try await Transcription.transcribeOnDevice($0, locale: $1)
+        }
     }
 
     var gates = Gates()
@@ -276,6 +280,9 @@ final class DictationController {
     var meter: VoiceMeter?
     let capture: any AudioCapturing
     var session: (any TranscriptionSession)?
+    /// The language `session` was started in — and the one a failed upload
+    /// is written down in on this Mac.
+    var sessionLocale = Locale.current
     /// Readable so a test can await the step in flight — the session start,
     /// or the write-down — instead of guessing how long it takes.
     var sessionTask: Task<Void, Never>?
@@ -513,6 +520,9 @@ final class DictationController {
     /// See `finish` — the watchdog on the analyzer's own finalization. A var
     /// for the same reason.
     var finalizeSeconds: TimeInterval = 10
+    /// See `finish` — how long writing a failed upload down on this Mac may
+    /// take, before its share per audio second. A var for the same reason.
+    var fallbackSeconds: TimeInterval = 30
     /// How often `checkSilence` reads the meter. Fine enough that the capture
     /// ends within a blink of the budget, coarse enough to be nothing next to
     /// the audio it is watching.

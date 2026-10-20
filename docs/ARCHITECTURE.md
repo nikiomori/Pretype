@@ -85,7 +85,7 @@ default.
 | Output | The shared output gates of the local engines. | The same tidy-up pass as a local transcript. |
 | Length | A words hint in the prompt, and a word cap on the result (`CloudEngine.wordCap`). A token budget cannot set the length, because a reasoning model uses tokens before its first word. | One take. OpenAI and Groq accept up to 25 MB, which is ≈13 minutes. |
 | Spelling hints | — | The names and terms in the field. `gpt-transcribe` gets them as `keywords[]`. Whisper models get them as `prompt`. |
-| Failure | A suggestion abstains and logs the reason. A rejected key (HTTP 401) sets the engine to failed. The fix and reply chords show the error. | Each request stops after 55 s, plus 0.3 s for each audio second. A network error, a timeout, HTTP 429 or a 5xx sends the same take one more time, after 1 s. The watchdog waits 120 s plus 0.6 s for each audio second, not 10 s, because it must include the two uploads. |
+| Failure | A suggestion abstains and logs the reason. A rejected key (HTTP 401) sets the engine to failed. The fix and reply chords show the error. | Each request stops after 55 s, plus 0.3 s for each audio second. A network error, a timeout, HTTP 429 or a 5xx sends the same take one more time, after 1 s. The watchdog waits 120 s plus 0.6 s for each audio second, not 10 s, because it must include the two uploads. When both fail, or the watchdog fires, an installed on-device model transcribes the take from memory, with a limit of 30 s plus 0.1 s for each audio second. A cancelled take stops its upload and has no fallback. |
 
 * **Two wire formats.** Most providers and local servers use the OpenAI
   format. Anthropic uses its own Messages API, with the `x-api-key` and

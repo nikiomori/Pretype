@@ -24,8 +24,9 @@ enum CloudTranscription {
         // legitimately takes longer than the controller's ten seconds. The WAV
         // is 32 KB per audio second, ~0.26 s each over a 1 Mbit/s uplink.
         // Doubled: `finish` retries a failed upload once, so the watchdog
-        // spans two full requests and the second's one-second wait.
-        return RecordedTranscription(preview: config.isLocal, finishDeadline: 2 * 60,
+        // spans two full requests and the second's one-second wait. Past
+        // both, the take is written down on this Mac instead (`uploads`).
+        return RecordedTranscription(preview: config.isLocal, uploads: true, finishDeadline: 2 * 60,
                                      perAudioSecond: 2 * uploadPerSecond, previewEvery: previewEvery,
                                      retryAfter: retryAfter, onPartial: onPartial) { audio, final in
             // Under a tenth of a second is a key tap, not speech — and most

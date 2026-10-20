@@ -30,18 +30,26 @@ private final class ScriptedSession: TranscriptionSession, @unchecked Sendable {
     var finishIgnoresCancellation = false
     /// Thrown by `finish` in place of a transcript: the final pass failed.
     var finishError: Error?
+    /// Set: a speech API's take, kept for the on-device fallback.
+    var unsentAudio: [Float]?
+    /// The gated `finish` is under way, and then was cancelled mid-wait —
+    /// an upload in flight, stopped.
+    let finishStarted = LockedValue(false)
+    let finishCancelled = LockedValue(false)
     var onPartial: (@Sendable (String) -> Void)?
     private(set) var cancelCount = 0
 
     func feed(_ buffer: AVAudioPCMBuffer) {}
 
     func finish() async throws -> String {
+        finishStarted.set(true)
         if let finishGate {
             if finishIgnoresCancellation {
                 // An unstructured task is not cancelled with its awaiter.
                 await Task { await finishGate.wait() }.value
             } else {
                 await finishGate.wait()
+                if Task.isCancelled { finishCancelled.set(true) }
                 try Task.checkCancellation()
             }
         }
@@ -720,6 +728,98 @@ final class DictationControllerTests: XCTestCase {
         guard case .error? = rig.host.transientNotices.last else {
             return XCTFail("a failed command must say so")
         }
+    }
+
+    /// A speech API that failed the take — offline, an expired key, a second
+    /// 5xx — or outran the watchdog. A hosted model sends no preview, so the
+    /// take is written down on this Mac from the audio still in memory, typed
+    /// as usual, and the notice says why.
+    func testAFailedUploadIsWrittenDownOnThisMac() async {
+        let failed = makeRig {
+            $0.finishError = URLError(.notConnectedToInternet)
+            $0.unsentAudio = [Float](repeating: 0, count: 16_000)
+        }
+        let handed = LockedValue<[Int]>([])
+        failed.controller.gates.transcribeOnDevice = { audio, _ in
+            handed.mutate { $0.append(audio.count) }
+            return "written here"
+        }
+        await startCapture(failed)
+        release(failed.controller)
+        await pump(until: { failed.controller.phase == .idle })
+        XCTAssertEqual(failed.host.inserted, ["written here"])
+        XCTAssertEqual(handed.get(), [16_000], "the same audio, once")
+        guard case .hint(let notice)? = failed.host.transientNotices.last else {
+            return XCTFail("the words came from another engine: say so")
+        }
+        XCTAssertTrue(notice.contains("this Mac"), notice)
+
+        // The watchdog that fired is not the fallback's limit.
+        let hung = makeRig { $0.unsentAudio = [Float](repeating: 0, count: 16_000) }
+        _ = holdFinish(hung)
+        hung.controller.finalizeSeconds = 0.1
+        hung.controller.gates.transcribeOnDevice = { _, _ in "written here" }
+        await startCapture(hung)
+        release(hung.controller)
+        await pump(until: { hung.controller.phase == .idle })
+        XCTAssertEqual(hung.host.inserted, ["written here"])
+    }
+
+    /// No engine on this Mac has the language, or it hangs past its own
+    /// limit: the take fails exactly as it did before. And a take the user
+    /// threw away is not written down anywhere.
+    func testAFallbackThatCannotHelpKeepsTheErrorAndADiscardSkipsIt() async {
+        let failure = AudioCapture.Failure.sessionFailed("the key was rejected")
+        let fallbacks: [@Sendable ([Float], Locale) async throws -> String] = [
+            { _, _ in throw TranscriptionError.notInstalled },
+            { _, _ in await Gate().wait(); return "too late" },
+        ]
+        for transcribe in fallbacks {
+            let rig = makeRig {
+                $0.finishError = failure
+                $0.unsentAudio = [0]
+            }
+            rig.controller.fallbackSeconds = 0.1
+            rig.controller.gates.transcribeOnDevice = transcribe
+            await startCapture(rig)
+            release(rig.controller)
+            await pump(until: { rig.controller.phase == .idle })
+            XCTAssertTrue(rig.host.inserted.isEmpty)
+            guard case .error(let why)? = rig.host.transientNotices.last else {
+                return XCTFail("the upload's own error is the news")
+            }
+            XCTAssertTrue(why.contains("rejected"), why)
+        }
+
+        let cancelled = makeRig { $0.unsentAudio = [0] }
+        _ = holdFinish(cancelled)
+        let calls = LockedValue(0)
+        cancelled.controller.gates.transcribeOnDevice = { _, _ in
+            calls.mutate { $0 += 1 }
+            return "unwanted"
+        }
+        await startCapture(cancelled)
+        release(cancelled.controller)
+        let write = cancelled.controller.sessionTask
+        cancelled.controller.keyPressed(isEscape: true)
+        await write?.value
+        XCTAssertEqual(calls.get(), 0, "⎋ means the take is gone, not written down elsewhere")
+        XCTAssertTrue(cancelled.host.inserted.isEmpty)
+    }
+
+    /// ⎋ while a take uploads stops the upload itself, not only the wait for
+    /// it: a request left running is a take the provider still bills.
+    func testEscapeWhileWritingDownStopsTheUploadInFlight() async {
+        let rig = makeRig()
+        _ = holdFinish(rig)  // never opened: only a cancel ends the upload
+        rig.controller.finalizeSeconds = 60
+        await startCapture(rig)
+        await hear("never mind", in: rig)
+        release(rig.controller)
+        await pump(until: { rig.session.finishStarted.get() })
+        rig.controller.keyPressed(isEscape: true)
+        await pump(until: { rig.session.finishCancelled.get() })
+        XCTAssertTrue(rig.session.finishCancelled.get(), "the upload kept running after ⎋")
     }
 
     func testHungFinalizeWithNothingHeardSurfacesTheTimeout() async {

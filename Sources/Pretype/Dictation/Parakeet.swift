@@ -71,10 +71,12 @@ enum Parakeet {
         func manager() async throws -> AsrManager {
             let task = loading ?? Task {
                 // An install that opted in before Ultra keeps dictating on its
-                // v3 while Ultra downloads in the background.
+                // v3 while Ultra downloads in the background — only while it
+                // still opts in: with Parakeet off, v3 is here just for a
+                // failed upload's fallback, which downloads nothing.
                 if Parakeet.isDownloaded(.v3), !Parakeet.isDownloaded(.ultra) {
                     let manager = try await Parakeet.load(.v3)
-                    Task.detached(priority: .utility) { await Parakeet.upgrade() }
+                    if Settings.dictationParakeet { Task.detached(priority: .utility) { await Parakeet.upgrade() } }
                     return manager
                 }
                 if !Parakeet.isDownloaded(.ultra) {

@@ -38,6 +38,17 @@ private final class UploadCounter: URLProtocol {
     override func stopLoading() {}
 }
 
+/// Keeps every buffer it is fed, in the format it asks for.
+private final class BufferSink: TranscriptionSession, @unchecked Sendable {
+    let audioFormat: AVAudioFormat?
+    private(set) var buffers: [AVAudioPCMBuffer] = []
+
+    init(format: AVAudioFormat?) { audioFormat = format }
+    func feed(_ buffer: AVAudioPCMBuffer) { buffers.append(buffer) }
+    func finish() async throws -> String { "" }
+    func cancel() {}
+}
+
 /// The whole-take session behind Parakeet and the speech APIs: what it sends,
 /// when it sends it again, and when it must not. Every wait is stepped or
 /// zeroed — nothing here races a clock.
@@ -98,6 +109,44 @@ final class RecordedTranscriptionTests: XCTestCase {
             XCTAssertTrue(error is CancellationError, "\(error)")
         }
         XCTAssertEqual(uploads.get(), 1, "nothing is sent after the discard")
+    }
+
+    /// A take its speech API failed stays in memory for the controller to
+    /// write down on this Mac — until a pass lands, or the take is thrown
+    /// away. An on-device session has nothing to hand over.
+    func testAFailedUploadKeepsItsAudioUntilItLands() async {
+        let rejected = LockedValue(true)
+        let session = RecordedTranscription(preview: false, uploads: true, finishDeadline: 10, perAudioSecond: 0,
+                                            retryAfter: .zero, onPartial: { _ in }, transcribe: { _, _ in
+            if rejected.get() { throw APIError.http(status: 401, message: "expired") }
+            return "hi"
+        })
+        session.feed(audio(16_000))
+        _ = try? await session.finish()
+        XCTAssertEqual(session.unsentAudio?.count, 16_000)
+        rejected.set(false)
+        _ = try? await session.finish()
+        XCTAssertEqual(session.unsentAudio, [], "landed: nothing left to fall back on")
+        session.feed(audio(16_000))
+        session.cancel()
+        XCTAssertEqual(session.unsentAudio, [], "a discarded take keeps nothing")
+
+        let onDevice = RecordedTranscription(preview: false, finishDeadline: 10, perAudioSecond: 0,
+                                             onPartial: { _ in }, transcribe: { _, _ in "hi" })
+        onDevice.feed(audio(16_000))
+        XCTAssertNil(onDevice.unsentAudio)
+    }
+
+    /// The fallback hands Apple's model the kept take the way a live capture
+    /// would: a second at a time, in the format the model asked for.
+    func testAKeptTakeIsFedInTheSessionsOwnFormat() throws {
+        let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)
+        let sink = BufferSink(format: format)
+        try Transcription.feed([Float](repeating: 0.5, count: 24_000), to: sink)
+        XCTAssertEqual(sink.buffers.map(\.frameLength), [16_000, 8_000])
+        XCTAssertEqual(sink.buffers.first?.format.commonFormat, .pcmFormatInt16)
+        let first = try XCTUnwrap(sink.buffers.first?.int16ChannelData?[0][0])
+        XCTAssertEqual(Double(first), 16_384, accuracy: 2)
     }
 
     /// The live preview re-transcribes only once half a second of new audio

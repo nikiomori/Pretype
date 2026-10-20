@@ -20,10 +20,16 @@ protocol TranscriptionSession: AnyObject, Sendable {
     func finish() async throws -> String
     /// Abandon the session — nothing is transcribed and nothing is returned.
     func cancel()
+    /// The take's audio (16 kHz mono) that a speech API has not written down
+    /// yet: kept until its upload succeeds, so a failed one can still be
+    /// written down on this Mac (`DictationController.finish`). nil for an
+    /// on-device session, which has nothing better to fall back to.
+    var unsentAudio: [Float]? { get }
 }
 
 extension TranscriptionSession {
     var finishDeadline: TimeInterval? { nil }
+    var unsentAudio: [Float]? { nil }
 }
 
 enum TranscriptionError: LocalizedError {
@@ -31,6 +37,8 @@ enum TranscriptionError: LocalizedError {
     case unsupportedLanguage(String)
     /// The analyzer's finalization outran its watchdog.
     case timedOut
+    /// No engine on this Mac has the language without a download first.
+    case notInstalled
 
     var errorDescription: String? {
         switch self {
@@ -38,6 +46,10 @@ enum TranscriptionError: LocalizedError {
             return String(localized: "macOS can't dictate \(name)")
         case .timedOut:
             return String(localized: "transcription timed out")
+        case .notInstalled:
+            // Never shown: only the on-device fallback throws it, and a
+            // failed fallback reports the upload's own error instead.
+            return nil
         }
     }
 }
@@ -125,8 +137,76 @@ enum Transcription {
         if Settings.apiAudio.enabled {
             return try CloudTranscription.start(Settings.apiAudio, locale: locale, onPartial: onPartial)
         }
+        return try await startOnDevice(locale: locale, download: true, onPartial: onPartial)
+    }
+
+    /// A speech API's take — 16 kHz mono, still in memory — written down on
+    /// this Mac after its upload failed (`DictationController.finish`). The
+    /// engine is the one `start` picks with the API off, but only one already
+    /// here: Parakeet once it is downloaded (that download was the consent),
+    /// Apple's model once its language pack is installed. A download now
+    /// would outlast any patience the user has left, so none starts.
+    static func transcribeOnDevice(_ audio: [Float], locale: Locale) async throws -> String {
+        let session = try await startOnDevice(locale: locale, download: false) { _ in }
+        // `withDeadline` cancels this task when its time is up, and the
+        // analyzer's finalization does not notice that by itself.
+        return try await withTaskCancellationHandler {
+            do {
+                try feed(audio, to: session)
+                return try await session.finish()
+            } catch {
+                session.cancel()
+                throw error
+            }
+        } onCancel: { session.cancel() }
+    }
+
+    /// `audio` handed over the way a live capture hands it: a second at a
+    /// time, in the format the session asked for — Apple's model asks for its
+    /// own, not the 16 kHz floats the take was kept in.
+    static func feed(_ audio: [Float], to session: any TranscriptionSession) throws {
+        guard let source = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000,
+                                         channels: 1, interleaved: false),
+              let converter = AVAudioConverter(from: source, to: session.audioFormat ?? source) else {
+            throw AudioCapture.Failure.unusableFormat
+        }
+        let ratio = converter.outputFormat.sampleRate / source.sampleRate
+        for start in stride(from: 0, to: audio.count, by: 16_000) {
+            let chunk = audio[start ..< min(start + 16_000, audio.count)]
+            guard let input = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: AVAudioFrameCount(chunk.count)),
+                  let output = AVAudioPCMBuffer(pcmFormat: converter.outputFormat,
+                                                frameCapacity: AVAudioFrameCount(Double(chunk.count) * ratio) + 1_024),
+                  let samples = input.floatChannelData?[0] else { throw AudioCapture.Failure.unusableFormat }
+            input.frameLength = input.frameCapacity
+            for (offset, sample) in chunk.enumerated() { samples[offset] = sample }
+            var handed = false
+            var error: NSError?
+            // Each second converted whole, to the end of its stream: a stream
+            // left open keeps its tail inside the converter. A resampler, if
+            // one is needed at all, starts over each second — a seam of a few
+            // samples.
+            converter.reset()
+            converter.convert(to: output, error: &error) { _, status in
+                guard !handed else { status.pointee = .endOfStream; return nil }
+                handed = true
+                status.pointee = .haveData
+                return input
+            }
+            if let error { throw error }
+            session.feed(output)
+        }
+    }
+
+    /// `start` with the API off. `download` false: only an engine that is
+    /// already on this Mac (`transcribeOnDevice`).
+    private static func startOnDevice(locale: Locale, download: Bool,
+                                      onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
         let resolved = await resolve(locale)
-        if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
+        // ponytail: a language Apple's newer model serves never falls back to
+        // a downloaded Parakeet when its pack is missing; retry on Parakeet
+        // after `.notInstalled` if that ever matters.
+        let parakeet = Parakeet.covers(locale) && (download ? Settings.dictationParakeet : Parakeet.isDownloaded)
+        if resolved?.preferred != true, parakeet {
             return try await Parakeet.start(locale: locale, onPartial: onPartial)
         }
         guard let resolved else {
@@ -142,7 +222,7 @@ enum Transcription {
                 transcriptionOptions: [],
                 reportingOptions: [.volatileResults],
                 attributeOptions: [])
-            try await install(module, locale: resolved.locale)
+            try await install(module, locale: resolved.locale, download: download)
             return try await SystemTranscription(
                 module: module, text: { String($0.text.characters) }, onPartial: onPartial)
         }
@@ -155,7 +235,7 @@ enum Transcription {
             transcriptionOptions: [.punctuation],
             reportingOptions: [.volatileResults],
             attributeOptions: [])
-        try await install(module, locale: resolved.locale)
+        try await install(module, locale: resolved.locale, download: download)
         return try await SystemTranscription(
             module: module, text: { String($0.text.characters) }, onPartial: onPartial)
     }
@@ -207,8 +287,9 @@ enum Transcription {
         return download == .languagePack || (Settings.dictationParakeet && Parakeet.covers(locale))
     }
 
-    private static func install(_ module: any SpeechModule, locale: Locale) async throws {
+    private static func install(_ module: any SpeechModule, locale: Locale, download: Bool) async throws {
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
+            guard download else { throw TranscriptionError.notInstalled }
             DebugLog.shared.log("DICTATE", "downloading the \(name(of: locale)) speech model…")
             downloading.set(.languagePack)
             defer { downloading.set(nil) }
@@ -360,11 +441,15 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
     private let previewTask = LockedValue<Task<Void, Never>?>(nil)
     /// How long a failed upload waits before its one retry (`finish`).
     private let retryAfter: Duration
+    /// A speech API, whose failed take is worth writing down on this Mac.
+    private let uploads: Bool
+
+    var unsentAudio: [Float]? { uploads ? samples.get() : nil }
 
     /// `previewEvery`, `retryAfter`: the preview cadence and the retry wait,
     /// a second each; tests shorten them. `previewTick` replaces the cadence's
     /// sleep, so a test can step the preview pass by pass.
-    init(preview: Bool, finishDeadline: TimeInterval, perAudioSecond: TimeInterval,
+    init(preview: Bool, uploads: Bool = false, finishDeadline: TimeInterval, perAudioSecond: TimeInterval,
          previewEvery: Duration = .seconds(1), retryAfter: Duration = .seconds(1),
          previewTick: (@Sendable () async -> Void)? = nil,
          onPartial: @escaping @Sendable (String) -> Void,
@@ -373,6 +458,7 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
         self.perAudioSecond = perAudioSecond
         self.transcribe = transcribe
         self.retryAfter = retryAfter
+        self.uploads = uploads
         guard preview else { return }
         let tick = previewTick ?? { try? await Task.sleep(for: previewEvery) }
         previewTask.set(Task { [samples] in
@@ -403,10 +489,14 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
             // the task rather than waited out.
             await task.value
         }
-        let audio = samples.exchange([])
+        // Read, not taken: the take stays in memory until a pass succeeds, so
+        // an upload that fails twice (or outlasts the watchdog) leaves it for
+        // the controller to write down on this Mac (`unsentAudio`).
+        let audio = samples.get()
         guard !audio.isEmpty else { return "" }
+        let text: String
         do {
-            return try await transcribe(audio, true)
+            text = try await transcribe(audio, true)
         } catch where Self.isTransient(error) {
             // The whole take rides on this one pass — on a hosted API, one
             // upload of what may be minutes of speech. A dropped connection,
@@ -417,8 +507,10 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
             try await Task.sleep(for: retryAfter)
             // Discarded meanwhile (⎋, a focus change): nothing more is sent.
             guard !cancelled.get() else { throw CancellationError() }
-            return try await transcribe(audio, true)
+            text = try await transcribe(audio, true)
         }
+        samples.set([])
+        return text
     }
 
     func cancel() {
