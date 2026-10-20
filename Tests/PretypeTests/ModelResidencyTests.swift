@@ -187,6 +187,23 @@ final class ModelResidencyTests: MLXTestCase {
         }
     }
 
+    // A finished load is a use: the idle clock starts at "ready", not when
+    // a download that can take minutes began.
+    func testAFinishedLoadCountsAsUse() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(hold: true), residency = tiny.residency
+            defer { residency.shutdown() }
+            tiny.advance(3_600)
+            tiny.held.set(false)
+            while residency.state != .ready { try await Task.sleep(for: .milliseconds(2)) }
+            residency.idleTick(limit: 60)
+            XCTAssertTrue(residency.primaryLoadedOrLoading, "loaded just now")
+            tiny.advance(61)
+            residency.idleTick(limit: 60)
+            XCTAssertFalse(residency.primaryLoadedOrLoading, "unused past the limit")
+        }
+    }
+
     // A load called off — the engine retired mid-load — is no failure: a
     // re-pack marked failed falls back to the original build for the launch.
     func testACalledOffLoadIsNoFailure() async throws {

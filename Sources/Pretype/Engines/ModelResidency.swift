@@ -226,7 +226,7 @@ final class ModelResidency {
     private func startLoad(_ slot: Slot) -> Task<ModelContainer, Error> {
         let isPrimary = slot === primary
         let (stateBox, correctionStatus, correctionFetched) = (self.stateBox, self.correctionStatus, self.correctionFetched)
-        let (tokenizers, blueprints, load) = (self.tokenizers, self.blueprints, self.load)
+        let (tokenizers, blueprints, load, clock) = (self.tokenizers, self.blueprints, self.load, self.clock)
         let report: @Sendable (String) -> Void = { isPrimary ? stateBox.set(.preparing($0)) : correctionStatus.set($0) }
         report(isPrimary ? String(localized: "loading…") : String(localized: "loading fix model…"))
         // Resolved once, so the load report, `fixSlot` and the blueprint all
@@ -241,6 +241,10 @@ final class ModelResidency {
                     report(Self.downloadStatus($0, fixModel: !isPrimary))
                 }
                 ModelStorage.noteLoad(repo: repo, succeeded: true)
+                // A finished load is a use: the idle clock starts now, not
+                // when a download that can take minutes began — or the model
+                // the user waited for unloads within a minute of "ready".
+                self?.modelLock.withLock { (slot.lastFailure, slot.lastUse) = (nil, clock()) }
                 if isPrimary {
                     try await Self.warmUp(loaded, report: report)
                     stateBox.set(.ready)
@@ -251,7 +255,6 @@ final class ModelResidency {
                     // what keeps the next fix from being skipped as "not fetched".
                     correctionFetched.set(true)
                 }
-                self?.modelLock.withLock { slot.lastFailure = nil }
                 return loaded
             } catch {
                 // Called off (an engine retired mid-download) is no failure
