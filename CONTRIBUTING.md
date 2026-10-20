@@ -104,8 +104,8 @@ The eval is a tool for **comparison**. The absolute first-word accuracy is lower
 Each test process is isolated. `Settings` writes to a private defaults file, API keys stay in memory, and the Hugging Face cache is an empty scratch folder. Thus a test never changes your own settings, keys or downloads.
 
 * **Pipeline.** Subclass `PipelineTestCase`. It drives a real `SuggestionController` against `FakeWorld` (`PipelineTestSupport.swift`): fake fields, keys, clipboard, clock and bookings. Use `set(\.someSetting, value)` for a setting; the test puts it back.
-* **Engines.** Subclass `MLXTestCase`. It runs MLX on the CPU and skips when the Mac has no Metal device. `tinyContainer()` and `TinyGemma` give a tiny synthetic Gemma, so no test downloads a model. Use `withScratchHub` when a test writes model folders.
-* **Rules.** Test pure types directly: for example `FieldState`, `keyAction`, `RereadSchedule`, `ModelCatalog` and the output gates.
+* **Engines.** Subclass `MLXTestCase`. It runs MLX on the CPU. It skips when the Mac has no Metal device or the build has no compiled shaders. On CI, missing shaders fail the test. `tinyContainer()` and `TinyGemma` give a tiny synthetic Gemma, so no test downloads a model. Use `withScratchHub` when a test writes model folders.
+* **Rules.** Test pure types directly: for example `FieldState`, `RequestGate`, `keyAction`, `RereadSchedule`, `ModelCatalog` and the output gates.
 * Assert what the user sees or what the app types, not internal state. A good test fails when you break the rule it names.
 
 ## Translations

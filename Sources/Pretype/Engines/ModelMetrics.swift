@@ -117,7 +117,7 @@ struct ModelMetrics {
     /// the model's own τ (`ModelCatalog.recommended(for:).logprobGateTau`) —
     /// on the headline's EN+RU core rows: % of prompts that still get a
     /// suggestion, and first-word accuracy of those. Measured per
-    /// model on 2026-10-15 (runs-2026-10-15-rebook, calib-live.py), after τ
+    /// model on 2026-10-15 (runs-2026-10-15-rebook, calib-heldout.py), after τ
     /// moved to the live recorder's scale: the offline-calibrated τ passed
     /// only 15–22% of suggestions where its calibration said 25%. Booked on
     /// the ODD half only (n=724): τ is the even half's Q4 edge, so the even
