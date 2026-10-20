@@ -85,6 +85,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         edit.addItem(withTitle: String(localized: "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: String(localized: "Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         let window = NSMenu(title: String(localized: "Window"))
+        // For the Debug Console: Settings has no minimize button (HIG), and
+        // AppKit disables the item while it is the key window.
         window.addItem(withTitle: String(localized: "Minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         window.addItem(withTitle: String(localized: "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         let main = NSMenu()

@@ -347,8 +347,7 @@ struct ModelRow: View {
                         } label: {
                             Image(systemName: "trash")
                                 .font(.caption)
-                                .foregroundStyle(hovering && !deleteDisabled
-                                    ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
+                                .foregroundStyle(hovering && !deleteDisabled ? Color.primary : Color.secondary)
                                 .opacity(deleteDisabled ? 0.5 : 1)
                         }
                         .buttonStyle(.borderless)
@@ -398,6 +397,14 @@ struct ModelRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        // The trash sits in the row's label, so VoiceOver reads the row as one
+        // element and never reaches it: its delete is the row's action too.
+        .accessibilityActions {
+            if let diskBytes, !deleteDisabled {
+                let size = ByteCountFormatter.string(fromByteCount: diskBytes, countStyle: .file)
+                Button { delete() } label: { Text("Delete downloaded \(title), frees \(size)") }
+            }
+        }
         .onHover { hovering = $0; hover($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
     }

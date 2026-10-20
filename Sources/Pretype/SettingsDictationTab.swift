@@ -267,7 +267,7 @@ struct BlacklistRow: View {
             AppIcon(icon: resolved.icon)
             Text(resolved.name)
             if resolved.name.lowercased() != entry {
-                Text(entry).font(.caption).foregroundStyle(.tertiary)
+                Text(entry).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             iconButton("minus.circle.fill", label: removeLabel(resolved.name), help: removeHelp, action: remove)
