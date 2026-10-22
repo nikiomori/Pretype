@@ -58,17 +58,22 @@ private struct APIEndpointSection: View {
                 }
                 TextField("Model", text: $config.model, prompt: Text("model name"))
                 SecureField("API key", text: $key, prompt: provider.needsKey ? Text("required") : Text("optional"))
+                // The answer beside the button that asked for it.
                 HStack {
                     Button("Test connection") { store.testAPI(kind) }
                         // Same key SettingsStore sets it from, so the match holds in every language.
                         .disabled(test == String(localized: "Testing…"))
+                    if let test { Caption(test) }
+                    Spacer()
                     if let page = provider.keyPage, let url = URL(string: page) {
                         Link("Get a key", destination: url)
                     }
-                    Spacer()
                 }
-                if let test { Caption(test) }
-                Caption(privacyNote)
+                Label {
+                    Caption(privacyNote)
+                } icon: {
+                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                }
             }
         } header: {
             kind == .text ? Text("Text") : Text("Dictation")
