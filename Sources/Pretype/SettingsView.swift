@@ -154,6 +154,35 @@ struct IconLabel: View {
     }
 }
 
+/// The ✓ of a pick-one card, and an empty ring in the same spot when it
+/// isn't picked — so a row of cards reads as one choice before any click.
+struct SelectionMark: View {
+    let isOn: Bool
+
+    var body: some View {
+        Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+            .font(.callout)
+            .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.6))
+            .accessibilityHidden(true)  // the card's .isSelected trait says it
+    }
+}
+
+extension View {
+    /// The one look of every pick-one card (display, goal, precision):
+    /// separator stroke, a darker one on hover, and an accent ring with a
+    /// faint accent fill when picked.
+    func choiceCard(isSelected: Bool, hovering: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        return padding(10)
+            .background(shape.fill(isSelected ? Color.accentColor.opacity(0.08)
+                                   : (hovering ? Color.primary.opacity(0.04) : Color.clear)))
+            .overlay(shape.stroke(isSelected ? Color.accentColor
+                                  : (hovering ? Color.primary.opacity(0.22) : Color(nsColor: .separatorColor)),
+                                  lineWidth: isSelected ? 2 : 1))
+            .contentShape(shape)
+    }
+}
+
 /// The last row of a pane: shows or hides the pane's detailed settings
 /// under it. One switch for every pane — whoever wants them once wants them
 /// everywhere.

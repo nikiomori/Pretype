@@ -479,9 +479,7 @@ private struct GateCard: View {
                     (on ? Text("Only when sure") : Text("More often"))
                         .font(.subheadline.weight(.semibold))
                     Spacer()
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
-                    }
+                    SelectionMark(isOn: isSelected)
                 }
                 MetricBar(label: String(localized: "Suggests"), fraction: Double(cov) / 100,
                           text: String(localized: "\(cov)%"), color: .indigo,
@@ -490,16 +488,8 @@ private struct GateCard: View {
                           text: String(localized: "\(acc)%"), color: .green,
                           help: String(localized: "Suggests \(cov)% of the time · \(acc)% right"))
             }
-            .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 10)
-                .fill(isSelected ? Color.accentColor.opacity(0.08)
-                      : (hovering ? Color.primary.opacity(0.04) : Color.clear)))
-            .overlay(RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? Color.accentColor
-                        : (hovering ? Color.primary.opacity(0.22) : Color(nsColor: .separatorColor)),
-                        lineWidth: isSelected ? 2 : 1))
-            .contentShape(Rectangle())
+            .choiceCard(isSelected: isSelected, hovering: hovering)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(on ? Text("Only when sure") : Text("More often"))
@@ -540,12 +530,7 @@ private struct PriorityCard: View {
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    if isActive {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                            .accessibilityHidden(true)  // the card's .isSelected trait
-                    }
+                    SelectionMark(isOn: isActive)
                 }
                 if let m = ModelMetrics.metrics(for: pick) {
                     Text(m.shortName)
@@ -569,26 +554,16 @@ private struct PriorityCard: View {
                             gbText
                         }
                     }
-                    // Semibold, not a color change: tone-colored ink at 10pt
-                    // is thin on a light form, but the metric color coding is
-                    // deliberate and shared with the rail and ranked bars.
-                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                    // Semibold, not a color change: tone-colored ink at caption
+                    // size is thin on a light form, but the metric color coding
+                    // is deliberate and shared with the rail and ranked bars.
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 }
             }
-            .padding(8)
             // Full height of the row: a card whose title or figures wrapped
             // must not stand taller than its neighbours.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(isActive ? Color.accentColor.opacity(0.08)
-                          : Color.primary.opacity(hovering ? 0.06 : 0.03)))
-            .overlay(
-                RoundedRectangle(cornerRadius: 9)
-                    .stroke(isActive ? Color.accentColor
-                            : Color.primary.opacity(hovering ? 0.22 : 0.09),
-                            lineWidth: isActive ? 1.5 : 1))
-            .contentShape(RoundedRectangle(cornerRadius: 9))
+            .choiceCard(isSelected: isActive, hovering: hovering)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])

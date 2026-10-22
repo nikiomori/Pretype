@@ -102,25 +102,11 @@ struct PresentationCard: View {
                             .background(Capsule().fill(Color.orange.opacity(0.15)))
                     }
                     Spacer()
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                    }
+                    SelectionMark(isOn: isSelected)
                 }
             }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.accentColor.opacity(0.08)
-                          : (hovering ? Color.primary.opacity(0.04) : Color.clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.accentColor
-                            : (hovering ? Color.primary.opacity(0.22) : Color(nsColor: .separatorColor)),
-                            lineWidth: isSelected ? 2 : 1)
-            )
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .choiceCard(isSelected: isSelected, hovering: hovering)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
