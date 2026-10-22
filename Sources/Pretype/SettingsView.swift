@@ -506,16 +506,21 @@ struct GeneralTab: View {
                     // below inserts/removes on this change, and a row cannot
                     // animate its own insertion from a Section modifier.
                     PresentationCard(mode: .panel, title: String(localized: "Panel"),
+                                     subtitle: String(localized: "A small box above the line. It never covers your text."),
                                      isSelected: store.presentation == .panel,
                                      hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel }
                     }
-                    PresentationCard(mode: .inline, title: String(localized: "Inline"), badge: String(localized: "Unstable"),
+                    PresentationCard(mode: .inline, title: String(localized: "Inline"),
+                                     subtitle: String(localized: "Ghost text right at the cursor. It can leave drawing glitches in some apps."),
+                                     badge: String(localized: "Unstable"),
                                      isSelected: store.presentation == .inline,
                                      hotkeyLabel: store.hotkeyStyle.label, ghost: ghostOpacity) {
                         withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline }
                     }
                 }
+                // Ideal height of the taller card, which the other then fills.
+                .fixedSize(horizontal: false, vertical: true)
                 // Ghost opacity dims inline ghost text only; the panel is an
                 // opaque HUD by design (SuggestionWindow), so the slider is
                 // inline-only — a control that moved the preview but never the
@@ -541,10 +546,6 @@ struct GeneralTab: View {
                 }
             } header: {
                 Text("Suggestion display")
-            } footer: {
-                store.presentation == .inline
-                    ? Text("Ghost text right at the cursor. It can leave drawing glitches in some apps.")
-                    : Text("A small box above the line. It never covers your text.")
             }
 
             // Every key Pretype answers to, each with a picture of what it does.
@@ -578,7 +579,7 @@ struct GeneralTab: View {
                 .help("\(store.hotkeyStyle.label) takes a word, \(store.hotkeyStyle.shiftLabel) all of it. Tap the chosen modifier twice, or press \(store.hotkeyStyle.replyLabel).")
             }
 
-            Section {
+            Section("Replies") {
                 Toggle(isOn: $autoReply) {
                     IconLabel(symbol: "bubble.left.and.text.bubble.right.fill", tint: .green,
                               title: Text("Offer replies in chats"),
@@ -600,15 +601,21 @@ struct GeneralTab: View {
             }
 
             Section("Turned off in these apps") {
-                if store.blacklist.isEmpty {
-                    Caption(String(localized: "Always off in password managers."))
-                        .help("Terminals get suggestions only in an AI agent's prompt.")
+                // The built-in exclusion is a row of the list, not a caption
+                // that vanished once the user added an app of their own.
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .accessibilityHidden(true)
+                    Text("Always off in password managers.")
+                        .foregroundStyle(.secondary)
                 }
+                .help("Terminals get suggestions only in an AI agent's prompt.")
                 ForEach(store.blacklist, id: \.self) { entry in
                     BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }
                 }
                 HStack(spacing: 10) {
-                    Button("Add App…", systemImage: "plus") { store.addBlacklistApp() }
                     TextField("", text: $blacklistDraft, prompt: Text("or type part of an app ID, like “slack”"))
                         .labelsHidden()
                         .textFieldStyle(.roundedBorder)
@@ -617,33 +624,13 @@ struct GeneralTab: View {
                             store.addBlacklistEntry(blacklistDraft)
                             blacklistDraft = ""
                         }
+                    Button("Add App…", systemImage: "plus") { store.addBlacklistApp() }
                 }
                 .controlSize(.small)
             }
 
+            // App-wide: login first, the switch people come here for.
             Section {
-                Picker(selection: $language) {
-                    Text("System (\(AppLanguage.nativeName(AppLanguage.systemChoice)))").tag("")
-                    Divider()
-                    ForEach(AppLanguage.available, id: \.self) { code in
-                        Text(verbatim: AppLanguage.nativeName(code)).tag(code)
-                    }
-                } label: {
-                    IconLabel(symbol: "globe", tint: .blue, title: Text("Language"))
-                }
-                .onChange(of: language) { AppLanguage.override = language.isEmpty ? nil : language }
-                if (language.isEmpty ? AppLanguage.systemChoice : language) != AppLanguage.running {
-                    // Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
-                    if MicrophoneAccess.isBundled {
-                        LabeledContent {
-                            Button("Relaunch") { AppLanguage.relaunch() }
-                        } label: {
-                            Text("Relaunch Pretype to switch the language.")
-                        }
-                    } else {
-                        Caption(String(localized: "Restart Pretype to switch the language."))
-                    }
-                }
                 // Bound to launchd, not to a stored bool: the same switch lives
                 // in System Settings → Login Items, and mirroring it in
                 // UserDefaults would eventually show a state that isn't real.
@@ -674,6 +661,30 @@ struct GeneralTab: View {
                               subtitle: Text("Asks GitHub once a day. Sends nothing about you."))
                 }
                 .help("New versions are announced in the menu bar; nothing is downloaded automatically.")
+                Picker(selection: $language) {
+                    Text("System (\(AppLanguage.nativeName(AppLanguage.systemChoice)))").tag("")
+                    Divider()
+                    ForEach(AppLanguage.available, id: \.self) { code in
+                        Text(verbatim: AppLanguage.nativeName(code)).tag(code)
+                    }
+                } label: {
+                    IconLabel(symbol: "globe", tint: .blue, title: Text("Language"))
+                }
+                .onChange(of: language) { AppLanguage.override = language.isEmpty ? nil : language }
+                if (language.isEmpty ? AppLanguage.systemChoice : language) != AppLanguage.running {
+                    // Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
+                    if MicrophoneAccess.isBundled {
+                        LabeledContent {
+                            Button("Relaunch") { AppLanguage.relaunch() }
+                        } label: {
+                            Text("Relaunch Pretype to switch the language.")
+                        }
+                    } else {
+                        Caption(String(localized: "Restart Pretype to switch the language."))
+                    }
+                }
+            } header: {
+                Text(verbatim: "Pretype")
             }
         }
         .formStyle(.grouped)

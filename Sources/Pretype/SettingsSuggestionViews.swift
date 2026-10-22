@@ -67,6 +67,9 @@ struct SuggestionLineMock: View {
 struct PresentationCard: View {
     let mode: SuggestionPresentation
     let title: String
+    /// What this mode is, in one line: each card says its own, so neither
+    /// has to be picked to be understood.
+    let subtitle: String
     /// Short status tag beside the title (e.g. "Unstable").
     var badge: String? = nil
     let isSelected: Bool
@@ -104,12 +107,14 @@ struct PresentationCard: View {
                     Spacer()
                     SelectionMark(isOn: isSelected)
                 }
+                Caption(subtitle)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .choiceCard(isSelected: isSelected, hovering: hovering)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
+        .accessibilityHint(subtitle)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .frame(maxWidth: .infinity)
         .onHover { hovering = $0 }
