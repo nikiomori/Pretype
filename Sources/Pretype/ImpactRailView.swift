@@ -63,10 +63,18 @@ struct ImpactRailView: View {
                     .animation(.easeOut(duration: 0.25), value: store.enabled)
                 }
 
-                if target != nil {
-                    Text("Click to apply.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                // Before any hover, what the rail answers to; during one, how
+                // to keep it. Nothing said it reacted to the pointer at all.
+                if !store.apiText.enabled {
+                    Divider()
+                    Label {
+                        target != nil ? Text("Click to apply.")
+                            : Text("Point at a card or a model to see what changes.")
+                    } icon: {
+                        Image(systemName: "cursorarrow.rays")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
             }

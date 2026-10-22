@@ -49,7 +49,26 @@ struct ModelTab: View {
                 // Ideal height of the tallest card, which the others then fill.
                 .fixedSize(horizontal: false, vertical: true)
             } header: {
-                Text("What matters most")
+                // The axis steers everything under it — these cards, the
+                // list and the map — so it heads the first section.
+                HStack {
+                    Text("What matters most")
+                    Spacer()
+                    Picker("Accuracy in", selection: $store.axisSelection) {
+                        Text("All languages").tag("*")
+                        // Only while the figures are on it (the settings map).
+                        if axis == "core" {
+                            Text(ModelMetrics.axisDisplayName("core")).tag("core")
+                        }
+                        Divider()
+                        ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
+                            Text(ModelMetrics.axisDisplayName(code)).tag(code)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .fontWeight(.regular)
+                    .fixedSize()
+                }
             }
 
             // The gate reads the base model's own confidence: Instruct and
@@ -66,18 +85,13 @@ struct ModelTab: View {
                 }
             }
 
+            // Style and memory tune the pick above; the full catalog, the
+            // longest section, goes last so nothing hides under it.
+            if showAdvanced {
+                advanced
+            }
+
             Section {
-                Picker("Accuracy in", selection: $store.axisSelection) {
-                    Text("All languages").tag("*")
-                    // Only while the figures are on it (the settings map).
-                    if axis == "core" {
-                        Text(ModelMetrics.axisDisplayName("core")).tag("core")
-                    }
-                    Divider()
-                    ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
-                        Text(ModelMetrics.axisDisplayName(code)).tag(code)
-                    }
-                }
                 if store.modelsAsMap {
                     map
                 } else {
@@ -103,10 +117,6 @@ struct ModelTab: View {
                     .help(store.modelsAsMap ? Text("Map") : Text("List"))
                 }
             }
-
-            if showAdvanced {
-                advanced
-            }
         }
         .formStyle(.grouped)
         .onAppear { store.refreshModelDiskUsage() }
@@ -129,8 +139,10 @@ struct ModelTab: View {
         }
     }
 
-    /// The ranked rows: every model with its bars, download size and trash.
-    private var list: some View {
+    /// The ranked rows: every model with its bars, download size and trash,
+    /// under one header naming the columns.
+    @ViewBuilder private var list: some View {
+        ModelRow.ColumnHeader()
         ForEach(rankedEntries, id: \.id) { entry in
             ModelRow(id: entry.id, title: entry.title,
                      isSelected: store.modelID == entry.id,
@@ -360,26 +372,31 @@ struct ModelRow: View {
                 }
                 if let m = ModelMetrics.metrics(for: id) {
                     let gb = HostPLE.residentGB(m.ramGB, of: id, pleFromDisk: pleFromDisk)
-                    HStack(spacing: 16) {
+                    // Named once by `ColumnHeader`, not under every row.
+                    HStack(spacing: Self.columnSpacing) {
                         if let la = langAccuracy {
                             MetricBar(label: String(localized: "Accuracy"), fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
                                       text: String(localized: "\(la.pct)%"),
                                       color: .green,
-                                      help: String(localized: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other."))
+                                      help: String(localized: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other."),
+                                      showsLabel: false)
                         } else {
                             MetricBar(label: String(localized: "Accuracy"), fraction: Bounds.accuracy(m), text: String(localized: "\(m.firstWordPct)%"),
                                       color: .green,
-                                      help: String(localized: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). English and Russian are pooled here; pick either as the axis to see it alone."))
+                                      help: String(localized: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). English and Russian are pooled here; pick either as the axis to see it alone."),
+                                      showsLabel: false)
                         }
                         MetricBar(label: String(localized: "Speed"), fraction: Bounds.speed(m), text: String(localized: "\(m.p50Ms) ms"),
                                   color: .blue,
-                                  help: String(localized: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster."))
+                                  help: String(localized: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster."),
+                                  showsLabel: false)
                         MetricBar(label: String(localized: "Memory"), fraction: Bounds.lightness(gb),
                                   text: gbLabel(gb),
                                   color: .teal,
                                   help: gb > 0
                                     ? String(localized: "Resident weights: \(oneDecimal(gb)) GB — longer bar = lighter.")
-                                    : String(localized: "System model — no download, no app memory."))
+                                    : String(localized: "System model — no download, no app memory."),
+                                  showsLabel: false)
                         chordFigures
                     }
                     .padding(.leading, 24)
@@ -415,20 +432,51 @@ struct ModelRow: View {
     @ViewBuilder private var chordFigures: some View {
         let chord = ModelMetrics.taskMetrics(
             for: id, style: ModelCatalog.recommended(for: id).style)
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Fix · Reply").font(.caption2).foregroundStyle(.secondary)
+        HStack(spacing: Self.chordSpacing) {
             if let chord {
-                let fixText = Text("\(chord.m.fixPct)%").foregroundStyle(Color.pink.legible)
-                let dotText = Text(" · ").foregroundStyle(Color.secondary)
-                let replyText = Text("\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
-                Text("\(fixText)\(dotText)\(replyText)")
-                    .font(.caption2.monospacedDigit())
+                Text("\(chord.m.fixPct)%").foregroundStyle(Color.pink.legible)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text("—").font(.caption2).foregroundStyle(.secondary)
+                Text("—").foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(width: 68, alignment: .leading)
+        .font(.caption2.monospacedDigit())
+        .frame(width: Self.chordWidth)
         .help(chordHelp(chord))
+        // The column names are in the header, which VoiceOver skips.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(chord.map { Text(verbatim: "\(String(localized: "Fix")) \($0.m.fixPct)%, \(String(localized: "Reply")) \($0.m.replyPct)%") }
+            ?? Text(verbatim: "\(String(localized: "Fix")), \(String(localized: "Reply")): —"))
+    }
+
+    static let columnSpacing: CGFloat = 16
+    static let chordWidth: CGFloat = 68
+    static let chordSpacing: CGFloat = 6
+
+    /// The list's column names, once over the rows instead of under each
+    /// bar of each row — laid out like a row's figures so they line up.
+    struct ColumnHeader: View {
+        var body: some View {
+            HStack(spacing: ModelRow.columnSpacing) {
+                Text("Accuracy").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Speed").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Memory").frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: ModelRow.chordSpacing) {
+                    Text("Fix").foregroundStyle(Color.pink.legible)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Reply").foregroundStyle(Color.purple.legible)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(width: ModelRow.chordWidth)
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 24)
+            .accessibilityHidden(true)  // each row's figures name themselves
+        }
     }
 
     private func chordHelp(

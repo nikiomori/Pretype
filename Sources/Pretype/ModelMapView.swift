@@ -605,24 +605,43 @@ struct MetricBar: View {
     let text: String
     let color: Color
     let help: String
+    /// False in a list whose header names the column: the value then sits
+    /// beside the bar on one line, and only VoiceOver hears the label.
+    var showsLabel = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(label).font(.caption2).foregroundStyle(.secondary)
-                Spacer()
-                Text(text).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            // Drawn, not a ProgressView: each of those is an AppKit progress
-            // indicator, and 33 of them made opening the list stall.
-            // Floored so the slowest model still shows a sliver of bar.
-            Capsule().fill(color.opacity(0.15))
-                .overlay {
-                    Capsule().fill(color).scaleEffect(x: max(0.03, fraction), anchor: .leading)
+        Group {
+            if showsLabel {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(label).font(.caption2).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(text).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                    bar
                 }
-                .frame(height: 5)
+            } else {
+                HStack(spacing: 6) {
+                    bar
+                    Text(text).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                        .frame(width: 44, alignment: .trailing)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "\(label), \(text)"))
+            }
         }
         .frame(maxWidth: .infinity)
         .help(help)
+    }
+
+    // Drawn, not a ProgressView: each of those is an AppKit progress
+    // indicator, and 33 of them made opening the list stall.
+    // Floored so the slowest model still shows a sliver of bar.
+    private var bar: some View {
+        Capsule().fill(color.opacity(0.15))
+            .overlay {
+                Capsule().fill(color).scaleEffect(x: max(0.03, fraction), anchor: .leading)
+            }
+            .frame(height: 5)
     }
 }
