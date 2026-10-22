@@ -74,6 +74,11 @@ struct PersonalTab: View {
                               subtitle: Text("Uses text you just copied."))
                 }
                 .help("Up to 600 characters, read only when the clipboard changes. Copies from password managers are never read, and nothing is written to the journal or debug log.")
+            }
+
+            // The words are learned from the journal, so the two share a
+            // section: the switch for everyone, the journal with the detail.
+            Section("Learning") {
                 // Instant n-gram suggestions come from the controller, so learning
                 // works the same on every engine, Apple Intelligence included.
                 Toggle(isOn: $store.personalization) {
@@ -84,10 +89,9 @@ struct PersonalTab: View {
                                   : Text("Boosts words you often type."))
                 }
                 .help("Learned from your suggestion journal, only while on. Clear the journal to forget them.")
-            }
-
-            if showAdvanced {
-                journal
+                if showAdvanced {
+                    journal
+                }
             }
         }
         .formStyle(.grouped)
@@ -115,55 +119,53 @@ struct PersonalTab: View {
 
     /// The raw data under Learn my words: on by default, so it's here for
     /// clearing and importing, not for setting up.
-    private var journal: some View {
-        Section("Journal") {
-            Toggle(isOn: Binding(
-                get: { store.journalEnabled },
-                set: { on in
-                    // Turning off deletes the journal via the store's didSet;
-                    // only ask when there is actually something to lose.
-                    if !on && store.journalHasData {
-                        clearDisablesJournal = true
-                        confirmingClear = true
-                    } else {
-                        store.journalEnabled = on
-                    }
-                }
-            )) {
-                Text("Keep suggestion journal")
-                Text("Saves suggestions with nearby text, on this Mac only.")
-            }
-            .help("The raw data for personalization, capped at 50 MB in Application Support. On-screen text is never written. Turning this off deletes it.")
-            LabeledContent("Size") {
-                HStack(spacing: 10) {
-                    Text(store.journalBytes > 0
-                        ? ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)
-                        : String(localized: "Empty"))
-                        .monospacedDigit()
-                    Button("Clear…") {
-                        clearDisablesJournal = false
-                        confirmingClear = true
-                    }
-                    .controlSize(.small)
-                    .disabled(store.journalBytes == 0)
-                }
-            }
-            LabeledContent {
-                Button("Import Text…", systemImage: "text.book.closed") { store.importTextFiles() }
-                    .controlSize(.small)
-                    .disabled(!store.journalEnabled || store.importing)
-            } label: {
-                Text("Learn from your writing")
-                if store.journalEnabled {
-                    Text("Import .txt or .md files you wrote.")
+    @ViewBuilder private var journal: some View {
+        Toggle(isOn: Binding(
+            get: { store.journalEnabled },
+            set: { on in
+                // Turning off deletes the journal via the store's didSet;
+                // only ask when there is actually something to lose.
+                if !on && store.journalHasData {
+                    clearDisablesJournal = true
+                    confirmingClear = true
                 } else {
-                    Text("Turn on the journal first.")
+                    store.journalEnabled = on
                 }
             }
-            .help("Pretype learns your words and reuses your sentences as examples. Files are only read; Clear forgets imported text too.")
-            if let status = store.importStatus {
-                Caption(status)
+        )) {
+            Text("Keep suggestion journal")
+            Text("Saves suggestions with nearby text, on this Mac only.")
+        }
+        .help("The raw data for personalization, capped at 50 MB in Application Support. On-screen text is never written. Turning this off deletes it.")
+        LabeledContent("Size") {
+            HStack(spacing: 10) {
+                Text(store.journalBytes > 0
+                    ? ByteCountFormatter.string(fromByteCount: Int64(store.journalBytes), countStyle: .file)
+                    : String(localized: "Empty"))
+                    .monospacedDigit()
+                Button("Clear…") {
+                    clearDisablesJournal = false
+                    confirmingClear = true
+                }
+                .controlSize(.small)
+                .disabled(store.journalBytes == 0)
             }
+        }
+        LabeledContent {
+            Button("Import Text…", systemImage: "text.book.closed") { store.importTextFiles() }
+                .controlSize(.small)
+                .disabled(!store.journalEnabled || store.importing)
+        } label: {
+            Text("Learn from your writing")
+            if store.journalEnabled {
+                Text("Import .txt or .md files you wrote.")
+            } else {
+                Text("Turn on the journal first.")
+            }
+        }
+        .help("Pretype learns your words and reuses your sentences as examples. Files are only read; Clear forgets imported text too.")
+        if let status = store.importStatus {
+            Caption(status)
         }
     }
 }

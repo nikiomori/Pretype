@@ -63,70 +63,8 @@ struct DictationTab: View {
             }
 
             if store.dictationBlocker == nil, store.dictation {
-                Section {
-                    Picker(selection: $dictationGesture) {
-                        ForEach(DictationGesture.allCases, id: \.self) { gesture in
-                            Text(gesture.label).tag(gesture)
-                        }
-                    } label: {
-                        Text("Push-to-talk key")
-                        if dictationGesture != .off {
-                            Text("Hold to record. Esc discards.")
-                        }
-                    }
-                    .help(replyGesture == .off
-                        ? Text("A hold, not a tap. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it.")
-                        : Text("A hold, not a tap, so it never collides with “\(replyGesture.label)” for a reply. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it."))
-                    if dictationGesture == .off, dictationLatch == .off {
-                        Caption(String(localized: "⚠︎ Nothing starts dictation. Pick a key or a chord."))
-                    }
-                    Picker(selection: $dictationLatch) {
-                        ForEach(DictationLatch.allCases, id: \.self) { latch in
-                            Text(latch.label).tag(latch)
-                        }
-                    } label: {
-                        Text("Hands-free chord")
-                        if dictationLatch != .off {
-                            Text("Press once to start, again to stop.")
-                        }
-                    }
-                    .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording starts on the keypress itself. ⎋ throws the capture away, and moving to another field ends it.")
-                    Picker(selection: $store.dictationLanguage) {
-                        Text("Follow keyboard").tag("auto")
-                        Divider()
-                        ForEach(store.dictationLocales, id: \.identifier) { locale in
-                            Text(Transcription.name(of: locale)).tag(locale.identifier)
-                        }
-                    } label: {
-                        Text("Language")
-                        // Which speech model it lands on, right where the
-                        // language is picked.
-                        let line = [store.dictationLanguage == "auto" ? String(localized: "Now \(store.dictationLanguageName)") : nil,
-                                    speechModel].compactMap { $0 }
-                        if !line.isEmpty {
-                            Text(line.joined(separator: " · "))
-                        }
-                    }
-                    .help(languageHelp)
-                    // For the languages macOS simply cannot dictate, say so
-                    // HERE instead of letting the user find out by holding
-                    // a key and getting nothing.
-                    if store.dictationSupport == .unsupported {
-                        Caption(String(localized: "⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language."))
-                    }
-                    if [.fallback, .parakeet].contains(store.dictationSupport),
-                       Parakeet.covers(Settings.resolvedDictationLocale) {
-                        Toggle(isOn: $store.dictationParakeet) {
-                            Text("Use Parakeet for \(store.dictationLanguageName)")
-                            Text("Fewer errors and real punctuation. A one-time 610 MB download.")
-                        }
-                        .help("NVIDIA's open speech model, run locally. On Russian it makes under half the word errors of the system model, punctuates (F1 0.87 against 0.02) and runs three times faster.")
-                        if let note = store.parakeetNote {
-                            Caption(note)
-                        }
-                    }
-                }
-
+                startSection
+                languageSection
                 if showAdvanced {
                     advanced
                 }
@@ -162,10 +100,95 @@ struct DictationTab: View {
         }
     }
 
-    /// Microphone, silence stop, the model's tidy-up, voice commands and the
-    /// send-after list: each has a default that holds for most people.
+    /// The keys that start a dictation — and, with the detail shown, when a
+    /// hands-free one stops by itself, right under the chord it belongs to.
+    private var startSection: some View {
+        Section("Start dictation") {
+            Picker(selection: $dictationGesture) {
+                ForEach(DictationGesture.allCases, id: \.self) { gesture in
+                    Text(gesture.label).tag(gesture)
+                }
+            } label: {
+                Text("Push-to-talk key")
+                if dictationGesture != .off {
+                    Text("Hold to record. Esc discards.")
+                }
+            }
+            .help(replyGesture == .off
+                ? Text("A hold, not a tap. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it.")
+                : Text("A hold, not a tap, so it never collides with “\(replyGesture.label)” for a reply. Recording starts after about half a second of quiet hold; any other key, click or scroll before that cancels it."))
+            if dictationGesture == .off, dictationLatch == .off {
+                Caption(String(localized: "⚠︎ Nothing starts dictation. Pick a key or a chord."))
+            }
+            Picker(selection: $dictationLatch) {
+                ForEach(DictationLatch.allCases, id: \.self) { latch in
+                    Text(latch.label).tag(latch)
+                }
+            } label: {
+                Text("Hands-free chord")
+                if dictationLatch != .off {
+                    Text("Press once to start, again to stop.")
+                }
+            }
+            .help("Nothing to hold, so you can scroll, click and think mid-sentence. Recording starts on the keypress itself. ⎋ throws the capture away, and moving to another field ends it.")
+            if showAdvanced, dictationLatch != .off {
+                Picker("Stop after silence", selection: $dictationSilence) {
+                    Text("Never").tag(0.0)
+                    Text("3 seconds").tag(3.0)
+                    Text("5 seconds").tag(5.0)
+                    Text("10 seconds").tag(10.0)
+                }
+                .help(dictationSilence == 0
+                    ? Text("Runs until you press the chord again, or for ten minutes.")
+                    : Text("Types what it has and stops, so a forgotten chord isn't an open microphone. Before your first word, it waits 30 seconds."))
+            }
+        }
+    }
+
+    /// What it listens for, and the speech model that lands on.
+    private var languageSection: some View {
+        Section("Language") {
+            Picker(selection: $store.dictationLanguage) {
+                Text("Follow keyboard").tag("auto")
+                Divider()
+                ForEach(store.dictationLocales, id: \.identifier) { locale in
+                    Text(Transcription.name(of: locale)).tag(locale.identifier)
+                }
+            } label: {
+                Text("Language")
+                // Which speech model it lands on, right where the
+                // language is picked.
+                let line = [store.dictationLanguage == "auto" ? String(localized: "Now \(store.dictationLanguageName)") : nil,
+                            speechModel].compactMap { $0 }
+                if !line.isEmpty {
+                    Text(line.joined(separator: " · "))
+                }
+            }
+            .help(languageHelp)
+            // For the languages macOS simply cannot dictate, say so
+            // HERE instead of letting the user find out by holding
+            // a key and getting nothing.
+            if store.dictationSupport == .unsupported {
+                Caption(String(localized: "⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language."))
+            }
+            if [.fallback, .parakeet].contains(store.dictationSupport),
+               Parakeet.covers(Settings.resolvedDictationLocale) {
+                Toggle(isOn: $store.dictationParakeet) {
+                    Text("Use Parakeet for \(store.dictationLanguageName)")
+                    Text("Fewer errors and real punctuation. A one-time 610 MB download.")
+                }
+                .help("NVIDIA's open speech model, run locally. On Russian it makes under half the word errors of the system model, punctuates (F1 0.87 against 0.02) and runs three times faster.")
+                if let note = store.parakeetNote {
+                    Caption(note)
+                }
+            }
+        }
+    }
+
+    /// Microphone, the model's tidy-up, voice commands and the send-after
+    /// list: each has a default that holds for most people.
     @ViewBuilder private var advanced: some View {
-        Section {
+        Section("Microphone & cleanup") {
             Picker(selection: $store.dictationInput) {
                 Text("Automatic").tag("auto")
                 Text("System default").tag("system")
@@ -200,17 +223,6 @@ struct DictationTab: View {
             .help(store.dictationInput == "auto"
                 ? Text("A headset carries either good playback or a two-way call, never both. When your default input and output are the same headset, dictation records from the built-in microphone instead, so your audio never changes.")
                 : Text("Recording from a wireless headset switches it into call mode for the capture, which makes anything playing sound flat and quiet."))
-            if dictationLatch != .off {
-                Picker("Stop after silence", selection: $dictationSilence) {
-                    Text("Never").tag(0.0)
-                    Text("3 seconds").tag(3.0)
-                    Text("5 seconds").tag(5.0)
-                    Text("10 seconds").tag(10.0)
-                }
-                .help(dictationSilence == 0
-                    ? Text("Runs until you press the chord again, or for ten minutes.")
-                    : Text("Types what it has and stops, so a forgotten chord isn't an open microphone. Before your first word, it waits 30 seconds."))
-            }
             Toggle(isOn: $dictationPolish) {
                 Text("Tidy up with the model")
                 Text("Fixes capitalization, punctuation and mishearings.")
