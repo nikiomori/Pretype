@@ -86,7 +86,6 @@ struct PersonalTab: View {
                 .help("Learned from your suggestion journal, only while on. Clear the journal to forget them.")
             }
 
-            AdvancedRow()
             if showAdvanced {
                 journal
             }

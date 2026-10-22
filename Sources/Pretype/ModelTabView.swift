@@ -104,7 +104,6 @@ struct ModelTab: View {
                 }
             }
 
-            AdvancedRow()
             if showAdvanced {
                 advanced
             }

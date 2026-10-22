@@ -114,6 +114,9 @@ enum SettingsTab: String, CaseIterable {
         case .api: return String(localized: "API")
         }
     }
+
+    /// Whether the pane has rows behind the header's Advanced switch.
+    var hasAdvanced: Bool { [.model, .dictation, .personalization].contains(self) }
 }
 
 /// A System Settings icon tile: a white glyph on a colored rounded square,
@@ -183,43 +186,22 @@ extension View {
     }
 }
 
-/// The last row of a pane: shows or hides the pane's detailed settings
-/// under it. One switch for every pane — whoever wants them once wants them
-/// everywhere.
-struct AdvancedRow: View {
-    @AppStorage("showAdvancedSettings") private var shown = false
-
-    var body: some View {
-        Section {
-            // Only the chevron animates: rows sliding into a grouped Form
-            // re-laid out the whole pane on every frame of the slide.
-            Button {
-                shown.toggle()
-            } label: {
-                HStack {
-                    Text("Advanced")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(shown ? 90 : 0))
-                        .animation(.easeInOut(duration: 0.2), value: shown)
-                        .accessibilityHidden(true)  // the value below says it
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityValue(shown ? Text("Expanded") : Text("Collapsed"))
-        }
-    }
-}
-
 /// Sidebar + pane + Live Impact inspector — the System Settings shape of the
 /// new macOS: navigation and the rail render on system Liquid Glass, content
 /// stays on standard grouped-form backgrounds (per the HIG, glass is for the
 /// floating layer, never the content itself).
 struct SettingsRootView: View {
     @Bindable var store: SettingsStore
+    /// One switch for every pane — whoever wants the detail once wants it
+    /// everywhere. Rows appear in place, unanimated: rows sliding into a
+    /// grouped Form re-laid out the whole pane on every frame of the slide.
+    @AppStorage("showAdvancedSettings") private var showAdvanced = false
+    /// The pane column's width, for the Form's trailing margin below.
+    @State private var paneWidth: CGFloat = 0
+
+    /// A grouped Form stops growing at ~704 pt (plus its own ~22 pt
+    /// margins) and centers that column in whatever it's given.
+    private static let column: CGFloat = 704
 
     var body: some View {
         NavigationSplitView {
@@ -290,19 +272,28 @@ struct SettingsRootView: View {
 
     private var detail: some View {
         HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                // Over the form's own column: a grouped Form stops growing at
-                // ~704 pt and centers, and a title left at the pane's edge stood
-                // apart from it on every pane without the rail.
-                Text(store.activeTab.title)
-                    .font(.title2.weight(.bold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(maxWidth: 704)
+            // The column hugs the sidebar instead of centering: centered, it
+            // jumped ~116 pt left whenever the Model rail took its width.
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text(store.activeTab.title)
+                        .font(.title2.weight(.bold))
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    // Same spot on every pane that has detail, absent on the
+                    // rest; the rows it shows sit where they belong.
+                    if store.activeTab.hasAdvanced {
+                        Toggle("Advanced", isOn: $showAdvanced)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                    }
+                }
+                .frame(maxWidth: Self.column)
                 .padding(.horizontal, 22)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
                 ProblemBanner(controller: store.controller)
-                    .frame(maxWidth: 704)
+                    .frame(maxWidth: Self.column)
                     .padding(.horizontal, 22)
                 Group {
                     switch store.activeTab {
@@ -313,7 +304,12 @@ struct SettingsRootView: View {
                     case .api: APITab(store: store)
                     }
                 }
+                // A margin, not a narrower frame: the Form's column moves
+                // left while it still scrolls under the pointer anywhere in
+                // the pane, with its scroller at the pane's edge.
+                .contentMargins(.trailing, max(0, paneWidth - Self.column - 44), for: .scrollContent)
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
             // The rail measures model settings, so it stands beside the Model
             // pane only. A plain column, not an .inspector: an inspector shown
             // per pane made the split view animate its columns, and the
@@ -324,6 +320,9 @@ struct SettingsRootView: View {
                     .frame(width: 280)
             }
         }
+        // One surface from the title down: the grouped Form's own backdrop
+        // differs from the window's, and the title band stood out above it.
+        .scrollContentBackground(.hidden)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }

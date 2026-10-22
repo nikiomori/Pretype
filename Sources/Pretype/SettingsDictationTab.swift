@@ -127,7 +127,6 @@ struct DictationTab: View {
                     }
                 }
 
-                AdvancedRow()
                 if showAdvanced {
                     advanced
                 }
