@@ -37,6 +37,10 @@ extension SuggestionController {
         /// or an engine status over it means ⇥ would type text nobody sees.
         var ghostOnScreen = false
         var style = HotkeyStyle.tab
+        /// The fix and reply features are on (`Settings.fixesEnabled`,
+        /// `Settings.repliesEnabled`): off, their chords are the app's keys.
+        var fixes = true
+        var replies = true
     }
 
     /// `fix` asks the fix flows, which get first refusal — a fix preview is
@@ -51,8 +55,8 @@ extension SuggestionController {
         if !key.offHere {
             // Before the fix flows only for symmetry: the two chords differ
             // by ⇧ and the fix matcher demands exact flags.
-            if key.style.matchesReply(keyCode: key.keyCode, flags: key.flags) { return .reply }
-            switch fix() {
+            if key.replies, key.style.matchesReply(keyCode: key.keyCode, flags: key.flags) { return .reply }
+            switch key.fixes ? fix() : .ignored {
             case .consumed: return .fix(swallowed: true)
             case .passThrough: return .fix(swallowed: false)
             case .ignored: break

@@ -122,7 +122,7 @@ final class SuggestionController {
             // on a hold past `ModifierHold.threshold`.
             self?.dictationController.modifierChanged(event)
             self?.updateScrollMonitoring()
-            guard let self, self.replyTap.modifierChanged(
+            guard let self, Settings.repliesEnabled, self.replyTap.modifierChanged(
                 keyCode: event.getIntegerValueField(.keyboardEventKeycode),
                 flags: event.flags, gesture: Settings.replyGesture, now: self.env.now()) else { return }
             // Off the tap callback before any AX read — same rule as the chord.
@@ -153,6 +153,17 @@ final class SuggestionController {
         guard !on else { return focusTracker.wakeAccessibility() }
         dictationController.invalidate()
         dismiss()
+    }
+
+    /// A feature switch moved (Settings → General). What is on screen goes —
+    /// a ghost or a pill of a feature just turned off must not stay one key
+    /// from typing. When suggestions stopped or started asking the completion
+    /// model, it is let go — fixes and replies reload theirs on use — or
+    /// loading starts.
+    func featuresChanged(wasUsingModel: Bool) {
+        dismiss()
+        guard wasUsingModel != Settings.completionsUseModel else { return }
+        if Settings.completionsUseModel { engine.prewarmIfNeeded() } else { engine.releaseModelNow() }
     }
 
     func clearOnboarding() {
@@ -394,7 +405,7 @@ final class SuggestionController {
 
     func textDidChange() {
         let pass = RequestGate.Pass(
-            enabled: Settings.enabled, dictating: dictationController.isBusy,
+            enabled: Settings.enabled, watchesTyping: Settings.watchesTyping, dictating: dictationController.isBusy,
             ownWindowFrontmost: isOwnUIFrontmost, appAllowed: AppPolicy.allowsCompletions(typingContext),
             hasGhost: field.ghost != nil)
         let element: AXUIElement
@@ -419,7 +430,8 @@ final class SuggestionController {
         // A selection switches into fix-selection mode (⌥⇥); the correction
         // controller owns the overlay while it's up. Not in a terminal, where
         // a selection is screen output and the chord is off.
-        if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleSelection(element) { return }
+        if Settings.fixesEnabled, !AppPolicy.isTerminal(typingContext.bundleID),
+           correctionController.handleSelection(element) { return }
 
         // Web and Electron apps can REPLACE the focused node with no focus
         // notification (see `dictationFieldContext`) — typing an accept into
@@ -451,6 +463,11 @@ final class SuggestionController {
         // than predicting ahead. Not in a terminal: the key handler leaves ⇥/⎋
         // to the terminal there, so a pill could be neither applied nor dismissed.
         if !AppPolicy.isTerminal(typingContext.bundleID), correctionController.handleCaret(ctx) { return }
+
+        // Fixes only, or an agent's prompt with suggestions kept out of it:
+        // everything below is the suggestion's.
+        guard Settings.suggestionsEnabled,
+              Settings.agentPromptSuggestions || !env.isTerminalField(element) else { return }
 
         // The correction flows carry this same guard.
         if RequestGate.caretSplitsWord(before: ctx.textAfterCaret) {

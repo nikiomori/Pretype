@@ -179,14 +179,10 @@ final class CorrectionController {
         // ASCII shortcode, so the Character-vs-UTF-16 mismatch that bites
         // elsewhere can't bite here, and the emoji is only ever inserted
         // (TextInjector.insert is surrogate-safe).
-        if pendingFix == nil, ctx.textAfterCaret.first?.isLetter != true,
+        if pendingFix == nil, Settings.fixesEnabled, ctx.textAfterCaret.first?.isLetter != true,
            tokenAtCaret != dismissedCorrectionWord,
            let caret = ctx.caretRect,
-           let fix = tokenAtCaret.hasPrefix(":")
-               ? EmojiShortcodes.emoji(for: tokenAtCaret)
-               : tokenAtCaret.hasSuffix("=")
-                   ? InlineCalculator.completion(for: tokenAtCaret)
-                   : SpellChecker.correction(for: tokenAtCaret, context: text) {
+           let fix = Self.inlineFix(for: tokenAtCaret, context: text) {
             host.clearActiveCompletion()
             indicator.stop()
             activeCorrection = (word: tokenAtCaret, fix: fix)
@@ -201,6 +197,14 @@ final class CorrectionController {
             window.hide()
         }
         return false
+    }
+
+    /// The inline fix for the token at the caret, each kind behind its own
+    /// switch: a closed shortcode, a sum ending in "=", or a misspelling.
+    static func inlineFix(for token: String, context: String) -> String? {
+        if token.hasPrefix(":") { return Settings.emojiShortcodes ? EmojiShortcodes.emoji(for: token) : nil }
+        if token.hasSuffix("=") { return Settings.inlineMath ? InlineCalculator.completion(for: token) : nil }
+        return Settings.fixTypos ? SpellChecker.correction(for: token, context: context) : nil
     }
 
     // MARK: - Key handling (called from SuggestionController.handleKeyDown)

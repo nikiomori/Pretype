@@ -59,6 +59,20 @@ final class CorrectionControllerTests: XCTestCase {
         while !condition(), Date() < end { try? await Task.sleep(for: .milliseconds(1)) }
     }
 
+    /// Each inline fix answers to its own switch; a shortcode or a sum
+    /// turned off never falls through to the spell-checker.
+    func testEachInlineFixHasItsOwnSwitch() {
+        defer { (Settings.emojiShortcodes, Settings.inlineMath, Settings.fixTypos) = (true, true, true) }
+        XCTAssertNotNil(CorrectionController.inlineFix(for: ":shrug:", context: "ok :shrug:"))
+        XCTAssertEqual(CorrectionController.inlineFix(for: "12*4=", context: "12*4="), "12*4=48")
+        Settings.emojiShortcodes = false
+        Settings.inlineMath = false
+        XCTAssertNil(CorrectionController.inlineFix(for: ":shrug:", context: "ok :shrug:"))
+        XCTAssertNil(CorrectionController.inlineFix(for: "12*4=", context: "12*4="))
+        Settings.fixTypos = false
+        XCTAssertNil(CorrectionController.inlineFix(for: "recieve", context: "I recieve"))
+    }
+
     // "12*7=" at the caret: its answer is offered over the token, preempting
     // a completion, and ⇥ types it — re-reading the field first, off the tap.
     func testAnInlineFixIsTypedOverItsTokenOnTab() {

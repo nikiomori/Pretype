@@ -37,8 +37,11 @@ extension SuggestionController {
         if let element = env.trackedElement(), Settings.enabled, completionsWelcome {
             // Entered a text field — start reloading the model now (no-op unless
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
-            engine.prewarmIfNeeded()
-            if case .preparing = engine.state {
+            // Unless no suggestion asks it: then it loads for a fix or a reply.
+            if Settings.completionsUseModel {
+                engine.prewarmIfNeeded()
+            }
+            if Settings.completionsUseModel, case .preparing = engine.state {
                 if let ctx = env.context(of: element) {
                     field.noteCaret(ctx.caretRect, style: ctx.host)
                     indicator.start()
@@ -49,7 +52,8 @@ extension SuggestionController {
                 guard let self, self.focusGeneration == generation else { return }
                 // An empty message box in a chat: the reply's own, wider
                 // capture replaces the completion's.
-                if Settings.autoReply, AppPolicy.isChat(self.typingContext), self.replyComposer.compose(auto: true) {
+                if Settings.repliesEnabled, Settings.autoReply, AppPolicy.isChat(self.typingContext),
+                   self.replyComposer.compose(auto: true) {
                     return
                 }
                 self.promptContext.refreshScreenIfNeeded(typed: "")

@@ -102,7 +102,7 @@ extension SuggestionController {
             canUndo: undo != nil,
             offHere: AppPolicy.isBlacklisted(typingContext) || dictationController.isBusy,
             ghost: field.ghost, ghostOnScreen: window.showsSuggestion,
-            style: Settings.hotkeyStyle)
+            style: Settings.hotkeyStyle, fixes: Settings.fixesEnabled, replies: Settings.repliesEnabled)
         let action = Self.keyAction(for: key,
                                     fix: { correctionController.handleKey(keyCode: keyCode, flags: flags) },
                                     focusElsewhere: { keyboardFocusIsElsewhere })

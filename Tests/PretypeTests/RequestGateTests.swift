@@ -25,6 +25,8 @@ final class RequestGateTests: XCTestCase {
             (G.Pass(), 7, false, .read(7), true, #line),
             // Paused, or a capture owns the overlay: nothing at all, no read.
             (G.Pass(enabled: false), 7, false, .idle, false, #line),
+            // Suggestions and fixes both off: nothing would show, nothing is read.
+            (G.Pass(watchesTyping: false), 7, false, .idle, false, #line),
             (G.Pass(dictating: true, ownWindowFrontmost: true), 7, false, .idle, false, #line),
             (G.Pass(enabled: false, appAllowed: false), 7, false, .idle, false, #line),
             // Our own window: everything goes, silently, before any read.

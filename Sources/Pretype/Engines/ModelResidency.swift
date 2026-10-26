@@ -179,8 +179,15 @@ final class ModelResidency {
     }
 
     /// The initial load, and the idle and memory-pressure maintenance.
-    func start() {
-        primary.task = startLoad(primary)
+    /// `loadPrimary` false: no suggestion asks the completion model
+    /// (`Settings.completionsUseModel`), so it rests unloaded — as after an
+    /// idle unload — until a fix, a reply or a prewarm needs one.
+    func start(loadPrimary: Bool = true) {
+        if loadPrimary {
+            primary.task = startLoad(primary)
+        } else {
+            stateBox.set(.preparing(String(localized: "idle — model unloaded")))
+        }
         didInitLoad = true
         startIdleMaintenance()
     }

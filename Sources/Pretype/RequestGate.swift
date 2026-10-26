@@ -10,6 +10,9 @@ enum RequestGate {
     /// What a pass knows before it looks the field up.
     struct Pass {
         var enabled = true
+        /// Suggestions or fixes are on (`Settings.watchesTyping`): with both
+        /// off nothing here would ever show, so the field isn't read.
+        var watchesTyping = true
         /// A capture owns the overlay (`DictationController.isBusy`).
         var dictating = false
         /// One of Pretype's own windows is frontmost.
@@ -37,7 +40,7 @@ enum RequestGate {
     /// Pretype stays out of. The app is checked on both sides of the lookup:
     /// before it, so a terminal costs no AX read; after it, the site.
     static func entry<Field>(_ pass: Pass, findField: () -> Field?, siteBlocked: () -> Bool) -> Entry<Field> {
-        guard pass.enabled, !pass.dictating else { return .idle }
+        guard pass.enabled, pass.watchesTyping, !pass.dictating else { return .idle }
         if pass.ownWindowFrontmost { return .dismiss(why: nil) }
         guard pass.appAllowed else { return .dismiss(why: "suggestions are off in blacklisted apps") }
         guard let field = findField() else { return .dismiss(why: pass.hasGhost ? "lost text element" : nil) }

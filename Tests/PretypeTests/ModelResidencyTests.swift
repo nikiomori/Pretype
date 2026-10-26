@@ -18,7 +18,7 @@ private final class TinyResidency {
 
     /// `failsPrimary`: only the completion model's loads fail.
     init(primaryID: String = "test/tiny-gemma", style: CompletionStyle = .base, fails: Bool = false,
-         failsPrimary: Bool = false, hold: Bool = false, after previous: TinyResidency? = nil) {
+         failsPrimary: Bool = false, hold: Bool = false, loadPrimary: Bool = true, after previous: TinyResidency? = nil) {
         now = previous?.now ?? LockedValue(Date(timeIntervalSince1970: 1_000_000))
         held = LockedValue(hold)
         let (now, seen, loads, held) = (now, blueprintsSeen, loads, held)
@@ -32,7 +32,7 @@ private final class TinyResidency {
                 return try tinyContainer()
             },
             tokenizers: tokenizers, clock: { now.get() })
-        residency.start()
+        residency.start(loadPrimary: loadPrimary)
     }
 
     func use(_ role: ModelResidency.Role = .completion) async throws -> ModelResidency.Lease {
@@ -69,6 +69,21 @@ final class ModelResidencyTests: MLXTestCase {
         let directory = try XCTUnwrap(ModelStorage.cacheDirectory(repo: repo)).appendingPathComponent("snapshots/rev")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+
+    // No suggestion asks the completion model: it never loads and reads as
+    // resting, not loading — and a fix still loads its own model on first use.
+    func testWithoutCompletionsOnlyAFixLoadsAModel() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(loadPrimary: false)
+            XCTAssertEqual(tiny.loads.get(), 0)
+            XCTAssertFalse(tiny.residency.isLoading)
+            let lease = try await tiny.use(.fix)
+            tiny.residency.end(lease)
+            XCTAssertEqual(tiny.loads.get(), 1)
+            XCTAssertNil(tiny.residency.loadedRepos.primary)
+            XCTAssertNotNil(tiny.residency.loadedRepos.sibling)
+        }
     }
 
     // A lease holds the model through a release, which drops the KV

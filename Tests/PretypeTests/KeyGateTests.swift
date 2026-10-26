@@ -27,11 +27,21 @@ final class KeyGateTests: XCTestCase {
 
     private func action(_ key: Key, canUndo: Bool = false, offHere: Bool = false, ghost: Bool = true,
                         onScreen: Bool = true, fix: CorrectionController.KeyOutcome = .ignored,
-                        elsewhere: Bool = false) -> C.KeyAction {
+                        elsewhere: Bool = false, fixes: Bool = true, replies: Bool = true) -> C.KeyAction {
         let state = C.KeyState(keyCode: key.code, flags: key.flags, isCommandZ: key.isCommandZ,
                                canUndo: canUndo, offHere: offHere, ghost: ghost ? self.ghost : nil,
-                               ghostOnScreen: onScreen, style: .tab)
+                               ghostOnScreen: onScreen, style: .tab, fixes: fixes, replies: replies)
         return C.keyAction(for: state, fix: { fix }, focusElsewhere: { elsewhere })
+    }
+
+    /// A feature turned off gives its chord back to the app, unasked — the
+    /// fix flows are not even consulted — and leaves the others alone.
+    func testChordsOfAFeatureTurnedOffAreTheAppsKeys() {
+        XCTAssertEqual(action(replyChord, replies: false), .type)
+        XCTAssertEqual(action(fixChord, fix: .consumed, fixes: false), .type)
+        XCTAssertEqual(action(tab, fix: .consumed, fixes: false), .accept("to"))
+        XCTAssertEqual(action(replyChord, fixes: false), .reply)
+        XCTAssertEqual(action(fixChord, fix: .consumed, replies: false), .fix(swallowed: true))
     }
 
     func testRows() {

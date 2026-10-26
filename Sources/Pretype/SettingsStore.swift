@@ -36,6 +36,48 @@ final class SettingsStore {
             Settings.hotkeyStyle = hotkeyStyle
             controller?.dismiss() }
     }
+    // Features (Settings → General). Each write tells the pipeline
+    // (`setFeature`): what is on screen goes, and the completion model is let
+    // go or loaded when suggestions stop or start asking it.
+    var suggestions = true {
+        didSet { guard !syncing, oldValue != suggestions else { return }
+            setFeature { Settings.suggestionsEnabled = suggestions } }
+    }
+    var suggestionMode = SuggestionMode.sentences {
+        didSet { guard !syncing, oldValue != suggestionMode else { return }
+            setFeature { Settings.suggestionMode = suggestionMode } }
+    }
+    var agentPromptSuggestions = true {
+        didSet { guard !syncing, oldValue != agentPromptSuggestions else { return }
+            setFeature { Settings.agentPromptSuggestions = agentPromptSuggestions } }
+    }
+    var fixes = true {
+        didSet { guard !syncing, oldValue != fixes else { return }
+            setFeature { Settings.fixesEnabled = fixes } }
+    }
+    var fixTypos = true {
+        didSet { guard !syncing, oldValue != fixTypos else { return }
+            setFeature { Settings.fixTypos = fixTypos } }
+    }
+    var emojiShortcodes = true {
+        didSet { guard !syncing, oldValue != emojiShortcodes else { return }
+            setFeature { Settings.emojiShortcodes = emojiShortcodes } }
+    }
+    var inlineMath = true {
+        didSet { guard !syncing, oldValue != inlineMath else { return }
+            setFeature { Settings.inlineMath = inlineMath } }
+    }
+    var replies = true {
+        didSet { guard !syncing, oldValue != replies else { return }
+            setFeature { Settings.repliesEnabled = replies } }
+    }
+
+    private func setFeature(_ write: () -> Void) {
+        let wasUsingModel = Settings.completionsUseModel
+        write()
+        controller?.featuresChanged(wasUsingModel: wasUsingModel)
+    }
+
     /// Hold-to-talk dictation. The write goes through `setDictation` because
     /// switching it on is what asks for the microphone — and has to report a
     /// refusal, since macOS only ever prompts once.
@@ -498,7 +540,9 @@ final class SettingsStore {
                               _ commit: @escaping @MainActor () -> Void) -> Bool {
         let next = Self.weights(modelID: target.modelID, style: target.style)
         let running = Self.weights(modelID: Settings.mlxModelID, style: Settings.completionStyle)
-        guard next.id != running.id, !ModelStorage.isFetched(next.id) else {
+        // With no suggestion asking it, the switch loads nothing: the chords'
+        // model comes in on the first ⌥⇥, with its own progress line.
+        guard Settings.completionsUseModel, next.id != running.id, !ModelStorage.isFetched(next.id) else {
             commit()
             return true
         }
@@ -951,6 +995,14 @@ final class SettingsStore {
         enabled = Settings.enabled
         presentation = Settings.suggestionPresentation
         hotkeyStyle = Settings.hotkeyStyle
+        suggestions = Settings.suggestionsEnabled
+        suggestionMode = Settings.suggestionMode
+        agentPromptSuggestions = Settings.agentPromptSuggestions
+        fixes = Settings.fixesEnabled
+        fixTypos = Settings.fixTypos
+        emojiShortcodes = Settings.emojiShortcodes
+        inlineMath = Settings.inlineMath
+        replies = Settings.repliesEnabled
         // Permission can be revoked in System Settings while we're running.
         // Clear the stored flag rather than just the switch: a setting that
         // reads on while the microphone is denied is a feature that silently

@@ -78,6 +78,15 @@ enum SuggestionPresentation: String {
     case panel
 }
 
+/// How far a suggestion reaches.
+/// - `words`: the rest of the word being typed, from the user's own words and
+///   the system dictionary (`WordCompletion`) — no model, nothing loaded.
+/// - `sentences` (default): the model continues the sentence.
+enum SuggestionMode: String {
+    case words
+    case sentences
+}
+
 /// One-finger trigger for the composed reply: double-tap a bare modifier. The
 /// chord (see `HotkeyStyle.replyLabel`) always works too — this is the reachable
 /// twin, and it is a *choice* because every modifier is already somebody's
@@ -682,6 +691,34 @@ enum Settings {
     /// a chat (`AppPolicy.isChat`). Off by default: it reads the window on
     /// every such focus.
     @Pref("autoReply", false) static var autoReply: Bool
+
+    // MARK: Features — each its own switch in Settings → General; `enabled`
+    // pauses them all.
+
+    /// Suggestions as you type. Many people come for the fixes alone, and a
+    /// ghost at every pause is noise to them.
+    @Pref("suggestions", true) static var suggestionsEnabled: Bool
+    @Pref("suggestionMode", SuggestionMode.sentences) static var suggestionMode: SuggestionMode
+    /// Suggestions in an AI agent's input box in a terminal (`AgentPrompt`).
+    @Pref("agentPromptSuggestions", true) static var agentPromptSuggestions: Bool
+    /// The fix chord with its selection pill, and the inline fixes below.
+    @Pref("fixes", true) static var fixesEnabled: Bool
+    /// The system spell-checker's pill over a misspelled word.
+    @Pref("fixTypos", true) static var fixTypos: Bool
+    /// ":shrug:" → 🤷 (`EmojiShortcodes`).
+    @Pref("emojiShortcodes", true) static var emojiShortcodes: Bool
+    /// "12*4=" → 48 (`InlineCalculator`).
+    @Pref("inlineMath", true) static var inlineMath: Bool
+    /// The reply chord, its double-tap and `autoReply`.
+    @Pref("replies", true) static var repliesEnabled: Bool
+
+    /// Completions ask the model. Off, the completion model never loads:
+    /// fixes and replies load theirs on first use.
+    static var completionsUseModel: Bool { suggestionsEnabled && suggestionMode == .sentences }
+
+    /// Something shows itself while the user types — a suggestion, or a fix's
+    /// pill — so every keystroke reads the field. Neither: no read at all.
+    static var watchesTyping: Bool { suggestionsEnabled || fixesEnabled }
 
     /// Hold-to-talk dictation; turning it on is what asks for the microphone.
     /// OFF until asked for: it is the one feature that opens the microphone,
