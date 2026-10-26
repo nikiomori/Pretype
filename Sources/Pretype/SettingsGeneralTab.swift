@@ -79,11 +79,8 @@ struct GeneralTab: View {
                 FeatureCard(symbol: "text.cursor", tint: .indigo, title: Text("Suggestions"),
                             subtitle: suggestionsLine, key: store.hotkeyStyle.label,
                             isOn: animated($store.suggestions)) {
-                    if store.suggestionMode == .words {
-                        Text("\(Text(WordLineMock.typed))\(Text(WordLineMock.rest).foregroundStyle(.tertiary))")
-                    } else {
-                        Text("\(Text(SuggestionLineMock.typed))\(Text(SuggestionLineMock.chunk + SuggestionLineMock.rest).foregroundStyle(.tertiary))")
-                    }
+                    let line = SuggestionLineMock.sample(words: store.suggestionMode == .words)
+                    Text("\(Text(line.typed))\(Text(line.chunk + line.rest).foregroundStyle(.tertiary))")
                 }
                 FeatureCard(symbol: "textformat.abc.dottedunderline", tint: .pink, title: Text("Fixes"),
                             subtitle: Text("Fixes typos and the word you just typed."),
@@ -142,21 +139,43 @@ struct GeneralTab: View {
     // MARK: Suggestions
 
     @ViewBuilder private var suggestionsSection: some View {
+        // Two ways to suggest, told apart by what they cost: Words loads no
+        // model, Sentences keeps one in memory. The display is a separate
+        // choice, in a section of its own — four cards in one grid read as
+        // four of a kind.
         Section {
             HStack(spacing: 12) {
                 PreviewCard(title: String(localized: "Words"),
-                            subtitle: String(localized: "Finishes the word you're typing, from words you use. Instant, no model."),
+                            subtitle: String(localized: "Finishes the word you're typing, from your words and the dictionary."),
+                            cost: ("leaf.fill", String(localized: "No model · instant"), .green),
                             isSelected: store.suggestionMode == .words,
                             action: { store.suggestionMode = .words },
-                            preview: { WordLineMock(hotkey: store.hotkeyStyle.label) })
+                            preview: { SuggestionLineMock(presentation: store.presentation, opacity: ghostOpacity,
+                                                          hotkey: store.hotkeyStyle.label, words: true) })
                 PreviewCard(title: String(localized: "Sentences"),
-                            subtitle: sentencesLine,
+                            subtitle: String(localized: "A model continues your sentence."),
+                            cost: sentencesCost,
                             isSelected: store.suggestionMode == .sentences,
                             action: { store.suggestionMode = .sentences },
-                            preview: { SuggestionLineMock(presentation: .inline, opacity: 0.7, hotkey: store.hotkeyStyle.label) })
+                            preview: { SuggestionLineMock(presentation: store.presentation, opacity: ghostOpacity,
+                                                          hotkey: store.hotkeyStyle.label) })
             }
             .fixedSize(horizontal: false, vertical: true)
+            Picker(selection: $store.hotkeyStyle) {
+                ForEach(HotkeyStyle.allCases, id: \.self) { Text($0.label).tag($0) }
+            } label: {
+                ShortcutLabel(title: Text("Accept hotkey")) { ShortcutDemo.accept(words: store.suggestionMode == .words) }
+            }
+            hotkeyWarning
+            Toggle(isOn: $store.agentPromptSuggestions) {
+                Text("In AI agents' prompts")
+                Text("Claude Code, Codex and others in Terminal, iTerm and VS Code.")
+            }
+        } header: {
+            Text("Suggestions")
+        }
 
+        Section {
             HStack(spacing: 12) {
                 // Animate at the mutation site: the Ghost-visibility row
                 // below inserts/removes on this change, and a row cannot
@@ -165,13 +184,15 @@ struct GeneralTab: View {
                             subtitle: String(localized: "A small box above the line. It never covers your text."),
                             isSelected: store.presentation == .panel,
                             action: { withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .panel } },
-                            preview: { SuggestionLineMock(presentation: .panel, opacity: ghostOpacity, hotkey: store.hotkeyStyle.label) })
+                            preview: { SuggestionLineMock(presentation: .panel, opacity: ghostOpacity,
+                                                          hotkey: store.hotkeyStyle.label, words: store.suggestionMode == .words) })
                 PreviewCard(title: String(localized: "Inline"),
                             subtitle: String(localized: "Ghost text right at the cursor. It can leave drawing glitches in some apps."),
                             badge: String(localized: "Unstable"),
                             isSelected: store.presentation == .inline,
                             action: { withAnimation(.easeInOut(duration: 0.18)) { store.presentation = .inline } },
-                            preview: { SuggestionLineMock(presentation: .inline, opacity: ghostOpacity, hotkey: store.hotkeyStyle.label) })
+                            preview: { SuggestionLineMock(presentation: .inline, opacity: ghostOpacity,
+                                                          hotkey: store.hotkeyStyle.label, words: store.suggestionMode == .words) })
             }
             // Ideal height of the taller card, which the other then fills.
             .fixedSize(horizontal: false, vertical: true)
@@ -198,32 +219,20 @@ struct GeneralTab: View {
                     .help("How strongly the ghost text stands out from your own. 70% measured most readable over real app backgrounds — 45% was near-invisible.")
                 }
             }
-
-            Picker(selection: $store.hotkeyStyle) {
-                ForEach(HotkeyStyle.allCases, id: \.self) { Text($0.label).tag($0) }
-            } label: {
-                ShortcutLabel(title: Text("Accept hotkey")) { ShortcutDemo.accept }
-            }
-            hotkeyWarning
-            Toggle(isOn: $store.agentPromptSuggestions) {
-                Text("In AI agents' prompts")
-                Text("Claude Code, Codex and others in Terminal, iTerm and VS Code.")
-            }
         } header: {
-            Text("Suggestions")
+            Text("Suggestion display")
         }
     }
 
-    /// The Sentences card names the model it runs — or the hosted one.
-    private var sentencesLine: String {
+    /// What Sentences keeps loaded: the model and its memory — or the
+    /// hosted one, which costs this Mac none.
+    private var sentencesCost: (symbol: String, text: String, tint: Color) {
         if store.apiText.enabled {
-            return String(localized: "The model continues your sentence. Runs on \(store.apiText.preset.name).")
+            return ("cloud.fill", String(localized: "Runs on \(store.apiText.preset.name)"), .teal)
         }
         let name = ModelMetrics.metrics(for: store.modelID)?.shortName ?? store.selectedModelName
-        guard let gb = store.projection.ramGB, gb > 0 else {
-            return String(localized: "The model continues your sentence. \(name).")
-        }
-        return String(localized: "The model continues your sentence. \(name) · \(gbLabel(gb)).")
+        guard let gb = store.projection.ramGB, gb > 0 else { return ("cpu", name, .purple) }
+        return ("cpu", String(localized: "\(name) · \(gbLabel(gb)) in memory"), .purple)
     }
 
     /// Pretype takes the fix chord on every press and the accept key whenever

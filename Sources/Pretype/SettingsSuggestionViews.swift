@@ -7,10 +7,21 @@ struct SuggestionLineMock: View {
     static let typed = String(localized: "Write ", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 1, the text typed before the caret. Keep the trailing space.")
     static let chunk = String(localized: "a reply", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 2, the suggestion's first chunk right after the caret.")
     static let rest = String(localized: " to Anna", comment: "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 3, the rest of the suggestion up to its end. Keep the leading space.")
+    static let wordTyped = String(localized: "See you tomo", comment: "Settings → Suggestions → Words: sample text typed so far, ending in the middle of a word. Part 1 of “See you tomorrow”: cut a common word of your language so that “rrow” (part 2) completes it.")
+    static let wordRest = String(localized: "rrow", comment: "Settings → Suggestions → Words: the rest of the half-typed word in “See you tomo”. Together the two parts read “See you tomorrow”.")
+
+    /// The sample line: typed text, the ⇥ chunk, the rest — a phrase, or with
+    /// `words` the end of the word being typed.
+    static func sample(words: Bool) -> (typed: String, chunk: String, rest: String) {
+        words ? (wordTyped, wordRest, "") : (typed, chunk, rest)
+    }
 
     let presentation: SuggestionPresentation
     let opacity: Double
     let hotkey: String
+    /// Words mode's sample. Every preview draws the mode AND the display
+    /// that are picked, so the two choices never show two different looks.
+    var words = false
     private let ink = Color.primary
 
     var body: some View {
@@ -23,7 +34,7 @@ struct SuggestionLineMock: View {
         // differently promised a look the caret never delivered.
         let head = ink.opacity(1.0 * effective)
         let tail = ink.opacity(0.72 * effective)
-        let (typed, chunk, rest) = (Self.typed, Self.chunk, Self.rest)
+        let (typed, chunk, rest) = Self.sample(words: words)
         return Group {
             if presentation == .inline {
                 // The ghost, then the accept keycap a new user sees beside it.
@@ -57,7 +68,8 @@ struct SuggestionLineMock: View {
         // word by word.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(presentation == .inline
-            ? Text("Preview: grey suggestion text continues the line after the cursor")
+            ? (words ? Text("Preview: grey letters finish the word after the cursor")
+                     : Text("Preview: grey suggestion text continues the line after the cursor"))
             : Text("Preview: the suggestion floats in a small box above the line"))
     }
 }
@@ -71,6 +83,9 @@ struct PreviewCard<Preview: View>: View {
     let subtitle: String
     /// Short status tag beside the title (e.g. "Unstable").
     var badge: String? = nil
+    /// What the choice costs, as a tinted line under the subtitle — "No
+    /// model" against "E4B 6-bit · 5.0 GB" reads before any sentence does.
+    var cost: (symbol: String, text: String, tint: Color)? = nil
     let isSelected: Bool
     let action: () -> Void
     @ViewBuilder let preview: () -> Preview
@@ -103,36 +118,24 @@ struct PreviewCard<Preview: View>: View {
                     SelectionMark(isOn: isSelected)
                 }
                 Caption(subtitle)
+                if let cost {
+                    Label(cost.text, systemImage: cost.symbol)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(cost.tint.legible)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(cost.tint.opacity(0.13), in: Capsule())
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .choiceCard(isSelected: isSelected, hovering: hovering)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
-        .accessibilityHint(subtitle)
+        .accessibilityHint(cost.map { "\(subtitle) \($0.text)" } ?? subtitle)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .frame(maxWidth: .infinity)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
-    }
-}
-
-/// Words mode's sample: a word half typed, the rest of it in grey.
-struct WordLineMock: View {
-    static let typed = String(localized: "See you tomo", comment: "Settings → Suggestions → Words: sample text typed so far, ending in the middle of a word. Part 1 of “See you tomorrow”: cut a common word of your language so that “rrow” (part 2) completes it.")
-    static let rest = String(localized: "rrow", comment: "Settings → Suggestions → Words: the rest of the half-typed word in “See you tomo”. Together the two parts read “See you tomorrow”.")
-
-    var hotkey: String?
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text("\(Text(Self.typed))\(Text(Self.rest).foregroundStyle(.tertiary))")
-            if let hotkey { MenuHintsView.keycap(hotkey) }
-        }
-        .font(.system(size: 13))
-        .lineLimit(1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Preview: grey letters finish the word after the cursor"))
     }
 }
 

@@ -389,9 +389,10 @@ enum ShortcutDemo {
         Image(systemName: "arrow.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
     }
 
-    /// The suggestion's next chunk joins the line; the rest stays grey.
-    static var accept: some View {
-        let (typed, chunk, rest) = (SuggestionLineMock.typed, SuggestionLineMock.chunk, SuggestionLineMock.rest)
+    /// The suggestion's next chunk joins the line; the rest stays grey. With
+    /// `words`, the end of the word being typed.
+    static func accept(words: Bool = false) -> some View {
+        let (typed, chunk, rest) = SuggestionLineMock.sample(words: words)
         return HStack(spacing: 6) {
             Text("\(Text(typed))\(Text(chunk + rest).foregroundStyle(.tertiary))")
             arrow
