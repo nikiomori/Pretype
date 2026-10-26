@@ -34,12 +34,35 @@ struct ModelTab: View {
                     }
                 }
             }
+            // With no suggestion asking it, the model works only for the
+            // chords: the pane says so first, and measures it by them.
+            if store.chordsOnly, !store.apiText.enabled {
+                Section {
+                    LabeledContent {
+                        Button(store.suggestions ? "Use Sentences" : "Turn On Suggestions") {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                if store.suggestions { store.suggestionMode = .sentences } else { store.suggestions = true }
+                            }
+                        }
+                    } label: {
+                        IconLabel(symbol: "textformat.abc.dottedunderline", tint: .pink,
+                                  title: Text("No suggestion uses the model"),
+                                  subtitle: idleUnloadMinutes > 0
+                                      ? Text("It loads for a fix, a reply or a dictation clean-up, and frees its memory after \(idleUnloadMinutes) min idle.")
+                                      : Text("It loads for a fix, a reply or a dictation clean-up, and then stays loaded."))
+                    }
+                }
+            }
             Section {
                 HStack(spacing: 10) {
-                    ForEach(ModelPriority.shown(axis: axis), id: \.self) { priority in
-                        let pick = priority.pick(axis: axis)
+                    ForEach(store.shownPriorities, id: \.self) { priority in
+                        let pick = store.pick(priority)
                         PriorityCard(priority: priority, pick: pick,
                                      acc: ModelMetrics.axisAccuracy(for: pick, axis: axis),
+                                     chords: store.chordsOnly
+                                        ? ChordProjection.project(store.committedConfig.applying(.preset(pick)),
+                                                                  pleFromDisk: store.pleFromDisk)
+                                        : nil,
                                      isActive: store.priorityIsActive(priority),
                                      apply: { store.applyPriority(priority) },
                                      hover: { store.setHover(.preset(pick), $0) },
@@ -50,31 +73,22 @@ struct ModelTab: View {
                 .fixedSize(horizontal: false, vertical: true)
             } header: {
                 // The axis steers everything under it — these cards, the
-                // list and the map — so it heads the first section.
+                // list and the map — so it heads the first section. The
+                // chords have no figures per language.
                 HStack {
                     Text("What matters most")
                     Spacer()
-                    Picker("Accuracy in", selection: $store.axisSelection) {
-                        Text("All languages").tag("*")
-                        // Only while the figures are on it (the settings map).
-                        if axis == "core" {
-                            Text(ModelMetrics.axisDisplayName("core")).tag("core")
-                        }
-                        Divider()
-                        ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
-                            Text(ModelMetrics.axisDisplayName(code)).tag(code)
-                        }
+                    if !store.chordsOnly {
+                        axisPicker
                     }
-                    .pickerStyle(.menu)
-                    .fontWeight(.regular)
-                    .fixedSize()
                 }
             }
 
             // The gate reads the base model's own confidence: Instruct and
             // Apple Intelligence have none to read, so the choice leaves
-            // with them.
-            if store.logprobGateUsable, !store.isAppleIntelligence {
+            // with them — and with the suggestions it gates.
+            if !store.chordsOnly, store.logprobGateUsable, !store.isAppleIntelligence {
+
                 Section {
                     HStack(spacing: 12) {
                         GateCard(store: store, on: false)
@@ -94,6 +108,8 @@ struct ModelTab: View {
             Section {
                 if store.modelsAsMap {
                     map
+                } else if store.chordsOnly {
+                    fixerList
                 } else {
                     list
                 }
@@ -119,7 +135,11 @@ struct ModelTab: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { store.refreshModelDiskUsage() }
+        .onAppear {
+            store.refreshModelDiskUsage()
+            if store.chordsOnly { mapLens = .fix }
+        }
+        .onChange(of: store.chordsOnly) { mapLens = store.chordsOnly ? .fix : .completion }
         // A download can finish while the window sits in the background; without
         // this the figures read stale the moment the user comes back to them.
         .onReceive(NotificationCenter.default.publisher(
@@ -136,6 +156,72 @@ struct ModelTab: View {
             Button("Cancel", role: .cancel) { confirmingDelete = nil }
         } message: {
             Text("Frees \(ByteCountFormatter.string(fromByteCount: store.modelDiskBytes[confirmingDelete ?? ""] ?? 0, countStyle: .file)). Picking this model again downloads it over the network.")
+        }
+    }
+
+    /// "Accuracy in": the language every completion figure is shown for.
+    private var axisPicker: some View {
+        Picker("Accuracy in", selection: $store.axisSelection) {
+            Text("All languages").tag("*")
+            // Only while the figures are on it (the settings map).
+            if axis == "core" {
+                Text(ModelMetrics.axisDisplayName("core")).tag("core")
+            }
+            Divider()
+            ForEach(ModelMetrics.evalLanguages, id: \.self) { code in
+                Text(ModelMetrics.axisDisplayName(code)).tag(code)
+            }
+        }
+        .pickerStyle(.menu)
+        .fontWeight(.regular)
+        .fixedSize()
+    }
+
+    /// The list while the model serves only the chords: one row per model
+    /// the fixes run on, best fixes first. Catalog entries that share one
+    /// are one choice here — the selected one, else the recommended, else
+    /// the one of the fixer's own family, else the lightest stands for them.
+    @ViewBuilder private var fixerList: some View {
+        FixerRow.ColumnHeader()
+        ForEach(fixerRows, id: \.id) { row in
+            FixerRow(title: row.title, fixer: row.fixer, also: row.also, chords: row.chords,
+                     isSelected: row.members.contains(store.modelID),
+                     isRecommended: row.members.contains(ModelCatalog.defaultID),
+                     downloadGB: store.needsDownload.contains(row.id) ? row.chords.ramGB : nil,
+                     select: { store.selectModel(row.id) },
+                     hover: { store.setHover(.model(row.id), $0) })
+        }
+    }
+
+    private var fixerRows: [(id: String, title: String, fixer: String, also: [String], members: [String], chords: ChordProjection)] {
+        let entries: [(id: String, title: String)] = ModelCatalog.options.map { ($0.id, $0.title) }
+            + [(ModelCatalog.appleIntelligenceID, String(localized: "Apple Intelligence — system model"))]
+        // Grouped by the model a click would fix with: the entry's own
+        // recommended style, as on the completion list.
+        let groups = Dictionary(grouping: entries) { entry in
+            ModelMetrics.taskMetrics(for: entry.id, style: ModelCatalog.recommended(for: entry.id).style)?.measuredID ?? entry.id
+        }
+        let rows = groups.map { fixer, members in
+            let ids = members.map(\.id)
+            let fixerName = ModelMetrics.taskModelNames[fixer] ?? ""
+            let rep = ids.contains(store.modelID) ? store.modelID
+                : ids.contains(ModelCatalog.defaultID) ? ModelCatalog.defaultID
+                : ids.first { id in ModelMetrics.metrics(for: id).map { fixerName.hasPrefix($0.shortName) } ?? false }
+                ?? ids.min { (ModelMetrics.metrics(for: $0)?.ramGB ?? .infinity) < (ModelMetrics.metrics(for: $1)?.ramGB ?? .infinity) } ?? ids[0]
+            let chords = ChordProjection.project(store.committedConfig.applying(.model(rep)), pleFromDisk: store.pleFromDisk)
+            return (id: rep,
+                    title: members.first { $0.id == rep }?.title ?? rep,
+                    fixer: chords.fixerName ?? ModelMetrics.taskModelNames[fixer] ?? "",
+                    also: members.filter { $0.id != rep }.map { ModelMetrics.metrics(for: $0.id)?.shortName ?? $0.title },
+                    members: ids, chords: chords)
+        }
+        return rows.sorted { a, b in
+            switch (a.chords.fixPct, b.chords.fixPct) {
+            case let (x?, y?) where x != y: return x > y
+            case (.some, .none): return true
+            case (.none, .some): return false
+            default: return (a.chords.p50Ms ?? .max) < (b.chords.p50Ms ?? .max)
+            }
         }
     }
 
@@ -176,6 +262,13 @@ struct ModelTab: View {
         // The language picker stays live: picking a language turns this off
         // (see SettingsStore.axisSelection), so the control the user reaches
         // for is the one that answers. The list ignores it (effectiveAxis).
+        // Settings dots are completion settings: none while the model only fixes.
+        if !store.chordsOnly {
+            settingsOnMap
+        }
+    }
+
+    private var settingsOnMap: some View {
         Toggle(isOn: $store.settingsMapMode) {
             Text("Show settings on the map")
             if store.settingsMapMode {
@@ -188,7 +281,11 @@ struct ModelTab: View {
     /// Style tuning and memory: the cards and the models above pick a model
     /// and its settings in one click.
     @ViewBuilder private var advanced: some View {
-        TuningSection(store: store)
+        // Style and length shape suggestions; while none uses the model,
+        // the fix model is what stays, picked by the cards and the list.
+        if !store.chordsOnly {
+            TuningSection(store: store)
+        }
 
         Section("Memory") {
             Picker(selection: $idleUnloadMinutes) {
@@ -200,12 +297,14 @@ struct ModelTab: View {
             } label: {
                 Text("Free memory when idle")
                 // The rail's Memory figure: less what the table on disk already freed.
-                if idleUnloadMinutes > 0, let gb = store.projection.ramGB, gb > 0 {
+                if idleUnloadMinutes > 0, let gb = store.chordsOnly ? store.chordProjection.ramGB : store.projection.ramGB, gb > 0 {
                     Text("Frees about \(oneDecimal(gb)) GB while unused.")
                 }
             }
             .help("The next keystroke reloads the model from disk; switching to a text field pre-warms it.")
-            if let savingGB = HostPLE.savingGB(for: store.committedConfig.primaryModelID) {
+            if let savingGB = HostPLE.savingGB(for: store.chordsOnly
+                ? SettingsStore.chordWeights(modelID: store.modelID, style: store.style)
+                : store.committedConfig.primaryModelID) {
                 Toggle(isOn: $store.pleFromDisk) {
                     Text("Reduce memory use")
                     Text("Frees about \(oneDecimal(savingGB)) GB; suggestions come a few milliseconds later.")
@@ -500,6 +599,114 @@ struct ModelRow: View {
     }
 }
 
+// MARK: - Fix model row
+
+/// One model the chords run on, while the model serves only them: the
+/// catalog entry a click picks, the fix model behind it — and the other
+/// entries sharing that model, which a click there would give the same —
+/// with what the chords measure as bars.
+struct FixerRow: View {
+    let title: String
+    let fixer: String
+    let also: [String]
+    let chords: ChordProjection
+    let isSelected: Bool
+    let isRecommended: Bool
+    /// GB the first fix downloads (nil: already on this Mac).
+    var downloadGB: Double?
+    let select: () -> Void
+    let hover: (Bool) -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: select) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 8) {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .fontWeight(isSelected ? .semibold : .regular)
+                        .lineLimit(1).truncationMode(.tail)
+                    if isRecommended {
+                        Text("Recommended")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 5).padding(.vertical, 1.5)
+                            .foregroundStyle(.secondary)
+                            .background(.quaternary, in: Capsule())
+                    }
+                    Spacer()
+                    if let downloadGB {
+                        let size = gbLabel(downloadGB)
+                        Text("↓ \(size)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .help("Not on this Mac yet — the first fix or reply downloads about \(size).")
+                            .accessibilityLabel("Not downloaded, \(size)")
+                    }
+                }
+                if !fixer.isEmpty {
+                    (also.isEmpty ? Text("Fixes with \(fixer)")
+                                  : Text("Fixes with \(fixer) · also \(also.formatted(.list(type: .and)))"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(.leading, 24)
+                }
+                if chords.fixPct != nil {
+                    HStack(spacing: ModelRow.columnSpacing) {
+                        MetricBar(label: String(localized: "Fixed right"), fraction: chords.fixFraction ?? 0,
+                                  text: chords.fixText, color: .pink,
+                                  help: String(localized: "Typo lines restored exactly — \(ModelMetrics.taskSource)."),
+                                  showsLabel: false)
+                        MetricBar(label: String(localized: "Reply on topic"), fraction: chords.replyFraction ?? 0,
+                                  text: chords.replyText, color: .purple,
+                                  help: String(localized: "Reply drafts a judge rates on topic — \(ModelMetrics.taskSource)."),
+                                  showsLabel: false)
+                        MetricBar(label: String(localized: "Speed"), fraction: chords.speedFraction ?? 0,
+                                  text: chords.latencyText, color: .blue,
+                                  help: String(localized: "Median time per fix, warm — longer bar = faster."),
+                                  showsLabel: false)
+                        MetricBar(label: String(localized: "Memory"), fraction: chords.memoryFraction ?? 0,
+                                  text: chords.memoryText, color: .teal,
+                                  help: String(localized: "Held only while it works — longer bar = lighter."),
+                                  showsLabel: false)
+                    }
+                    .padding(.leading, 24)
+                } else {
+                    Text("not measured")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .padding(.leading, 24)
+                }
+            }
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 6)
+                .fill(hovering && !isSelected ? Color.primary.opacity(0.05) : Color.clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .onHover { hovering = $0; hover($0) }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+
+    /// The columns, named once over the rows.
+    struct ColumnHeader: View {
+        var body: some View {
+            HStack(spacing: ModelRow.columnSpacing) {
+                Text("Fixed right").foregroundStyle(Color.pink.legible).frame(maxWidth: .infinity, alignment: .leading)
+                Text("Reply on topic").foregroundStyle(Color.purple.legible).frame(maxWidth: .infinity, alignment: .leading)
+                Text("Speed").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Memory").frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 24)
+            .accessibilityHidden(true)  // each row's figures name themselves
+        }
+    }
+}
+
 // MARK: - Precision cards
 
 /// One side of the confidence gate as two bars — how often a suggestion
@@ -557,6 +764,9 @@ private struct PriorityCard: View {
     let priority: ModelPriority
     let pick: String
     let acc: Int?
+    /// While the model serves only the chords: what they measure on `pick`,
+    /// shown instead of the completion figures.
+    var chords: ChordProjection?
     let isActive: Bool
     let apply: () -> Void
     let hover: (Bool) -> Void
@@ -579,32 +789,25 @@ private struct PriorityCard: View {
                     Spacer(minLength: 0)
                     SelectionMark(isOn: isActive)
                 }
-                if let m = ModelMetrics.metrics(for: pick) {
+                if let chords, let m = ModelMetrics.metrics(for: pick) {
+                    Text(m.shortName)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    figures(Text(chords.fixText).foregroundStyle(Color.pink.legible),
+                            Text(chords.latencyText).foregroundStyle(Color.blue.legible),
+                            Text(chords.memoryText).foregroundStyle(Color.teal.legible))
+                        .help(chords.fixerName.map { Text("Fixes and replies run on \($0).") } ?? Text(verbatim: ""))
+                } else if let m = ModelMetrics.metrics(for: pick) {
                     Text(m.shortName)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                     // Metric colors match every other surface (rail meters,
                     // ranked bars, map info card) — green accuracy, blue
                     // speed, teal memory — so the triple scans, not reads.
-                    let accText = Text("\(acc ?? m.firstWordPct)%").foregroundStyle(Color.green.legible)
-                    let dot = Text(" · ").foregroundStyle(.tertiary)
-                    let msText = Text("\(m.p50Ms) ms").foregroundStyle(Color.blue.legible)
-                    let gbText = Text(gbLabel(HostPLE.residentGB(m.ramGB, of: pick, pleFromDisk: pleFromDisk)))
-                        .foregroundStyle(Color.teal.legible)
-                    // One line where it fits; at the 1020 pt minimum width four
-                    // cards leave ~96 pt for a ~113 pt triple, so memory takes
-                    // a second line instead of the whole triple shrinking to 8 pt.
-                    ViewThatFits(in: .horizontal) {
-                        Text("\(accText)\(dot)\(msText)\(dot)\(gbText)").lineLimit(1)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("\(accText)\(dot)\(msText)").lineLimit(1)
-                            gbText
-                        }
-                    }
-                    // Semibold, not a color change: tone-colored ink at caption
-                    // size is thin on a light form, but the metric color coding
-                    // is deliberate and shared with the rail and ranked bars.
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    figures(Text("\(acc ?? m.firstWordPct)%").foregroundStyle(Color.green.legible),
+                            Text("\(m.p50Ms) ms").foregroundStyle(Color.blue.legible),
+                            Text(gbLabel(HostPLE.residentGB(m.ramGB, of: pick, pleFromDisk: pleFromDisk)))
+                                .foregroundStyle(Color.teal.legible))
                 }
             }
             // Full height of the row: a card whose title or figures wrapped
@@ -617,6 +820,25 @@ private struct PriorityCard: View {
         .help(priority.goal)
         .onHover { hovering = $0; hover($0) }
         .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+
+    /// The card's three figures — quality, speed, memory. One line where it
+    /// fits; at the 1020 pt minimum width four cards leave ~96 pt for a
+    /// ~113 pt triple, so memory takes a second line instead of the whole
+    /// triple shrinking to 8 pt.
+    private func figures(_ quality: Text, _ speed: Text, _ memory: Text) -> some View {
+        let dot = Text(" · ").foregroundStyle(.tertiary)
+        return ViewThatFits(in: .horizontal) {
+            Text("\(quality)\(dot)\(speed)\(dot)\(memory)").lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(quality)\(dot)\(speed)").lineLimit(1)
+                memory
+            }
+        }
+        // Semibold, not a color change: tone-colored ink at caption size is
+        // thin on a light form, but the metric color coding is deliberate
+        // and shared with the rail and ranked bars.
+        .font(.system(size: 11, weight: .semibold).monospacedDigit())
     }
 }
 

@@ -297,6 +297,19 @@ final class ModelCatalogTests: XCTestCase {
         }
     }
 
+    /// While the model only fixes, a card per fix model — two catalog
+    /// entries sharing one would be the same card — and "Most accurate"
+    /// lands on the best fixer, on the lighter of the entries that share it.
+    func testChordGoalCardsOneFixModelEach() {
+        let cards = ModelPriority.shownForChords()
+        let fixers = cards.map { ModelMetrics.taskMetrics(for: $0.pickForChords(), style: .base)?.measuredID }
+        XCTAssertEqual(Set(fixers).count, fixers.count)
+        XCTAssertEqual(cards.first, .lightest)
+        let best = ModelMetrics.taskMetrics(for: ModelPriority.accurate.pickForChords(), style: .base)?.m.fixPct
+        XCTAssertEqual(best, ModelMetrics.tasks.values.filter { $0.ownRun == nil }.map(\.fixPct).max())
+        XCTAssertEqual(ModelPriority.accurate.pickForChords(), "mlx-community/gemma-4-e4b-6bit")   // E4B-it 6-bit, under 8-bit's own weights
+    }
+
     func testModelPriorityPicks() {
         XCTAssertEqual(ModelPriority.lightest.pick(axis: "core"), "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-6bit")    // 32% vs E4B 8-bit's 31

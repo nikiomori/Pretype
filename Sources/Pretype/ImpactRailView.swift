@@ -46,6 +46,8 @@ struct ImpactRailView: View {
                 // describes a hosted model, so none is shown while one runs.
                 if store.apiText.enabled {
                     Caption(String(localized: "Text runs on \(store.apiText.preset.name). Pretype hasn't measured it."))
+                } else if store.chordsOnly {
+                    chordMeters(previewsRuntime: previewsRuntime)
                 } else {
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(Self.meters, id: \.label) { m in
@@ -80,6 +82,45 @@ struct ImpactRailView: View {
             }
             .padding(14)
         }
+    }
+
+    /// While no suggestion asks the model, the meters measure what still
+    /// does — the fix and reply chords — on the same previews and chips.
+    private func chordMeters(previewsRuntime: Bool) -> some View {
+        let base = store.chordProjection
+        let target = previewsRuntime
+            ? store.previewedConfig.map { ChordProjection.project($0, pleFromDisk: store.pleFromDisk) } : nil
+        let deltas = target.map { ChordProjection.deltas(from: base, to: $0) } ?? []
+        let minutes = Settings.idleUnloadMinutes
+        let meters: [(icon: String, tint: Color, label: String, title: String, value: KeyPath<ChordProjection, String>,
+                      fraction: KeyPath<ChordProjection, Double?>, sub: String?, help: String)] = [
+            ("textformat.abc.dottedunderline", .pink, "Fix", String(localized: "Fixed right"), \.fixText, \.fixFraction,
+             base.falseFixPct.map { String(localized: "changes \($0)% of correct words anyway") },
+             String(localized: "Typo lines restored exactly — \(ModelMetrics.taskSource).")),
+            ("bubble.left.and.text.bubble.right", .purple, "Reply", String(localized: "Reply on topic"), \.replyText, \.replyFraction,
+             nil, String(localized: "Reply drafts a judge rates on topic — \(ModelMetrics.taskSource).")),
+            ("bolt.fill", .blue, "Speed", String(localized: "Speed"), \.latencyText, \.speedFraction,
+             nil, String(localized: "Median time per fix, warm.")),
+            ("memorychip", .teal, "Memory", String(localized: "Memory"), \.memoryText, \.memoryFraction,
+             minutes > 0 ? String(localized: "only while it works — freed after \(minutes) min idle")
+                         : String(localized: "from its first use on"),
+             String(localized: "The fix model's weights. Nothing stays loaded for suggestions.")),
+        ]
+        return VStack(alignment: .leading, spacing: 14) {
+            ForEach(meters, id: \.label) { m in
+                MeterView(icon: m.icon, tint: m.tint, label: m.title,
+                          value: base[keyPath: m.value], sub: m.sub, help: m.help,
+                          fraction: base[keyPath: m.fraction],
+                          previewFraction: target?[keyPath: m.fraction],
+                          previewValue: target?[keyPath: m.value],
+                          delta: deltas.first { $0.label == m.label })
+            }
+            if let fixer = base.fixerName {
+                Caption(String(localized: "Fixes and replies run on \(fixer)."))
+            }
+        }
+        .opacity(store.enabled ? 1 : 0.4)
+        .animation(.easeOut(duration: 0.25), value: store.enabled)
     }
 
     private var header: some View {

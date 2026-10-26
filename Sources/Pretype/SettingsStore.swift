@@ -76,7 +76,13 @@ final class SettingsStore {
         let wasUsingModel = Settings.completionsUseModel
         write()
         controller?.featuresChanged(wasUsingModel: wasUsingModel)
+        // The Model pane's "↓" badges name what a click — or a first use — loads.
+        if wasUsingModel != Settings.completionsUseModel { refreshModelDiskUsage() }
     }
+
+    /// No suggestion asks the model — off, or Words: it serves only the fix
+    /// and reply chords, and the Model pane measures it by those.
+    var chordsOnly: Bool { !suggestions || suggestionMode == .words }
 
     /// Hold-to-talk dictation. The write goes through `setDictation` because
     /// switching it on is what asks for the microphone — and has to report a
@@ -477,6 +483,8 @@ final class SettingsStore {
     /// What the committed configuration measures to — the toggle read off
     /// the store, so the rail redraws when it flips.
     var projection: ConfigProjection { .project(committedConfig, pleFromDisk: pleFromDisk) }
+    /// What the fix and reply chords measure to — the figures while `chordsOnly`.
+    var chordProjection: ChordProjection { .project(committedConfig, pleFromDisk: pleFromDisk) }
     /// The hovered change applied to the committed config, cascades included.
     var previewedConfig: ProjectionConfig? {
         preview.map(committedConfig.applying)
@@ -489,7 +497,7 @@ final class SettingsStore {
     var setupLine: String {
         if apiText.enabled { return String(localized: "API · \(apiText.preset.name) · \(apiText.model)") }
         var parts: [String]
-        if let goal = ModelPriority.shown(axis: effectiveAxis).first(where: priorityIsActive) {
+        if let goal = shownPriorities.first(where: priorityIsActive) {
             parts = [goal.title]
         } else {
             parts = [ModelMetrics.metrics(for: modelID)?.shortName ?? selectedModelName]
@@ -527,6 +535,13 @@ final class SettingsStore {
             return (modelID, name, Double(option?.approxSizeMB ?? 0) / 1000)
         }
         return (sibling, "\(name) Instruct", ModelMetrics.instructRamGB(for: modelID) ?? 0)
+    }
+
+    /// The model the fix and reply chords load for a model + style — the
+    /// engine's choice (`ModelResidency.fixesOnPrimary`, `MLXEngine.init`).
+    static func chordWeights(modelID: String, style: CompletionStyle) -> String {
+        guard let option = ModelCatalog.option(for: modelID) else { return modelID }
+        return style == .instruct ? option.instructModelID : option.correctionModelID
     }
 
     /// Every switch that changes what the engine loads goes through here.
@@ -576,13 +591,23 @@ final class SettingsStore {
     /// figures come from (Base · Short), keeping the precision gates where
     /// the model supports them.
     func applyPriority(_ priority: ModelPriority) {
-        applyConfig(committedConfig.applying(.preset(priority.pick(axis: effectiveAxis))))
+        applyConfig(committedConfig.applying(.preset(pick(priority))))
+    }
+
+    /// The goal cards, and where each lands: by the fix chord while it is
+    /// all the model does (`chordsOnly`), else by completions on the axis.
+    var shownPriorities: [ModelPriority] {
+        chordsOnly ? ModelPriority.shownForChords() : ModelPriority.shown(axis: effectiveAxis)
+    }
+
+    func pick(_ priority: ModelPriority) -> String {
+        chordsOnly ? priority.pickForChords() : priority.pick(axis: effectiveAxis)
     }
 
     /// A preset reads as active when the pipeline sits exactly where clicking
     /// it would land (gates are preserved by presets, so they don't count).
     func priorityIsActive(_ priority: ModelPriority) -> Bool {
-        modelID == priority.pick(axis: effectiveAxis) && style == .base && length == .short
+        modelID == pick(priority) && style == .base && length == .short
     }
 
     /// Add an app to the blacklist via the standard app-picker panel; stores
@@ -933,9 +958,12 @@ final class SettingsStore {
         let ids = ModelCatalog.options.map(\.id)
         // What a click on each row would load, cascade included — Recommended
         // lands the Gemma rows on their instruct sibling, not the base weights.
+        // With the model serving only the chords, what their first use loads.
+        let chords = chordsOnly
         let targets = ids.map { id -> (String, String) in
             let c = committedConfig.applying(.model(id))
-            return (id, Self.weights(modelID: c.modelID, style: c.style).id)
+            return (id, chords ? Self.chordWeights(modelID: c.modelID, style: c.style)
+                               : Self.weights(modelID: c.modelID, style: c.style).id)
         }
         // Latest request wins: a delete and the resync after a model switch
         // each start one, and an older scan finishing last would put back

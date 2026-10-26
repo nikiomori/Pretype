@@ -145,6 +145,54 @@ enum ModelPriority: String, CaseIterable {
         return matched ? cards.filter { $0 != .accurate } : cards
     }
 
+    /// The catalog's measured models a card may land on, with what their fix
+    /// model measures — in Base style, where a card lands (`Change.preset`).
+    /// A row booked on a run of its own stays out, as from every ranking.
+    private static var chordPool: [(id: String, fixer: String, fix: Int, ms: Int, gb: Double, ownGB: Double)] {
+        ModelCatalog.options.compactMap { option in
+            guard let t = ModelMetrics.taskMetrics(for: option.id, style: .base), t.m.ownRun == nil,
+                  let gb = ModelMetrics.taskRamGB(for: t.measuredID) else { return nil }
+            return (option.id, t.measuredID, t.m.fixPct, t.m.fixP50Ms, gb,
+                    ModelMetrics.metrics(for: option.id)?.ramGB ?? .infinity)
+        }
+    }
+
+    /// The goal cards while the model serves only the chords: one per fix
+    /// model — two catalog entries sharing one would be the same card.
+    static func shownForChords() -> [ModelPriority] {
+        let pool = chordPool
+        var seen = Set<String>()
+        return allCases.filter { card in
+            let pick = card.pickForChords()
+            return seen.insert(pool.first { $0.id == pick }?.fixer ?? pick).inserted
+        }
+    }
+
+    /// `pick(axis:)` on the fix chord: what its model restores, how fast, in
+    /// how much memory. Ties go to the lighter completion model, kept on
+    /// disk for when suggestions come back.
+    func pickForChords() -> String {
+        let pool = Self.chordPool
+        func lighter(_ a: (id: String, fixer: String, fix: Int, ms: Int, gb: Double, ownGB: Double),
+                     _ b: (id: String, fixer: String, fix: Int, ms: Int, gb: Double, ownGB: Double)) -> Bool {
+            a.ownGB < b.ownGB
+        }
+        let top = pool.map(\.fix).max() ?? 0
+        switch self {
+        case .lightest:
+            return pool.min { $0.gb != $1.gb ? $0.gb < $1.gb : $0.fix != $1.fix ? $0.fix > $1.fix : lighter($0, $1) }?.id
+                ?? ModelCatalog.defaultID
+        case .quick:
+            return pool.filter { $0.fix >= top - 2 }.min { $0.ms != $1.ms ? $0.ms < $1.ms : lighter($0, $1) }?.id
+                ?? ModelCatalog.defaultID
+        case .accurate:
+            return pool.filter { $0.fix == top }.min { $0.gb != $1.gb ? $0.gb < $1.gb : lighter($0, $1) }?.id
+                ?? ModelCatalog.defaultID
+        case .balanced:
+            return ModelCatalog.defaultID
+        }
+    }
+
     /// The figure a card shows for `m` on `axis`.
     static func accuracy(_ m: ModelMetrics, axis: String) -> Int {
         ModelMetrics.axisAccuracy(for: m.id, axis: axis) ?? m.firstWordPct
@@ -181,6 +229,67 @@ enum ModelPriority: String, CaseIterable {
             // move with the axis.
             return ModelCatalog.defaultID
         }
+    }
+}
+
+/// What the fix and reply chords measure to for a configuration: the model
+/// they run on (`ModelMetrics.taskMetrics`), how often a fix restores the
+/// line, how often a reply is on topic, a fix's speed and the memory that
+/// model holds while it works. The Model pane's figures while no suggestion
+/// asks the model (`SettingsStore.chordsOnly`).
+struct ChordProjection: Equatable {
+    var fixerName: String?
+    var fixPct: Int?
+    /// Clean words a fix changed anyway.
+    var falseFixPct: Int?
+    var replyPct: Int?
+    var p50Ms: Int?
+    var ramGB: Double?
+
+    static func project(_ c: ProjectionConfig, pleFromDisk: Bool = Settings.pleFromDisk) -> ChordProjection {
+        guard let t = ModelMetrics.taskMetrics(for: c.modelID, style: c.style) else { return ChordProjection() }
+        return ChordProjection(
+            fixerName: t.runsOn, fixPct: t.m.fixPct, falseFixPct: t.m.falseFixPct, replyPct: t.m.replyPct,
+            p50Ms: t.m.fixP50Ms,
+            ramGB: ModelMetrics.taskRamGB(for: t.measuredID).map { HostPLE.residentGB($0, of: t.measuredID, pleFromDisk: pleFromDisk) })
+    }
+
+    // Longer bar = better, on the rail's scales.
+    var fixFraction: Double? { fixPct.map { max(0.04, Double($0) / 100) } }
+    var replyFraction: Double? { replyPct.map { max(0.04, Double($0) / 100) } }
+    var speedFraction: Double? {
+        p50Ms.map { max(0.04, 1 - ConfigProjection.Scale.logFraction(Double($0), in: ConfigProjection.Scale.msRange)) }
+    }
+    var memoryFraction: Double? { ramGB.map { max(0.06, 1 - $0 / ConfigProjection.Scale.gbMax) } }
+
+    var fixText: String { fixPct.map { "\($0)%" } ?? "—" }
+    var replyText: String { replyPct.map { "\($0)%" } ?? "—" }
+    var latencyText: String { p50Ms.map { latencyLabel(ms: $0) } ?? "—" }
+    var memoryText: String { ramGB.map(gbLabel) ?? "—" }
+
+    /// The chips beside the meters while a hover previews `tgt`.
+    static func deltas(from base: ChordProjection, to tgt: ChordProjection) -> [ConfigProjection.MetricDelta] {
+        var out: [ConfigProjection.MetricDelta] = []
+        for (label, a, b) in [("Fix", base.fixPct, tgt.fixPct), ("Reply", base.replyPct, tgt.replyPct)] {
+            if let a, let b, a != b {
+                out.append(.init(label: label, text: b > a ? String(localized: "+\(b - a) pp") : String(localized: "−\(a - b) pp"),
+                                 improved: b > a))
+            }
+        }
+        // Speed and memory read exactly as they do on the completion rail.
+        let speedAndMemory = ConfigProjection.deltas(
+            from: ConfigProjection(p50Ms: base.p50Ms, ramGB: base.ramGB),
+            to: ConfigProjection(p50Ms: tgt.p50Ms, ramGB: tgt.ramGB))
+        return out + speedAndMemory
+    }
+}
+
+extension ConfigProjection {
+    /// Only latency and memory — for `ChordProjection.deltas`.
+    fileprivate init(p50Ms: Int?, ramGB: Double?) {
+        self.init(accuracyPct: nil, accuracyText: "", accuracySub: "", coveragePct: nil,
+                  p50Ms: p50Ms, latencyIsApprox: false, latencySub: "",
+                  ramGB: ramGB, memorySub: "", computeRel: nil, computeSub: "")
     }
 }
 
