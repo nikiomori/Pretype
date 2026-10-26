@@ -293,7 +293,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             statusText: text,
             statusOK: color == .systemGreen,
             savings: Stats.savings,
-            acceptLabel: Settings.hotkeyStyle.label
+            invitation: MenuHeaderView.invitation(style: Settings.hotkeyStyle)
         )
     }
 
@@ -436,25 +436,34 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             ? Settings.dictationGesture.label : nil
         let latch = Settings.dictationEnabled && Settings.dictationLatch != .off
             ? Settings.dictationLatch.label : nil
+        // Only the features that are on: a key for one that's off is noise.
+        let (accept, fix, replies) = (Settings.suggestionsEnabled, Settings.fixesEnabled, Settings.repliesEnabled)
         guard Stats.tutorsAccept else {
             // One cap per key: three chords in one cap read as a single combo.
             // Dictation stays in the short form too — it may be switched on
             // long after the 20th accept, and then it would never be hinted.
-            var keys = [s.label, s.correctionLabel, reply]
-            var actions = [String(localized: "accept"), String(localized: "fix"), String(localized: "reply")]
+            var keys: [String] = [], actions: [String] = []
+            if accept { keys.append(s.label); actions.append(String(localized: "accept")) }
+            if fix { keys.append(s.correctionLabel); actions.append(String(localized: "fix")) }
+            if replies { keys.append(reply); actions.append(String(localized: "reply")) }
             if let talk { keys.append(talk); actions.append(String(localized: "talk")) }
-            return [MenuHintsView.Hint(keys: keys, action: actions.joined(separator: " · "))]
+            return keys.isEmpty ? [] : [MenuHintsView.Hint(keys: keys, action: actions.joined(separator: " · "))]
         }
         // One line each, and short enough to survive the widest keycap column
         // without truncating — the menu's width is set by the header, not here.
         // "esc", not ⎋: the overlay's keycap says esc, and ⎋ at caption size
         // is an unreadable swirl.
-        var hints = [
-            MenuHintsView.Hint(keys: [s.label], action: String(localized: "accept a word — \(s.shiftLabel) for all")),
-            MenuHintsView.Hint(keys: [s.correctionLabel], action: String(localized: "fix the word or selection")),
-            MenuHintsView.Hint(keys: ["⏎"], action: String(localized: "apply the fix — esc keeps yours")),
-            MenuHintsView.Hint(keys: [reply], action: String(localized: "reply to what's on screen")),
-        ]
+        var hints: [MenuHintsView.Hint] = []
+        if accept {
+            hints.append(MenuHintsView.Hint(keys: [s.label], action: String(localized: "accept a word — \(s.shiftLabel) for all")))
+        }
+        if fix {
+            hints.append(MenuHintsView.Hint(keys: [s.correctionLabel], action: String(localized: "fix the word or selection")))
+            hints.append(MenuHintsView.Hint(keys: ["⏎"], action: String(localized: "apply the fix — esc keeps yours")))
+        }
+        if replies {
+            hints.append(MenuHintsView.Hint(keys: [reply], action: String(localized: "reply to what's on screen")))
+        }
         if let talk { hints.append(MenuHintsView.Hint(keys: [talk], action: String(localized: "talk instead of typing"))) }
         if let latch { hints.append(MenuHintsView.Hint(keys: [latch], action: String(localized: "hands-free — again to stop"))) }
         return hints

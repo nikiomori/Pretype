@@ -132,7 +132,7 @@ final class StatusMenuTests: XCTestCase {
         )
         let header = NSHostingView(rootView: MenuHeaderView(
             statusColor: .green, statusText: "MiniCPM5-1B-Base: ready",
-            statusOK: true, savings: savings, acceptLabel: "Tab"
+            statusOK: true, savings: savings, invitation: "Press Tab on a suggestion to start saving typing time."
         ))
         let hints = NSHostingView(rootView: MenuHintsView(hints: [
             .init(keys: ["Tab"], action: "accept a word — ⇧Tab for all"),

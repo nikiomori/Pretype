@@ -23,8 +23,17 @@ struct MenuHeaderView: View {
     /// Anything else is news and takes the foreground back.
     let statusOK: Bool
     let savings: Stats.Savings
-    /// The user's accept key, for the empty state's invitation.
-    let acceptLabel: String
+    /// The empty state's first step (`invitation(style:)`); nil, none.
+    let invitation: String?
+
+    /// Accept a suggestion — or, with suggestions off, fix a word: the
+    /// first thing that books a figure here, for the features that are on.
+    static func invitation(style: HotkeyStyle) -> String? {
+        if Settings.suggestionsEnabled {
+            return String(localized: "Press \(style.label) on a suggestion to start saving typing time.")
+        }
+        return Settings.fixesEnabled ? String(localized: "Press \(style.correctionLabel) to fix the word you just typed.") : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -40,8 +49,8 @@ struct MenuHeaderView: View {
                 Spacer(minLength: 0)
             }
 
-            if savings.isEmpty {
-                Text("Press \(acceptLabel) on a suggestion to start saving typing time.")
+            if savings.isEmpty, let invitation {
+                Text(invitation)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -70,7 +79,7 @@ struct MenuHeaderView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             savings.isEmpty
-                ? Text("\(statusText). Press \(acceptLabel) on a suggestion to start saving typing time.")
+                ? Text(verbatim: [statusText + ".", invitation].compactMap { $0 }.joined(separator: " "))
                 : Text("\(statusText). Saved \(savings.todayText) of typing today, \(savings.totalText) all time.")
         )
     }
