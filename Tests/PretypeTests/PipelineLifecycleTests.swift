@@ -42,6 +42,7 @@ final class PipelineLifecycleTests: PipelineTestCase {
 
         showGhost("to be", on: "Hi ")
         let tab = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.tab), keyDown: true))
+        tab.flags = []   // a nil source takes the live keyboard's modifiers: ⌘ held anywhere made it ⌘⇥
         XCTAssertEqual(controller.keyTap.handler?(tab), true, "⇥ over a ghost is swallowed")
         XCTAssertEqual(fake.keys, [.insert("to")])
 
