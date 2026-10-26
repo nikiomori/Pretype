@@ -62,23 +62,18 @@ struct SuggestionLineMock: View {
     }
 }
 
-/// Selectable preview card rendering a miniature of how that mode looks at the
-/// caret, so the choice is visual, not abstract.
-struct PresentationCard: View {
-    let mode: SuggestionPresentation
+/// A pick-one card that shows its choice in miniature — the line at the
+/// caret as it would look — so the choice is visual, not abstract.
+struct PreviewCard<Preview: View>: View {
     let title: String
-    /// What this mode is, in one line: each card says its own, so neither
+    /// What this choice is, in one line: each card says its own, so neither
     /// has to be picked to be understood.
     let subtitle: String
     /// Short status tag beside the title (e.g. "Unstable").
     var badge: String? = nil
     let isSelected: Bool
-    /// The chosen accept key, shown in the mockup so it matches the live
-    /// overlay instead of a hardcoded ⇥.
-    let hotkeyLabel: String
-    /// The configured ghost opacity, so the inline mockup dims like the caret.
-    let ghost: Double
     let action: () -> Void
+    @ViewBuilder let preview: () -> Preview
     /// Local hover only — a card highlight, never published to the store the
     /// Form observes (that path hitches list scrolling).
     @State private var hovering = false
@@ -91,7 +86,7 @@ struct PresentationCard: View {
                         .fill(Color(nsColor: .textBackgroundColor))
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
-                    SuggestionLineMock(presentation: mode, opacity: ghost, hotkey: hotkeyLabel)
+                    preview()
                         .padding(.horizontal, 10)
                 }
                 .frame(height: 44)
@@ -119,6 +114,25 @@ struct PresentationCard: View {
         .frame(maxWidth: .infinity)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+/// Words mode's sample: a word half typed, the rest of it in grey.
+struct WordLineMock: View {
+    static let typed = String(localized: "See you tomo", comment: "Settings → Suggestions → Words: sample text typed so far, ending in the middle of a word. Part 1 of “See you tomorrow”: cut a common word of your language so that “rrow” (part 2) completes it.")
+    static let rest = String(localized: "rrow", comment: "Settings → Suggestions → Words: the rest of the half-typed word in “See you tomo”. Together the two parts read “See you tomorrow”.")
+
+    var hotkey: String?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("\(Text(Self.typed))\(Text(Self.rest).foregroundStyle(.tertiary))")
+            if let hotkey { MenuHintsView.keycap(hotkey) }
+        }
+        .font(.system(size: 13))
+        .lineLimit(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Preview: grey letters finish the word after the cursor"))
     }
 }
 

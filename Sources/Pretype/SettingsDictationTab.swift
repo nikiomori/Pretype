@@ -412,6 +412,19 @@ enum ShortcutDemo {
         }
     }
 
+    /// A typo the spell-checker's pill corrects as you type.
+    static var typo: some View {
+        HStack(spacing: 6) {
+            Text("recieve", comment: "Settings → Fixes: a common misspelling the spell-checker fixes as you type. Use a common misspelling of the word translated in “receive”.")
+                .strikethrough(color: .red)
+                .foregroundStyle(.secondary)
+            arrow
+            Text("receive", comment: "Settings → Fixes: the corrected form of the misspelled word in “recieve”.")
+                .foregroundStyle(Color.green.legible)
+                .bold()
+        }
+    }
+
     /// The other person's message, and the reply drafted for it.
     static var reply: some View {
         HStack(spacing: 6) {
