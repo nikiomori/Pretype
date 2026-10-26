@@ -89,6 +89,8 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 | **Your style** | A persona, and a style for each app and each website. Pretype also learns from a local journal. You can clear the journal or disable it. |
 | **Shared app styles** | Styles from the community. One click adds the styles for the apps on your Mac. To share your style, add [one text file](AppStyles/README.md). |
 | **Hosted models** *(optional, off)* | OpenAI, Anthropic, Google Gemini, Groq, Mistral, OpenRouter, DeepSeek, or a local server such as Ollama or LM Studio. Keys stay in your keychain. See [Hosted models](docs/models.md#hosted-models-api). |
+| **One switch for each feature** | Suggestions, fixes, replies and dictation each have a switch in **Settings → General**. Typo fixes, emoji and arithmetic also have their own switches. With suggestions off, Pretype loads a model only for a fix or a reply. |
+| **Words** *(optional)* | Pretype completes only the word that you type. Your own words come first, then the macOS dictionary. No model loads. Select **Words** in **Settings → General → Suggestions**. |
 | **17 interface languages** | The interface uses the language of macOS. You can change it in **Settings → General**. |
 
 [Choosing a model](docs/models.md) has the measurements for each model.
@@ -96,6 +98,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 ### Where Pretype stops
 
 * You can disable Pretype for one app or one website from the menu.
+* To keep only the fixes, disable **Suggestions** in **Settings → General**.
 * Pretype does not operate in password managers, in the shell, or while macOS reports secure input.
 * **Pause on Battery** stops suggestions while the Mac is not connected to power.
 * If you almost never accept the suggestions in an app, Pretype stops in that app. The menu shows a **Resume** item.

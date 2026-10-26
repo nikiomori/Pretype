@@ -49,6 +49,10 @@ The key goes through to the app. The event tap stops <kbd>Tab</kbd> only while a
 
 To use a different accept key, select <kbd>⌘Space</kbd>, <kbd>⌥Space</kbd> or <kbd>⌃Space</kbd> in **Settings → General**.
 
+### I want the fixes, but no suggestions
+
+Disable **Suggestions** in **Settings → General**. Fixes, replies and dictation continue to work. The model loads when you press <kbd>⌥Tab</kbd>, and it unloads after the idle time. To complete only the word that you type, keep **Suggestions** on and select **Words**. Words mode loads no model.
+
 ### Suggestions stopped in one app
 
 This is intentional. Pretype stops suggestions in an app when both conditions are true:
