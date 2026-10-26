@@ -61,6 +61,16 @@ enum SpellChecker {
         return fix
     }
 
+    /// The dictionary's words that start with `partial`, likeliest first, in
+    /// the language being typed. Main-thread only.
+    static func completions(of partial: String, context: String) -> [String] {
+        guard partial.count >= 2, partial.count <= 40, partial.allSatisfy(\.isWordChar) else { return [] }
+        let range = NSRange(location: 0, length: (partial as NSString).length)
+        return checker.completions(forPartialWordRange: range, in: partial,
+                                   language: language(for: partial, context: context),
+                                   inSpellDocumentWithTag: 0) ?? []
+    }
+
     /// True when `text` ends right after a complete, correctly-spelled word
     /// (not a partial prefix still being typed). The caret then sits at a real
     /// word boundary, so a new-word (space-led) suggestion — the separator the

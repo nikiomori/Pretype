@@ -73,6 +73,9 @@ final class SuggestionController {
     /// context must never attach to the new one).
     var focusGeneration = 0
     var lastLoggedSuggestion: String?
+    /// The text before the caret right after Words typed a word and its
+    /// space — the next key may take that space back (`takeProvisionalSpace`).
+    var provisionalSpace: String?
 
     // Surfaced in the menu.
     /// What the focus tracker reported, plus the site of a field only the
@@ -199,7 +202,7 @@ final class SuggestionController {
         // partial is shown. By resolve time it belongs to the shown
         // suggestion — except `superseded`, where a newer generation has
         // already overwritten it (see Entry doc: calibration filters those).
-        entry.firstWordLogProb = entry.engine == "ngram" ? nil : engine.lastFirstWordLogProb
+        entry.firstWordLogProb = entry.model == nil ? nil : engine.lastFirstWordLogProb
         env.book(.offer(entry))
     }
 
@@ -506,6 +509,14 @@ final class SuggestionController {
         }
         if queries.isRunning(before: text, after: ctx.textAfterCaret) { return }
 
+        // Words: the rest of the word or nothing — no model, nothing to wait for.
+        if Settings.suggestionMode == .words {
+            if let word = WordCompletion.suggestion(text: text, after: ctx.textAfterCaret, ngram: env.personalNgram) {
+                apply(word, requestText: text, cachedContext: ctx, instant: true)
+            }
+            return
+        }
+
         // Personal n-gram fast-path: a confident hit from the user's own
         // recurring phrases shows at ~0 ms, before the debounce even starts;
         // the LLM stream below then supersedes it through the same apply path.
@@ -698,9 +709,10 @@ final class SuggestionController {
             offer.open(SuggestionJournal.Entry(
                 ts: "",
                 app: typingContext.bundleID,
-                // "ngram" for the fast-path, else the engine's name — so the
-                // journal can compare their acceptance rates.
-                engine: instant ? "ngram" : engine.name,
+                // "ngram" for the fast-path, "words" for Words mode, else the
+                // engine's name — so the journal can compare their acceptance
+                // rates, and keeps the model's rows apart from both.
+                engine: !instant ? engine.name : Settings.suggestionMode == .words ? "words" : "ngram",
                 // The engine's OWN resolved model — not Settings.mlxModelID,
                 // which diverges from what actually generated (instruct loads
                 // the it-sibling; Apple Intelligence has no MLX model at all).

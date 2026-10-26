@@ -111,6 +111,29 @@ final class PersonalNgram: @unchecked Sendable {
         }
     }
 
+    /// Every word the user typed that starts with `prefix`, with its count —
+    /// `prefix` itself among them when it was typed as a word — for Words
+    /// mode (`WordCompletion`) to weigh. A word typed right after `previous`
+    /// counts `boost` times more on top. Folded match, surface forms out.
+    func words(startingWith prefix: String, after previous: String?, boost: Int) -> [(word: String, count: Int)] {
+        let folded = Self.fold(prefix)
+        guard folded.count >= 2 else { return [] }
+        return lock.withLock {
+            // Three typed letters name one bucket; two may open several.
+            let buckets = folded.count >= 3
+                ? [unigram[Self.prefixKey(folded)] ?? [:]]
+                : unigram.filter { $0.key.hasPrefix(folded) }.map(\.value)
+            let following = previous.flatMap { bigram[Self.fold($0)] } ?? [:]
+            var out: [(word: String, count: Int)] = []
+            for bucket in buckets {
+                for (word, count) in bucket where Self.fold(word).hasPrefix(folded) {
+                    out.append((word, count + boost * (following[word] ?? 0)))
+                }
+            }
+            return out
+        }
+    }
+
     /// Fold a stretch of the user's text into the counts. Callers hold no lock.
     func learn(_ text: String) {
         lock.withLock { learnLocked(text) }

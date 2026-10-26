@@ -90,9 +90,10 @@ extension SuggestionController {
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
+        let keyEvent = NSEvent(cgEvent: event)
+        if takeProvisionalSpace(typed: keyEvent?.characters, flags: flags) { return true }
         // Everything else is the pipeline's: one table decides
         // (`SuggestionController+Keys`), and this executes it.
-        let keyEvent = NSEvent(cgEvent: event)
         let undo = field.pendingUndo
         let key = KeyState(
             keyCode: keyCode, flags: flags,
@@ -153,6 +154,28 @@ extension SuggestionController {
             field.undoable = nil
             return false
         }
+    }
+
+    /// The space Words typed after a word, settled by the next key (a
+    /// provisional space): a space is already there and is swallowed, punctuation takes its
+    /// place ("tomorrow ." → "tomorrow."), anything else keeps it. Only while
+    /// the field is exactly as the accept left it. Whether the key was taken.
+    private func takeProvisionalSpace(typed: String?, flags: CGEventFlags) -> Bool {
+        guard let snapshot = provisionalSpace else { return false }
+        provisionalSpace = nil
+        guard field.cache == snapshot, flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate]),
+              let typed, let mark = Self.spaceSettlement(typed) else { return false }
+        field.undoable = nil
+        if mark == " " { return true }
+        inject(mark, deleting: " ", over: snapshot)
+        scheduleKeystrokeRefresh(after: 0.09)
+        return true
+    }
+
+    /// What a key does to a provisional space: " " keeps the one there,
+    /// closing punctuation replaces it; nil leaves it alone.
+    nonisolated static func spaceSettlement(_ typed: String) -> String? {
+        typed == " " || (typed.count == 1 && ".,;:!?)]}…".contains(typed)) ? typed : nil
     }
 
     /// Synchronously shrinks (or drops) the live suggestion to match a
@@ -293,7 +316,12 @@ extension SuggestionController {
         // partial and the ⌘Z gate both read it — a stale marker re-arms the
         // just-accepted word (double insert on a second Tab) and makes an
         // immediate ⌘Z fall through to the app.
-        typeChunk(chunk, over: field.cache, dictated: false)
+        // A whole word from Words comes with its space, which the next key
+        // may take back (`takeProvisionalSpace`) — not before a line's text.
+        let space = current.isInstant && Settings.suggestionMode == .words && chunk == current.text
+            && (current.after.first?.isNewline ?? true) ? " " : ""
+        typeChunk(chunk + space, over: field.cache, dictated: false)
+        provisionalSpace = space.isEmpty ? nil : field.cache
         env.book(.accepted(chunk: chunk, countSuggestion: !current.accepted, app: typingContext.bundleID))
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
