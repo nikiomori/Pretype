@@ -62,13 +62,39 @@ enum SpellChecker {
     }
 
     /// The dictionary's words that start with `partial`, likeliest first, in
-    /// the language being typed. Main-thread only.
-    static func completions(of partial: String, context: String) -> [String] {
+    /// the language it is being typed in (`typingLanguage`). Main-thread only.
+    static func completions(of partial: String) -> [String] {
         guard partial.count >= 2, partial.count <= 40, partial.allSatisfy(\.isWordChar) else { return [] }
         let range = NSRange(location: 0, length: (partial as NSString).length)
-        return checker.completions(forPartialWordRange: range, in: partial,
-                                   language: language(for: partial, context: context),
+        return checker.completions(forPartialWordRange: range, in: partial, language: typingLanguage(for: partial),
                                    inSpellDocumentWithTag: 0) ?? []
+    }
+
+    /// `word` spells a whole word in the language it is being typed in.
+    static func isTypedWord(_ word: String) -> Bool {
+        spelled(word, language: typingLanguage(for: word))
+    }
+
+    /// The dictionary for a word being typed: the first enabled keyboard's
+    /// language that writes in the word's alphabet — Russian for "завт" on a
+    /// Russian and English Mac — else the alphabet's own. Not the recognizer:
+    /// on a few words of context it named Bulgarian for "завт" and Czech for
+    /// "chec", and their dictionaries completed them into nonsense.
+    static func typingLanguage(for word: String) -> String {
+        let cyrillic = isCyrillic(word)
+        for keyboard in keyboardLanguages where cyrillicLanguages.contains(keyboard) == cyrillic {
+            if let match = availableLanguages.first(where: { $0.lowercased().hasPrefix(keyboard) }) { return match }
+        }
+        return scriptLanguage(word)
+    }
+
+    /// Enabled keyboard layouts' languages, read once: they rarely change
+    /// while Pretype runs, and the list is walked on every keystroke.
+    private static let keyboardLanguages = Settings.keyboardLanguages().map { $0.lowercased() }
+    private static let cyrillicLanguages: Set<String> = ["ru", "uk", "be", "bg", "sr", "mk", "kk", "ky", "mn", "tg", "tt", "ba"]
+
+    private static func isCyrillic(_ word: String) -> Bool {
+        word.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
     }
 
     /// True when `text` ends right after a complete, correctly-spelled word
@@ -171,8 +197,7 @@ enum SpellChecker {
     /// The available spell-check language for the word's own script:
     /// Cyrillic → a Russian variant, anything else → English.
     private static func scriptLanguage(_ word: String) -> String {
-        let cyrillic = word.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
-        let want = cyrillic ? "ru" : "en"
+        let want = isCyrillic(word) ? "ru" : "en"
         return availableLanguages.first { $0.lowercased().hasPrefix(want) } ?? want
     }
 

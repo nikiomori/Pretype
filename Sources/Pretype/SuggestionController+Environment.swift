@@ -122,8 +122,10 @@ extension SuggestionController {
                 book: { booking in
                     switch booking {
                     case .offer(let entry):
+                        // Words' ghosts stay out of the app's record: dozens of
+                        // passed-over words would read as a model nobody takes.
                         Stats.recordOffer(outcome: entry.outcome, shownForMs: entry.shownForMs,
-                                          tookAny: entry.acceptedChars > 0, app: entry.app)
+                                          tookAny: entry.acceptedChars > 0, app: entry.engine == "words" ? nil : entry.app)
                         guard Settings.suggestionJournalEnabled else { return }
                         // Live n-gram learning from the same ctx snapshots the
                         // startup build replays — so today's typing predicts today.

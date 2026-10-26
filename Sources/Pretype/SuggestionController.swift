@@ -501,8 +501,11 @@ final class SuggestionController {
 
         // After the correction pass above: the app's record counts
         // completions, so a typo fix or a shortcode still works where
-        // completions don't. Reversible from the status menu.
-        if let why = RequestGate.quietReason(unproductive: env.isUnproductive(typingContext.bundleID),
+        // completions don't. Reversible from the status menu. Not Words: a
+        // word ghost costs a glance, not the model's interruption, and its
+        // offers stay out of that record.
+        let unproductive = Settings.suggestionMode == .sentences && env.isUnproductive(typingContext.bundleID)
+        if let why = RequestGate.quietReason(unproductive: unproductive,
                                              onBattery: env.pausedForBattery(), declined: field.isDeclined) {
             lastEvent = why
             return
@@ -680,7 +683,8 @@ final class SuggestionController {
 
         let current = ctx.textBeforeCaret
         switch RequestGate.landing(sanitized, askedOn: requestText, current: current,
-                                   flush: !instant && !reply && engine.answersFlush) {
+                                   flush: !instant && !reply && engine.answersFlush,
+                                   completesWord: instant && Settings.suggestionMode == .words) {
         case .show(let landed):
             suggestion = landed
         case .stale(let why):

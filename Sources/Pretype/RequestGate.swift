@@ -128,10 +128,12 @@ enum RequestGate {
     /// continuation goes ("при " + "вет" → "привет"; a base model's own space
     /// stays — "так же" + " не" is not "жене"), a leading space the field
     /// already has goes, and a wrongly capitalized mid-sentence continuation
-    /// is lowered ("я хочу " + "Поехать" → "поехать").
+    /// is lowered ("я хочу " + "Поехать" → "поехать"). `completesWord`: the
+    /// rest of a known word (Words mode) — never a new word glued on, though
+    /// the spell-checker may not know the whole ("Ники" + "та").
     @MainActor
     static func landing(_ suggestion: String, askedOn requestText: String, current: String,
-                        flush: Bool) -> Landing {
+                        flush: Bool, completesWord: Bool = false) -> Landing {
         var suggestion = suggestion
         switch FieldState.ghostUpdate(anchor: requestText, remaining: suggestion, text: current) {
         case .unchanged:
@@ -144,7 +146,7 @@ enum RequestGate {
         if flush { suggestion = SpellChecker.strippingStraySeparator(suggestion: suggestion, before: current) }
         suggestion = SuggestionController.deduplicatingSeamSpace(suggestion, after: current)
         suggestion = SpellChecker.decapitalizeContinuation(suggestion, before: current)
-        if SuggestionController.wouldGlueMidWord(current: current, suggestion: suggestion) { return .glued }
+        if !completesWord, SuggestionController.wouldGlueMidWord(current: current, suggestion: suggestion) { return .glued }
         return .show(suggestion)
     }
 }

@@ -318,11 +318,11 @@ extension SuggestionController {
         // immediate ⌘Z fall through to the app.
         // A whole word from Words comes with its space, which the next key
         // may take back (`takeProvisionalSpace`) — not before a line's text.
-        let space = current.isInstant && Settings.suggestionMode == .words && chunk == current.text
-            && (current.after.first?.isNewline ?? true) ? " " : ""
+        let word = current.isInstant && Settings.suggestionMode == .words
+        let space = word && chunk == current.text && (current.after.first?.isNewline ?? true) ? " " : ""
         typeChunk(chunk + space, over: field.cache, dictated: false)
         provisionalSpace = space.isEmpty ? nil : field.cache
-        env.book(.accepted(chunk: chunk, countSuggestion: !current.accepted, app: typingContext.bundleID))
+        env.book(.accepted(chunk: chunk, countSuggestion: !current.accepted, app: word ? nil : typingContext.bundleID))
         lastEvent = "accepted \"\(chunk)\""
         DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
         offer.accepted(chunk)
