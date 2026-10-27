@@ -50,7 +50,8 @@ final class ReplyComposer {
     }
 
     /// Write the user's next message for them: OCR the conversation in front of
-    /// them, ask the engine to answer it, and offer the whole thing as one ghost
+    /// them (in an AI agent's box, read its session off the terminal), ask the
+    /// engine to answer it, and offer the whole thing as one ghost
     /// the normal accept keys take (⇥ word by word, ⇧⇥ all of it, ⎋ to drop it).
     /// Asked for by the chord, or — `auto`, with "Offer replies in chats" on —
     /// by the caret landing in an empty message box. Nothing is typed unasked.
@@ -78,7 +79,9 @@ final class ReplyComposer {
             return stop("no text field in focus")
         }
         let typingContext = host.typingContext
-        guard !AppPolicy.isBlacklisted(typingContext) else {
+        // A terminal, off for everything else, answers in an agent's box: the
+        // read below finds nothing anywhere else in it.
+        guard AppPolicy.allowsCompletions(typingContext) else {
             return stop("off in \(typingContext.site ?? typingContext.appName ?? "this app")")
         }
         // allowEmpty: an empty chat box is the case this feature exists for —
@@ -94,10 +97,13 @@ final class ReplyComposer {
             guard host.engine.isCorrectionReady else { return stop("the reply model isn't loaded") }
         }
         host.adoptReplyField(ctx, caret: rect)
+        // An AI agent's input box: the session above it is the terminal's own
+        // text — no screenshot, so no Screen Recording, in apps that never OCR.
+        let session = env.isTerminalField(element) ? env.agentTranscript(element) : nil
         // Without the screen there is nothing to reply *to*: say so at the caret
         // instead of answering from the empty field.
-        guard Settings.screenContextEnabled, env.screenRecordingAllowed(),
-              AppPolicy.allowsScreenContext(typingContext) else {
+        guard session != nil || Settings.screenContextEnabled && env.screenRecordingAllowed()
+                && AppPolicy.allowsScreenContext(typingContext) else {
             _ = stop("needs screen context — \(prompts.screenStatus)")
             if auto { return false }
             // Say which of the three is missing, in the words the fix is found
@@ -111,7 +117,8 @@ final class ReplyComposer {
             indicator.flashTransient(.hint(why), hideAfter: 3.5)
             return false
         }
-        let request = prompts.makeRequest(text: ctx.textBeforeCaret, after: ctx.textAfterCaret)
+        var request = prompts.makeRequest(text: ctx.textBeforeCaret, after: ctx.textAfterCaret)
+        request.agentSession = session != nil
         let engine = host.engine
         let capture = env.captureScreen
         let pid = host.observedPID
@@ -122,7 +129,7 @@ final class ReplyComposer {
             // ROI either: that band is ±250 pt of the input box, while a reply
             // needs the exchange above it — the whole window, capped from the
             // bottom, which is where the recent messages are.
-            let conversation = await capture(pid, ctx.textBeforeCaret, nil, 1200)
+            let conversation = if let session { session } else { await capture(pid, ctx.textBeforeCaret, nil, 1200) }
             if Task.isCancelled { return }
             let outcome: Result<String?, Error>
             if let conversation {

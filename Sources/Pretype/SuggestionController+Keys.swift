@@ -32,6 +32,10 @@ extension SuggestionController {
         /// Pretype stays out of this app or site, or a hands-free capture owns
         /// the overlay: neither the reply nor the fix chord is ours.
         var offHere = false
+        /// The caret is in an AI agent's input box in a terminal app — off
+        /// for everything else, so `offHere` — where the reply chord answers
+        /// the agent (`ReplyComposer`). The fix chord stays the terminal's.
+        var agentBox = false
         var ghost: FieldState.Ghost?
         /// The window shows the ghost. A dictation pill, a notice, a fix pill
         /// or an engine status over it means ⇥ would type text nobody sees.
@@ -52,10 +56,11 @@ extension SuggestionController {
     static func keyAction(for key: KeyState, fix: () -> CorrectionController.KeyOutcome,
                           focusElsewhere: () -> Bool) -> KeyAction {
         if key.canUndo, key.isCommandZ { return .undo }
+        // Before the fix flows only for symmetry: the two chords differ by ⇧
+        // and the fix matcher demands exact flags.
+        if !key.offHere || key.agentBox, key.replies,
+           key.style.matchesReply(keyCode: key.keyCode, flags: key.flags) { return .reply }
         if !key.offHere {
-            // Before the fix flows only for symmetry: the two chords differ
-            // by ⇧ and the fix matcher demands exact flags.
-            if key.replies, key.style.matchesReply(keyCode: key.keyCode, flags: key.flags) { return .reply }
             switch key.fixes ? fix() : .ignored {
             case .consumed: return .fix(swallowed: true)
             case .passThrough: return .fix(swallowed: false)

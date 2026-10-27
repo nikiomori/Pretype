@@ -103,6 +103,31 @@ final class ReplyComposerTests: XCTestCase {
         XCTAssertEqual(host.offered.map(\.on), ["Ok "])
     }
 
+    // An AI agent's box answers the session on the terminal itself: no
+    // screen context, no Screen Recording, no capture.
+    func testAnAgentsBoxRepliesToItsSessionWithoutTheScreen() async {
+        Settings.screenContextEnabled = false
+        world.screenRecording = false
+        world.terminalField = true
+        world.agentSession = "⏺ Tests pass. Commit?"
+        world.engine.reply = "yes, commit"
+        host.typingContext = TypingContext(appName: "Terminal", bundleID: "com.apple.Terminal")
+        XCTAssertTrue(replies.compose())
+        await host.task?.value
+        XCTAssertTrue(world.captures.isEmpty)
+        XCTAssertEqual(world.engine.conversations, ["⏺ Tests pass. Commit?"])
+        XCTAssertEqual(host.offered.map(\.reply), ["yes, commit"])
+
+        world.agentSession = nil
+        XCTAssertFalse(replies.compose(), "a shell is no agent's box")
+        XCTAssertTrue(host.lastEvent.hasPrefix("reply: needs screen context"), host.lastEvent)
+        let saved = Settings.userBlacklist
+        defer { Settings.userBlacklist = saved }
+        Settings.userBlacklist = ["com.apple.terminal"]
+        XCTAssertFalse(replies.compose())
+        XCTAssertEqual(host.lastEvent, "reply: off in Terminal", "switched off by the user")
+    }
+
     // A reply that fails: asked for, it says so at the caret and in "Last:";
     // offered automatically, it says nothing.
     func testAFailedReplyIsSaidOnlyWhenAskedFor() async {

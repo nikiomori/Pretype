@@ -44,6 +44,8 @@ extension SuggestionController {
         /// `AXText.isTerminalField`: Backspace deletes a whole grapheme
         /// cluster there.
         var isTerminalField: (AXUIElement) -> Bool
+        /// The AI agent's session above its input box (`AXText.agentTranscript`).
+        var agentTranscript: (AXUIElement) -> String?
         var deleteBackward: (_ text: String, _ perCharacter: Bool) -> Void
         var insert: (String) -> Void
         /// Press Return (a dictation into a chat that sends on it).
@@ -106,6 +108,7 @@ extension SuggestionController {
                 hasMarkedText: { AXText.hasMarkedText($0) },
                 secureInputActive: { AXText.isSecureInputActive() },
                 isTerminalField: { AXText.isTerminalField($0) },
+                agentTranscript: { AXText.agentTranscript(for: $0) },
                 deleteBackward: { TextInjector.deleteBackward(over: $0, perCharacter: $1) },
                 insert: { TextInjector.insert($0) },
                 pressReturn: { TextInjector.press(KeyCode.returnKey, times: 1) },

@@ -117,6 +117,27 @@ final class PromptContextTests: XCTestCase {
         XCTAssertNil(AgentPrompt.input(before: screen + "! git push", after: below))
     }
 
+    // The session above an agent's box is what a reply answers: rules and
+    // padding go, blank runs shrink to one line, and a long session keeps
+    // its newest lines, from a line start.
+    func testAgentSessionAboveTheBox() {
+        let rule = String(repeating: "─", count: 40)
+        let below = "\n\(rule)\n  ⏵⏵ auto mode on"
+        let screen = ["", "> rename the flag", "", "", "⏺ Renamed it in Settings.swift.   ", "  ⎿  2 files changed", rule]
+        XCTAssertEqual(AgentPrompt.transcript(before: (screen + ["❯ "]).joined(separator: "\n"), after: below),
+                       "> rename the flag\n\n⏺ Renamed it in Settings.swift.\n  ⎿  2 files changed")
+        XCTAssertEqual(AgentPrompt.transcript(before: (screen + ["❯ and the", "  tests"]).joined(separator: "\n"), after: below),
+                       "> rename the flag\n\n⏺ Renamed it in Settings.swift.\n  ⎿  2 files changed", "a wrapped draft")
+        XCTAssertEqual(AgentPrompt.transcript(before: (screen + ["❯ "]).joined(separator: "\n"), after: below, maxChars: 40),
+                       "⏺ Renamed it in Settings.swift.\n  ⎿  2 files changed".split(separator: "\n").last.map(String.init),
+                       "cut at a line start")
+        XCTAssertNil(AgentPrompt.transcript(before: [rule, "❯ "].joined(separator: "\n"), after: below), "nothing above")
+        XCTAssertNil(AgentPrompt.transcript(before: "~ % ls\n❯ git sta", after: below), "a shell")
+        XCTAssertEqual(CompletionRequest.userMessages(in: "> rename the flag\n⏺ Done\n❯ now the tests"),
+                       "rename the flag\nnow the tests")
+        XCTAssertNil(CompletionRequest.userMessages(in: "⏺ Done"))
+    }
+
     // Base-path RAG: accepted phrases form a separate label-free preamble block
     // the engine prepends to the GENERATION prompt only — completionPrompt
     // (what the context floor, the gates and the n-gram context reason about)

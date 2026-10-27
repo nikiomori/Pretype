@@ -25,11 +25,11 @@ final class KeyGateTests: XCTestCase {
     private let letter = Key(name: "a", code: 0, flags: [])
     private let ghost = FieldState.Ghost(anchor: "Hi ", after: "!", text: "to be")
 
-    private func action(_ key: Key, canUndo: Bool = false, offHere: Bool = false, ghost: Bool = true,
+    private func action(_ key: Key, canUndo: Bool = false, offHere: Bool = false, agentBox: Bool = false, ghost: Bool = true,
                         onScreen: Bool = true, fix: CorrectionController.KeyOutcome = .ignored,
                         elsewhere: Bool = false, fixes: Bool = true, replies: Bool = true) -> C.KeyAction {
         let state = C.KeyState(keyCode: key.code, flags: key.flags, isCommandZ: key.isCommandZ,
-                               canUndo: canUndo, offHere: offHere, ghost: ghost ? self.ghost : nil,
+                               canUndo: canUndo, offHere: offHere, agentBox: agentBox, ghost: ghost ? self.ghost : nil,
                                ghostOnScreen: onScreen, style: .tab, fixes: fixes, replies: replies)
         return C.keyAction(for: state, fix: { fix }, focusElsewhere: { elsewhere })
     }
@@ -65,6 +65,11 @@ final class KeyGateTests: XCTestCase {
         XCTAssertEqual(action(replyChord, offHere: true), .type)
         XCTAssertEqual(action(fixChord, fix: .consumed), .fix(swallowed: true))
         XCTAssertEqual(action(fixChord, offHere: true, fix: .consumed), .type)
+        // A terminal is off but for an agent's box: the reply answers the
+        // agent there; the fix chord stays the terminal's.
+        XCTAssertEqual(action(replyChord, offHere: true, agentBox: true), .reply)
+        XCTAssertEqual(action(replyChord, offHere: true, agentBox: true, replies: false), .type)
+        XCTAssertEqual(action(fixChord, offHere: true, agentBox: true, fix: .consumed), .type)
         // A fix preview outranks the ghost: ⇥ applies it, ⎋ keeps the original.
         XCTAssertEqual(action(tab, fix: .consumed), .fix(swallowed: true))
         XCTAssertEqual(action(escape, fix: .passThrough), .fix(swallowed: false))

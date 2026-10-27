@@ -62,6 +62,18 @@ final class CompletionEngineTests: XCTestCase {
         XCTAssertTrue(full.contains("The user has already started the message: \"Sure,\""), full)
     }
 
+    // An agent's box gets its own wording, and the language of the user's
+    // earlier messages — not of the code and English tool output around them.
+    func testTheAgentReplyPrompt() {
+        var request = CompletionRequest(textBeforeCaret: "", appName: "Terminal")
+        request.agentSession = true
+        let session = "> переименуй флаг и поправь тесты пожалуйста\n⏺ Renamed `agentPromptSuggestions` in Settings.swift and updated 3 tests."
+        let prompt = request.replyPrompt(conversation: session, instructions: "")
+        XCTAssertTrue(prompt.hasPrefix("You are writing the next message the user will send to the AI agent working in their terminal. Write it as the user, in Russian, the conversation's language"), prompt)
+        XCTAssertFalse(prompt.contains("Terminal"), prompt)
+        XCTAssertTrue(prompt.hasSuffix("The agent's session:\n" + session), prompt)
+    }
+
     // The conversation's language by name — when the recognizer is sure,
     // from the last 600 characters; short Russian it calls Ukrainian is
     // Russian when a Russian-only letter says so.

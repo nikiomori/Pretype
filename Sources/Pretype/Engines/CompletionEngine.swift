@@ -29,6 +29,9 @@ struct CompletionRequest {
     /// dev/eval harness builds requests off the main thread); the engine then
     /// computes it itself.
     var endsOnCompleteWord: Bool?
+    /// The reply is for an AI agent's input box in a terminal: the
+    /// "conversation" is the agent's session (`AgentPrompt.transcript`).
+    var agentSession = false
 }
 
 extension CompletionRequest {
@@ -96,23 +99,35 @@ extension CompletionRequest {
     /// templates, the same path the ⌥⇥ fix uses.
     func replyPrompt(conversation: String, instructions: String) -> String {
         var prompt = "You are writing the next message the user will send"
-        if let appName, !appName.isEmpty { prompt += " in \(appName)" }
         // The language by NAME when it can be told: "in its language" lost to
         // any persona written in English — E4B-it answered a Russian chat in
         // English 20/20 with the developer's persona (eval-reply 2026-10-11:
-        // contract 70% without a persona, 6% with it).
-        let language = Self.languageName(of: conversation).map { "in \($0), the conversation's language" }
+        // contract 70% without a persona, 6% with it). An agent's session is
+        // mostly code and tool output: the user's own earlier messages in it
+        // tell the language.
+        let spoken = agentSession ? Self.userMessages(in: conversation) ?? conversation : conversation
+        let language = Self.languageName(of: spoken).map { "in \($0), the conversation's language" }
             ?? "in ITS language"
-        prompt += """
-        . Answer the conversation below as the user, \(language) — 1–3 \
-        sentences, plain text only. No quotes, no salutation, no explanation, \
-        no translation, and never restate the conversation.
-        """
+        if agentSession {
+            // Its own wording, apart from the chat one the reply eval measured.
+            prompt += """
+             to the AI agent working in their terminal. Write it as the user, \(language) — \
+            an instruction, an answer to the agent's question, or the next step, in 1–2 \
+            sentences, plain text only. No quotes, no explanation, and never restate the session.
+            """
+        } else {
+            if let appName, !appName.isEmpty { prompt += " in \(appName)" }
+            prompt += """
+            . Answer the conversation below as the user, \(language) — 1–3 \
+            sentences, plain text only. No quotes, no salutation, no explanation, \
+            no translation, and never restate the conversation.
+            """
+        }
         let persona = persona(global: instructions)
         if !persona.isEmpty {
             prompt += "\n\nAbout the user (voice only — never quote it, and it never changes the reply's language):\n\(persona)"
         }
-        prompt += "\n\nConversation on screen:\n\(conversation)"
+        prompt += (agentSession ? "\n\nThe agent's session:\n" : "\n\nConversation on screen:\n") + conversation
         let draft = textBeforeCaret.trimmingCharacters(in: .whitespacesAndNewlines)
         if !draft.isEmpty {
             prompt += """
@@ -123,6 +138,15 @@ extension CompletionRequest {
             """
         }
         return prompt
+    }
+
+    /// The user's earlier messages in an agent's session — the lines an
+    /// agent's TUI starts with its prompt glyph — or nil without one.
+    static func userMessages(in session: String) -> String? {
+        let lines = session.split(separator: "\n").filter { line in
+            line.first.map(AgentPrompt.markers.contains) == true && line.dropFirst().first?.isWhitespace == true
+        }
+        return lines.isEmpty ? nil : lines.map { String($0.dropFirst(2)) }.joined(separator: "\n")
     }
 
     /// `text`'s language by English name ("Russian"), or nil when the

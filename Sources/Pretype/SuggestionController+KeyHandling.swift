@@ -102,6 +102,10 @@ extension SuggestionController {
                                              flags: flags),
             canUndo: undo != nil,
             offHere: AppPolicy.isBlacklisted(typingContext) || dictationController.isBusy,
+            // The last read found an agent's box: a terminal reads as nothing
+            // anywhere else (`AXText.context`).
+            agentBox: AppPolicy.isTerminal(typingContext.bundleID) && AppPolicy.allowsCompletions(typingContext)
+                && field.cache != nil && !dictationController.isBusy,
             ghost: field.ghost, ghostOnScreen: window.showsSuggestion,
             style: Settings.hotkeyStyle, fixes: Settings.fixesEnabled, replies: Settings.repliesEnabled)
         let action = Self.keyAction(for: key,

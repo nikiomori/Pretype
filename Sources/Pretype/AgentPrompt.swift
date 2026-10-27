@@ -18,6 +18,47 @@ enum AgentPrompt {
     /// What's typed in the box, soft wraps rejoined — nil unless the caret
     /// sits at the end of an agent's input box.
     static func input(before: String, after: String) -> String? {
+        guard let (lines, start, width) = box(before: before, after: after) else { return nil }
+        var text = String(lines[start].dropFirst(2))
+        for i in start + 1 ..< lines.count {
+            // A soft wrap keeps the space it broke at, or ran the line
+            // to the edge (a word longer than the line); anything else
+            // was a newline the user typed.
+            let wrapped = text.hasSuffix(" ") || lines[i - 1].count >= width - 2
+            text += (wrapped ? "" : "\n") + lines[i].dropFirst(2)
+        }
+        // In VS Code, Claude Code shows the editor's selection as a
+        // chip at the head of the box; it isn't part of the prompt.
+        if text.hasPrefix("[⧉"), let end = text.range(of: "] ") { text.removeSubrange(..<end.upperBound) }
+        return text
+    }
+
+    /// The session above the box — the agent's last turn, at the bottom —
+    /// rules dropped, trailing padding trimmed, blank runs cut to one, capped
+    /// from the top to `maxChars` at a line start. What a reply answers
+    /// (`ReplyComposer`). nil outside an agent box, or with nothing above it.
+    static func transcript(before: String, after: String, maxChars: Int = 1500) -> String? {
+        guard let (lines, start, _) = box(before: before, after: after) else { return nil }
+        var kept: [String] = []
+        for raw in lines[..<(start - 1)] {
+            let line = String(raw.reversed().drop(while: \.isWhitespace).reversed())
+            if ruleWidth(Substring(line)) != nil { continue }
+            if line.isEmpty, kept.last?.isEmpty != false { continue }
+            kept.append(line)
+        }
+        while kept.last?.isEmpty == true { kept.removeLast() }
+        var text = kept.joined(separator: "\n")
+        if text.count > maxChars {
+            let tail = text.suffix(maxChars)
+            text = String(tail.firstIndex(of: "\n").map { tail[tail.index(after: $0)...] } ?? tail)
+        }
+        return text.isEmpty ? nil : text
+    }
+
+    /// The box around the caret: the lines up to it, the prompt-glyph line's
+    /// index in them and the box's width — nil unless the caret sits at the
+    /// end of an agent's input box.
+    private static func box(before: String, after: String) -> (lines: [String], prompt: Int, width: Int)? {
         let tail = after.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
         // Only padding may follow the caret, then the closing rule.
         guard tail.count > 1, tail[0].allSatisfy({ $0 == " " }), let width = ruleWidth(tail[1]) else { return nil }
@@ -26,19 +67,7 @@ enum AgentPrompt {
             let line = lines[start]
             if let first = line.first, markers.contains(first),
                let gap = line.dropFirst().first, gap == " " || gap == "\u{a0}" {
-                guard ruleWidth(Substring(lines[start - 1])) != nil else { return nil }
-                var text = String(line.dropFirst(2))
-                for i in start + 1 ..< lines.count {
-                    // A soft wrap keeps the space it broke at, or ran the line
-                    // to the edge (a word longer than the line); anything else
-                    // was a newline the user typed.
-                    let wrapped = text.hasSuffix(" ") || lines[i - 1].count >= width - 2
-                    text += (wrapped ? "" : "\n") + lines[i].dropFirst(2)
-                }
-                // In VS Code, Claude Code shows the editor's selection as a
-                // chip at the head of the box; it isn't part of the prompt.
-                if text.hasPrefix("[⧉"), let end = text.range(of: "] ") { text.removeSubrange(..<end.upperBound) }
-                return text
+                return ruleWidth(Substring(lines[start - 1])) != nil ? (lines, start, width) : nil
             }
             // Above the caret line, only the box's indented continuation lines.
             guard line.hasPrefix("  ") else { return nil }

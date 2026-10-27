@@ -551,6 +551,10 @@ final class AXTextReadTests: XCTestCase {
         let tiny = xterm(rows, cursor: (3, 14))
         tree.set(tiny, kAXSizeAttribute, CGSize(width: 1, height: 3))
         XCTAssertNil(context(tiny), "a cell under 4 pt is no cursor")
+
+        XCTAssertEqual(tree.reading { AXText.agentTranscript(for: helper) }, "$ make\nok",
+                       "a reply reads every row over the box")
+        XCTAssertNil(tree.reading { AXText.agentTranscript(for: midInput) })
     }
 
     // MARK: - Selections

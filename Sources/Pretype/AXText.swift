@@ -350,6 +350,24 @@ enum AXText {
         }
     }
 
+    /// The agent's session above its input box (`AgentPrompt.transcript`) —
+    /// nil outside one. Read on demand, never per keystroke: in an xterm it
+    /// is every row of the viewport, two AX reads each.
+    static func agentTranscript(for element: AXUIElement) -> String? {
+        switch kind(of: element) {
+        case .xterm:
+            return xtermContext(element, wholeScreen: true).flatMap {
+                AgentPrompt.transcript(before: $0.textBeforeCaret, after: $0.textAfterCaret)
+            }
+        case .terminal:
+            guard ruleUnderCaret(element),
+                  let ctx = fieldContext(for: element, maxChars: 4000, allowEmpty: true) else { return nil }
+            return AgentPrompt.transcript(before: ctx.textBeforeCaret, after: ctx.textAfterCaret)
+        case .plain:
+            return nil
+        }
+    }
+
     private enum FieldKind { case xterm, terminal, plain }
 
     /// A terminal's line editor — a terminal app's, or xterm.js inside an
@@ -585,8 +603,9 @@ enum AXText {
     /// is a hidden textarea parked on the cursor cell, and the screen's text
     /// lives in a separate accessibility tree, one element per viewport row.
     /// Rebuilds the text around the cursor from the rows near it — enough for
-    /// `AgentPrompt` to find an input box — at two AX reads a row.
-    private static func xtermContext(_ helper: AXUIElement) -> TextContext? {
+    /// `AgentPrompt` to find an input box — at two AX reads a row;
+    /// `wholeScreen` reads every row above the cursor instead.
+    private static func xtermContext(_ helper: AXUIElement, wholeScreen: Bool = false) -> TextContext? {
         guard let cursor = elementFrame(helper), cursor.height >= 4 else { return nil }
         var nodes = xtermNodes.get().flatMap { $0.helper == helper ? $0 : nil }
         var rows = nodes.flatMap { attribute($0.tree, kAXChildrenAttribute) as [AXUIElement]? }
@@ -617,7 +636,7 @@ enum AXText {
         // the cursor shifts the split; fine for the box's end-of-input caret.
         guard let typed = caretLine(row: String(line), column: column,
                                     recent: attribute(helper, kAXValueAttribute) ?? "") else { return nil }
-        let above = agentBoxRows(above: cursorRow, typed: typed, read: rowText)
+        let above = wholeScreen ? (0..<cursorRow).map(rowText) : agentBoxRows(above: cursorRow, typed: typed, read: rowText)
         guard let caret = onScreen(flipped(CGRect(x: cursor.minX, y: cursor.minY, width: 1, height: cursor.height)))
         else { return nil }
         return TextContext(textBeforeCaret: (above + [typed]).joined(separator: "\n"),

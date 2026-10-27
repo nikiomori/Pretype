@@ -252,6 +252,8 @@ final class FakeWorld {
     var dead: [AXUIElement] = []
     var replacement: AXUIElement?
     var terminalField = false
+    /// The agent session a terminal field reads above its input box.
+    var agentSession: String?
     /// A launcher-style panel holding the keys, and its field.
     var panelOwner: pid_t?
     /// Unplugged, with "pause on battery" on.
@@ -360,6 +362,7 @@ final class FakeWorld {
             hasMarkedText: { [unowned self] _ in markedText },
             secureInputActive: { [unowned self] in secureInput },
             isTerminalField: { [unowned self] _ in terminalField },
+            agentTranscript: { [unowned self] _ in terminalField ? agentSession : nil },
             deleteBackward: { [unowned self] in keys.append(.delete($0, perCharacter: $1)) },
             insert: { [unowned self] in keys.append(.insert($0)) },
             pressReturn: { [unowned self] in keys.append(.returnKey) },
