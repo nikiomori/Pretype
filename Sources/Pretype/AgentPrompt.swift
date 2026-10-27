@@ -88,6 +88,37 @@ enum AgentPrompt {
         return TextContext(textBeforeCaret: typed, textAfterCaret: "", caretRect: ctx.caretRect, host: host)
     }
 
+    /// The names in a session worth completing — identifiers and paths: an
+    /// inner capital, a digit, `_`, a `.` or `/` inside — of 4+ characters,
+    /// newest first. Sentence dots and list dashes around them are not theirs.
+    static func names(in session: String) -> [String] {
+        let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "`'\"()[]{}<>,;:!?*|=+"))
+        var seen = Set<String>(), names: [String] = []
+        for raw in session.components(separatedBy: separators).reversed() {
+            let name = raw.trimmingCharacters(in: CharacterSet(charactersIn: ".-/"))
+            guard name.count >= 4, name.contains(where: \.isLetter),
+                  name.allSatisfy({ $0.isLetter || $0.isNumber || Self.nameMarks.contains($0) }),
+                  name.dropFirst().contains(where: { $0.isUppercase || $0.isNumber || "_./".contains($0) }),
+                  seen.insert(name).inserted else { continue }
+            names.append(name)
+        }
+        return names
+    }
+
+    /// The rest of the session name the text ends in — as far as every
+    /// matching name agrees — when that adds 2+ characters to a token of 3+.
+    /// Case-sensitive: "sugg" never grows into "SuggestionController".
+    static func completion(of text: String, names: [String]) -> String? {
+        let token = String(text.reversed().prefix { $0.isLetter || $0.isNumber || nameMarks.contains($0) }.reversed())
+        guard token.count >= 3, token.contains(where: \.isLetter) else { return nil }
+        let matches = names.filter { $0.count > token.count && $0.hasPrefix(token) }
+        guard var common = matches.first else { return nil }
+        for name in matches.dropFirst() { common = String(zip(common, name).prefix { $0 == $1 }.map(\.0)) }
+        return common.count >= token.count + 2 ? String(common.dropFirst(token.count)) : nil
+    }
+
+    private static let nameMarks: Set<Character> = ["_", ".", "/", "-"]
+
     /// A horizontal rule's width in columns — nil for any other line.
     static func ruleWidth(_ line: Substring) -> Int? {
         let body = line.trimmingCharacters(in: .whitespaces)

@@ -78,6 +78,32 @@ final class RequestPipelineTests: PipelineTestCase {
         XCTAssertEqual(controller.queries.current?.kind, .completion(before: "❯ 12*7=", after: ""))
     }
 
+    // In an agent's box the session's names complete at once, no model
+    // asked: journaled as "names", taken whole with their space; the
+    // session is read at the message's first word and kept after it.
+    func testAnAgentsBoxCompletesTheSessionsNames() async throws {
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Updated Sources/Pretype/AgentPrompt.swift and SuggestionController."
+        fake.before = "check Sugg"
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "estionController")
+        XCTAssertNil(controller.queries.current, "no model asked")
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertEqual(fake.keys, [.insert("estionController ")])
+        controller.dismiss()
+        XCTAssertEqual(fake.offers.last?.engine, "names")
+
+        fake.advance(1)   // past the accept's settle
+        fake.agentSession = nil   // read once per message: still kept
+        fake.before = "and Sources/Pre"
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "type/AgentPrompt.swift", controller.lastEvent)
+        fake.before = "and the tests"
+        controller.textDidChange()
+        XCTAssertEqual(controller.queries.current?.kind, .completion(before: "and the tests", after: ""))
+    }
+
     // A shell prompt reads nil on every key: a terminal never pays for the
     // liveness probe. Elsewhere a nil read probes the handle.
     func testATerminalIsNeverProbed() async {

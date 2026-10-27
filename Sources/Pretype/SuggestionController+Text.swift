@@ -128,6 +128,21 @@ extension SuggestionController {
         return redacted.completionPrompt(maxChars: 1000)
     }
 
+    /// The names of the agent session above `element`'s box: read again at
+    /// each message's first word — the agent has printed its turn since — at
+    /// most every 3 s while that word is typed, and kept for the rest of the
+    /// message. In an xterm the read is every viewport row.
+    func sessionNames(in element: AXUIElement, typed: String) -> [String] {
+        let now = env.now()
+        if let read = sessionNamesRead, CFEqual(read.element, element),
+           typed.contains(where: \.isWhitespace) || now.timeIntervalSince(read.at) < 3 {
+            return read.names
+        }
+        let names = env.agentTranscript(element).map(AgentPrompt.names) ?? []
+        sessionNamesRead = (element, now, names)
+        return names
+    }
+
     /// Leading spaces plus the first run of non-space characters.
     nonisolated static func firstWordChunk(of text: String) -> String {
         let lead = text.prefix { $0 == " " }

@@ -76,6 +76,9 @@ final class SuggestionController {
     /// The text before the caret right after Words typed a word and its
     /// space — the next key may take that space back (`takeProvisionalSpace`).
     var provisionalSpace: String?
+    /// An agent session's names (`AgentPrompt.names`), read for `element`
+    /// `at` its message's first word (`sessionNames(in:typed:)`).
+    var sessionNamesRead: (element: AXUIElement, at: Date, names: [String])?
 
     // Surfaced in the menu.
     /// What the focus tracker reported, plus the site of a field only the
@@ -512,10 +515,18 @@ final class SuggestionController {
         }
         if queries.isRunning(before: text, after: ctx.textAfterCaret) { return }
 
+        // An agent's session names what is typed to it next — a file, a
+        // symbol it just printed: the rest of it, no model asked.
+        if env.isTerminalField(element),
+           let rest = AgentPrompt.completion(of: text, names: sessionNames(in: element, typed: text)) {
+            apply(rest, requestText: text, cachedContext: ctx, instant: true, wordFrom: "names")
+            return
+        }
+
         // Words: the rest of the word or nothing — no model, nothing to wait for.
         if Settings.activeSuggestionMode == .words {
             if let word = WordCompletion.suggestion(text: text, after: ctx.textAfterCaret, ngram: env.personalNgram) {
-                apply(word, requestText: text, cachedContext: ctx, instant: true)
+                apply(word, requestText: text, cachedContext: ctx, instant: true, wordFrom: "words")
             }
             return
         }
@@ -645,7 +656,7 @@ final class SuggestionController {
     @discardableResult
     func apply(_ result: String?, requestText: String,
                cachedContext: TextContext? = nil, countShown: Bool = true,
-               instant: Bool = false, reply: Bool = false) -> Bool {
+               instant: Bool = false, reply: Bool = false, wordFrom: String? = nil) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
         let sanitized = result.map { Self.sanitized($0, maxChars: reply ? 400 : 120) } ?? ""
@@ -684,7 +695,7 @@ final class SuggestionController {
         let current = ctx.textBeforeCaret
         switch RequestGate.landing(sanitized, askedOn: requestText, current: current,
                                    flush: !instant && !reply && engine.answersFlush,
-                                   completesWord: instant && Settings.activeSuggestionMode == .words) {
+                                   completesWord: wordFrom != nil) {
         case .show(let landed):
             suggestion = landed
         case .stale(let why):
@@ -704,7 +715,7 @@ final class SuggestionController {
         // with nothing booked against it.
         let opensRecord = countShown || !offer.isOpen
         field.offer(suggestion, before: current, after: ctx.textAfterCaret,
-                    fresh: opensRecord, trimToLine: !reply, instant: instant)
+                    fresh: opensRecord, trimToLine: !reply, instant: instant, completesWord: wordFrom != nil)
         if opensRecord {
             // A fresh suggestion opens a journal record; an unresolved one at
             // this point was replaced before the user reacted to it. The offer
@@ -713,10 +724,11 @@ final class SuggestionController {
             offer.open(SuggestionJournal.Entry(
                 ts: "",
                 app: typingContext.bundleID,
-                // "ngram" for the fast-path, "words" for Words mode, else the
-                // engine's name — so the journal can compare their acceptance
-                // rates, and keeps the model's rows apart from both.
-                engine: !instant ? engine.name : Settings.activeSuggestionMode == .words ? "words" : "ngram",
+                // "ngram" for the fast-path, "words" for Words mode, "names"
+                // for an agent session's names, else the engine's name — so
+                // the journal can compare their acceptance rates, and keeps
+                // the model's rows apart from all three.
+                engine: !instant ? engine.name : wordFrom ?? "ngram",
                 // The engine's OWN resolved model — not Settings.mlxModelID,
                 // which diverges from what actually generated (instruct loads
                 // the it-sibling; Apple Intelligence has no MLX model at all).

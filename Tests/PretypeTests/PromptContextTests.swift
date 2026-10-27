@@ -138,6 +138,21 @@ final class PromptContextTests: XCTestCase {
         XCTAssertNil(CompletionRequest.userMessages(in: "⏺ Done"))
     }
 
+    // The names worth completing are identifiers and paths, newest first;
+    // a name grows as far as every match agrees, by 2+ characters.
+    func testSessionNames() {
+        let names = AgentPrompt.names(in: "⏺ Fixed `AgentPrompt.input` in Sources/Pretype/AgentPrompt.swift, e.g. the Settings.\n  ⎿  SuggestionController: 2 tests (v2.1)")
+        XCTAssertEqual(names, ["v2.1", "SuggestionController", "Sources/Pretype/AgentPrompt.swift", "AgentPrompt.input"])
+        XCTAssertEqual(AgentPrompt.completion(of: "see Sugg", names: names), "estionController")
+        XCTAssertEqual(AgentPrompt.completion(of: "see Agent", names: names), "Prompt.input")
+        XCTAssertEqual(AgentPrompt.completion(of: "see Agent", names: names + ["AgentPrompt.swift"]), "Prompt.",
+                       "as far as the matches agree")
+        XCTAssertNil(AgentPrompt.completion(of: "see sugg", names: names), "case-sensitive")
+        XCTAssertNil(AgentPrompt.completion(of: "see Su", names: names), "3+ characters typed")
+        XCTAssertNil(AgentPrompt.completion(of: "see SuggestionControlle", names: names), "one character is no ghost")
+        XCTAssertNil(AgentPrompt.completion(of: "see SuggestionController", names: names))
+    }
+
     // Base-path RAG: accepted phrases form a separate label-free preamble block
     // the engine prepends to the GENERATION prompt only — completionPrompt
     // (what the context floor, the gates and the n-gram context reason about)

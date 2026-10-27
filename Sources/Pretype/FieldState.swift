@@ -30,6 +30,9 @@ struct FieldState {
         /// its *abstain* must not hide it though — a confident personal phrase
         /// beats showing nothing.
         var isInstant = false
+        /// The rest of the word being typed (Words, a session's name): taken
+        /// whole, it brings its space (`takeProvisionalSpace`).
+        var completesWord = false
     }
 
     struct Undoable {
@@ -226,10 +229,10 @@ struct FieldState {
     /// counted as accepted" flag, so accepted ≤ shown even when the user
     /// accepts word by word while the model is still streaming.
     mutating func offer(_ text: String, before: String, after: String,
-                        fresh: Bool, trimToLine: Bool, instant: Bool) {
+                        fresh: Bool, trimToLine: Bool, instant: Bool, completesWord: Bool = false) {
         ghost = Ghost(anchor: before, after: after, text: text,
                       accepted: fresh ? false : (ghost?.accepted ?? false),
-                      trimToLine: trimToLine, isInstant: instant)
+                      trimToLine: trimToLine, isInstant: instant, completesWord: completesWord)
     }
 
     /// The ghost against a fresh read: typing its head narrows it in place.
