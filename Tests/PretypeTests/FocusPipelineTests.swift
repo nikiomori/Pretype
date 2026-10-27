@@ -181,6 +181,25 @@ final class FocusPipelineTests: PipelineTestCase {
         XCTAssertFalse(controller.queries.isReply)
     }
 
+    // An AI agent's box is offered the next message once its session has
+    // moved and then held still: the agent's turn ended. Not on arrival.
+    func testAnAgentsBoxIsOfferedTheNextMessageWhenItsTurnEnds() async {
+        set(\.autoReply, true)
+        fake.terminalField = true
+        fake.before = ""
+        fake.agentSession = "> run the tests"
+        await enterApp("com.apple.Terminal")
+        fake.advance(0.8 + 2 + 2)
+        XCTAssertFalse(controller.queries.isReply, "not on arrival")
+        fake.agentSession = "> run the tests\n✻ Running… (3s)"
+        fake.advance(2)
+        fake.agentSession = "> run the tests\n⏺ 713 tests pass. Commit?"
+        fake.advance(2)
+        XCTAssertFalse(controller.queries.isReply, "still moving")
+        fake.advance(2)
+        XCTAssertTrue(controller.queries.isReply)
+    }
+
     // Leaving the app drops the ghost left at its caret.
     func testLeavingTheAppDropsTheGhost() {
         showGhost("to be", on: "Hi ")

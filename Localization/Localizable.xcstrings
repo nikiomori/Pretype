@@ -25015,6 +25015,106 @@
         }
       }
     },
+    "In an AI agent's prompt in a terminal, it drafts your next message when the agent finishes its turn." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В поле ввода ИИ-агента в терминале черновик следующего сообщения появляется, когда агент заканчивает свой ход."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У полі введення ШІ-агента в терміналі чернетка наступного повідомлення з’являється, коли агент завершує свій хід."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im Eingabefeld eines KI-Agenten im Terminal entwirft es deine nächste Nachricht, sobald der Agent fertig ist."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans l’invite d’un agent IA dans un terminal, il rédige votre prochain message quand l’agent a terminé son tour."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En el prompt de un agente de IA en un terminal, redacta tu siguiente mensaje cuando el agente termina su turno."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nel prompt di un agente IA in un terminale, scrive la bozza del tuo prossimo messaggio quando l’agente finisce il suo turno."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No prompt de um agente de IA em um terminal, ele rascunha sua próxima mensagem quando o agente termina a vez dele."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In de prompt van een AI-agent in een terminal maakt het een concept van je volgende bericht zodra de agent klaar is met zijn beurt."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I en AI-agents prompt i en terminal skriver den ett utkast till ditt nästa meddelande när agenten är klar med sin tur."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "W polu agenta AI w terminalu przygotowuje szkic twojej następnej wiadomości, gdy agent skończy swoją turę."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ve vstupu AI agenta v terminálu připraví koncept vaší další zprávy, když agent dokončí svůj tah."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În promptul unui agent AI dintr-un terminal, schițează următorul tău mesaj când agentul își termină rândul."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminaldeki bir yapay zekâ ajanının istem kutusunda, ajan sırasını bitirdiğinde bir sonraki mesajınızın taslağını hazırlar."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルの AI エージェントの入力欄では、エージェントのターンが終わると次のメッセージの下書きを作ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널의 AI 에이전트 입력란에서는 에이전트가 차례를 마치면 다음 메시지 초안을 씁니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在终端中 AI 智能体的输入框里，智能体结束其回合后，会为你起草下一条消息。"
+          }
+        }
+      }
+    },
     "Inline" : {
       "localizations" : {
         "cs" : {

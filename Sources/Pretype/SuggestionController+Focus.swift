@@ -58,6 +58,11 @@ extension SuggestionController {
                    self.replyComposer.compose(auto: true) {
                     return
                 }
+                // An AI agent's box is offered the next message when the
+                // agent's turn ends, not on arrival.
+                if Settings.repliesEnabled, Settings.autoReply, self.env.isTerminalField(element) {
+                    self.watchAgentTurn(element, generation: generation, last: self.env.agentTranscript(element))
+                }
                 self.promptContext.refreshScreenIfNeeded(typed: "")
                 // No capture coming (context off, no permission, blocked app):
                 // warm the new field's prompt now — its first keystroke would
@@ -68,6 +73,22 @@ extension SuggestionController {
                     })
                 }
             }
+        }
+    }
+
+    /// The terminal posts nothing when an AI agent's session changes, so its
+    /// box is polled: a session that moved and then held still for a poll is
+    /// the agent's turn ending, offered the next message as `autoReply` offers
+    /// a chat's. Once a turn: ⎋, or typing over it, waits for the next one.
+    func watchAgentTurn(_ element: AXUIElement, generation: Int, last: String?, moved: Bool = false) {
+        env.after(2) { [weak self] in
+            guard let self, self.focusGeneration == generation, Settings.enabled,
+                  Settings.repliesEnabled, Settings.autoReply else { return }
+            let session = self.env.agentTranscript(element)
+            let settled = moved && session != nil && session == last
+            if settled { self.replyComposer.compose(auto: true) }
+            self.watchAgentTurn(element, generation: generation, last: session,
+                                moved: !settled && (moved || session != last))
         }
     }
 

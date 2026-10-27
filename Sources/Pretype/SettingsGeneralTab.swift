@@ -328,7 +328,8 @@ struct GeneralTab: View {
                 Text("Offer replies in chats")
                 Text("Drafts a reply when you click into an empty message box.")
             }
-            .help("In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything drops the reply. It starts once the reply model is downloaded — the chord's first use downloads it.")
+            .help(Text("In Messages, Telegram, WhatsApp, Slack, Discord and other messengers. Typing anything drops the reply. It starts once the reply model is downloaded — the chord's first use downloads it.")
+                + Text(verbatim: " ") + Text("In an AI agent's prompt in a terminal, it drafts your next message when the agent finishes its turn."))
             // Replies read the screen, which is off by default and needs a
             // permission — what's missing is listed with its fix, and
             // nothing is listed once it's all in place.
