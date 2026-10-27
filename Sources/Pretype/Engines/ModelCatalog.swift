@@ -27,7 +27,7 @@ struct ModelOption {
 
 enum ModelCatalog {
     /// The out-of-the-box pick is sized on the Mac's memory (see `defaultID`):
-    /// the best Gemma 4 tier that fits, Qwen3.5 2B below them. The Gemma entries
+    /// the best Gemma 4 tier that fits, Qwen3.5 2B M40 below them. The Gemma entries
     /// are the BASE (pretrained)
     /// conversions — instruct variants echo the prompt instead of continuing it
     /// when used without a chat template.
@@ -101,8 +101,9 @@ enum ModelCatalog {
             title: String(localized: "Qwen2.5 0.5B — smallest footprint"),
             correctionModelID: "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
         ),
-        // The small-RAM default (the sub-12 GB floor of the memory ladder;
-        // 17-language eval-real, 2026-07-16/17): best sub-2 GB model on the
+        // The small-RAM default until 2026-10-27 (the sub-12 GB floor of the
+        // memory ladder, now its M40 merge below; 17-language eval-real,
+        // 2026-07-16/17): best sub-2 GB model on the
         // full set — beats MiniCPM5, Bonsai and Qwen 0.5B (all p<0.001) with
         // the mildest coverage sag, near-ties MiniCPM5 on EN/RU. Completions run
         // on the Base (pretrained) build since 2026-10-11 — 17.1 vs 16.1% of
@@ -128,7 +129,9 @@ enum ModelCatalog {
         // restored, p<0.001) and proposes a change on a clean line far less (10
         // vs 28%, p<0.001 — the Base half's doing: the post-trained build at the
         // same 6-bit stays at 24%). No second download: fixes run on the primary
-        // (`ModelResidency.fixesOnPrimary`). An alternative, not the 8 GB default.
+        // (`ModelResidency.fixesOnPrimary`). The 8 GB default since 2026-10-27:
+        // there the model is a fixer first (suggestions default to Words), so
+        // one 1.5 GB model that fixes better beats 1.5 GB plus a 1.1 GB sibling.
         ModelOption(
             id: "nikimori/Qwen3.5-2B-M40-6bit",
             title: String(localized: "Qwen3.5 2B M40 — one model for typing and fixes"),
@@ -170,10 +173,14 @@ enum ModelCatalog {
     /// tie on completions (p=0.11), carried by E4B's fix sibling (69 vs 65%,
     /// p<0.001), the second p<0.001; E4B 8-bit is never the default — it
     /// ties 6-bit (p=0.28) for more memory, so it stays the manual pick.
-    /// Below the smallest Gemma tier the floor is Qwen3.5 2B: ties MiniCPM5
-    /// on EN/RU completions, beats every other small multilingually
-    /// (p<0.001) — 1.5 GB, plus its 1.1 GB post-trained sibling once the
-    /// chords are used (fix 33% / reply 35% on topic, the sibling MiniCPM5 borrows).
+    /// Below the smallest Gemma tier the floor is Qwen3.5 2B M40 (since
+    /// 2026-10-27; Qwen3.5 2B Base before): its completions tie the Base
+    /// build's (p=0.06), which beats every other small multilingually
+    /// (p<0.001), and it fixes with itself — 41% restored against the Base
+    /// pick's sibling's 33% (p<0.001) — in 1.5 GB, where Base needed its
+    /// 1.1 GB post-trained sibling for the chords. On an 8 GB Mac
+    /// suggestions default to Words (`Settings.suggestionMode`), so the
+    /// chords are what the model is there for.
     ///
     /// A fixed table, not derived from the size tables: the thresholds are 4×
     /// each tier's resident size as booked on 2026-07-25 (6.8 / 5.0 / 3.5 GB);
@@ -194,7 +201,7 @@ enum ModelCatalog {
         (27.2, "mlx-community/gemma-4-e4b-6bit"),
         (20, "mlx-community/gemma-4-e2b-8bit"),
         (14, "mlx-community/gemma-4-e2b-4bit"),
-        (0, "nikimori/Qwen3.5-2B-Base-6bit"),
+        (0, "nikimori/Qwen3.5-2B-M40-6bit"),
     ]
 
     /// The fit rule `defaultID` sizes on, for any resident size: past about a
@@ -233,9 +240,9 @@ enum ModelCatalog {
             let small = options.filter { !$0.id.contains("gemma") }.compactMap { chords($0.id) }
                 .filter { $0.ownRun == nil }.map(\.fixPct)
             return String(localized: "Auto-picked for this Mac's memory (~\(gb) resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores \(fix)% of noisy lines exactly where the small models manage \(small.min() ?? 0)–\(small.max() ?? 0)%.")
-        case "nikimori/Qwen3.5-2B-Base-6bit":
-            let download = gbLabel(option(for: id).flatMap { ModelMetrics.taskRamGB(for: $0.correctionModelID) } ?? 0)
-            return String(localized: "Auto-picked for this Mac's memory: the strongest model that fits comfortably — \(gb). It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (\(fix)% / \(reply)%) through its post-trained sibling, a one-time \(download) download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory.")
+        case "nikimori/Qwen3.5-2B-M40-6bit":
+            let baseFix = chords("nikimori/Qwen3.5-2B-Base-6bit")?.fixPct ?? 0
+            return String(localized: "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — \(gb), no second download. Its completions tie Qwen3.5 2B Base's, the strongest other small model, and its fix chord restores \(fix)% of noisy lines exactly against the \(baseFix)% of Base's sibling (p<0.001). A Gemma tier is the accuracy upgrade on a Mac with more memory.")
         default:
             return ""
         }

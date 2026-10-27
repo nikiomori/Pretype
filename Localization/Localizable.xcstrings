@@ -1510,12 +1510,6 @@
     },
     "%@ · %@ in memory" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$@ in memory"
-          }
-        },
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1526,6 +1520,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · %@ im Speicher"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ in memory"
           }
         },
         "es" : {
@@ -9497,6 +9497,112 @@
         }
       }
     },
+    "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — %@, no second download. Its completions tie Qwen3.5 2B Base's, the strongest other small model, and its fix chord restores %lld%% of noisy lines exactly against the %lld%% of Base's sibling (p<0.001). A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vybráno automaticky podle paměti tohoto Macu: jeden model doplňuje, opravuje i píše odpovědi — %1$@, bez druhého stahování. V doplňování je na úrovni Qwen3.5 2B Base, nejsilnějšího z ostatních malých modelů, a jeho zkratka pro opravu přesně obnoví %2$lld%% řádků s překlepy oproti %3$lld%% u dotrénované verze Base (p<0.001). Na Macu s větší pamětí je přesnější varianta Gemma."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt: ein Modell vervollständigt, korrigiert und entwirft Antworten – %1$@, kein zweiter Download. Bei Vervollständigungen gleichauf mit Qwen3.5 2B Base, dem stärksten anderen kleinen Modell, und seine Korrektur stellt %2$lld%% der fehlerhaften Zeilen exakt wieder her, gegenüber %3$lld%% bei der nachtrainierten Variante von Base (p<0,001). Auf einem Mac mit mehr Arbeitsspeicher ist eine Gemma-Stufe genauer."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — %1$@, no second download. Its completions tie Qwen3.5 2B Base's, the strongest other small model, and its fix chord restores %2$lld%% of noisy lines exactly against the %3$lld%% of Base's sibling (p<0.001). A Gemma tier is the accuracy upgrade on a Mac with more memory."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegido automáticamente según la memoria de este Mac: un solo modelo completa, corrige y redacta respuestas, %1$@, sin una segunda descarga. En el autocompletado empata con Qwen3.5 2B Base, el más potente de los demás modelos pequeños, y su atajo de corrección restaura exactamente el %2$lld%% de las líneas con errores frente al %3$lld%% de la versión postentrenada de Base (p<0.001). Un nivel Gemma es la mejora de precisión en un Mac con más memoria."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisi automatiquement selon la mémoire de ce Mac : un seul modèle complète, corrige et rédige les réponses — %1$@, sans second téléchargement. En complétion, il fait jeu égal avec Qwen3.5 2B Base, le plus performant des autres petits modèles, et son raccourci de correction rétablit exactement %2$lld%% des lignes fautives, contre %3$lld%% pour la version post-entraînée de Base (p<0.001). Sur un Mac doté de plus de mémoire, une variante Gemma est plus précise."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scelto automaticamente in base alla memoria di questo Mac: un solo modello completa, corregge e scrive le risposte, %1$@, senza un secondo download. Nei completamenti è alla pari con Qwen3.5 2B Base, il più forte degli altri modelli piccoli, e la sua combinazione di correzione ripristina esattamente il %2$lld%% delle righe con errori contro il %3$lld%% della versione post-addestrata di Base (p<0,001). Su un Mac con più memoria, un livello Gemma è più preciso."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのメモリに合わせて自動選択：1つのモデルで補完・修正・返信の下書きをこなします（%1$@、2つ目のダウンロードは不要）。補完はほかの小型モデルで最も強力なQwen3.5 2B Baseと互角で、修正のショートカットはタイプミスのある行の%2$lld%%を正確に復元します。Baseの追加学習版は%3$lld%%です（p<0.001）。メモリの多いMacなら、Gemmaで精度が上がります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨: 모델 하나로 완성, 수정, 답장 초안을 모두 처리합니다(%1$@, 두 번째 다운로드 없음). 완성에서는 다른 소형 모델 중 가장 강력한 Qwen3.5 2B Base와 대등하고, 수정 단축키는 오타가 있는 줄의 %2$lld%%를 정확히 복원합니다. Base의 추가 학습 버전은 %3$lld%%입니다(p<0.001). 메모리가 더 많은 Mac에서는 Gemma 등급이 더 정확합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch gekozen voor het geheugen van deze Mac: één model vult aan, corrigeert en schrijft antwoorden – %1$@, geen tweede download. Bij aanvullingen gelijk aan Qwen3.5 2B Base, het sterkste andere kleine model, en de correctie herstelt %2$lld%% van de foutieve regels exact, tegenover %3$lld%% bij de nagetrainde variant van Base (p<0,001). Een Gemma-variant is de upgrade in nauwkeurigheid op een Mac met meer geheugen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybrany automatycznie według pamięci tego Maca: jeden model uzupełnia tekst, poprawia i pisze odpowiedzi — %1$@, bez drugiego pobierania. W uzupełnieniach dorównuje Qwen3.5 2B Base, najmocniejszemu z pozostałych małych modeli, a jego skrót poprawek dokładnie przywraca %2$lld%% wierszy z literówkami wobec %3$lld%% w dotrenowanej wersji Base (p<0.001). Na Macu z większą pamięcią dokładniejszy będzie wariant Gemma."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolhido automaticamente pela memória deste Mac: um só modelo completa, corrige e escreve respostas, %1$@, sem um segundo download. No autocompletar empata com o Qwen3.5 2B Base, o mais forte dos outros modelos pequenos, e seu atalho de correção restaura exatamente %2$lld%% das linhas com erros, contra %3$lld%% da versão pós-treinada do Base (p<0.001). Um nível Gemma é o ganho de precisão em um Mac com mais memória."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ales automat după memoria acestui Mac: un singur model completează, corectează și scrie răspunsuri — %1$@, fără o a doua descărcare. La completări egalează Qwen3.5 2B Base, cel mai puternic dintre celelalte modele mici, iar combinația sa de corectare restabilește exact %2$lld%% din rândurile cu greșeli, față de %3$lld%% la versiunea post-antrenată a Base (p<0.001). Un nivel Gemma oferă mai multă acuratețe pe un Mac cu mai multă memorie."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрана автоматически по памяти этого Mac: одна модель и дополняет текст, и исправляет, и пишет ответы — %1$@, без второй загрузки. В дополнениях она наравне с Qwen3.5 2B Base, самой сильной из остальных малых моделей, а её сочетание исправления точно восстанавливает %2$lld%% строк с опечатками против %3$lld%% у дообученной версии Base (p<0.001). На Mac с большим объёмом памяти точнее работает Gemma."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valdes automatiskt efter den här Macens minne: en modell kompletterar, rättar och skriver svar — %1$@, ingen andra hämtning. Vid kompletteringar står den jämnt med Qwen3.5 2B Base, den starkaste av de andra små modellerna, och dess rättning återställer %2$lld %% av raderna med fel exakt, mot %3$lld %% för Base eftertränade syskonmodell (p<0.001). En Gemma-nivå ger högre träffsäkerhet på en Mac med mer minne."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu Mac’in belleğine göre otomatik seçildi: tek model hem tamamlar hem düzeltir hem de yanıt yazar — %1$@, ikinci indirme yok. Tamamlamalarda diğer küçük modellerin en güçlüsü Qwen3.5 2B Base ile başa baş; düzeltme kısayolu ise hatalı satırların %%%2$lld kadarını birebir onarır, Base’in sonradan eğitilmiş kardeşi %%%3$lld’de kalır (p<0.001). Daha fazla belleği olan bir Mac’te bir Gemma katmanı daha doğrudur."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac: одна модель і доповнює текст, і виправляє, і пише відповіді — %1$@, без другого завантаження. У доповненнях вона нарівні з Qwen3.5 2B Base, найсильнішою з інших малих моделей, а її комбінація виправлення точно відновлює %2$lld%% рядків з одруківками проти %3$lld%% у дотренованої версії Base (p<0.001). На Mac з більшим обсягом пам’яті точніше працює Gemma."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根据这台 Mac 的内存自动选择：一个模型同时完成补全、修正和回复草稿，%1$@，无需第二次下载。补全与其他小模型中最强的 Qwen3.5 2B Base 持平，修正快捷键能准确恢复 %2$lld%% 的有错行，而 Base 的后训练版本为 %3$lld%%（p<0.001）。在内存更大的 Mac 上，Gemma 档位的准确率更高。"
+          }
+        }
+      }
+    },
     "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~%@ resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores %lld%% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory." : {
       "localizations" : {
         "cs" : {
@@ -9598,6 +9704,7 @@
       }
     },
     "Auto-picked for this Mac's memory: the strongest model that fits comfortably — %@. It ties the fastest small models on English and Russian completions, beats every other sub-2 GB model on the wider language set (p<0.001), and keeps the fix and reply chords working (%lld%% / %lld%%) through its post-trained sibling, a one-time %@ download on first use. A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {

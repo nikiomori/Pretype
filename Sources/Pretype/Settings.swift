@@ -81,7 +81,7 @@ enum SuggestionPresentation: String {
 /// How far a suggestion reaches.
 /// - `words`: the rest of the word being typed, from the user's own words and
 ///   the system dictionary (`WordCompletion`) — no model, nothing loaded.
-/// - `sentences` (default): the model continues the sentence.
+/// - `sentences` (the default above 8 GB): the model continues the sentence.
 enum SuggestionMode: String {
     case words
     case sentences
@@ -698,7 +698,11 @@ enum Settings {
     /// Suggestions as you type. Many people come for the fixes alone, and a
     /// ghost at every pause is noise to them.
     @Pref("suggestions", true) static var suggestionsEnabled: Bool
-    @Pref("suggestionMode", SuggestionMode.sentences) static var suggestionMode: SuggestionMode
+    /// Words by default on an 8 GB Mac: there the model is a fixer first,
+    /// loaded for ⌥⇥, a reply or a dictation clean-up and freed after.
+    /// A picked mode always wins.
+    @Pref("suggestionMode", ModelCatalog.machineRamGB <= 8 ? SuggestionMode.words : .sentences)
+    static var suggestionMode: SuggestionMode
     /// Suggestions in an AI agent's input box in a terminal (`AgentPrompt`).
     @Pref("agentPromptSuggestions", true) static var agentPromptSuggestions: Bool
     /// The fix chord with its selection pill, and the inline fixes below.

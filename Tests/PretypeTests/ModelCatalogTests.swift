@@ -333,9 +333,10 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(ModelPriority.balanced.pick(axis: "*"), ModelCatalog.defaultID)
         // The RAM ladder: the best Gemma tier whose recommended-config
         // resident model stays within about a quarter of physical memory;
-        // Qwen3.5 2B is the floor below the smallest Gemma tier.
+        // Qwen3.5 2B M40 is the floor below the smallest Gemma tier: one model
+        // for the chords an 8 GB Mac's Words suggestions leave it.
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 8),
-                       "nikimori/Qwen3.5-2B-Base-6bit")
+                       "nikimori/Qwen3.5-2B-M40-6bit")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 16),
                        "mlx-community/gemma-4-e2b-4bit")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 18),
