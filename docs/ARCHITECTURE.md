@@ -116,14 +116,15 @@ Pretype selects the default model one time per launch, from the physical
 memory of the Mac. The function is `ModelCatalog.defaultID(forRamGB:)`.
 
 <div align="center">
-<img src="diagram-arch-ram-ladder.svg" width="560" alt="Default model by physical memory. 27.2 GB or more: Gemma 4 E4B 6-bit, Macs with 32 GB and more. Else 20 GB or more: Gemma 4 E2B 8-bit, Macs with 24 GB. Else 14 GB or more: Gemma 4 E2B 4-bit, Macs with 16 to 18 GB. Else Qwen3.5 2B Base, Macs with 8 GB." />
+<img src="diagram-arch-ram-ladder.svg" width="560" alt="Default model by physical memory. 27.2 GB or more: Gemma 4 E4B 6-bit, Macs with 32 GB and more. Else 20 GB or more: Gemma 4 E2B 8-bit, Macs with 24 GB. Else 14 GB or more: Gemma 4 E2B 4-bit, Macs with 16 to 18 GB. Else Qwen3.5 2B M40, Macs with 8 GB, with suggestions in Words mode." />
 </div>
 
 The rule selects the best Gemma tier whose resident model stays in about a
 quarter of the RAM. The quality sequence is E4B 6-bit, then E2B 8-bit, then
 E2B 4-bit. The resident model is the model in its recommended configuration
-(the base build: all Gemma tiers run Base style). Qwen3.5 2B is the floor below the smallest Gemma tier
-([why](models.md)).
+(the base build: all Gemma tiers run Base style). Qwen3.5 2B M40 is the floor below the smallest Gemma tier
+([why](models.md)). On that tier, `Settings.suggestionMode` starts as Words:
+the model loads only for a fix, a reply or a dictation clean-up.
 
 The thresholds are a fixed table. We sized them on the builds before the slim
 re-packs, thus the quarter rule has a margin. The default is not stored: the
@@ -199,7 +200,7 @@ The eval harness and the datasets are not in the public repo. Refer to
 | Speculative fixes and replies | A Gemma instruct model runs ⌥⇥ and the reply draft with the multi-token-prediction drafter from Google (~150 MB). This model is the instruct primary, or the fix model of base style. The drafter downloads in the background on first use. Streamed completions do not use it, because before the first word the speculative start costs more than it saves. | 20–40% faster. Same output quality. |
 | Debounce and cancel | A request starts 60 ms after the last key press. Fast typing replaces the work in progress. It does not put the requests in a queue. | No work on old text. |
 | Fast reloads | A downloaded model loads directly from its local snapshot. There is no request to Hugging Face to list the repo. A parsed tokenizer stays in memory after the idle unload. | The next key press waits only for the weights. |
-| Idle unload | After `Settings.idleUnloadMinutes`, the engine releases the weights and the RAM. The default is 5 minutes, or 15 minutes on Macs with 32 GB or more. The next key press loads the weights again. Memory pressure from macOS unloads them earlier. | The RAM goes back to other apps. |
+| Idle unload | After `Settings.idleUnloadMinutes`, the engine releases the weights and the RAM. The default is 5 minutes, or 15 minutes on Macs with 32 GB or more. The next key press loads the weights again. Memory pressure from macOS unloads them earlier. While the pressure level (`kern.memorystatus_vm_pressure_level`) is raised, and for 2 minutes after, `Settings.activeSuggestionMode` is Words and nothing loads the completion model (`MemoryPressure`). | The RAM goes back to other apps. A reload does not raise the pressure that unloaded the model. |
 
 ## Knowing when to stay quiet
 
@@ -364,6 +365,14 @@ without this suffix.
 
 ### Tidy-up and insertion
 
+* **Spelling.** `Transcription.spell` writes the bias words as the page
+  writes them: a word in a different case ("mlx") or in two or three parts
+  ("suggestion controller") becomes the term ("MLX", "SuggestionController").
+  It operates after every speech model, because Parakeet takes no contextual
+  strings. A term from the page must have an inner capital or a digit. Thus
+  a capitalized "Settings" on the screen does not change a spoken "settings".
+  The bias words come from the text before the caret and, in the box of an
+  AI agent, from the agent's session (`AXText.agentTranscript`).
 * **Tidy-up.** The transcript goes through `engine.correct`, the same
   minimal-edit pass as <kbd>⌥Tab</kbd>. Its divergence guard rejects a model
   that starts to paraphrase. Then the text goes in as Pretype heard it.
@@ -386,6 +395,7 @@ without this suffix.
 | Feature | How it operates |
 |---|---|
 | App awareness | The prompt style changes with the active app: short completions in chat apps. Pretype is off in password managers. In terminals, it is off except in the prompt box of an AI agent. `AgentPrompt` finds that box in the AX text of the terminal. `AXText.xtermContext` builds that text again for xterm.js terminals. All reads stop while macOS reports secure input. |
+| Agent session | In the box of an AI agent, the screen above the box is the agent's session (`AgentPrompt.transcript`). Pretype reads it from AX only on demand, because an xterm.js read is two AX calls for each row. The reply chord answers the session: no OCR and no Screen Recording. The names in the session (identifiers and paths) complete at once while you type them (`AgentPrompt.completion`, journal engine `names`). Pretype reads the names again at the first word of each message. |
 | Screen context | Optional and off by default. Apple's Vision OCR reads the focused window to get nearby text, for example the email thread of your reply. It needs Screen Recording. OCR text never goes into the debug log. An exported log has a placeholder with the size only. |
 
 ## Where things live

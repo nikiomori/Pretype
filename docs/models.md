@@ -11,7 +11,7 @@ We measure every model in the catalog on the same held-out eval. The Apple Intel
 For most people, the correct answer is the default. Pretype selects the default from the memory of your Mac. Change it only for the cases in the diagram and the table below.
 
 <div align="center">
-<img src="diagram-models-choose.svg" width="720" alt="Decision diagram. Which language do you type? English only: if speed is most important, use MiniCPM5 1B (18 ms, among the fastest); if least memory is most important, use Qwen2.5 0.5B (about 1 GB); if the best fix and reply chords are most important, keep the default. Any other language, Russian included: keep the default. The default follows the memory of your Mac: 8 GB gives Qwen3.5 2B (Base), 16 to 18 GB gives Gemma 4 E2B 4-bit, 24 GB gives Gemma 4 E2B 8-bit, 32 GB and up gives Gemma 4 E4B 6-bit." />
+<img src="diagram-models-choose.svg" width="720" alt="Decision diagram. Which language do you type? English only: if speed is most important, use MiniCPM5 1B (18 ms, among the fastest); if least memory is most important, use Qwen2.5 0.5B (about 1 GB); if the best fix and reply chords are most important, keep the default. Any other language, Russian included: keep the default. The default follows the memory of your Mac: 8 GB gives Qwen3.5 2B M40, 16 to 18 GB gives Gemma 4 E2B 4-bit, 24 GB gives Gemma 4 E2B 8-bit, 32 GB and up gives Gemma 4 E4B 6-bit." />
 </div>
 
 | Situation | Model | Evidence |
@@ -19,7 +19,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 | You type in English | Any downloadable model. For speed, MiniCPM5 1B. | No downloadable model is measurably better than another. The nine models score between 26% and 29%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
 | You type in English and have little free memory | Qwen2.5 0.5B | It runs in ≈1 GB. On English, its accuracy is equal to the other models. |
 | You type in another language | The default | Outside English, the tie stops. The Gemma 4 tiers lose 4–9 points. MiniCPM5, Bonsai and Qwen 0.5B lose more than half of their English score. |
-| You type in another language on an 8 GB Mac | Qwen3.5 2B (Base), the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). |
+| You type in another language on an 8 GB Mac | Qwen3.5 2B M40, the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). M40 ties its Base build on completions, and it fixes more (see [Qwen3.5 2B M40](#qwen35-2b-m40-one-model-for-text-and-chords)). |
 | You type in Russian | The default. A Gemma tier from 16 GB. | See [English and Russian are different](#english-and-russian-are-different). |
 | You type in Arabic or Hebrew | The default. Do not use MiniCPM5 for Hebrew. | See [Arabic and Hebrew](#arabic-and-hebrew). |
 | You want no download and no app memory | Apple Intelligence (macOS 26+) | It is last on accuracy and on speed: 480 ms, against 17–81 ms. On macOS 27 it shows a suggestion for almost every prompt, also in Polish, Romanian and Czech. But it is correct less often than any downloadable model. |
@@ -71,13 +71,18 @@ Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is o
 
 ### Qwen3.5 2B M40: one model for text and chords
 
-Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimori/Qwen3.5-2B-M40-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-M40-6bit). It is not a default. Select it in Settings.
+Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimori/Qwen3.5-2B-M40-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-M40-6bit). Since 2026-10-27, it is the default on Macs with 8 GB. Before that date, the 8 GB default was the Base build.
 
 * The weights are a mix: 60% of the Base build and 40% of the post-trained build. The build is 6-bit.
 * One model completes text and runs the fix and reply chords. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
 * Completion: 18.5% of all rows, against 18.9% for the Base build. This difference is not significant (p=0.06).
 * Fix: it restores 41% of the typo rows, against 33% for the post-trained sibling of the Base build (p<0.001).
 * Fix on clean text: it proposes a change on 10% of clean lines, against 28% (p<0.001).
+* Memory: 1.5 GB for all tasks. The Base build needs 1.5 GB, plus 1.1 GB for its post-trained sibling when you use the chords.
+
+### Suggestions on a Mac with 8 GB
+
+On a Mac with 8 GB, suggestions start in **Words** mode. Words completes only the word that you type. It uses no model. Thus on an 8 GB Mac, the model is in memory only for a fix, a reply or a dictation clean-up. It unloads again after the idle time. To get sentence suggestions, select **Sentences** in **Settings → General → Suggestions**. Your selection always stays.
 * Reply: 56% of its replies are on topic, against 37% for the post-trained sibling (p<0.001). Qwen3.8 27B rated both.
 * Size: 1.5 GB in total. The Base build with its sibling uses 1.5 GB + 1.1 GB.
 
@@ -124,7 +129,7 @@ Since 2026-07-25, Pretype selects the default from the memory of your Mac. Befor
 
 | Mac memory | Default | Resident (recommended config) |
 |---|---|--:|
-| 8 GB | Qwen3.5 2B (Base) | ≈1.5 GB |
+| 8 GB | Qwen3.5 2B M40 (suggestions in Words mode) | ≈1.5 GB, only for a fix, a reply or a clean-up |
 | 16–18 GB | Gemma E2B 4-bit | ≈2.5 GB (≈1.2 GB on 16 GB, see [Reduce memory use](#reduce-memory-use-gemma)) |
 | 24 GB | Gemma E2B 8-bit | ≈3.4 GB |
 | 32 GB and up | Gemma E4B 6-bit | ≈5 GB |
@@ -178,7 +183,7 @@ We measured the chords on 2026-10-15, each on its own held-out set:
 | Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 20% | 0.24 s | 87% [83–90] | 0.24 s |
 | Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [46–54] | 30% | 0.10 s | 83% [79–86] | 0.09 s |
 | Qwen3.5 2B M40 (itself) | Qwen3.5 2B M40 | 41% [37–45] | 10% | 0.17 s | 56% [50–60]¹ | 0.16 s |
-| Qwen3.5 2B (post-trained) | Qwen3.5 2B Base — the 8 GB default; MiniCPM5 1B | 33% [29–37] | 28% | 0.13 s | 35% [30–40] | 0.14 s |
+| Qwen3.5 2B (post-trained) | Qwen3.5 2B Base; MiniCPM5 1B | 33% [29–37] | 28% | 0.13 s | 35% [30–40] | 0.14 s |
 | Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.20 s | 22% [18–27] | 0.21 s |
 | Qwen2.5 0.5B-it | Qwen2.5 0.5B | 11% [9–14] | 19% | 0.03 s | 3% [2–6] | 0.08 s |
 | MiniCPM5 1B-it | No model since 2026-10-15 (MiniCPM5 1B before; measured 2026-10-11) | 4% [2–6] | 14% | 0.05 s | 34% [30–39] | 0.21 s |
@@ -250,7 +255,7 @@ The resident figure is the memory that a model uses *while you type*. The model 
 
 * After five idle minutes, the model unloads. On Macs with 32 GB or more, this time is fifteen minutes. To change the time, use **Settings → Model → Advanced → Free memory when idle**.
 * The model loads again at your next keystroke.
-* If macOS reports memory pressure, the model unloads earlier.
+* If macOS reports memory pressure, the model unloads earlier. Then suggestions use **Words** until two minutes after the pressure stops. The model does not load again while the pressure continues. A fix or a reply that you ask for still loads it.
 
 ### Reduce memory use (Gemma)
 

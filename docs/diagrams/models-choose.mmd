@@ -7,7 +7,7 @@ flowchart TB
   want -- "least memory" --> q05["Qwen2.5 0.5B<br/>≈1 GB"]
   want -- "best fix and reply chords" --> ram
   lang -- "any other language,<br/>Russian included" --> ram{{"Keep the default.<br/>How much memory does your Mac have?"}}
-  ram -- "8 GB" --> q35["Qwen3.5 2B (Base)<br/>default"]
+  ram -- "8 GB" --> q35["Qwen3.5 2B M40<br/>default, suggestions in Words"]
   ram -- "16–18 GB" --> e2b4["Gemma 4 E2B 4-bit<br/>default"]
   ram -- "24 GB" --> e2b8["Gemma 4 E2B 8-bit<br/>default"]
   ram -- "32 GB and up" --> e4b6["Gemma 4 E4B 6-bit<br/>default"]
