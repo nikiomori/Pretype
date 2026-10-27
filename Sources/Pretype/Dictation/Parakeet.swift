@@ -25,6 +25,14 @@ enum Parakeet {
         locale.language.languageCode.map { languages.contains($0.identifier) } ?? false
     }
 
+    /// Settings offers the switch to whoever reads the app in the language
+    /// they dictate — a Russian interface for Russian dictation. Once on, it
+    /// stays in sight so it can go off again.
+    static func isOffered(dictating locale: Locale, interface: String, isOn: Bool) -> Bool {
+        guard covers(locale) else { return false }
+        return isOn || Locale(identifier: interface).language.languageCode == locale.language.languageCode
+    }
+
     static var isDownloaded: Bool { isDownloaded(.ultra) || isDownloaded(.v3) }
 
     private static func isDownloaded(_ version: AsrModelVersion) -> Bool {

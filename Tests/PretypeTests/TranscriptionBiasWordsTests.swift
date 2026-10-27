@@ -39,4 +39,14 @@ final class TranscriptionBiasWordsTests: XCTestCase {
         XCTAssertEqual(Transcription.spell("привет, дубина", inferred: [], listed: ["Дубина"]), "привет, Дубина")
         XCTAssertEqual(Transcription.spell("nothing here", inferred: []), "nothing here")
     }
+
+    // The Parakeet switch shows to whoever reads the app in the language they
+    // dictate, and stays in sight once on.
+    func testParakeetIsOfferedInTheInterfacesLanguage() {
+        let ru = Locale(identifier: "ru_RU")
+        XCTAssertTrue(Parakeet.isOffered(dictating: ru, interface: "ru", isOn: false))
+        XCTAssertFalse(Parakeet.isOffered(dictating: ru, interface: "en", isOn: false))
+        XCTAssertTrue(Parakeet.isOffered(dictating: ru, interface: "en", isOn: true), "on: it can go off")
+        XCTAssertFalse(Parakeet.isOffered(dictating: Locale(identifier: "ja_JP"), interface: "ja", isOn: true), "not a Parakeet language")
+    }
 }

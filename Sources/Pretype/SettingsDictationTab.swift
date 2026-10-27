@@ -172,7 +172,8 @@ struct DictationTab: View {
                 Caption(String(localized: "⚠︎ macOS can't dictate \(store.dictationLanguageName). Pick another language."))
             }
             if [.fallback, .parakeet].contains(store.dictationSupport),
-               Parakeet.covers(Settings.resolvedDictationLocale) {
+               Parakeet.isOffered(dictating: Settings.resolvedDictationLocale, interface: AppLanguage.running,
+                                  isOn: store.dictationParakeet) {
                 Toggle(isOn: $store.dictationParakeet) {
                     Text("Use Parakeet for \(store.dictationLanguageName)")
                     Text("Fewer errors and real punctuation. A one-time 610 MB download.")
