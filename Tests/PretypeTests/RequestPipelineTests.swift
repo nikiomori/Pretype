@@ -104,15 +104,20 @@ final class RequestPipelineTests: PipelineTestCase {
         XCTAssertEqual(controller.queries.current?.kind, .completion(before: "and the tests", after: ""))
     }
 
-    // A shell prompt reads nil on every key: a terminal never pays for the
-    // liveness probe. Elsewhere a nil read probes the handle.
+    // A shell prompt reads nil on every key: a terminal — an app's, or one
+    // inside an IDE (Kelp) — never pays for the liveness probe. Elsewhere a
+    // nil read probes the handle.
     func testATerminalIsNeverProbed() async {
         await enterApp(terminal)
+        fake.terminalField = true
         fake.readable = false
+        controller.textDidChange()
+        await enterApp("dev.kelp.app")
         controller.textDidChange()
         XCTAssertEqual(fake.probes, [])
 
         await enterApp("com.apple.TextEdit")
+        fake.terminalField = false
         controller.textDidChange()
         XCTAssertEqual(fake.probes, [FakeWorld.element(1)])
     }

@@ -443,9 +443,10 @@ final class SuggestionController {
         // notification (see `dictationFieldContext`) — typing an accept into
         // one does it. Every read of the old handle then fails, and
         // completions, ⌥⇥ and ⌘Z stayed off until the user left the field.
-        // The liveness probe is one more AX round trip, so not in a terminal,
-        // where a shell prompt reads nil on every key.
-        let probe = element == env.trackedElement() && !AppPolicy.isTerminal(typingContext.bundleID)
+        // The liveness probe is one more AX round trip, so not in a terminal
+        // (an app's, or one inside an editor), where a shell prompt reads nil
+        // on every key.
+        let probe = element == env.trackedElement() && !env.isTerminalField(element)
             ? { [env] in env.relatchIfDead(element) } : nil
         let ctx: TextContext
         switch field.admit(env.context(of: element), of: element, probe: probe, clock: env.now) {
