@@ -100,6 +100,10 @@ final class PromptContextTests: XCTestCase {
         XCTAssertEqual(AgentPrompt.input(before: wrapped, after: below),
                        "please check why the build fails on CI and fix the flaky test in the "
                        + "dictation controller so it stops timing out when the machine is")
+        // Kelp trims the row: no wrap space, but "dictation" had no room left.
+        XCTAssertEqual(AgentPrompt.input(before: wrapped.replacingOccurrences(of: "the \n", with: "the\n"), after: below),
+                       "please check why the build fails on CI and fix the flaky test in the "
+                       + "dictation controller so it stops timing out when the machine is")
         XCTAssertEqual(AgentPrompt.input(before: screen + "❯ ", after: below), "")
         // VS Code: the editor-selection chip is not part of the prompt.
         XCTAssertEqual(AgentPrompt.input(before: screen + "❯\u{a0}[⧉ In README.md] explain", after: below), "explain")

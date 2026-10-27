@@ -22,10 +22,16 @@ enum AgentPrompt {
         var text = String(lines[start].dropFirst(2))
         for i in start + 1 ..< lines.count {
             // A soft wrap keeps the space it broke at, or ran the line
-            // to the edge (a word longer than the line); anything else
-            // was a newline the user typed.
-            let wrapped = text.hasSuffix(" ") || lines[i - 1].count >= width - 2
-            text += (wrapped ? "" : "\n") + lines[i].dropFirst(2)
+            // to the edge (a word longer than the line), or left no room
+            // for the next line's first word — the space it broke at then
+            // went unshown: Kelp shows no cell nothing wrote, and Claude
+            // Code writes none there. Anything else was a newline the user
+            // typed.
+            let previous = lines[i - 1].count
+            let nextWord = lines[i].dropFirst(2).prefix { !$0.isWhitespace }.count
+            let separator = text.hasSuffix(" ") || previous >= width - 2 ? ""
+                : previous + 1 + nextWord > width - 2 ? " " : "\n"
+            text += separator + lines[i].dropFirst(2)
         }
         // In VS Code, Claude Code shows the editor's selection as a
         // chip at the head of the box; it isn't part of the prompt.
