@@ -23,4 +23,20 @@ final class TranscriptionBiasWordsTests: XCTestCase {
         XCTAssertEqual(Transcription.biasWords(in: "Вчера говорил с Николаем про Pretype."),
                        ["Pretype", "Николаем"])
     }
+
+    // Heard in another case or split, a term comes out as written; a page's
+    // plain capitalized word never recases what was said.
+    func testSpellsTheTermsAsWritten() {
+        let inferred = ["SuggestionController", "MLX", "iPhone", "Settings", "GPT4"]
+        XCTAssertEqual(Transcription.spell("open suggestion controller and mlx on the iphone", inferred: inferred),
+                       "open SuggestionController and MLX on the iPhone")
+        XCTAssertEqual(Transcription.spell("change the settings, then gpt 4", inferred: inferred),
+                       "change the settings, then GPT4")
+        XCTAssertEqual(Transcription.spell("suggestion, controller", inferred: inferred), "suggestion, controller",
+                       "joined across single spaces only")
+        XCTAssertEqual(Transcription.spell("pre type and dubina", inferred: [], listed: ["Pretype", "Дубина", "Dubina"]),
+                       "Pretype and Dubina")
+        XCTAssertEqual(Transcription.spell("привет, дубина", inferred: [], listed: ["Дубина"]), "привет, Дубина")
+        XCTAssertEqual(Transcription.spell("nothing here", inferred: []), "nothing here")
+    }
 }

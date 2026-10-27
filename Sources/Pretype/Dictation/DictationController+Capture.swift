@@ -171,7 +171,9 @@ extension DictationController {
         hostStyle = anchor?.host ?? HostTextStyle()
         commandSelection = Settings.dictationCommands
             ? anchor.flatMap { $0.selectedText.isEmpty ? nil : $0.selectedText } : nil
-        Transcription.contextualWords.set(Transcription.biasWords(in: anchor?.textBeforeCaret ?? ""))
+        // The session first: what the field holds is newer, and leads.
+        Transcription.contextualWords.set(Transcription.biasWords(
+            in: [anchor?.session, anchor?.textBeforeCaret].compactMap { $0 }.joined(separator: "\n")))
         if let rect, let anchor { owner.noteCaret(rect: rect, host: anchor.host) }
         generation += 1
         let gen = generation

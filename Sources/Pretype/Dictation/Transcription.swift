@@ -266,6 +266,49 @@ enum Transcription {
         return Array(picked.reversed().filter { seen.insert($0.lowercased()).inserted }.prefix(50))
     }
 
+    /// `text` with the bias words spelled as written: a word heard in another
+    /// case ("mlx", "iphone") or split in two or three ("suggestion
+    /// controller") becomes the term. After every engine — Parakeet takes no
+    /// contextual strings at all, and the system's are only a hint. A term
+    /// read off the page only when it can't be an ordinary word — an inner
+    /// capital or a digit; a mid-sentence "Settings" on screen must not
+    /// capitalize every "settings" said. A `listed` term (the user's own) always.
+    static func spell(_ text: String, inferred: [String], listed: [String] = []) -> String {
+        func key(_ s: some StringProtocol) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
+        func codeLike(_ s: String) -> Bool { s.dropFirst().contains { $0.isUppercase || $0.isNumber } }
+        var spelling: [String: String] = [:]
+        for term in listed + inferred.filter(codeLike) where !term.contains(" ") && key(term).count >= 2 {
+            spelling[key(term)] = spelling[key(term)] ?? term
+        }
+        guard !spelling.isEmpty else { return text }
+        // Words and the runs between them, in order.
+        var pieces: [(text: String, word: Bool)] = []
+        for character in text {
+            let word = character.isLetter || character.isNumber
+            if pieces.last?.word == word { pieces[pieces.count - 1].text.append(character) } else { pieces.append((String(character), word)) }
+        }
+        var out = "", i = 0
+        while i < pieces.count {
+            // The longest join first: three words, two, one — across single spaces.
+            let match = pieces[i].word ? (1...3).reversed().lazy.compactMap { n -> (String, Int)? in
+                let end = i + 2 * (n - 1)
+                guard end < pieces.count,
+                      (i...end).allSatisfy({ ($0 - i) % 2 == 0 ? pieces[$0].word : pieces[$0].text == " " }),
+                      let term = spelling[key((i...end).filter { ($0 - i) % 2 == 0 }.map { pieces[$0].text }.joined())]
+                else { return nil }
+                return (term, end + 1)
+            }.first : nil
+            if let (term, next) = match {
+                out += term
+                i = next
+            } else {
+                out += pieces[i].text
+                i += 1
+            }
+        }
+        return out
+    }
+
     /// What is downloading: a system language pack, or Parakeet's model (for
     /// a capture, or for the Settings toggle's prefetch). The one `.preparing`
     /// wait worth sitting through, and the one a discard must not cancel (the

@@ -172,8 +172,9 @@ extension SuggestionController: DictationHost {
         // Only read when it can matter: the selection is a voice command's target.
         let selected = Settings.dictationCommands
             ? dictationElement().flatMap { env.selection($0)?.text } ?? "" : ""
+        let session = dictationElement().flatMap { env.isTerminalField($0) ? env.agentTranscript($0) : nil }
         return DictationAnchor(caretRect: ctx.caretRect, host: ctx.host,
-                               textBeforeCaret: ctx.textBeforeCaret, selectedText: selected)
+                               textBeforeCaret: ctx.textBeforeCaret, selectedText: selected, session: session)
     }
 
     /// The focused field, read for a dictation — with one re-resolve when the

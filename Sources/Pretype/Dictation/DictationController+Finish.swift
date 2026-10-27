@@ -57,7 +57,7 @@ extension DictationController {
                     Self.note("dropped a finished transcript — the capture was discarded meanwhile")
                     return
                 }
-                let transcript = Self.clean(raw)
+                let transcript = Transcription.spell(Self.clean(raw), inferred: Transcription.contextualWords.get())
                 guard !transcript.isEmpty else {
                     // Not a discard: nobody pressed ⎋ and nothing failed, so a
                     // capture queued behind this one starts, as it does after

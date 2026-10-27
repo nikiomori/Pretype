@@ -15,6 +15,9 @@ struct DictationAnchor {
     /// The field's selection when the capture began — the target of a voice
     /// command (`Settings.dictationCommands`). Empty when nothing is selected.
     var selectedText: String = ""
+    /// The AI agent's session above its input box, when the field is one:
+    /// the names it printed are what the user is about to say.
+    var session: String? = nil
 }
 
 /// What holds keyboard focus, as far as a capture is concerned.
