@@ -272,12 +272,13 @@ enum Transcription {
     /// contextual strings at all, and the system's are only a hint. A term
     /// read off the page only when it can't be an ordinary word — an inner
     /// capital or a digit; a mid-sentence "Settings" on screen must not
-    /// capitalize every "settings" said. A `listed` term (the user's own) always.
+    /// capitalize every "settings" said. A `listed` term (the user's own)
+    /// always, and as written: "Claude Code" heard as "claude code".
     static func spell(_ text: String, inferred: [String], listed: [String] = []) -> String {
         func key(_ s: some StringProtocol) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
         func codeLike(_ s: String) -> Bool { s.dropFirst().contains { $0.isUppercase || $0.isNumber } }
         var spelling: [String: String] = [:]
-        for term in listed + inferred.filter(codeLike) where !term.contains(" ") && key(term).count >= 2 {
+        for term in listed + inferred.filter(codeLike) where key(term).count >= 2 {
             spelling[key(term)] = spelling[key(term)] ?? term
         }
         guard !spelling.isEmpty else { return text }

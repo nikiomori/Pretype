@@ -65,6 +65,9 @@ struct DictationTab: View {
             if store.dictationBlocker == nil, store.dictation {
                 startSection
                 languageSection
+                Section("Spelling") {
+                    DictationWordsList(store: store)
+                }
                 if showAdvanced {
                     advanced
                 }
@@ -260,6 +263,48 @@ struct DictationSendList: View {
                          removeHelp: String(localized: "Type dictations here without sending them"),
                          remove: { store.removeDictationSendApp(entry) })
         }
+    }
+}
+
+/// Names and terms dictation spells as listed ("My words"). Its own view,
+/// like `DictationSendList`.
+struct DictationWordsList: View {
+    @Bindable var store: SettingsStore
+    @State private var draft = ""
+
+    var body: some View {
+        LabeledContent {} label: {
+            Text("My words")
+            Text("Names and terms dictation spells your way.")
+        }
+        .help("Dictation writes these exactly as you spell them here. It also picks up names and terms already in the field you dictate into, and on an AI agent's terminal screen.")
+        ForEach(store.dictationWords, id: \.self) { word in
+            HStack {
+                Text(word)
+                Spacer()
+                iconButton("minus.circle.fill", label: String(localized: "Remove \(word)"),
+                           help: String(localized: "Remove this word")) {
+                    store.dictationWords.removeAll { $0 == word }
+                }
+            }
+        }
+        HStack {
+            TextField("Add a word", text: $draft, prompt: Text("Add a name or term"))
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(add)
+            Button("Add", systemImage: "plus", action: add)
+                .controlSize(.small)
+                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+    }
+
+    /// A word already listed in any case is replaced by the new spelling.
+    private func add() {
+        let word = draft.trimmingCharacters(in: .whitespaces)
+        guard !word.isEmpty else { return }
+        store.dictationWords = store.dictationWords.filter { $0.lowercased() != word.lowercased() } + [word]
+        draft = ""
     }
 }
 

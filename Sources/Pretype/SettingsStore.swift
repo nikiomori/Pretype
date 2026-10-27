@@ -210,6 +210,10 @@ final class SettingsStore {
         didSet { guard !syncing, oldValue != dictationSendApps else { return }
             Settings.dictationSendApps = dictationSendApps }
     }
+    var dictationWords: [String] = [] {
+        didSet { guard !syncing, oldValue != dictationWords else { return }
+            Settings.dictationWords = dictationWords }
+    }
     var useRecommended = true {
         didSet { guard !syncing, oldValue != useRecommended else { return }
             let on = useRecommended
@@ -1050,6 +1054,7 @@ final class SettingsStore {
         apiAudio = Settings.apiAudio
         blacklist = Settings.userBlacklist
         dictationSendApps = Settings.dictationSendApps
+        dictationWords = Settings.dictationWords
         useRecommended = Settings.useRecommendedSettings
         style = Settings.completionStyle
         length = Settings.completionLength

@@ -37,6 +37,7 @@ final class TranscriptionBiasWordsTests: XCTestCase {
         XCTAssertEqual(Transcription.spell("pre type and dubina", inferred: [], listed: ["Pretype", "Дубина", "Dubina"]),
                        "Pretype and Dubina")
         XCTAssertEqual(Transcription.spell("привет, дубина", inferred: [], listed: ["Дубина"]), "привет, Дубина")
+        XCTAssertEqual(Transcription.spell("ask claude code", inferred: [], listed: ["Claude Code"]), "ask Claude Code")
         XCTAssertEqual(Transcription.spell("nothing here", inferred: []), "nothing here")
     }
 

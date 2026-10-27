@@ -767,6 +767,11 @@ enum Settings {
     /// empty by default.
     @Pref("dictationSendApps", []) static var dictationSendApps: [String]
 
+    /// Names and terms dictation spells as written here ("My words" in
+    /// Settings → Dictation): a hint to the transcriber and the spelling
+    /// pass's own list, ahead of what it infers from the page.
+    @Pref("dictationWords", []) static var dictationWords: [String]
+
     /// Dictate the languages Apple's newer speech model doesn't cover with
     /// Parakeet instead (see `Parakeet`). Off by default — turning it on is
     /// the consent for a ~610 MB download.
