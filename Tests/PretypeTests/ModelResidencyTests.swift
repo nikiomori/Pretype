@@ -91,7 +91,8 @@ final class ModelResidencyTests: MLXTestCase {
     // drops the blueprints whatever the models' state, idle-unloaded
     // included, and the models once unused for 3 s. It drops the parsed
     // tokenizers too, but a resident model's: that one is held by the model
-    // anyway, and dropping it cost a re-parse on the way back.
+    // anyway, and dropping it cost a re-parse on the way back. Only a
+    // pressure that freed the completion model puts Words in its place.
     func testResidencyLeasesAndMemoryPressure() async throws {
         try await inScratchHub {
             let tiny = TinyResidency(), residency = tiny.residency
@@ -115,11 +116,11 @@ final class ModelResidencyTests: MLXTestCase {
             XCTAssertEqual(tiny.blueprintsSeen.get().last, ["test/tiny-gemma"], "the reload finds the release's blueprint")
             let resident = try folder(of: "test/tiny-gemma"), other = try folder(of: "test/other")
             for directory in [resident, other] { _ = try await tiny.tokenizers.load(from: directory) }
-            residency.relieveMemoryPressure()
+            XCTAssertFalse(residency.relieveMemoryPressure(), "freed nothing: Words stays out")
             XCTAssertTrue(residency.primaryLoadedOrLoading, "used a moment ago")
             XCTAssertEqual(tiny.tokenizers.directories, [resident], "keeps the resident model's tokenizer only")
             tiny.advance(10)
-            residency.relieveMemoryPressure()
+            XCTAssertTrue(residency.relieveMemoryPressure(), "freed the completion model: Words stands in")
             XCTAssertFalse(residency.primaryLoadedOrLoading)
             XCTAssertTrue(tiny.tokenizers.directories.isEmpty, "nothing resident, nothing kept")
             residency.end(try await tiny.use())
@@ -127,24 +128,10 @@ final class ModelResidencyTests: MLXTestCase {
 
             tiny.advance(10)
             residency.releaseNow()
-            residency.relieveMemoryPressure()
+            XCTAssertFalse(residency.relieveMemoryPressure(), "already idle-unloaded")
             residency.end(try await tiny.use())
             XCTAssertEqual(tiny.blueprintsSeen.get().last, [], "pressure on an idle-unloaded model kept its blueprint")
         }
-    }
-
-    // Words stands in while macOS reports pressure and for `hold` after the
-    // last raised reading — a model reloaded the moment the level dips would
-    // raise it again.
-    func testMemoryPressureHoldsWordsAfterTheLastRaisedReading() {
-        let t0 = Date(timeIntervalSince1970: 1_000_000)
-        var last: Date?
-        XCTAssertFalse(MemoryPressure.isRaised(level: 1, now: t0, lastRaised: &last), "never raised")
-        XCTAssertTrue(MemoryPressure.isRaised(level: 2, now: t0, lastRaised: &last), "warning")
-        XCTAssertTrue(MemoryPressure.isRaised(level: 1, now: t0 + MemoryPressure.hold - 1, lastRaised: &last))
-        XCTAssertTrue(MemoryPressure.isRaised(level: 4, now: t0 + 60, lastRaised: &last), "critical restarts the hold")
-        XCTAssertTrue(MemoryPressure.isRaised(level: 1, now: t0 + 60 + MemoryPressure.hold - 1, lastRaised: &last))
-        XCTAssertFalse(MemoryPressure.isRaised(level: 1, now: t0 + 60 + MemoryPressure.hold, lastRaised: &last))
     }
 
     // A dictation prewarms the fix model it will tidy up with; on a model

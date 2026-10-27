@@ -431,10 +431,14 @@ final class ModelResidency {
     /// left — and so do the parsed tokenizers, but a resident model's: it
     /// holds that tokenizer anyway, so dropping the entry frees nothing and
     /// costs a re-parse (~1.45 s of a ~1.9 s Gemma reload) on the way back.
-    func relieveMemoryPressure() {
+    /// True when it freed the primary, the model completions use.
+    @discardableResult
+    func relieveMemoryPressure() -> Bool {
+        let wasResident = primaryLoadedOrLoading
         blueprints.set([:])
         unload(reason: "memory pressure")
         keepTokenizers(of: modelLock.withLock { [primary, sibling].filter { $0.task != nil }.compactMap(\.loadedRepo) })
+        return wasResident && !primaryLoadedOrLoading
     }
 
     /// What a replacing residency inherits (see `init`), for tests.
@@ -535,7 +539,7 @@ final class ModelResidency {
             eventMask: [.warning, .critical], queue: maintenanceQueue
         )
         pressure.setEventHandler { [weak self] in
-            self?.relieveMemoryPressure()
+            if self?.relieveMemoryPressure() == true { MemoryPressure.freedModel() }
         }
         pressure.resume()
         memoryPressureSource = pressure
@@ -584,37 +588,28 @@ final class ModelResidency {
     }
 }
 
-/// macOS's memory-pressure level, read live (`kern.memorystatus_vm_pressure_level`:
-/// 1 normal, 2 warning, 4 critical). While it is raised, and for `hold` after,
-/// suggestions run on Words (`Settings.activeSuggestionMode`) and the
-/// completion model stays out: the pressure source has just freed it
-/// (`relieveMemoryPressure`), and the next keystroke reloading it would raise
-/// the pressure that freed it — on an 8 GB Mac, round and round.
+/// For `hold` after macOS's memory-pressure event freed the completion model
+/// (`relieveMemoryPressure`), suggestions run on Words
+/// (`Settings.activeSuggestionMode`) and the model stays out: the next
+/// keystroke reloading it would raise the pressure that freed it — on an
+/// 8 GB Mac, round and round. Not while the pressure level reads raised: a
+/// busy Mac sits at "warning" for hours with room for the model, and a 48 GB
+/// one ran on Words all day.
 enum MemoryPressure {
-    /// How long Words stands in after the level last read raised.
+    /// How long Words stands in after the event.
     static let hold: TimeInterval = 120
 
-    private static let lastRaised = LockedValue<Date?>(nil)
+    private static let lastFreed = LockedValue<Date?>(nil)
     private static let wasRaised = LockedValue(false)
 
+    static func freedModel() { lastFreed.withLock { $0 = Date() } }
+
     static var isRaised: Bool {
-        let raised = lastRaised.withLock { isRaised(level: level(), now: Date(), lastRaised: &$0) }
-        if wasRaised.withLock({ defer { $0 = raised }; return $0 != raised }) {
+        let raised = lastFreed.withLock { $0.map { Date().timeIntervalSince($0) < hold } ?? false }
+        if wasRaised.withLock({ was in defer { was = raised }; return was != raised }) {
             DebugLog.shared.log("ENGINE", raised ? "memory pressure — Words stands in for the model"
                                                   : "memory pressure over — suggestions use the model again")
         }
         return raised
-    }
-
-    /// The rule, its clock and level injected for tests.
-    static func isRaised(level: Int32, now: Date, lastRaised: inout Date?) -> Bool {
-        if level > 1 { lastRaised = now; return true }
-        return lastRaised.map { now.timeIntervalSince($0) < hold } ?? false
-    }
-
-    private static func level() -> Int32 {
-        var level: Int32 = 1
-        var size = MemoryLayout<Int32>.size
-        return sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0) == 0 ? level : 1
     }
 }

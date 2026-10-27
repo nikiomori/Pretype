@@ -255,7 +255,7 @@ The resident figure is the memory that a model uses *while you type*. The model 
 
 * After five idle minutes, the model unloads. On Macs with 32 GB or more, this time is fifteen minutes. To change the time, use **Settings → Model → Advanced → Free memory when idle**.
 * The model loads again at your next keystroke.
-* If macOS reports memory pressure, the model unloads earlier. Then suggestions use **Words** until two minutes after the pressure stops. The model does not load again while the pressure continues. A fix or a reply that you ask for still loads it.
+* If macOS reports memory pressure, the model unloads earlier. Then suggestions use **Words** for two minutes, and the model does not load again in that time. A fix or a reply that you ask for still loads it.
 
 ### Reduce memory use (Gemma)
 
