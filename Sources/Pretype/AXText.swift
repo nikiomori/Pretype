@@ -405,8 +405,14 @@ enum AXText {
         let kind: FieldKind
         if (ref as? [String])?.contains("xterm-helper-textarea") == true {
             kind = .xterm
+        } else if AppPolicy.isTerminal(calls.bundleID(element))
+                    // A terminal view in an app that isn't a terminal (Kelp)
+                    // names itself; one more read, native fields only.
+                    || read == .attributeUnsupported
+                    && calls.copy(element, kAXIdentifierAttribute).1 as? String == "terminal" {
+            kind = .terminal
         } else {
-            kind = AppPolicy.isTerminal(calls.bundleID(element)) ? .terminal : .plain
+            kind = .plain
         }
         // Only a definite answer is kept: a timeout or a just-woken Chromium
         // tree's failure would pin the wrong kind for the element's life.

@@ -86,6 +86,7 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertTrue(AppPolicy.isTerminal("dev.warp.Warp-Stable"))
         XCTAssertTrue(AppPolicy.isCodeEditor("dev.zed.Zed"))
         XCTAssertTrue(AppPolicy.isCodeEditor("com.panic.Nova"))
+        XCTAssertTrue(AppPolicy.isCodeEditor("dev.kelp.app"))
         XCTAssertTrue(AppPolicy.isCredentialApp("com.agilebits.onepassword7"))
         XCTAssertTrue(AppPolicy.isCredentialApp("me.proton.pass.electron"))
         XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.microsoft.teams2")))

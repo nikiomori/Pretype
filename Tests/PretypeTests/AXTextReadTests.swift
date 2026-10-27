@@ -446,6 +446,15 @@ final class AXTextReadTests: XCTestCase {
         let plain = tree.field(box + "\n\(rule)\n", caret: (box as NSString).length)
         XCTAssertEqual(context(plain)?.textBeforeCaret, box, "outside a terminal the box is plain text")
         XCTAssertFalse(tree.reading { AXText.isTerminalField(plain) })
+
+        // An IDE's terminal view (Kelp) names itself; its code editor doesn't.
+        let embedded = tree.field(box + "\n\(rule)\n", caret: (box as NSString).length)
+        tree.belongs(embedded, to: "dev.kelp.app")
+        tree.set(embedded, kAXIdentifierAttribute, "terminal")
+        XCTAssertEqual(context(embedded)?.textBeforeCaret, "fix the test")
+        let editor = tree.field(box + "\n\(rule)\n", caret: (box as NSString).length)
+        tree.belongs(editor, to: "dev.kelp.app")
+        XCTAssertEqual(context(editor)?.textBeforeCaret, box)
     }
 
     // A field's kind is asked once — a definite answer is kept for its life,

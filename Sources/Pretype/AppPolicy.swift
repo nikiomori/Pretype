@@ -39,7 +39,8 @@ enum AppPolicy {
 
     static func isCodeEditor(_ bundleID: String?) -> Bool {
         // "todesktop" is Cursor's wrapper bundle prefix.
-        matches(bundleID, ["vscode", "vscodium", "cursor", "todesktop", "xcode", "jetbrains", "sublime", "zed", "nova"])
+        matches(bundleID, ["vscode", "vscodium", "cursor", "todesktop", "xcode", "jetbrains", "sublime", "zed", "nova",
+                           "kelp"])
     }
 
     /// Website entries share the per-app lists (`Settings.userBlacklist`,
