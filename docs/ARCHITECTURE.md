@@ -84,7 +84,7 @@ default.
 | Prompt or payload | The continuation prompt of `FoundationModelsEngine` (`CompletionRequest.continuationTurn`). The fix, reply and command prompts of the local engines. | One WAV file (16 kHz, 16-bit, mono) when the capture stops. A hosted model gets no live preview. A server on this Mac gets the take so far about once a second. |
 | Output | The shared output gates of the local engines. | The same tidy-up pass as a local transcript. |
 | Length | A words hint in the prompt, and a word cap on the result (`CloudEngine.wordCap`). A token budget cannot set the length, because a reasoning model uses tokens before its first word. | One take. OpenAI and Groq accept up to 25 MB, which is ≈13 minutes. |
-| Spelling hints | — | The names and terms in the field. `gpt-transcribe` gets them as `keywords[]`. Whisper models get them as `prompt`. |
+| Spelling hints | — | The user's words (**My words**) and the names and terms in the field. `gpt-transcribe` gets them as `keywords[]`. Whisper models get them as `prompt`. |
 | Failure | A suggestion abstains and logs the reason. A rejected key (HTTP 401) sets the engine to failed. The fix and reply chords show the error. | Each request stops after 55 s, plus 0.3 s for each audio second. A network error, a timeout, HTTP 429 or a 5xx sends the same take one more time, after 1 s. The watchdog waits 120 s plus 0.6 s for each audio second, not 10 s, because it must include the two uploads. When both fail, or the watchdog fires, an installed on-device model transcribes the take from memory, with a limit of 30 s plus 0.1 s for each audio second. A cancelled take stops its upload and has no fallback. |
 
 * **Two wire formats.** Most providers and local servers use the OpenAI
@@ -346,7 +346,9 @@ without this suffix.
 * **Parakeet (opt-in).** The model from NVIDIA, through FluidAudio
   (`Parakeet.swift`). It downloads one time into
   `~/Library/Application Support/FluidAudio`. It serves the languages for
-  which Apple has only the older model.
+  which Apple has only the older model. Settings shows its switch only when
+  the interface language of Pretype is the dictation language
+  (`Parakeet.isOffered`). A switch that is on stays visible.
 * **API provider (opt-in).** A hosted speech model, for all languages
   (`CloudTranscription.swift`). It overrides the three models above. See
   [API providers](#api-providers).
@@ -372,7 +374,9 @@ without this suffix.
   strings. A term from the page must have an inner capital or a digit. Thus
   a capitalized "Settings" on the screen does not change a spoken "settings".
   The bias words come from the text before the caret and, in the box of an
-  AI agent, from the agent's session (`AXText.agentTranscript`).
+  AI agent, from the agent's session (`AXText.agentTranscript`). The user's
+  list (`Settings.dictationWords`, **My words**) goes first. Its terms need
+  no inner capital, and a term can have spaces ("Claude Code").
 * **Tidy-up.** The transcript goes through `engine.correct`, the same
   minimal-edit pass as <kbd>⌥Tab</kbd>. Its divergence guard rejects a model
   that starts to paraphrase. Then the text goes in as Pretype heard it.
@@ -395,7 +399,7 @@ without this suffix.
 | Feature | How it operates |
 |---|---|
 | App awareness | The prompt style changes with the active app: short completions in chat apps. Pretype is off in password managers. In terminals, it is off except in the prompt box of an AI agent. `AgentPrompt` finds that box in the AX text of the terminal. `AXText.xtermContext` builds that text again for xterm.js terminals. All reads stop while macOS reports secure input. |
-| Agent session | In the box of an AI agent, the screen above the box is the agent's session (`AgentPrompt.transcript`). Pretype reads it from AX only on demand, because an xterm.js read is two AX calls for each row. The reply chord answers the session: no OCR and no Screen Recording. The names in the session (identifiers and paths) complete at once while you type them (`AgentPrompt.completion`, journal engine `names`). Pretype reads the names again at the first word of each message. |
+| Agent session | In the box of an AI agent, the screen above the box is the agent's session (`AgentPrompt.transcript`). Pretype reads it from AX only on demand, because an xterm.js read is two AX calls for each row. The reply chord answers the session: no OCR and no Screen Recording. The names in the session (identifiers and paths) complete at once while you type them (`AgentPrompt.completion`, journal engine `names`). Pretype reads the names again at the first word of each message. With `autoReply` on, `watchAgentTurn` reads the session every 2 s, because the terminal sends no change notification. A session that changes and then stays the same for one read is the end of the agent's turn: Pretype offers the next message, one time for each turn. |
 | Screen context | Optional and off by default. Apple's Vision OCR reads the focused window to get nearby text, for example the email thread of your reply. It needs Screen Recording. OCR text never goes into the debug log. An exported log has a placeholder with the size only. |
 
 ## Where things live

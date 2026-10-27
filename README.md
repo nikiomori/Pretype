@@ -82,7 +82,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 | **All text fields** | Native apps, Electron apps (VS Code, Slack, Claude Desktop), and web pages. In Terminal, iTerm2, and the VS Code terminal, only the prompts that you type to an AI agent, for example Claude Code. There, the file names and the symbols that the agent shows complete at once. |
 | **Typo fixes** | A pill shows above a misspelled word. The macOS spell checker finds the error in the language of the text. |
 | **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing. It keeps your tone. The best model fixes 69% of noisy lines exactly. |
-| **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes your next message from the conversation on the screen. With the best model, 90% of the replies are on topic. An independent model rates them. In the prompt of an AI agent, the draft answers the agent's session. It reads the terminal text and needs no Screen Recording. |
+| **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes your next message from the conversation on the screen. With the best model, 90% of the replies are on topic. An independent model rates them. In the prompt of an AI agent, the draft answers the agent's session. It reads the terminal text and needs no Screen Recording. With **Offer replies in chats** on, the draft comes when the agent finishes its turn. |
 | **Emoji and symbols** | `:shrug:` gives 🤷, `:rocket:` gives 🚀, `:cmd:` gives ⌘. |
 | **Arithmetic** | `12*7=` gives 84. |
 | **Speed** | A suggestion takes 17–81 ms on the local models. |
@@ -109,7 +109,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 * The speech models of macOS transcribe on your Mac. Audio does not go to the disk.
 * A tidy-up pass adds the punctuation and the capital letters.
 * Dictation uses the language of your keyboard layout.
-* **Names.** Names and terms in the field, and in the session of an AI agent, come out as they are written there: "mlx" becomes "MLX", "suggestion controller" becomes "SuggestionController". This also operates with Parakeet.
+* **Names.** Names and terms in the field, and in the session of an AI agent, come out as they are written there: "mlx" becomes "MLX", "suggestion controller" becomes "SuggestionController". This also operates with Parakeet. Add your own names and terms in **Settings → Dictation → My words**. Dictation always writes them as you wrote them there.
 * **Voice commands.** Select text and dictate an instruction, for example *"make it shorter"* or *"translate to English"*. Enable this in **Settings → Dictation → Advanced**.
 * **Send.** Pretype can push <kbd>Return</kbd> after a dictation, for example in a chat. To enable this for an app, select **Press Return after Dictation** in the menu.
 * If the focus changes during a capture, Pretype puts the transcript on the clipboard.
@@ -117,7 +117,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 | Languages | Speech model |
 |---|---|
 | English, German, Spanish, French, Italian, Japanese, Korean, Portuguese, Chinese | Apple `SpeechTranscriber`. It gives punctuation. |
-| All other languages, **Russian included** | Apple `DictationTranscriber`. It is older and gives no punctuation. You can select **Parakeet** (one download of ~610 MB) instead. On Russian, Parakeet makes less than half the word errors: 5.4% WER against 12.6% on FLEURS. |
+| All other languages, **Russian included** | Apple `DictationTranscriber`. It is older and gives no punctuation. You can select **Parakeet** (one download of ~610 MB) instead, in **Settings → Dictation** when Pretype shows its interface in that language. On Russian, Parakeet makes less than half the word errors: 5.4% WER against 12.6% on FLEURS. |
 | All languages | A hosted speech model, if you select an API provider in **Settings → API**. |
 
 [Architecture → Dictation](docs/ARCHITECTURE.md#dictation) gives the details.
