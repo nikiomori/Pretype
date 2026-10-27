@@ -448,9 +448,12 @@ final class ModelResidencyTests: MLXTestCase {
     // loaded on its own must not paint "idle" over the reason.
     func testAnUnloadKeepsAFailureOnScreen() async throws {
         try await inScratchHub {
-            let tiny = TinyResidency(failsPrimary: true), residency = tiny.residency
+            // Held: a load that fails at once may land, and start its
+            // cooldown, before the lease is taken.
+            let tiny = TinyResidency(failsPrimary: true, hold: true), residency = tiny.residency
             defer { residency.shutdown() }
             let failed = try XCTUnwrap(residency.begin(.completion))
+            tiny.held.set(false)
             _ = try? await failed.task.value
             residency.end(failed)
             residency.end(try await tiny.use(.fix))

@@ -444,6 +444,8 @@ class PipelineTestCase: XCTestCase {
         set(\.onboardingCompleted, true)
         set(\.hotkeyStyle, .tab)
         set(\.dictationEnabled, false)
+        // Not the RAM's default: a CI runner's 7 GB would pick Words.
+        set(\.suggestionMode, .sentences)
         // Nothing here may touch the user's real data: no n-gram, no journal.
         set(\.personalizationLevel, .off)
         set(\.suggestionJournalEnabled, false)
