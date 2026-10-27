@@ -504,7 +504,7 @@ final class SuggestionController {
         // completions don't. Reversible from the status menu. Not Words: a
         // word ghost costs a glance, not the model's interruption, and its
         // offers stay out of that record.
-        let unproductive = Settings.suggestionMode == .sentences && env.isUnproductive(typingContext.bundleID)
+        let unproductive = Settings.activeSuggestionMode == .sentences && env.isUnproductive(typingContext.bundleID)
         if let why = RequestGate.quietReason(unproductive: unproductive,
                                              onBattery: env.pausedForBattery(), declined: field.isDeclined) {
             lastEvent = why
@@ -513,7 +513,7 @@ final class SuggestionController {
         if queries.isRunning(before: text, after: ctx.textAfterCaret) { return }
 
         // Words: the rest of the word or nothing — no model, nothing to wait for.
-        if Settings.suggestionMode == .words {
+        if Settings.activeSuggestionMode == .words {
             if let word = WordCompletion.suggestion(text: text, after: ctx.textAfterCaret, ngram: env.personalNgram) {
                 apply(word, requestText: text, cachedContext: ctx, instant: true)
             }
@@ -684,7 +684,7 @@ final class SuggestionController {
         let current = ctx.textBeforeCaret
         switch RequestGate.landing(sanitized, askedOn: requestText, current: current,
                                    flush: !instant && !reply && engine.answersFlush,
-                                   completesWord: instant && Settings.suggestionMode == .words) {
+                                   completesWord: instant && Settings.activeSuggestionMode == .words) {
         case .show(let landed):
             suggestion = landed
         case .stale(let why):
@@ -716,7 +716,7 @@ final class SuggestionController {
                 // "ngram" for the fast-path, "words" for Words mode, else the
                 // engine's name — so the journal can compare their acceptance
                 // rates, and keeps the model's rows apart from both.
-                engine: !instant ? engine.name : Settings.suggestionMode == .words ? "words" : "ngram",
+                engine: !instant ? engine.name : Settings.activeSuggestionMode == .words ? "words" : "ngram",
                 // The engine's OWN resolved model — not Settings.mlxModelID,
                 // which diverges from what actually generated (instruct loads
                 // the it-sibling; Apple Intelligence has no MLX model at all).

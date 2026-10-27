@@ -37,11 +37,13 @@ extension SuggestionController {
         if let element = env.trackedElement(), Settings.enabled, completionsWelcome {
             // Entered a text field — start reloading the model now (no-op unless
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
-            // Unless no suggestion asks it: then it loads for a fix or a reply.
-            if Settings.completionsUseModel {
+            // Unless no suggestion asks it (or Words stands in while memory is
+            // short): then it loads for a fix or a reply.
+            let usesModel = Settings.completionsUseModel && Settings.activeSuggestionMode == .sentences
+            if usesModel {
                 engine.prewarmIfNeeded()
             }
-            if Settings.completionsUseModel, case .preparing = engine.state {
+            if usesModel, case .preparing = engine.state {
                 if let ctx = env.context(of: element) {
                     field.noteCaret(ctx.caretRect, style: ctx.host)
                     indicator.start()

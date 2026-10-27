@@ -133,6 +133,20 @@ final class ModelResidencyTests: MLXTestCase {
         }
     }
 
+    // Words stands in while macOS reports pressure and for `hold` after the
+    // last raised reading — a model reloaded the moment the level dips would
+    // raise it again.
+    func testMemoryPressureHoldsWordsAfterTheLastRaisedReading() {
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        var last: Date?
+        XCTAssertFalse(MemoryPressure.isRaised(level: 1, now: t0, lastRaised: &last), "never raised")
+        XCTAssertTrue(MemoryPressure.isRaised(level: 2, now: t0, lastRaised: &last), "warning")
+        XCTAssertTrue(MemoryPressure.isRaised(level: 1, now: t0 + MemoryPressure.hold - 1, lastRaised: &last))
+        XCTAssertTrue(MemoryPressure.isRaised(level: 4, now: t0 + 60, lastRaised: &last), "critical restarts the hold")
+        XCTAssertTrue(MemoryPressure.isRaised(level: 1, now: t0 + 60 + MemoryPressure.hold - 1, lastRaised: &last))
+        XCTAssertFalse(MemoryPressure.isRaised(level: 1, now: t0 + 60 + MemoryPressure.hold, lastRaised: &last))
+    }
+
     // A dictation prewarms the fix model it will tidy up with; on a model
     // already loaded that is still a use, or the idle timer could free it
     // mid-dictation. A focus change's prewarm of the completion model is no

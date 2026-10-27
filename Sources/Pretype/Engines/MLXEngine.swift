@@ -158,7 +158,7 @@ final class MLXEngine: CompletionEngine {
         // per-keystroke latency on E4B-8bit and E2B-4bit (16 MB starts to
         // show in p90). ~450 MB back for the rest of the Mac.
         Memory.cacheLimit = 64 * 1024 * 1024
-        residency.start(loadPrimary: Settings.completionsUseModel)
+        residency.start(loadPrimary: Settings.completionsUseModel && !MemoryPressure.isRaised)
     }
 
     /// MLX needs its compiled Metal shaders at runtime: `default.metallib`,

@@ -583,3 +583,38 @@ final class ModelResidency {
         memoryPressureSource?.cancel()
     }
 }
+
+/// macOS's memory-pressure level, read live (`kern.memorystatus_vm_pressure_level`:
+/// 1 normal, 2 warning, 4 critical). While it is raised, and for `hold` after,
+/// suggestions run on Words (`Settings.activeSuggestionMode`) and the
+/// completion model stays out: the pressure source has just freed it
+/// (`relieveMemoryPressure`), and the next keystroke reloading it would raise
+/// the pressure that freed it — on an 8 GB Mac, round and round.
+enum MemoryPressure {
+    /// How long Words stands in after the level last read raised.
+    static let hold: TimeInterval = 120
+
+    private static let lastRaised = LockedValue<Date?>(nil)
+    private static let wasRaised = LockedValue(false)
+
+    static var isRaised: Bool {
+        let raised = lastRaised.withLock { isRaised(level: level(), now: Date(), lastRaised: &$0) }
+        if wasRaised.withLock({ defer { $0 = raised }; return $0 != raised }) {
+            DebugLog.shared.log("ENGINE", raised ? "memory pressure — Words stands in for the model"
+                                                  : "memory pressure over — suggestions use the model again")
+        }
+        return raised
+    }
+
+    /// The rule, its clock and level injected for tests.
+    static func isRaised(level: Int32, now: Date, lastRaised: inout Date?) -> Bool {
+        if level > 1 { lastRaised = now; return true }
+        return lastRaised.map { now.timeIntervalSince($0) < hold } ?? false
+    }
+
+    private static func level() -> Int32 {
+        var level: Int32 = 1
+        var size = MemoryLayout<Int32>.size
+        return sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0) == 0 ? level : 1
+    }
+}

@@ -703,6 +703,9 @@ enum Settings {
     /// A picked mode always wins.
     @Pref("suggestionMode", ModelCatalog.machineRamGB <= 8 ? SuggestionMode.words : .sentences)
     static var suggestionMode: SuggestionMode
+    /// The mode suggestions run on now: the picked one, or Words while macOS
+    /// reports memory pressure (`MemoryPressure`). Settings shows the pick.
+    static var activeSuggestionMode: SuggestionMode { MemoryPressure.isRaised ? .words : suggestionMode }
     /// Suggestions in an AI agent's input box in a terminal (`AgentPrompt`).
     @Pref("agentPromptSuggestions", true) static var agentPromptSuggestions: Bool
     /// The fix chord with its selection pill, and the inline fixes below.
