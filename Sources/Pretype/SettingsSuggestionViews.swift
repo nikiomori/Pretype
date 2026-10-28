@@ -193,9 +193,10 @@ struct TuningSection: View {
             }
             // Base style's entropy stop ends a suggestion inside even Short's
             // budget (identical output at all three lengths, 2026-10-15), so
-            // the control only shows where it does something. Apple
-            // Intelligence reads length whatever the style says.
-            if store.style != .base || store.isAppleIntelligence {
+            // the control only shows where it does something: Instruct, Apple
+            // Intelligence (it reads length whatever the style says), and the
+            // tiers whose Base Medium/Long write past it (`writesLongBase`).
+            if store.style != .base || store.isAppleIntelligence || ModelCatalog.writesLongBase(store.modelID) {
                 LabeledContent {
                     HoverSegments(title: String(localized: "Length"),
                                   options: CompletionLength.allCases.map { ($0, $0.label) },

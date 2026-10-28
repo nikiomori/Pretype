@@ -325,9 +325,21 @@ struct ConfigProjection {
     /// entropy stop ends a base suggestion near its second word, inside even
     /// Short's budget, so all three lengths decode the same text (E2B 4-bit
     /// and Qwen3.5 2B: identical outputs, 35/35/34 and 33/33/33 ms). Instruct
-    /// follows the directive's word hint: 98 / 127 / 163 ms on E4B-it.
-    static func latencyFactor(_ length: CompletionLength, style: CompletionStyle) -> Double {
-        guard style == .instruct else { return 1.0 }
+    /// follows the directive's word hint: 98 / 127 / 163 ms on E4B-it. Base
+    /// Medium/Long on the tiers that write long text run untrimmed
+    /// (`ModelCatalog.writesLongBase`): 130 / 276 / 380 ms on E4B 6-bit and
+    /// 137 / 401 / 440 on 8-bit for the whole suggestion (eval-long, one
+    /// interleaved pass, Eval/runs-2026-10-28-issue4/e2e); the first word
+    /// streams in as fast as Short's.
+    static func latencyFactor(_ length: CompletionLength, style: CompletionStyle, modelID: String) -> Double {
+        if style == .base {
+            guard ModelCatalog.writesLongBase(modelID) else { return 1.0 }
+            switch length {
+            case .short: return 1.0
+            case .medium: return 2.5
+            case .long: return 3.1
+            }
+        }
         switch length {
         case .short: return 1.0
         case .medium: return 1.3
@@ -353,7 +365,7 @@ struct ConfigProjection {
                 computeRel: nil, computeSub: String(localized: "not measured"))
         }
         let isAI = c.modelID == ModelCatalog.appleIntelligenceID
-        let lf = latencyFactor(c.length, style: c.style)
+        let lf = latencyFactor(c.length, style: c.style, modelID: c.modelID)
 
         if isAI {
             return ConfigProjection(

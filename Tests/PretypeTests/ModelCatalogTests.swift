@@ -159,6 +159,14 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(base.p50Ms, 18)
         XCTAssertEqual(base.ramGB, 1.1)
 
+        // Base Long on E4B writes the sentence out: same first word, about 3×
+        // the time for the whole suggestion. Elsewhere Base length is inert.
+        let e4bShort = cfg(e4b6, .base), e4bLong = cfg(e4b6, .base, .long)
+        XCTAssertEqual(e4bLong.accuracyPct, e4bShort.accuracyPct)
+        XCTAssertEqual(e4bLong.p50Ms, Int((Double(e4bShort.p50Ms ?? 0) * 3.1).rounded()))
+        XCTAssertTrue(e4bLong.latencyIsApprox)
+        XCTAssertEqual(cfg(mini, .base, .long).p50Ms, base.p50Ms)
+
         // Instruct on a base-only model is truthfully broken, not hidden.
         let broken = cfg(mini, .instruct)
         XCTAssertEqual(broken.accuracyPct, 0)
