@@ -109,7 +109,7 @@ The model stays in memory while you type. This makes suggestions fast. The defau
 
 ### Which languages work?
 
-The eval measures suggestions in 19 languages. Each language has its own result, and no language is averaged with other languages. Refer to [Choosing a model](models.md).
+The eval measures suggestions in 20 languages. Each language has its own result, and no language is averaged with other languages. Refer to [Choosing a model](models.md).
 
 The default model depends on the memory of your Mac:
 

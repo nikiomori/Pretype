@@ -22,6 +22,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 | You type in another language on an 8 GB Mac | Qwen3.5 2B M40, the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). M40 ties its Base build on completions, and it fixes more (see [Qwen3.5 2B M40](#qwen35-2b-m40-one-model-for-text-and-chords)). |
 | You type in Russian | The default. A Gemma tier from 16 GB. | See [English and Russian are different](#english-and-russian-are-different). |
 | You type in Arabic or Hebrew | The default. Do not use MiniCPM5 for Hebrew. | See [Arabic and Hebrew](#arabic-and-hebrew). |
+| You type in Danish | Any Gemma 4 tier | The four Gemma tiers tie at 27–28%. The small models get 10–23%. See [Danish](#danish). |
 | You want no download and no app memory | Apple Intelligence (macOS 26+) | It is last on accuracy and on speed: 480 ms, against 17–81 ms. On macOS 27 it shows a suggestion for almost every prompt, also in Polish, Romanian and Czech. But it is correct less often than any downloadable model. |
 | You want the best quality and have the memory | Gemma 4 E4B 8-bit | It ties E4B 6-bit (p=0.28), and it uses ≈1 GB more. You must select it manually. |
 
@@ -48,6 +49,26 @@ We measure these two languages on a separate set: 560 held-out rows (first run 2
 | Apple Intelligence | It shows a suggestion more frequently than any downloadable model (84–87% of the time). But only 6% of the suggestions are correct. |
 
 Inline typo fixes do not work in these two languages. macOS lists them as spell-check languages, but it has no dictionary for them.
+
+### Danish
+
+We measure Danish on a separate set: 280 held-out rows (2026-10-28). The rows come from subtitles, Tatoeba and news, with the same design as every other language.
+
+| Model | Result |
+|---|---|
+| Every Gemma 4 tier | 27–28%. The four tiers tie (p ≥ 0.65). E2B 4-bit is the fastest of them. |
+| Qwen3.5 2B Base | 23%. |
+| Qwen3.5 2B M40 | 21%. This is less than every Gemma tier (p < 0.005). |
+| MiniCPM5, Qwen2.5 0.5B, Bonsai | 10–17%. When you type Danish on one of these models, the menu suggests a Gemma tier. |
+| Apple Intelligence | 14%. |
+
+For these models, Danish is not more difficult than Swedish, German or Dutch (24–29% on the Gemma tiers). Long words and words with æ, ø or å are difficult for every model. But they are equally difficult in Swedish and German.
+
+macOS often reads short Danish text as Norwegian or Swedish. Before 2026-10-28, this caused two problems:
+
+* The language check rejected 8.7% of correct Danish suggestions. Now it rejects a suggestion only when no language is probable for both the text and the suggestion. This is 1.0% of correct Danish suggestions.
+* The inline typo fix used the Norwegian or Swedish dictionary for 22% of Danish lines. It changed correct words, for example "Hvad" to "Vad". Now a language of your keyboards, or the language that you type most, gets the dictionary when macOS finds it probable. On Danish text with one typo, 44% of the typos are fixed (before: 40%). On correct Danish text, the fix changes 14 words in 1902 (before: 20).
+* Words mode completes a word from the dictionary of the language that you type, also when an English keyboard is first in your list.
 
 ### Japanese
 
@@ -123,6 +144,21 @@ E4B:
 
 Instruct style stays available on E4B as a manual choice. It is the only tier where Instruct style continues the text and fills in text in the middle of a line.
 
+### Longer suggestions in Base style (E4B)
+
+In Base style, a suggestion stops at the first word that the model is not sure of. This is about 2 words. On Gemma E4B 6-bit and 8-bit, you can set **Settings → Model → Advanced → Length** to Medium or Long. The default stays Short.
+
+| Length | What you see (E4B, 2026-10-28) | Time for the full suggestion |
+|---|---|---|
+| Short | About 2 words | 130 ms (6-bit) |
+| Medium | About 7 words | 2.5× Short |
+| Long | The rest of the sentence, about 11 words | 3.1× Short |
+
+* The first word is the same at every length, and it shows as fast as with Short. The rest of the text comes in while the model writes it.
+* Press ⇥ to accept one word, or ⇧⇥ to accept the full suggestion.
+* A long suggestion is rarely the words that you would write: 1–2% of rows match the next 3 words. But it is good text. A blind judge accepted 89% of the E4B sentences as they are. It accepted 90% of the real sentences from the authors (p=0.85).
+* The smaller models do not write long text as well: 69–70% for E2B 4-bit and Qwen3.5 2B, and 54–57% in Danish. Thus Length stays inactive in Base style on these models.
+
 ## The default follows the memory of your Mac
 
 Since 2026-07-25, Pretype selects the default from the memory of your Mac. Before that date, your keyboard layouts selected it. The default comes from a fixed table with three thresholds: 14, 20 and 27.2 GB. Each threshold is four times the resident size of its tier on 2026-07-25. Since then, the slim re-packs and Base style made each tier smaller. Thus each default uses less than a quarter of physical memory. The table does not move with the sizes: a 24 GB Mac can hold E4B 6-bit in a quarter, but it gets E2B 8-bit.
@@ -154,7 +190,7 @@ An update can change the default for your Mac. A move to a Mac with more memory 
 
 The old model stays on disk. To delete it, go to **Settings → Model**. If you selected a different model yourself, Pretype keeps it.
 
-Your keyboard languages continue to set the persona and the per-language menu suggestion. To change the model, use **Settings → Model**. Each entry has its own recommended settings from the eval. The catalog ranks the models again for each of the 19 evaluated languages.
+Your keyboard languages continue to set the persona and the per-language menu suggestion. To change the model, use **Settings → Model**. Each entry has its own recommended settings from the eval. The catalog ranks the models again for each of the 20 evaluated languages.
 
 <div align="center">
 <img src="shot-models.png" width="720" alt="Model tab: one card for each goal, the confidence choice as two bars, and every model ranked with accuracy, speed and memory bars" />
@@ -163,7 +199,7 @@ Your keyboard languages continue to set the persona and the per-language menu su
 
 <sub>**Chart method.**
 The chart uses an equal-weight mean over `cs de es fr it ja ko nl pl pt ro ru sv tr uk zh`. It uses only matched register cells.
-We measured Arabic and Hebrew later, on their own set. They are not in the chart.
+We measured Arabic, Hebrew and Danish later, on their own sets. They are not in the chart.
 Do not compare absolute values *between* languages: zh and ja are character-masked. Thus the mean shows the spread across languages, not the skill in one language.
 Each language cell has 280 held-out rows. English has 560 and Russian has 689. This gives ±5 pp near 20%, and ±3 pp at the size of the Russian cell. A smaller gap is not a result.
 The app shows the same tolerance and sample size next to each figure. You can also select one language as the axis, in place of the average.</sub>
