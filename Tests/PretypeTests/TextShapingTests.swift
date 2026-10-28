@@ -235,3 +235,35 @@ final class TextShapingTests: XCTestCase {
         XCTAssertEqual(seam("\u{FEFF}a"), " \u{FEFF}a")
     }
 }
+
+final class DanishSpellingTests: XCTestCase {
+    // The recognizer reads short Danish as Norwegian or Swedish; a keyboard
+    // language it still finds plausible wins the dictionary, a faint one
+    // (< 0.05) or a keyboard it doesn't consider at all does not.
+    func testAKeyboardLanguageWinsTheDictionary() {
+        let hyps = ["nb": 0.78, "da": 0.21, "sv": 0.01]
+        XCTAssertEqual(SpellChecker.dictionaryLanguage(recognized: "nb", hypotheses: hyps, keyboards: ["da", "en"]), "da")
+        XCTAssertEqual(SpellChecker.dictionaryLanguage(recognized: "nb", hypotheses: hyps, keyboards: ["en"]), "nb")
+        XCTAssertEqual(SpellChecker.dictionaryLanguage(recognized: "nb", hypotheses: hyps, keyboards: ["sv"]), "nb")
+        XCTAssertEqual(SpellChecker.dictionaryLanguage(recognized: "ru", hypotheses: ["ru": 0.9], keyboards: ["ru", "en"]), "ru")
+    }
+
+    // Words mode on an English + Danish Mac: the dictionary follows the
+    // language being typed, not the order the keyboards were added in.
+    func testWordsFollowTheTypedLanguage() {
+        XCTAssertEqual(SpellChecker.typingOrder(["en", "da"], typed: "da"), ["da", "en"])
+        XCTAssertEqual(SpellChecker.typingOrder(["en", "da"], typed: nil), ["en", "da"])
+        XCTAssertEqual(SpellChecker.typingOrder(["en", "da"], typed: "sv"), ["en", "da"])
+    }
+
+    // A Danish writer (no Danish keyboard needed: the typed language counts)
+    // keeps "Hvad" — the Swedish dictionary turned it into "Vad" — and a real
+    // Danish typo is still fixed.
+    func testACorrectDanishWordIsLeftAlone() {
+        TypedLanguage.reset()
+        defer { TypedLanguage.reset() }
+        for _ in 0 ..< TypedLanguage.minObservations { TypedLanguage.observe("da") }
+        XCTAssertNil(SpellChecker.correction(for: "Hvad", context: "Hvad"))
+        XCTAssertEqual(SpellChecker.correction(for: "suklle", context: "Jeg synes, vi suklle"), "skulle")
+    }
+}

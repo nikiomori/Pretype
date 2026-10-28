@@ -21,6 +21,8 @@ enum SpellChecker {
     /// run, and `TypedLanguage` counted that one keystroke as many.
     private static var lastSample = ""
     private static var lastLanguageCode: String?
+    /// Every language the recognizer gave that sample, with its probability.
+    private static var lastHypotheses: [String: Double] = [:]
     /// Installed spell-check dictionaries: read once — a list walked per
     /// call, and one added mid-session is picked up after a relaunch.
     private static let availableLanguages = NSSpellChecker.shared.availableLanguages
@@ -34,6 +36,12 @@ enum SpellChecker {
         let language = self.language(for: word, context: context)
         // Is it actually misspelled?
         guard !spelled(word, language: language) else { return nil }
+        // …or only foreign to the dictionary that won: right in another of
+        // the user's languages that the text plausibly is in is no typo. Only
+        // theirs: on "I saw teh" Indonesian is plausible, and "teh" is tea there.
+        if plausibleLanguages(of: context).contains(where: { $0 != language && spelled(word, language: $0) }) {
+            return nil
+        }
         let range = NSRange(location: 0, length: (word as NSString).length)
 
         // If the text is still a valid prefix of real words, the user is probably
@@ -75,17 +83,26 @@ enum SpellChecker {
         spelled(word, language: typingLanguage(for: word))
     }
 
-    /// The dictionary for a word being typed: the first enabled keyboard's
-    /// language that writes in the word's alphabet — Russian for "завт" on a
-    /// Russian and English Mac — else the alphabet's own. Not the recognizer:
-    /// on a few words of context it named Bulgarian for "завт" and Czech for
-    /// "chec", and their dictionaries completed them into nonsense.
+    /// The dictionary for a word being typed: an enabled keyboard's language
+    /// that writes in the word's alphabet — Russian for "завт" on a Russian
+    /// and English Mac — else the alphabet's own. Not the recognizer: on a
+    /// few words of context it named Bulgarian for "завт" and Czech for
+    /// "chec", and their dictionaries completed them into nonsense. Two
+    /// keyboards on one alphabet (English and Danish) are told apart by the
+    /// language the user has been typing (`TypedLanguage`), else the first.
     static func typingLanguage(for word: String) -> String {
         let cyrillic = isCyrillic(word)
-        for keyboard in keyboardLanguages where cyrillicLanguages.contains(keyboard) == cyrillic {
+        let candidates = keyboardLanguages.filter { cyrillicLanguages.contains($0) == cyrillic }
+        for keyboard in typingOrder(candidates, typed: TypedLanguage.dominant) {
             if let match = availableLanguages.first(where: { $0.lowercased().hasPrefix(keyboard) }) { return match }
         }
         return scriptLanguage(word)
+    }
+
+    /// `keyboards` with the one the user has been typing in first.
+    static func typingOrder(_ keyboards: [String], typed: String?) -> [String] {
+        guard let typed, let i = keyboards.firstIndex(where: { typed.hasPrefix($0) }) else { return keyboards }
+        return [keyboards[i]] + keyboards.enumerated().filter { $0.offset != i }.map(\.element)
     }
 
     /// Enabled keyboard layouts' languages, read once: they rarely change
@@ -207,26 +224,18 @@ enum SpellChecker {
     private static func language(for word: String, context: String) -> String {
         // 1. Try to recognize language from the context using NLLanguageRecognizer
         if !context.isEmpty {
-            let (langCode, fresh): (String?, Bool) = {
-                recognizerLock.lock()
-                defer { recognizerLock.unlock() }
-                let sample = String(context.suffix(150))
-                if sample == lastSample { return (lastLanguageCode, false) }
-                languageRecognizer.reset()
-                languageRecognizer.processString(sample)
-                lastSample = sample
-                lastLanguageCode = languageRecognizer.dominantLanguage?.rawValue
-                return (lastLanguageCode, true)
-            }()
+            let (langCode, hypotheses, fresh) = recognized(context)
             if let langCode {
                 // The one place the app already knows what language is being
                 // typed. Recorded here rather than re-detected elsewhere: this
                 // runs on the typing path anyway, and a second recognizer would
                 // be a second Core ML model for an answer we already have.
                 if fresh { TypedLanguage.observe(langCode) }
+                let pick = dictionaryLanguage(recognized: langCode, hypotheses: hypotheses,
+                                              keyboards: usersLanguages)
                 // Find if the spellchecker supports this language
                 if let matched = availableLanguages.first(where: {
-                    $0.lowercased().hasPrefix(langCode.lowercased())
+                    $0.lowercased().hasPrefix(pick.lowercased())
                 }) {
                     return matched
                 }
@@ -235,6 +244,53 @@ enum SpellChecker {
 
         // 2. Fallback to Cyrillic / English check based on the word itself
         return scriptLanguage(word)
+    }
+
+    /// The recognizer's verdict on the context's last 150 characters, once
+    /// per sample: its language, every hypothesis, and whether it is new.
+    private static func recognized(_ context: String) -> (String?, [String: Double], Bool) {
+        recognizerLock.lock()
+        defer { recognizerLock.unlock() }
+        let sample = String(context.suffix(150))
+        if sample == lastSample { return (lastLanguageCode, lastHypotheses, false) }
+        languageRecognizer.reset()
+        languageRecognizer.processString(sample)
+        lastSample = sample
+        lastLanguageCode = languageRecognizer.dominantLanguage?.rawValue
+        lastHypotheses = Dictionary(uniqueKeysWithValues: languageRecognizer.languageHypotheses(withMaximum: 10)
+            .map { ($0.key.rawValue, $0.value) })
+        return (lastLanguageCode, lastHypotheses, true)
+    }
+
+    /// The dictionary language for text the recognizer called `recognized`:
+    /// one of the user's languages (`usersLanguages`) it also finds plausible
+    /// (≥ 0.05) beats its pick from outside them. On a few words it reads
+    /// Danish as Norwegian or Swedish — 22% of Danish lines with a typo went
+    /// to the Norwegian dictionary, which "fixed" Danish into Norwegian ("Hvad"
+    /// → "Vad"); with the keyboard's language first, 44% of the typos come back
+    /// right instead of 40%, false fixes on correct text 14 instead of 20
+    /// (Swedish 60 vs 56%, English 74 vs 71%; Eval/runs-2026-10-28-issue4/spell).
+    static func dictionaryLanguage(recognized: String, hypotheses: [String: Double],
+                                   keyboards: [String]) -> String {
+        func onKeyboard(_ code: String) -> Bool { keyboards.contains { code.lowercased().hasPrefix($0) } }
+        guard !onKeyboard(recognized) else { return recognized }
+        return hypotheses.filter { onKeyboard($0.key) && $0.value >= 0.05 }
+            .max { $0.value < $1.value }?.key ?? recognized
+    }
+
+    /// Dictionaries for the user's languages the context plausibly is in (≥ 0.1).
+    private static func plausibleLanguages(of context: String) -> [String] {
+        guard !context.isEmpty else { return [] }
+        let mine = usersLanguages
+        return recognized(context).1
+            .filter { hypothesis in hypothesis.value >= 0.1 && mine.contains { hypothesis.key.lowercased().hasPrefix($0) } }
+            .keys.compactMap { code in availableLanguages.first { $0.lowercased().hasPrefix(code.lowercased()) } }
+    }
+
+    /// The languages this user writes: the keyboards, and the one they have
+    /// been typing (a Danish writer on an English layout has no Danish keyboard).
+    private static var usersLanguages: [String] {
+        keyboardLanguages + [TypedLanguage.dominant].compactMap { $0 }
     }
 }
 
