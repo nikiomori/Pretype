@@ -148,31 +148,33 @@ struct ModelMetrics {
     /// ar/he come from `Eval/eval-rtl.jsonl` (2026-07-25, book-rtl.py) — a
     /// separate set on the same axis and the same 100/90/90 register design, so
     /// the cells are drop-in; eval-real stayed frozen for the other 17.
+    /// da comes from `Eval/eval-da.jsonl` (2026-10-28, issue #4) on the same
+    /// design, run on the 2026-10-15 rebook protocol (analyze-da.py).
     /// EVERY model carries EVERY language on purpose: `axisAccuracy(axis: "*")`
     /// averages over a model's own keys, so a half-measured language would make
     /// the default axis compare two different means (guarded by a unit test).
     static let perLangOfAll: [String: [String: Int]] = [
         "mlx-community/gemma-4-e4b-8bit":
-            ["ar": 13, "cs": 23, "de": 29, "en": 28, "es": 31, "fr": 26, "he": 17, "it": 25, "ja": 5, "ko": 12, "nl": 28, "pl": 28, "pt": 23, "ro": 31, "ru": 23, "sv": 26, "tr": 16, "uk": 24, "zh": 14],
+            ["ar": 13, "cs": 23, "da": 28, "de": 29, "en": 28, "es": 31, "fr": 26, "he": 17, "it": 25, "ja": 5, "ko": 12, "nl": 28, "pl": 28, "pt": 23, "ro": 31, "ru": 23, "sv": 26, "tr": 16, "uk": 24, "zh": 14],
         "mlx-community/gemma-4-e4b-6bit":
-            ["ar": 11, "cs": 21, "de": 28, "en": 29, "es": 29, "fr": 26, "he": 16, "it": 26, "ja": 5, "ko": 10, "nl": 28, "pl": 26, "pt": 25, "ro": 29, "ru": 22, "sv": 24, "tr": 17, "uk": 25, "zh": 14],
+            ["ar": 11, "cs": 21, "da": 27, "de": 28, "en": 29, "es": 29, "fr": 26, "he": 16, "it": 26, "ja": 5, "ko": 10, "nl": 28, "pl": 26, "pt": 25, "ro": 29, "ru": 22, "sv": 24, "tr": 17, "uk": 25, "zh": 14],
         "mlx-community/gemma-4-e2b-8bit":
-            ["ar": 10, "cs": 20, "de": 27, "en": 26, "es": 30, "fr": 27, "he": 18, "it": 26, "ja": 4, "ko": 11, "nl": 24, "pl": 28, "pt": 25, "ro": 28, "ru": 25, "sv": 23, "tr": 16, "uk": 20, "zh": 12],
+            ["ar": 10, "cs": 20, "da": 27, "de": 27, "en": 26, "es": 30, "fr": 27, "he": 18, "it": 26, "ja": 4, "ko": 11, "nl": 24, "pl": 28, "pt": 25, "ro": 28, "ru": 25, "sv": 23, "tr": 16, "uk": 20, "zh": 12],
         "mlx-community/gemma-4-e2b-4bit":
-            ["ar": 8, "cs": 17, "de": 22, "en": 28, "es": 27, "fr": 25, "he": 16, "it": 24, "ja": 3, "ko": 9, "nl": 22, "pl": 24, "pt": 22, "ro": 27, "ru": 22, "sv": 20, "tr": 13, "uk": 18, "zh": 11],
+            ["ar": 8, "cs": 17, "da": 28, "de": 22, "en": 28, "es": 27, "fr": 25, "he": 16, "it": 24, "ja": 3, "ko": 9, "nl": 22, "pl": 24, "pt": 22, "ro": 27, "ru": 22, "sv": 20, "tr": 13, "uk": 18, "zh": 11],
         "nikimori/MiniCPM5-1B-Base-8bit":
-            ["ar": 6, "cs": 6, "de": 16, "en": 28, "es": 25, "fr": 20, "he": 3, "it": 18, "ja": 6, "ko": 6, "nl": 14, "pl": 9, "pt": 16, "ro": 8, "ru": 17, "sv": 10, "tr": 5, "uk": 6, "zh": 9],
+            ["ar": 6, "cs": 6, "da": 17, "de": 16, "en": 28, "es": 25, "fr": 20, "he": 3, "it": 18, "ja": 6, "ko": 6, "nl": 14, "pl": 9, "pt": 16, "ro": 8, "ru": 17, "sv": 10, "tr": 5, "uk": 6, "zh": 9],
         "mlx-community/Qwen2.5-0.5B-bf16":
-            ["ar": 6, "cs": 6, "de": 14, "en": 27, "es": 23, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 6, "nl": 12, "pl": 12, "pt": 18, "ro": 10, "ru": 16, "sv": 5, "tr": 6, "uk": 6, "zh": 10],
+            ["ar": 6, "cs": 6, "da": 10, "de": 14, "en": 27, "es": 23, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 6, "nl": 12, "pl": 12, "pt": 18, "ro": 10, "ru": 16, "sv": 5, "tr": 6, "uk": 6, "zh": 10],
         "nikimori/Qwen3.5-2B-Base-6bit":
-            ["ar": 8, "cs": 11, "de": 20, "en": 28, "es": 28, "fr": 26, "he": 13, "it": 21, "ja": 3, "ko": 7, "nl": 21, "pl": 19, "pt": 24, "ro": 23, "ru": 21, "sv": 19, "tr": 9, "uk": 17, "zh": 9],
+            ["ar": 8, "cs": 11, "da": 23, "de": 20, "en": 28, "es": 28, "fr": 26, "he": 13, "it": 21, "ja": 3, "ko": 7, "nl": 21, "pl": 19, "pt": 24, "ro": 23, "ru": 21, "sv": 19, "tr": 9, "uk": 17, "zh": 9],
         // Booked 2026-10-16 on the same rules (runs-2026-10-16-m1/rebook/book.py).
         "nikimori/Qwen3.5-2B-M40-6bit":
-            ["ar": 7, "cs": 12, "de": 20, "en": 27, "es": 26, "fr": 24, "he": 13, "it": 21, "ja": 2, "ko": 8, "nl": 21, "pl": 19, "pt": 24, "ro": 22, "ru": 20, "sv": 19, "tr": 9, "uk": 16, "zh": 9],
+            ["ar": 7, "cs": 12, "da": 21, "de": 20, "en": 27, "es": 26, "fr": 24, "he": 13, "it": 21, "ja": 2, "ko": 8, "nl": 21, "pl": 19, "pt": 24, "ro": 22, "ru": 20, "sv": 19, "tr": 9, "uk": 16, "zh": 9],
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit":
-            ["ar": 4, "cs": 5, "de": 16, "en": 27, "es": 23, "fr": 21, "he": 8, "it": 14, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 12, "ru": 16, "sv": 9, "tr": 5, "uk": 8, "zh": 5],
+            ["ar": 4, "cs": 5, "da": 10, "de": 16, "en": 27, "es": 23, "fr": 21, "he": 8, "it": 14, "ja": 4, "ko": 3, "nl": 12, "pl": 10, "pt": 16, "ro": 12, "ru": 16, "sv": 9, "tr": 5, "uk": 8, "zh": 5],
         "system.apple-intelligence":
-            ["ar": 6, "cs": 3, "de": 10, "en": 22, "es": 14, "fr": 16, "he": 6, "it": 9, "ja": 0, "ko": 2, "nl": 13, "pl": 12, "pt": 9, "ro": 7, "ru": 10, "sv": 10, "tr": 3, "uk": 9, "zh": 1],
+            ["ar": 6, "cs": 3, "da": 14, "de": 10, "en": 22, "es": 14, "fr": 16, "he": 6, "it": 9, "ja": 0, "ko": 2, "nl": 13, "pl": 12, "pt": 9, "ro": 7, "ru": 10, "sv": 10, "tr": 3, "uk": 9, "zh": 1],
     ]
 
     /// Rows behind each language's cell — the denominator `perLangOfAll` is
@@ -180,7 +182,7 @@ struct ModelMetrics {
     /// other language has). A percentage without this is a number
     /// without a tolerance, which is why the UI now shows both.
     static let sampleSize: [String: Int] = [
-        "ar": 280, "cs": 280, "de": 280, "en": 560, "es": 280, "fr": 280, "he": 280,
+        "ar": 280, "cs": 280, "da": 280, "de": 280, "en": 560, "es": 280, "fr": 280, "he": 280,
         "it": 280, "ja": 280, "ko": 280, "nl": 280, "pl": 280, "pt": 280, "ro": 280,
         "ru": 689, "sv": 280, "tr": 280, "uk": 280, "zh": 280,
     ]

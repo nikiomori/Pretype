@@ -361,17 +361,17 @@ final class ModelCatalogTests: XCTestCase {
         // The axis figures themselves: core = of-answered headline, "*" =
         // equal-weight mean of the booked per-language of-all cells.
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "core"), 31)
-        // 22, not the pre-RTL 23: adding ar (15) and he (16) — both below this
-        // model's 17-language mean — pulls the equal-weight average down. The
-        // ranking is unchanged; only the absolute figure moved.
-        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "*"), 22)
+        // 23: ar (13) and he (17) pulled the 17-language mean to 22.2, Danish
+        // (28, 2026-10-28) lifts it to 22.5. The ranking is unchanged; only the
+        // absolute figure moves.
+        XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "*"), 23)
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e4b-8bit", axis: "cs"), 23)
         XCTAssertNil(ModelMetrics.axisAccuracy(for: "no-such-model", axis: "*"))
         XCTAssertEqual(ModelMetrics.axisBest("uk"), 25)  // Gemma E4B 6-bit
         // RTL: the small models tie each other, so the axis best is a Gemma.
         XCTAssertEqual(ModelMetrics.axisBest("he"), 18)  // Gemma E2B 8-bit
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "nikimori/MiniCPM5-1B-Base-8bit", axis: "he"), 3)
-        XCTAssertEqual(ModelMetrics.evalLanguages.count, 19)
+        XCTAssertEqual(ModelMetrics.evalLanguages.count, 20)
 
         // A preset lands on the measured protocol its card advertises
         // (Base · Short) and preserves compatible gates.
@@ -478,6 +478,10 @@ final class ModelCatalogTests: XCTestCase {
         // usable tool in its weight class — Russian 17 vs 25 is a memory
         // trade-off the user already made, not a mistake worth a menu line.
         XCTAssertNil(ModelMetrics.materiallyBetter(than: minicpm, on: "ru"))
+        // Danish: MiniCPM5 17 vs 28 fires; the 8 GB default (M40, 21) stays
+        // in its weight class like Russian.
+        XCTAssertEqual(ModelMetrics.materiallyBetter(than: minicpm, on: "da")?.best, 28)
+        XCTAssertNil(ModelMetrics.materiallyBetter(than: "nikimori/Qwen3.5-2B-M40-6bit", on: "da"))
         XCTAssertNil(ModelMetrics.materiallyBetter(than: minicpm, on: "en"))
         // Never suggests a model against itself, or on an unmeasured language.
         XCTAssertNil(ModelMetrics.materiallyBetter(than: "mlx-community/gemma-4-e2b-8bit", on: "he"))
