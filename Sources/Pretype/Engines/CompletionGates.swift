@@ -168,9 +168,11 @@ enum CompletionGates {
     }
 
     /// Four or more identical consecutive letters is never legitimate prose.
-    /// `Alphabetic`, not `L`: the property `Character.isLetter` reads.
+    /// `Alphabetic`, not `L`: the property `Character.isLetter` reads. Digits
+    /// get eight: "10000" is a number, "1000000000000…" is an untrimmed
+    /// long suggestion running away (seen on E4B, Eval/runs-2026-10-28-issue4).
     private static func hasDegenerateRun(_ text: String) -> Bool {
-        text.contains(#/(\p{Alphabetic})\1{3}/#)
+        text.contains(#/(\p{Alphabetic})\1{3}/#) || text.contains(#/(\p{Nd})\1{7}/#)
     }
 
     /// Han (every block, e.g. 𨐈), kana and Hangul.

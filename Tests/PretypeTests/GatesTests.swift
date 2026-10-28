@@ -21,6 +21,9 @@ final class GatesTests: XCTestCase {
         XCTAssertNil(pp("你好 there", prompt: "hello world"))
         // Degenerate character repetition is rejected.
         XCTAssertNil(pp("юююю", prompt: "привет как дела друзья"))
+        // …and a runaway digit run, while an ordinary big number passes.
+        XCTAssertNil(pp(" give it 1000000000000", prompt: "On a scale you could"))
+        XCTAssertEqual(pp(" 10000 kr", prompt: "It costs"), " 10000 kr")
         // A suggestion that fully echoes the typed text is rejected.
         XCTAssertNil(pp("hello world", prompt: "hello world"))
         // A partial echo of the prompt tail is stripped, keeping the continuation.
