@@ -266,14 +266,18 @@ final class MLXEngine: CompletionEngine {
         let recording = !prefillOnly
         if recording { firstWordLogProbBox.set(nil) }
         let logProbSink = recording ? LockedValue<Double?>(nil) : nil
+        // Base Medium/Long show the model's own sentence: the confidence trim
+        // would end it near the second word again (see `writesLongBase`).
+        let longForm = runsLongForm
         let output = try await Self.generate(
             in: container,
             makeTokens: plan.makeTokens,
             parameters: completionParameters(for: request),
             promptCache: promptCache,
             logProbSink: logProbSink,
-            trimLogProb: recording ? trimLogProbThreshold : nil,
-            trimEntropy: recording ? Self.trimEntropyThreshold : nil,
+            trimLogProb: recording && !longForm ? trimLogProbThreshold : nil,
+            trimEntropy: recording && !longForm ? Self.trimEntropyThreshold : nil,
+            longForm: longForm,
             gateLogProb: recording ? plan.gateLogProb : nil,
             healExpected: plan.healExpected,
             prefillOnly: prefillOnly,
@@ -520,9 +524,12 @@ final class MLXEngine: CompletionEngine {
     /// a bigger token cap — without this, `short` clips Russian mid-phrase
     /// (eval: instruct short ru 50 vs medium ru 54). The directive stays in
     /// *words*; only the hard cap scales with the script.
-    static func tokenBudget(for request: CompletionRequest, length: CompletionLength) -> Int {
+    /// `longForm`: Base Long decodes to the sentence end, so its cap only
+    /// stops a sentence that never ends (93% end within 40 tokens on E4B).
+    static func tokenBudget(for request: CompletionRequest, length: CompletionLength,
+                            longForm: Bool = false) -> Int {
         let cyrillic = isCyrillicHeavy(request.textBeforeCaret)
-        var budget = length.maxTokens
+        var budget = longForm && length == .long ? 40 : length.maxTokens
         if cyrillic { budget = Int((Double(budget) * 1.7).rounded()) }
         let chatCap = cyrillic ? 13 : 8
         return request.isChatApp ? min(budget, chatCap) : budget
@@ -538,7 +545,13 @@ final class MLXEngine: CompletionEngine {
     /// name, a term, the project you're writing about) are exactly the ones it
     /// suppresses, and its processor also skews the logprobs the gate reads.
     private func completionParameters(for request: CompletionRequest) -> GenerateParameters {
-        GenerateParameters(maxTokens: Self.tokenBudget(for: request, length: lengthBox.get()), temperature: 0)
+        GenerateParameters(maxTokens: Self.tokenBudget(for: request, length: lengthBox.get(), longForm: runsLongForm),
+                           temperature: 0)
+    }
+
+    /// Base style at Medium or Long on a model that writes long text well.
+    private var runsLongForm: Bool {
+        style == .base && lengthBox.get() != .short && ModelCatalog.writesLongBase(modelID)
     }
 
     func updateCompletion(length: CompletionLength, instructions: String) {

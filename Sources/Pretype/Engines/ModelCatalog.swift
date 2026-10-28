@@ -462,6 +462,16 @@ enum ModelCatalog {
         return [.han: r.scriptGateTau[.han] ?? tau, .hangul: r.scriptGateTau[.hangul] ?? tau]
     }
 
+    /// Whether Base style's Medium and Long run on `id`: untrimmed, up to the
+    /// sentence end. Only where long text holds up — a blind judge took 89% of
+    /// E4B 6-bit's sentence-long continuations as-is, the same as the author's
+    /// own text (90%, p=0.85), against 69–70% for E2B 4-bit and Qwen3.5 2B
+    /// (54–57% in Danish). E4B 8-bit was not judged; it is the same model at
+    /// a higher precision. Eval/runs-2026-10-28-issue4. Elsewhere Base is Short.
+    static func writesLongBase(_ id: String) -> Bool {
+        id == "mlx-community/gemma-4-e4b-8bit" || id == "mlx-community/gemma-4-e4b-6bit"
+    }
+
     /// Whether Instruct style continues the text on `id`. Elsewhere the
     /// instruct build answers the text instead (first-word ~0%), so the UI
     /// marks the combination broken and a model switch leaves it. The E4B

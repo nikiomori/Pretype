@@ -373,6 +373,19 @@ extension MLXEngine {
         return kept.isEmpty || kept.count >= text.count ? nil : kept
     }
 
+    /// `text` without its last word when that word runs to the very end —
+    /// the token budget may have cut it ("landsholdsangri"). Kept whole when
+    /// nothing else would be left. A word the budget happened to end cleanly
+    /// goes too: a decode can't tell that apart without one more token.
+    static func droppingCutWord(_ text: String) -> String {
+        func isWordChar(_ c: Character?) -> Bool { c.map { $0.isLetter || $0.isNumber } ?? false }
+        guard isWordChar(text.last) else { return text }
+        var kept = text
+        while isWordChar(kept.last) { kept.removeLast() }
+        while kept.last?.isWhitespace == true { kept.removeLast() }
+        return kept.contains(where: { $0.isLetter || $0.isNumber }) ? kept : text
+    }
+
     // MARK: Healing-constrained decoding (mid-word caret)
 
     /// Indices of the `k` largest values, descending — one CPU pass over the
@@ -506,6 +519,9 @@ extension MLXEngine {
         trimLogProb: Float? = nil,
         /// Entropy trim (nats): see `confidenceTrimmed`. nil = off.
         trimEntropy: Float? = nil,
+        /// A long-form suggestion (Base Medium/Long): stop once a sentence has
+        /// ended, and never end on a word the token budget cut.
+        longForm: Bool = false,
         /// Logprob-gate τ: abstain as soon as the first word's mean logprob is
         /// known to fall below it (the caller re-checks on the final result),
         /// and hold back partials until it is known to pass — so a gated
@@ -697,6 +713,7 @@ extension MLXEngine {
             var firstWordCount: Int?
             var gateOpen = gateLogProb == nil
             var text = ""
+            var budgetStop = false
             while true {
                 let token: Int
                 var next: MLXArray?
@@ -753,11 +770,14 @@ extension MLXEngine {
                 }
                 if gateOpen { onPartial?(text) }
                 if text.contains("\n") { break }
+                // The output gate keeps one sentence; decoding past it is waste.
+                if longForm, text.drop(while: \.isWhitespace).contains(#/.[.!?…] /#) { break }
                 if !speculative {
-                    guard let next else { break }
+                    guard let next else { budgetStop = true; break }
                     current = next
                 }
             }
+            if longForm, budgetStop { text = droppingCutWord(text) }
             if speculative {
                 // The speculative iterator leaves the cache holding the prompt
                 // plus whatever it committed; bring it back to the prompt so the

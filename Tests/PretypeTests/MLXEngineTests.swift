@@ -684,6 +684,26 @@ final class MLXEngineTests: MLXTestCase {
         XCTAssertEqual(budget("до", .short), 6, "too few letters to call the script")
         XCTAssertEqual(budget("привет 1234567890", .short), 10, "digits are no letters")
         XCTAssertEqual(budget("See you at the meeting, привет", .short), 6, "a Cyrillic minority")
+        // Base Long decodes to the sentence end: its cap is only a backstop.
+        let long = CompletionRequest(textBeforeCaret: "See you at the meeting")
+        XCTAssertEqual(MLXEngine.tokenBudget(for: long, length: .long, longForm: true), 40)
+        XCTAssertEqual(MLXEngine.tokenBudget(for: long, length: .medium, longForm: true), 12)
+    }
+
+    // A long-form suggestion the token budget stopped never ends on a cut
+    // word; one that holds no other word stays whole.
+    func testABudgetCutWordIsDropped() {
+        XCTAssertEqual(MLXEngine.droppingCutWord(" danske landsholdsangri"), " danske")
+        XCTAssertEqual(MLXEngine.droppingCutWord(" to the party,"), " to the party,")
+        XCTAssertEqual(MLXEngine.droppingCutWord(" landsholdsangri"), " landsholdsangri")
+    }
+
+    // Base Medium/Long run long only on the tiers the judge passed.
+    func testLongBaseRunsOnTheE4BTiers() {
+        XCTAssertTrue(ModelCatalog.writesLongBase("mlx-community/gemma-4-e4b-6bit"))
+        XCTAssertTrue(ModelCatalog.writesLongBase("mlx-community/gemma-4-e4b-8bit"))
+        XCTAssertFalse(ModelCatalog.writesLongBase("mlx-community/gemma-4-e2b-4bit"))
+        XCTAssertFalse(ModelCatalog.writesLongBase("nikimori/Qwen3.5-2B-M40-6bit"))
     }
 }
 
