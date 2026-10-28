@@ -57,6 +57,20 @@ final class GatesTests: XCTestCase {
         XCTAssertEqual(pp(" and so", prompt: russian), " and so", "too short to judge")
     }
 
+    // Short Danish reads as Norwegian to the recognizer — a misread, not a
+    // derail, so a language both texts find plausible keeps the suggestion
+    // (eval-da rows; the bare dominant-language rule rejected them). A real
+    // flip out of Danish is still caught.
+    func testDanishReadAsNorwegianIsNoFlip() {
+        func pp(_ raw: String, prompt: String) -> String? {
+            CompletionGates.postProcess(raw, prompt: prompt, trailingSpaces: 0, endsMidWord: false,
+                                        textAfterCaret: "", logRejects: false)
+        }
+        XCTAssertEqual(pp(" bilen og vent der.", prompt: "Før hende ud i"), " bilen og vent der.")
+        XCTAssertEqual(pp(" som troede på ham.", prompt: "Du var den eneste,"), " som troede på ham.")
+        XCTAssertNil(pp(" and then we will talk about the project", prompt: "Du var den eneste, som troede på ham"))
+    }
+
     // An instruct answer comes back flush: the gate restores the separator
     // after a finished word (the space not typed yet) and drops it after a
     // typed one; a partial word's remainder stays glued on.

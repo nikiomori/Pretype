@@ -125,25 +125,43 @@ enum CompletionGates {
     /// plus repeated suggestion snapshots. Memoizing by exact string turns the
     /// per-token NL inference into a dictionary lookup — the prompt is computed once
     /// and repeated snapshots hit the cache. Bounded; flushed wholesale when it fills.
-    private static var languageMemo: [String: String?] = [:]
+    private static var languageMemo: [String: Languages] = [:]
 
-    private static func languageMismatch(prompt: String, suggestion: String) -> Bool {
-        guard suggestion.count >= 12 else { return false }
-        guard let promptLanguage = dominantLanguage(String(prompt.suffix(160))),
-              let suggestionLanguage = dominantLanguage(suggestion) else { return false }
-        return promptLanguage != suggestionLanguage
+    /// The recognizer's verdict on one text: its confident language (> 0.7),
+    /// and every language it gives at least 0.1.
+    private struct Languages {
+        let dominant: String?
+        let plausible: Set<String>
     }
 
-    private static func dominantLanguage(_ text: String) -> String? {
+    /// Both texts confidently in different languages, AND no language both
+    /// find plausible. The second half is for close written standards: the
+    /// recognizer reads short Danish as Norwegian or Swedish, and the rule
+    /// without it rejected 8.7% of TRUE Danish continuations (the worst of 18
+    /// languages; 1.0% with it, real flips caught the same — 88%. eval-da +
+    /// eval-real, Eval/runs-2026-10-28-issue4/gate).
+    private static func languageMismatch(prompt: String, suggestion: String) -> Bool {
+        guard suggestion.count >= 12 else { return false }
+        let promptLanguages = languages(String(prompt.suffix(160)))
+        let suggestionLanguages = languages(suggestion)
+        guard let promptLanguage = promptLanguages.dominant,
+              let suggestionLanguage = suggestionLanguages.dominant else { return false }
+        return promptLanguage != suggestionLanguage
+            && promptLanguages.plausible.isDisjoint(with: suggestionLanguages.plausible)
+    }
+
+    private static func languages(_ text: String) -> Languages {
         languageLock.lock()
         defer { languageLock.unlock() }
         if let cached = languageMemo[text] { return cached }
         languageRecognizer.reset()
         languageRecognizer.processString(text)
-        let result: String? = languageRecognizer.dominantLanguage.flatMap { language in
-            (languageRecognizer.languageHypotheses(withMaximum: 1)[language] ?? 0) > 0.7
-                ? language.rawValue : nil
+        let hypotheses = languageRecognizer.languageHypotheses(withMaximum: 8)
+        let dominant = languageRecognizer.dominantLanguage.flatMap { language in
+            (hypotheses[language] ?? 0) > 0.7 ? language.rawValue : nil
         }
+        let result = Languages(dominant: dominant,
+                               plausible: Set(hypotheses.filter { $0.value >= 0.1 }.map(\.key.rawValue)))
         if languageMemo.count >= 64 { languageMemo.removeAll(keepingCapacity: true) }
         languageMemo[text] = result
         return result
