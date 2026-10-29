@@ -844,6 +844,7 @@ final class SettingsStore {
 
     func clearJournal() {
         SuggestionJournal.shared.reset()
+        SuggestionJournal.fixes.reset()
         // The n-gram model is derived from the journal — clearing one clears both.
         PersonalNgram.shared.reset()
         journalBytes = 0
@@ -1126,7 +1127,7 @@ final class SettingsStore {
         // land behind a whole-file replay. Neither read touches the main actor,
         // so there is no re-entrancy risk in hopping off and back.
         Task.detached {
-            let bytes = SuggestionJournal.shared.fileSize
+            let bytes = SuggestionJournal.shared.fileSize + SuggestionJournal.fixes.fileSize
             let words = PersonalNgram.shared.wordCount
             await MainActor.run {
                 if self.journalBytes != bytes { self.journalBytes = bytes }
@@ -1138,6 +1139,7 @@ final class SettingsStore {
     /// Live read: the clear-confirmation guard asks "is there anything to lose",
     /// and a stale zero would delete the journal without ever asking.
     var journalHasData: Bool {
-        SuggestionJournal.shared.fileSize > 0 || PersonalNgram.shared.wordCount > 0
+        SuggestionJournal.shared.fileSize > 0 || SuggestionJournal.fixes.fileSize > 0
+            || PersonalNgram.shared.wordCount > 0
     }
 }

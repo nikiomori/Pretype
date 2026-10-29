@@ -102,15 +102,15 @@ final class SuggestionJournal: @unchecked Sendable {
     // was about to trim the live journal — and trim() drops the OLDEST half,
     // which is exactly the accepted-phrase corpus RAG retrieves from.
     init(url: URL? = nil, maxBytes: Int = 50_000_000) {
-        if let url {
-            self.url = url
-        } else {
-            let dir = URL.applicationSupportDirectory.appending(path: "Pretype", directoryHint: .isDirectory)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            self.url = dir.appendingPathComponent("suggestion-journal.jsonl")
-        }
+        self.url = url ?? Self.fileURL("suggestion-journal.jsonl")
         self.maxBytes = maxBytes
         queue.async { [self] in trim() }
+    }
+
+    private static func fileURL(_ name: String) -> URL {
+        let dir = URL.applicationSupportDirectory.appending(path: "Pretype", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent(name)
     }
 
     func append(_ entry: Entry) {
@@ -119,6 +119,56 @@ final class SuggestionJournal: @unchecked Sendable {
             appended += 1
             if appended % 200 == 0 { trim() }
             if phrases != nil, let phrase = Self.phrase(from: entry) { indexPhrase(phrase) }
+        }
+    }
+
+    // MARK: - Fix outcomes
+
+    /// The fix flows' outcomes (`CorrectionController`), one row per fix shown
+    /// or asked for — fixes are used more than completions, and without this
+    /// nothing records whether one was taken. Its own file, not rows in the
+    /// suggestion journal: every reader of that one (retrieval, the n-gram, the
+    /// replay scripts) takes a row for a completion offer. Same switch, same
+    /// Clear; the retrieval half of this class is never used on it.
+    static let fixes = SuggestionJournal(url: fileURL("fix-journal.jsonl"), maxBytes: 5_000_000)
+
+    struct FixEntry: Codable, Equatable {
+        enum Kind: String, Codable {
+            case selection   // ⌥⇥ on a selection
+            case lastWord    // ⌥⇥ after a word
+            case typo, emoji, math   // the inline pill
+        }
+        enum Outcome: String, Codable {
+            case applied     // typed over the original
+            case dismissed   // ⎋ on the preview or the pill
+            /// Never confirmed: the text changed under it, focus moved, the
+            /// overlay went, or the field no longer held it at apply time.
+            case abandoned
+            case unchanged   // the engine found nothing to fix ("✓ looks fine")
+            case failed      // the engine threw
+        }
+        var ts: String
+        var app: String?
+        /// The engine and model that wrote an ⌥⇥ fix; nil for the inline pill
+        /// (system spell-checker, shortcode table, calculator).
+        var engine: String?
+        var model: String?
+        var kind: Kind
+        var original: String
+        /// nil when there was nothing to show (`unchanged`, `failed`).
+        var fix: String?
+        /// Text before the caret, word included (capped tail) — last word and
+        /// pill only: a selection is its own context.
+        var ctx: String?
+        var outcome: Outcome
+        var shownForMs: Int
+    }
+
+    func append(fix: FixEntry) {
+        queue.async { [self] in
+            guard appendLocked([fix]) else { return }
+            appended += 1
+            if appended % 200 == 0 { trim() }
         }
     }
 
@@ -204,7 +254,7 @@ final class SuggestionJournal: @unchecked Sendable {
 
     /// Encode `entries` as JSONL and append them to the file in one write.
     /// False when nothing encoded (nothing written). Runs on `queue`.
-    private func appendLocked(_ entries: [Entry]) -> Bool {
+    private func appendLocked(_ entries: [some Encodable]) -> Bool {
         let data = entries.reduce(into: Data()) { data, entry in
             if let line = try? encoder.encode(entry) { data += line + [0x0A] }
         }

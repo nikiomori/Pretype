@@ -80,11 +80,14 @@ final class CorrectionController {
     /// keep the thinking dots alive just like a completion stream does.
     private(set) var inFlight = false
     private(set) var correctionTask: Task<Void, Never>?
+    /// The fix on screen — preview or pill — journaled once when it resolves.
+    private var shown: (row: SuggestionJournal.FixEntry, at: Date)?
 
     // MARK: - Lifecycle
 
     /// Clear all in-progress fix state (called when the overlay is dismissed).
     func reset() {
+        resolveShown(.abandoned)
         correctionTask?.cancel()
         correctionTask = nil
         selection = nil
@@ -116,6 +119,7 @@ final class CorrectionController {
                 return true
             }
             pendingFix = nil
+            resolveShown(.abandoned)
             let fixable = info.text.count >= 3 && info.text.count <= 500
                 && !info.text.contains("\n")
             if fixable, !inFlight {
@@ -137,6 +141,7 @@ final class CorrectionController {
         // fix preview is re-validated against the caret context in handleCaret.
         if pendingFix?.deletesOriginal == false {
             pendingFix = nil
+            resolveShown(.abandoned)
             window.hide()
         }
         return false
@@ -158,6 +163,7 @@ final class CorrectionController {
                 return true
             }
             pendingFix = nil
+            resolveShown(.abandoned)
             // The preview pill must not outlive its word: nobody downstream is
             // guaranteed to redraw the overlay (the completion flow only shows
             // when it has something), so hide it here or it lingers forever.
@@ -185,6 +191,10 @@ final class CorrectionController {
            let fix = Self.inlineFix(for: tokenAtCaret, context: text) {
             host.clearActiveCompletion()
             indicator.stop()
+            // Redrawn on every read while its token stands: journaled once.
+            if activeCorrection?.word != tokenAtCaret || activeCorrection?.fix != fix {
+                open(row(Self.inlineKind(of: tokenAtCaret), original: tokenAtCaret, fix: fix, ctx: text))
+            }
             activeCorrection = (word: tokenAtCaret, fix: fix)
             showCorrection(fix, word: tokenAtCaret, caret: caret, style: ctx.host)
             return true
@@ -194,6 +204,7 @@ final class CorrectionController {
             // typed past it). Hide NOW — same reason as the pendingFix drop
             // above: no later stage reliably clears the overlay.
             activeCorrection = nil
+            resolveShown(.abandoned)
             window.hide()
         }
         return false
@@ -205,6 +216,11 @@ final class CorrectionController {
         if token.hasPrefix(":") { return Settings.emojiShortcodes ? EmojiShortcodes.emoji(for: token) : nil }
         if token.hasSuffix("=") { return Settings.inlineMath ? InlineCalculator.completion(for: token) : nil }
         return Settings.fixTypos ? SpellChecker.correction(for: token, context: context) : nil
+    }
+
+    /// Which of `inlineFix`'s three a token gets — the journal's `kind`.
+    static func inlineKind(of token: String) -> SuggestionJournal.FixEntry.Kind {
+        token.hasPrefix(":") ? .emoji : token.hasSuffix("=") ? .math : .typo
     }
 
     // MARK: - Key handling (called from SuggestionController.handleKeyDown)
@@ -301,6 +317,7 @@ final class CorrectionController {
         case .dismissInline:
             dismissedCorrectionWord = activeCorrection?.word
             activeCorrection = nil
+            resolveShown(.dismissed)
             window.hide()
         case .none:
             break
@@ -317,6 +334,7 @@ final class CorrectionController {
         if let rect = sel.rect { host.noteCaret(rect) }
         runFix(
             selectionText: sel.text,
+            kind: .selection,
             proposedEvent: "fix proposed — ⏎ to apply, esc to keep",
             perform: { try await $0.correct(selection: sel.text) }
         )
@@ -362,6 +380,7 @@ final class CorrectionController {
         runFix(
             selectionText: word,
             deletesOriginal: true,
+            kind: .lastWord, ctx: before,
             proposedEvent: "last-word fix proposed — ⏎ to apply, esc to keep",
             perform: { engine in
                 try await CorrectionGates.fixLastWord(word, before: before) {
@@ -374,10 +393,13 @@ final class CorrectionController {
     /// Shared body for both ⌥⇥ flows: run the engine off the main actor, then on
     /// the main actor surface the proposal, a "looks fine" notice, or a failure —
     /// guarding on the focus generation so a result for stale context is dropped.
-    /// `deletesOriginal`: see `PendingFix`.
+    /// `deletesOriginal`: see `PendingFix`. `kind` nil: not journaled — a voice
+    /// command's rewrite carries what was said, and dictation never writes that.
     private func runFix(
         selectionText: String,
         deletesOriginal: Bool = false,
+        kind: SuggestionJournal.FixEntry.Kind? = nil,
+        ctx: String? = nil,
         proposedEvent: String,
         unchangedNotice: String = String(localized: "✓ looks fine"),
         perform: @escaping @Sendable (any CompletionEngine) async throws -> String?
@@ -425,14 +447,18 @@ final class CorrectionController {
                     return
                 }
                 self.pendingFix = fix
+                resolveShown(.abandoned)
+                if let kind { open(row(kind, engine: engine, original: selectionText, fix: fixed, ctx: ctx)) }
                 host.report(proposedEvent)
                 DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
                 self.showPreview(fix)
             case .success(nil):
+                if let kind { book(row(kind, engine: engine, original: selectionText, fix: nil, ctx: ctx), .unchanged) }
                 host.report("nothing to fix")
                 DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
                 indicator.flashTransient(.hint(unchangedNotice), orAtPointer: true)
             case .failure(let error):
+                if let kind { book(row(kind, engine: engine, original: selectionText, fix: nil, ctx: ctx), .failed) }
                 host.report("fix failed: \(error.localizedDescription)")
                 DebugLog.shared.log("ERROR", "correction failed: \(error.localizedDescription)")
                 indicator.flashTransient(SuggestionController.failureNotice(error, fallback: String(localized: "fix failed")),
@@ -457,9 +483,10 @@ final class CorrectionController {
         selection = nil
         window.hide()
         let event = "fixed \(fix.deletesOriginal ? "last word" : "selection") (\(fix.original.count) chars)"
+        let record = takeShown()
         // The validating AX read must not run inside the event-tap callback (a
         // hung target app would stall the tap); hop off, then validate + inject.
-        env.hop { [weak self] in self?.inject(fix, event: event) }
+        env.hop { [weak self] in self?.inject(fix, event: event, record: record) }
     }
 
     /// Shared apply path for every fix flow: re-read the *live* text and inject
@@ -467,11 +494,13 @@ final class CorrectionController {
     /// is only re-validated on AX events, which trail typing by tens of ms — a
     /// confirm key landing in that gap (e.g. Enter-to-send right after a burst
     /// of typing) would otherwise delete and replace the wrong characters.
-    private func inject(_ fix: PendingFix, event: String) {
+    private func inject(_ fix: PendingFix, event: String, record: (row: SuggestionJournal.FixEntry, at: Date)?) {
         guard let live = liveRead(confirming: fix) else {
+            if let record { book(record.row, .abandoned, since: record.at) }
             DebugLog.shared.log("FIX", "dropped stale fix — text changed before apply")
             return
         }
+        if let record { book(record.row, .applied, since: record.at) }
         // Through the shared path, so the settle window covers a fix too: an
         // AX read still showing the typo would re-raise its pill, and a second
         // ⇥ — validated against that same stale read — would apply it twice.
@@ -509,6 +538,7 @@ final class CorrectionController {
     private func cancelPendingFix() {
         guard pendingFix != nil else { return }
         pendingFix = nil
+        resolveShown(.dismissed)
         host.report("fix dismissed")
         DebugLog.shared.log("FIX", "dismissed by user")
         window.hide()
@@ -541,7 +571,43 @@ final class CorrectionController {
         let fix = PendingFix(original: correction.word, replacement: correction.fix,
                              deletesOriginal: true)
         let event = "fixed typo \"\(correction.word)\" → \"\(correction.fix)\""
-        env.hop { [weak self] in self?.inject(fix, event: event) }
+        let record = takeShown()
+        env.hop { [weak self] in self?.inject(fix, event: event, record: record) }
+    }
+
+    // MARK: - Fix journal
+
+    /// A row for the app in front; `engine` stamps an ⌥⇥ fix with what wrote it.
+    private func row(_ kind: SuggestionJournal.FixEntry.Kind, engine: (any CompletionEngine)? = nil,
+                     original: String, fix: String?, ctx: String?) -> SuggestionJournal.FixEntry {
+        SuggestionJournal.FixEntry(
+            ts: SuggestionJournal.timestamp(), app: host.typingContext.bundleID,
+            engine: engine?.name, model: engine?.loadedModelID, kind: kind,
+            original: original, fix: fix, ctx: ctx.map { String($0.suffix(200)) },
+            outcome: .abandoned, shownForMs: 0)
+    }
+
+    /// `row` went on screen; whatever was up before it was never confirmed.
+    private func open(_ row: SuggestionJournal.FixEntry) {
+        resolveShown(.abandoned)
+        shown = (row, env.now())
+    }
+
+    private func takeShown() -> (row: SuggestionJournal.FixEntry, at: Date)? {
+        defer { shown = nil }
+        return shown
+    }
+
+    private func resolveShown(_ outcome: SuggestionJournal.FixEntry.Outcome) {
+        if let record = takeShown() { book(record.row, outcome, since: record.at) }
+    }
+
+    private func book(_ row: SuggestionJournal.FixEntry, _ outcome: SuggestionJournal.FixEntry.Outcome,
+                      since: Date? = nil) {
+        var row = row
+        row.outcome = outcome
+        if let since { row.shownForMs = Int(env.now().timeIntervalSince(since) * 1000) }
+        env.book(.fix(row))
     }
 
     /// The fixable token just before the caret: an emoji shortcode if one is

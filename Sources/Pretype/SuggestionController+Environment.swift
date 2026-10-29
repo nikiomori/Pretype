@@ -139,6 +139,9 @@ extension SuggestionController {
                     case .undo(let entry):
                         guard Settings.suggestionJournalEnabled else { return }
                         SuggestionJournal.shared.append(entry)
+                    case .fix(let entry):
+                        guard Settings.suggestionJournalEnabled else { return }
+                        SuggestionJournal.fixes.append(fix: entry)
                     case .accepted(let chunk, let countSuggestion, let app):
                         Stats.recordAccepted(chunk: chunk, countSuggestion: countSuggestion, app: app)
                     case .latency(let seconds):
@@ -164,6 +167,9 @@ extension SuggestionController {
         case offer(SuggestionJournal.Entry)
         /// ⌘Z took an accepted suggestion back: journaled only.
         case undo(SuggestionJournal.Entry)
+        /// A fix resolved (`CorrectionController`): journaled only — the
+        /// applied ones are counted by `.correction`.
+        case fix(SuggestionJournal.FixEntry)
         /// ⇥ typed `chunk` of a suggestion — counted as one (`countSuggestion`)
         /// however many words it is taken in, or "accepted of shown" passes 100 %.
         case accepted(chunk: String, countSuggestion: Bool, app: String?)

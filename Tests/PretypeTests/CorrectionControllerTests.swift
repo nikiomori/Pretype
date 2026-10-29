@@ -628,4 +628,66 @@ final class CorrectionControllerTests: XCTestCase {
         let midWord = TextContext(textBeforeCaret: "Hi 12*7=", textAfterCaret: "x", caretRect: caret, host: HostTextStyle())
         XCTAssertFalse(fixes.handleCaret(midWord))
     }
+
+    // MARK: - Fix journal
+
+    private var journaled: [SuggestionJournal.FixEntry] {
+        world.bookings.compactMap { if case .fix(let row) = $0 { row } else { nil } }
+    }
+
+    // A pill redrawn on every read is one row, booked when ⇥ types it.
+    func testAPillIsJournaledOnceWhenApplied() {
+        XCTAssertTrue(fixes.handleCaret(read("Hi 12*7=")))
+        XCTAssertTrue(fixes.handleCaret(read("Hi 12*7=")))
+        XCTAssertTrue(journaled.isEmpty, "nothing booked while it is up")
+        _ = fixes.handleKey(keyCode: KeyCode.tab, flags: [])
+        world.before = "Hi 12*7="
+        world.runHops()
+        XCTAssertEqual(journaled.map(\.outcome), [.applied])
+        XCTAssertEqual(journaled.first?.kind, .math)
+        XCTAssertEqual(journaled.first?.original, "12*7=")
+        XCTAssertEqual(journaled.first?.fix, "12*7=84")
+        XCTAssertEqual(journaled.first?.ctx, "Hi 12*7=")
+        XCTAssertNil(journaled.first?.engine, "no engine wrote a pill")
+    }
+
+    // ⎋ is dismissed; typing past is abandoned; a ⇥ the field outran too.
+    func testAPillThatWasNotTakenSaysHow() {
+        XCTAssertTrue(fixes.handleCaret(read("Hi 12*7=")))
+        _ = fixes.handleKey(keyCode: KeyCode.escape, flags: [])
+        XCTAssertTrue(fixes.handleCaret(read("Hi 2*3=")))
+        XCTAssertFalse(fixes.handleCaret(read("Hi 2*3=6 ")))
+        XCTAssertTrue(fixes.handleCaret(read("Hi 4*4=")))
+        _ = fixes.handleKey(keyCode: KeyCode.tab, flags: [])
+        world.before = "Hi 4*4=1"
+        world.runHops()
+        XCTAssertEqual(journaled.map(\.outcome), [.dismissed, .abandoned, .abandoned])
+        XCTAssertEqual(journaled.map(\.original), ["12*7=", "2*3=", "4*4="])
+    }
+
+    // An ⌥⇥ fix is stamped with what wrote it: applied, dismissed, or
+    // nothing to fix.
+    func testAnEngineFixIsJournaledWithItsEngine() async {
+        await previewSelectionFix()
+        _ = fixes.handleKey(keyCode: KeyCode.returnKey, flags: [])
+        world.runHops()
+        await previewSelectionFix()
+        _ = fixes.handleKey(keyCode: KeyCode.escape, flags: [])
+        world.selected = nil
+        await fixLastWord("I saw teh", fixed: nil)
+        XCTAssertEqual(journaled.map(\.outcome), [.applied, .dismissed, .unchanged])
+        XCTAssertEqual(journaled.map(\.kind), [.selection, .selection, .lastWord])
+        XCTAssertEqual(journaled.map(\.fix), ["the cat", "the cat", nil])
+        XCTAssertEqual(journaled.last?.ctx, "I saw teh")
+        XCTAssertEqual(Set(journaled.map(\.model)), ["fake-model"])
+    }
+
+    // A voice command's rewrite carries what was said: never journaled.
+    func testAVoiceCommandIsNotJournaled() async {
+        world.selected = SelectionInfo(text: "hi there", rect: caret)
+        fixes.runVoiceCommand("make it formal", selection: "hi there")
+        await fixes.correctionTask?.value
+        XCTAssertEqual(host.events.last, "nothing to fix")
+        XCTAssertTrue(journaled.isEmpty)
+    }
 }
