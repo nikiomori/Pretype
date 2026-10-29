@@ -110,10 +110,11 @@ Pretype keeps a journal in `~/Library/Application Support/Pretype` for on-device
 | | |
 |---|---|
 | **Contents** | Every suggestion that Pretype showed you, and its result. Each entry has the text around the caret at that time: up to 1,000 characters before it and 192 after it. Plus any text that you import with **Settings → Personalization → Advanced → Import Text…**. |
+| **Fixes** | A second file, `fix-journal.jsonl`, keeps every fix that Pretype showed or that you asked for: the original text, the fix and its result (applied, dismissed, not used, nothing to fix, failed). A fix of the last word or of a typo also keeps up to 200 characters before the caret. Voice commands are not in it. |
 | **Format** | Plain text. |
-| **Maximum size** | 50 MB (years of typing). |
+| **Maximum size** | 50 MB (years of typing), and 5 MB for the fixes. |
 | **Default** | On. |
-| **To delete** | Switch it off in **Settings → Personalization → Advanced**. This deletes all of the journal, imported text included. |
+| **To delete** | Switch it off in **Settings → Personalization → Advanced**. This deletes all of the journal, imported text and fixes included. |
 | **Never in the journal** | OCR screen text. Clipboard text. Dictation writes no journal entries of its own. Dictated text that is already in the field is ordinary surrounding text (see [Microphone](#microphone)). |
 
 ### Terminals
