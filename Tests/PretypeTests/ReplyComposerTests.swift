@@ -75,7 +75,18 @@ final class ReplyComposerTests: XCTestCase {
         XCTAssertEqual(host.lastEvent, "waiting for typing")
         XCTAssertFalse(replies.compose())
         XCTAssertEqual(host.lastEvent, "reply: dictation is listening")
+        XCTAssertNil(world.window.currentMode, "dictation's pill already says it")
         XCTAssertTrue(host.started.isEmpty)
+    }
+
+    // Pressed with Pretype's own window in front — Settings, where the gesture
+    // is shown — it says where to press instead of doing nothing.
+    func testPressedOverOurOwnWindowItSaysWhereToPress() {
+        host.busyReason = "our own window is frontmost"
+        world.ownWindowFrontmost = true
+        XCTAssertFalse(replies.compose())
+        guard case .hint(let notice)? = world.window.currentMode else { return XCTFail("nothing on screen") }
+        XCTAssertTrue(notice.hasPrefix("click into a text field"), notice)
     }
 
     // A field in an app Pretype stays out of is never even read.
@@ -83,6 +94,7 @@ final class ReplyComposerTests: XCTestCase {
         host.typingContext = TypingContext(appName: "1Password", bundleID: "com.1password.1password")
         XCTAssertFalse(replies.compose())
         XCTAssertEqual(host.lastEvent, "reply: off in 1Password")
+        XCTAssertEqual(world.window.currentMode, .hint("Always off in 1Password"))
         XCTAssertEqual(world.reads, 0)
     }
 
@@ -181,8 +193,10 @@ final class ReplyComposerTests: XCTestCase {
         world.readable = false
         XCTAssertFalse(replies.compose(auto: true))
         XCTAssertEqual(host.lastEvent, "waiting for typing")
+        XCTAssertNil(world.window.currentMode)
         XCTAssertFalse(replies.compose())
         XCTAssertEqual(host.lastEvent, "reply: cannot read the field or place the ghost")
+        guard case .hint? = world.window.currentMode else { return XCTFail("nothing on screen") }
         XCTAssertTrue(host.started.isEmpty)
     }
 

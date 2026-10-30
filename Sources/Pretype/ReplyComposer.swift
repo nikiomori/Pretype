@@ -64,31 +64,41 @@ final class ReplyComposer {
     @discardableResult
     func compose(auto: Bool = false) -> Bool {
         // Every stop below says why, in the console and in the menu's "Last:"
-        // line: an explicitly-pressed chord that does nothing, silently, is
-        // indistinguishable from a broken build.
+        // line — and, asked for, on screen: an explicitly-pressed chord that
+        // does nothing, silently, is indistinguishable from a broken build.
         DebugLog.shared.log("REPLY", auto ? "offered — empty message box"
             : "requested (\(Settings.replyGesture.label) / \(Settings.hotkeyStyle.replyLabel))")
-        func stop(_ why: String) -> Bool {
-            if !auto { host.report("reply: \(why)") }
+        func stop(_ why: String, notice: String? = nil) -> Bool {
+            if !auto {
+                host.report("reply: \(why)")
+                if let notice { indicator.flashTransient(.hint(notice), atPointer: true) }
+            }
             DebugLog.shared.log("REPLY", "not composing — \(why)")
             return false
         }
-        if let busy = host.busyReason { return stop(busy) }
+        let key = Settings.replyGesture == .off ? Settings.hotkeyStyle.replyLabel : Settings.replyGesture.label
+        let clickIn = String(localized: "click into a text field, then press \(key) again")
+        if let busy = host.busyReason {
+            // A listening dictation's pill already says what is going on.
+            return stop(busy, notice: !Settings.enabled ? String(localized: "Paused")
+                : env.ownUIFrontmost() ? clickIn : nil)
+        }
         // Element first: it reads the site the blacklist check needs.
         guard let element = host.currentTextElement() else {
-            return stop("no text field in focus")
+            return stop("no text field in focus", notice: clickIn)
         }
         let typingContext = host.typingContext
         // A terminal, off for everything else, answers in an agent's box: the
         // read below finds nothing anywhere else in it.
         guard AppPolicy.allowsCompletions(typingContext) else {
-            return stop("off in \(typingContext.site ?? typingContext.appName ?? "this app")")
+            let name = typingContext.site ?? typingContext.appName
+            return stop("off in \(name ?? "this app")", notice: name.map { String(localized: "Always off in \($0)") })
         }
         // allowEmpty: an empty chat box is the case this feature exists for —
         // the completion pipeline's "nothing to continue" is not a refusal here.
         guard let ctx = env.context(of: element, allowEmpty: true),
               let rect = ctx.caretRect else {
-            return stop("cannot read the field or place the ghost")
+            return stop("cannot read the field or place the ghost", notice: clickIn)
         }
         if auto {
             guard (ctx.textBeforeCaret + ctx.textAfterCaret).allSatisfy(\.isWhitespace) else {
