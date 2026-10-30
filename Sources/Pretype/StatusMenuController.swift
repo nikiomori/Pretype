@@ -15,6 +15,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var batteryItem: NSMenuItem!
     private var appBlacklistItem: NSMenuItem!
     private var dictationSendItem: NSMenuItem!
+    private var recentDictationsItem: NSMenuItem!
     private var languageHintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
     private var refrainItem: NSMenuItem!
@@ -150,6 +151,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         appBlacklistItem = item("", #selector(toggleFrontmostAppBlacklist))
         // Same naming; shown only while dictation is on.
         dictationSendItem = item("", #selector(toggleDictationSend), symbol: "return")
+        // Filled in menuNeedsUpdate; shown once something was dictated.
+        recentDictationsItem = item(String(localized: "Copy Recent Dictation"), nil, symbol: "clock.arrow.circlepath")
+        recentDictationsItem.submenu = NSMenu()
 
         // Hidden unless the language being typed is one this model is bad at —
         // see refreshLanguageHintItem.
@@ -276,6 +280,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         settingsItem.toolTip = suggestionController == nil ? String(localized: "Available once Accessibility is granted.") : nil
         refreshAppBlacklistItem()
         refreshDictationSendItem()
+        refreshRecentDictationsItem()
         refreshLanguageHintItem()
         let newer = UpdateChecker.availableVersion
         updateItem.title = newer.map { String(localized: "Update to \($0)…") } ?? String(localized: "Check for Updates…")
@@ -563,6 +568,26 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // A ghost already on screen for the app we just silenced has to go.
         suggestionController?.dismiss()
         settingsWindow?.store.sync()
+    }
+
+    /// One row per transcript in `DictationController.recent`, as one line;
+    /// the whole of it on the tooltip and on the clipboard.
+    private func refreshRecentDictationsItem() {
+        let recent = suggestionController?.dictationController.recent ?? []
+        recentDictationsItem.isHidden = !Settings.dictationEnabled || recent.isEmpty
+        guard let submenu = recentDictationsItem.submenu else { return }
+        submenu.removeAllItems()
+        for text in recent {
+            let row = item(fitting(text.split(whereSeparator: \.isNewline).joined(separator: " ")),
+                           #selector(copyRecentDictation), in: submenu)
+            row.representedObject = text
+            row.toolTip = text
+        }
+    }
+
+    @objc private func copyRecentDictation(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        SuggestionController.copyTranscript(text, to: .general)
     }
 
     @objc private func toggleDictationSend() {

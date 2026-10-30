@@ -313,6 +313,17 @@ final class DictationController {
     /// command mode), or nil for ordinary dictation.
     var commandSelection: String?
 
+    /// The last few transcripts, newest first, typed or rescued — the status
+    /// menu copies one back. For the take that landed nowhere: typed into an
+    /// element that dropped the keystrokes, or rescued to a clipboard that has
+    /// been overwritten since. Memory only, like the audio: gone on quit.
+    private(set) var recent: [String] = []
+
+    func remember(_ text: String) {
+        recent.insert(text, at: 0)
+        if recent.count > 5 { recent.removeLast() }
+    }
+
     /// Dictation events go to the *unified* log as well as the in-app console.
     ///
     /// This is the one flow in the app whose failures are invisible by design:

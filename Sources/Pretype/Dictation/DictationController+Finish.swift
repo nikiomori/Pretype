@@ -112,6 +112,7 @@ extension DictationController {
                 } else {
                     owner.hideOverlay()
                 }
+                self.remember(text)
                 if lands {
                     owner.insertDictated(text)
                 } else {
@@ -144,6 +145,7 @@ extension DictationController {
                 Self.note("finish \(timedOut ? "timed out" : "failed") — rescued the \(preview.count)-char preview to the clipboard")
                 self.pendingBegin = nil  // as for a rescue above
                 self.discard(notice: nil)
+                self.remember(preview)
                 owner.rescueDictated(preview, because: timedOut ? .timedOut : .failed)
             }
         }

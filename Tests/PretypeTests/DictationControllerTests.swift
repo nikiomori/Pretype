@@ -323,8 +323,16 @@ final class DictationControllerTests: XCTestCase {
         release(rig.controller)
         await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertEqual(rig.controller.recent, ["hello world"], "a typed take is kept for the status menu too")
         XCTAssertEqual(rig.controller.phase, .idle)
         XCTAssertGreaterThanOrEqual(rig.capture.stopCount, 1)
+    }
+
+    /// The status menu's history: newest first, the last five only.
+    func testRecentKeepsTheLastFiveNewestFirst() {
+        let controller = DictationController(capture: FakeAudioCapture())
+        for n in 1...7 { controller.remember("take \(n)") }
+        XCTAssertEqual(controller.recent, ["take 7", "take 6", "take 5", "take 4", "take 3"])
     }
 
     /// A field that publishes no caret must still SHOW that it is listening.
@@ -697,6 +705,7 @@ final class DictationControllerTests: XCTestCase {
         release(rig.controller)
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertEqual(rig.host.rescued, ["minutes of speech"])
+        XCTAssertEqual(rig.controller.recent, ["minutes of speech"])
         XCTAssertEqual(rig.host.rescueReasons, [.failed])
         XCTAssertTrue(rig.host.inserted.isEmpty)
 
