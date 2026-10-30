@@ -14416,6 +14416,113 @@
         }
       }
     },
+    "Copy Recent Dictation" : {
+      "comment" : "Status menu item with a submenu of the last few dictated transcripts; clicking one copies it to the clipboard.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopírovat nedávné diktování"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopier seneste diktering"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letztes Diktat kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar dictado reciente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier une dictée récente"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia dettatura recente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近の音声入力をコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최근 받아쓰기 복사"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent dictaat kopiëren"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopiuj ostatnie dyktowanie"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar Ditado Recente"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiază o dictare recentă"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопировать недавнюю диктовку"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopiera senaste diktering"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Son Dikteyi Kopyala"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопіювати недавнє диктування"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝最近的听写"
+          }
+        }
+      }
+    },
     "Couldn't check for updates" : {
       "localizations" : {
         "cs" : {
@@ -53028,6 +53135,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "与 %@ 所用的最小改动修正相同；改写了措辞的结果会被拒绝。文字输入前需额外进行一次简短生成。如果修正需要单独的模型，首次使用时会下载。"
+          }
+        }
+      }
+    },
+    "The speech model hears which language you speak — no need to switch layouts." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Řečový model sám pozná, kterým jazykem mluvíte — rozložení přepínat nemusíte."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talemodellen hører selv, hvilket sprog du taler – du behøver ikke at skifte tastaturlayout."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Sprachmodell erkennt selbst, welche Sprache Sie sprechen – kein Wechsel der Tastaturbelegung nötig."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modelo de voz reconoce qué idioma hablas: no hace falta cambiar de teclado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le modèle vocal reconnaît la langue que vous parlez — inutile de changer de clavier."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il modello vocale riconosce la lingua che parli: non serve cambiare tastiera."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声モデルが話している言語を自分で聞き分けます。キーボードを切り替える必要はありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성 모델이 말하는 언어를 스스로 알아듣습니다. 키보드를 바꿀 필요가 없습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het spraakmodel hoort zelf welke taal je spreekt — je hoeft niet van toetsenbord te wisselen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model mowy sam rozpoznaje, w jakim języku mówisz — nie trzeba przełączać układu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O modelo de voz reconhece o idioma que você fala — não precisa trocar de teclado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelul vocal recunoaște singur limba în care vorbești — nu trebuie să schimbi tastatura."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель речи сама слышит, на каком языке вы говорите, — раскладку переключать не нужно."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talmodellen hör själv vilket språk du talar – du behöver inte byta tangentbord."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşma modeli hangi dili konuştuğunuzu kendisi anlar; klavye değiştirmeniz gerekmez."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель мовлення сама чує, якою мовою ви говорите, — розкладку перемикати не потрібно."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语音模型会自己听出你说的是哪种语言，无需切换键盘。"
           }
         }
       }
