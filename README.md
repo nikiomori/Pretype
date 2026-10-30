@@ -113,6 +113,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 * **Voice commands.** Select text and dictate an instruction, for example *"make it shorter"* or *"translate to English"*. Enable this in **Settings → Dictation → Advanced**.
 * **Send.** Pretype can push <kbd>Return</kbd> after a dictation, for example in a chat. To enable this for an app, select **Press Return after Dictation** in the menu.
 * If the focus changes during a capture, Pretype puts the transcript on the clipboard.
+* **History.** To get a lost dictation back, select **Copy Recent Dictation** in the menu. The menu keeps the last five transcripts until you quit Pretype.
 
 | Languages | Speech model |
 |---|---|

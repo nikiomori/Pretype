@@ -86,6 +86,7 @@ A capture runs only in these conditions:
 * Sometimes Pretype cannot type a transcript, for example when the focus moved to a password field or to a Pretype window. Then Pretype puts the transcript on the clipboard.
   * This clipboard is for this Mac only (no Universal Clipboard).
   * Pretype marks it as transient, so clipboard managers do not keep it in their history.
+* Pretype keeps the last five transcripts in memory for **Copy Recent Dictation** in the menu. It does not write them to disk. When Pretype quits, they are gone.
 * After Pretype types the transcript, it is ordinary text in the field. A later suggestion can see it as surrounding context, as it sees text that you type by hand.
 
 ### API providers
