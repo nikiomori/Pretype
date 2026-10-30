@@ -78,8 +78,12 @@ APP=build/Pretype.app
 # pgrep/pkill -f take an ERE, so the checkout path must be matched literally —
 # a clone under something like "proj (1)" would otherwise never match and the
 # stale process would survive the rebuild.
+# What was running comes back once the new bundle is signed; nothing else
+# launches (CI, a first build).
 PWD_ERE=$(printf '%s\n' "$PWD" | sed 's/[][\^$.*+?(){}|]/\\&/g')
+relaunch=
 if pgrep -f "$PWD_ERE/build/Pretype.app/Contents/MacOS/Pretype$" >/dev/null 2>&1; then
+    relaunch=1
     osascript -e "tell application \"$PWD/build/Pretype.app\" to quit" >/dev/null 2>&1 || true
     pkill -f "$PWD_ERE/build/Pretype.app/Contents/MacOS/Pretype$" >/dev/null 2>&1 || true
 fi
@@ -174,3 +178,7 @@ else
     echo "Ad-hoc signed — re-grant Accessibility/Screen Recording after each rebuild"
 fi
 echo "Built $APP (version ${VERSION}, build ${BUILD})"
+if [ -n "$relaunch" ]; then
+    open "$APP"
+    echo "Relaunched $APP"
+fi
