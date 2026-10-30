@@ -1,5 +1,4 @@
 import AppKit
-import NaturalLanguage
 import XCTest
 @testable import Pretype
 
@@ -260,19 +259,34 @@ final class DanishSpellingTests: XCTestCase {
 
     // A Danish writer (no Danish keyboard needed: the typed language counts)
     // keeps "Hvad" — the Swedish dictionary turned it into "Vad" — and a real
-    // Danish typo is still fixed. The premise is the system's: macOS 26's
-    // recognizer (the CI runner) finds no Danish in a bare "Hvad", and the
-    // Norwegian dictionary makes it "Hvas".
-    func testACorrectDanishWordIsLeftAlone() throws {
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString("Hvad")
-        try XCTSkipUnless((recognizer.languageHypotheses(withMaximum: 10)[.danish] ?? 0) >= 0.05
-                          && NSSpellChecker.shared.availableLanguages.contains { $0.hasPrefix("da") },
-                          "this Mac doesn't read a bare \"Hvad\" as Danish")
+    // Danish typo is still fixed.
+    func testACorrectDanishWordIsLeftAlone() {
+        XCTAssertTrue(waitForDictionary("da", knowing: "Hvad"), "the spell server never loaded Danish")
         TypedLanguage.reset()
         defer { TypedLanguage.reset() }
         for _ in 0 ..< TypedLanguage.minObservations { TypedLanguage.observe("da") }
         XCTAssertNil(SpellChecker.correction(for: "Hvad", context: "Hvad"))
         XCTAssertEqual(SpellChecker.correction(for: "suklle", context: "Jeg synes, vi suklle"), "skulle")
+    }
+
+    // The spell server loads a dictionary the first time it is asked about a
+    // language, and until it has, calls every word misspelled: a moment here,
+    // seconds on a fresh CI runner. While the server itself is starting its
+    // calls time out, which reads as "spelled", so only a word checked once
+    // completions answer counts.
+    private func waitForDictionary(_ language: String, knowing word: String) -> Bool {
+        let checker = NSSpellChecker.shared
+        let range = NSRange(location: 0, length: (word as NSString).length)
+        let deadline = Date(timeIntervalSinceNow: 30)
+        while Date() < deadline {
+            if checker.completions(forPartialWordRange: range, in: word, language: language,
+                                   inSpellDocumentWithTag: 0) != nil,
+               checker.checkSpelling(of: word, startingAt: 0, language: language, wrap: false,
+                                     inSpellDocumentWithTag: 0, wordCount: nil).location == NSNotFound {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        return false
     }
 }
