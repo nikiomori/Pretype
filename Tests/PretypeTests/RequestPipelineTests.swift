@@ -102,6 +102,13 @@ final class RequestPipelineTests: PipelineTestCase {
         fake.before = "and the tests"
         controller.textDidChange()
         XCTAssertEqual(controller.queries.current?.kind, .completion(before: "and the tests", after: ""))
+        // The model reads the agent's turn ahead of the message, as a chat's OCR block.
+        try await finishQuery()
+        XCTAssertEqual(fake.engine.requests.last?.screenSummary,
+                       "⏺ Updated Sources/Pretype/AgentPrompt.swift and SuggestionController.")
+        await enterApp("com.apple.TextEdit")
+        fake.terminalField = false
+        XCTAssertNil(controller.promptContext.agentTurn, "the turn stays with its box")
     }
 
     // A shell prompt reads nil on every key: a terminal — an app's, or one

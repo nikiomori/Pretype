@@ -53,12 +53,16 @@ enum AgentPrompt {
             kept.append(line)
         }
         while kept.last?.isEmpty == true { kept.removeLast() }
-        var text = kept.joined(separator: "\n")
-        if text.count > maxChars {
-            let tail = text.suffix(maxChars)
-            text = String(tail.firstIndex(of: "\n").map { tail[tail.index(after: $0)...] } ?? tail)
-        }
+        let text = tail(of: kept.joined(separator: "\n"), maxChars: maxChars)
         return text.isEmpty ? nil : text
+    }
+
+    /// The last `maxChars` of a session, from a line start — the agent's
+    /// turn a completion reads ahead of the box, like a chat's OCR block.
+    static func tail(of session: String, maxChars: Int) -> String {
+        guard session.count > maxChars else { return session }
+        let tail = session.suffix(maxChars)
+        return String(tail.firstIndex(of: "\n").map { tail[tail.index(after: $0)...] } ?? tail)
     }
 
     /// The box around the caret: the lines up to it, the prompt-glyph line's

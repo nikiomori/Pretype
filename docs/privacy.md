@@ -95,7 +95,7 @@ A capture runs only in these conditions:
 
 | | Text | Dictation |
 |---|---|---|
-| **What goes to the provider** | The text before the caret (up to 1,200 characters), at each suggestion. The selection for the fix chord and voice commands. The conversation for the reply chord. The screen and clipboard context, if you turned them on. A dictated transcript, if “Tidy up” is on. | The audio of each capture, as one WAV file, when the capture stops. With OpenAI `gpt-transcribe` and Whisper models, also the names and terms that are already in the field. These are spelling hints, as for the on-device recognizer. |
+| **What goes to the provider** | The text before the caret (up to 1,200 characters), at each suggestion. The selection for the fix chord and voice commands. The conversation for the reply chord. The screen and clipboard context, if you turned them on. In the prompt box of an AI agent, the end of the agent's session. A dictated transcript, if “Tidy up” is on. | The audio of each capture, as one WAV file, when the capture stops. With OpenAI `gpt-transcribe` and Whisper models, also the names and terms that are already in the field. These are spelling hints, as for the on-device recognizer. |
 | **When** | Each time that a suggestion is due. | When the capture stops. If the upload fails because of the network, a timeout or a server error (HTTP 429 or 5xx), Pretype sends the same audio one more time. If that fails too, or the provider does not answer in time, Pretype transcribes the audio on this Mac, with Apple's speech model or Parakeet. It does not send the audio again, and it does not download a model for this. Pretype keeps the audio in memory until it has the transcript. A server on this Mac also gets the audio about once a second, for the live preview. |
 | **Never** | Text in password fields, in blacklisted apps, or while macOS reports secure input. | Audio from a capture that you cancel. If you cancel during the upload, Pretype stops the upload. |
 
@@ -116,14 +116,14 @@ Pretype keeps a journal in `~/Library/Application Support/Pretype` for on-device
 | **Maximum size** | 50 MB (years of typing), and 5 MB for the fixes. |
 | **Default** | On. |
 | **To delete** | Switch it off in **Settings → Personalization → Advanced**. This deletes all of the journal, imported text and fixes included. |
-| **Never in the journal** | OCR screen text. Clipboard text. Dictation writes no journal entries of its own. Dictated text that is already in the field is ordinary surrounding text (see [Microphone](#microphone)). |
+| **Never in the journal** | OCR screen text. Clipboard text. The session of an AI agent. Dictation writes no journal entries of its own. Dictated text that is already in the field is ordinary surrounding text (see [Microphone](#microphone)). |
 
 ### Terminals
 
 Pretype completes text only in the prompt box of an AI agent, such as Claude Code. This works in Terminal, iTerm2 and the terminal panel of VS Code-based editors.
 
 * To find the prompt box, Pretype reads the terminal text near the cursor.
-* Only the text that you typed into the box goes to the model.
+* The model gets the text that you typed into the box and the last 600 characters of the agent's session above the box. The session text helps the model continue your reply to the agent.
 * Pretype discards all other text (the shell, the command output) in memory. It never journals or logs this text.
 * In Terminal and iTerm2, these features stay off: the fix and reply chords, dictation and screen OCR.
 

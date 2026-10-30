@@ -40,6 +40,11 @@ final class PromptContext {
     private var screenCapturedAt = Date.distantPast
     private(set) var screenCaptureInFlight = false
 
+    /// An AI agent's last turn above its input box, read with the session's
+    /// names at a message's first word (`SuggestionController.sessionNames`):
+    /// the terminal's block where a chat has its OCR — a terminal gets none.
+    var agentTurn: String?
+
     // Opt-in clipboard context, re-read only when the pasteboard changes.
     private var clipboardChangeCount = -1
     private var clipboardSnippet: String?
@@ -65,6 +70,8 @@ final class PromptContext {
                !text.contains(clip) {
                 request.clipboardContext = clip
             }
+        } else {
+            request.screenSummary = agentTurn
         }
         // Decided here, on the main thread, where NSSpellChecker is safe: lets the
         // engine offer a space + next word right after a finished word.
@@ -79,6 +86,7 @@ final class PromptContext {
     func focusChanged() {
         screenSummary = nil
         screenCapturedAt = .distantPast
+        agentTurn = nil
         personalExamples = []
         examplesRefreshedAt = .distantPast
     }

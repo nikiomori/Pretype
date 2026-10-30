@@ -59,7 +59,8 @@ final class SuggestionJournal: @unchecked Sendable {
         /// (Older rows also carry a `typed` key — ignored on decode.)
         var acceptedChars: Int
         var shownForMs: Int
-        /// Whether the prompt also carried OCR screen context (not logged itself).
+        /// Whether the prompt also carried a context block (not logged itself):
+        /// the window's OCR, or in a terminal the agent's last turn.
         var screen: Bool
         /// Characters of `suggestion` the user had typed or accepted when it
         /// resolved — the live first-word signal: a `diverged` show with this

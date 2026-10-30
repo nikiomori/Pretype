@@ -131,15 +131,18 @@ extension SuggestionController {
     /// The names of the agent session above `element`'s box: read again at
     /// each message's first word — the agent has printed its turn since — at
     /// most every 3 s while that word is typed, and kept for the rest of the
-    /// message. In an xterm the read is every viewport row.
+    /// message. In an xterm the read is every viewport row. The same read
+    /// gives the prompt the agent's last turn (`PromptContext.agentTurn`).
     func sessionNames(in element: AXUIElement, typed: String) -> [String] {
         let now = env.now()
         if let read = sessionNamesRead, CFEqual(read.element, element),
            typed.contains(where: \.isWhitespace) || now.timeIntervalSince(read.at) < 3 {
             return read.names
         }
-        let names = env.agentTranscript(element).map(AgentPrompt.names) ?? []
+        let session = env.agentTranscript(element)
+        let names = session.map(AgentPrompt.names) ?? []
         sessionNamesRead = (element, now, names)
+        promptContext.agentTurn = session.map { AgentPrompt.tail(of: $0, maxChars: ScreenContext.defaultMaxChars) }
         return names
     }
 

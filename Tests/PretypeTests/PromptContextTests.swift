@@ -149,6 +149,8 @@ final class PromptContextTests: XCTestCase {
                        "cut at a line start")
         XCTAssertNil(AgentPrompt.transcript(before: [rule, "❯ "].joined(separator: "\n"), after: below), "nothing above")
         XCTAssertNil(AgentPrompt.transcript(before: "~ % ls\n❯ git sta", after: below), "a shell")
+        XCTAssertEqual(AgentPrompt.tail(of: "first line\nsecond line", maxChars: 15), "second line")
+        XCTAssertEqual(AgentPrompt.tail(of: "short", maxChars: 15), "short")
         XCTAssertEqual(CompletionRequest.userMessages(in: "> rename the flag\n⏺ Done\n❯ now the tests"),
                        "rename the flag\nnow the tests")
         XCTAssertNil(CompletionRequest.userMessages(in: "⏺ Done"))

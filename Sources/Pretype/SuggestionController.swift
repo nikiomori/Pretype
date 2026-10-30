@@ -738,8 +738,8 @@ final class SuggestionController {
                 personalization: Settings.personalizationLevel.rawValue,
                 ctx: current, after: ctx.textAfterCaret, suggestion: suggestion,
                 outcome: .abandoned, acceptedChars: 0, shownForMs: 0,
-                screen: promptContext.screenSummary != nil
-                    && AppPolicy.allowsScreenContext(typingContext)),
+                screen: (AppPolicy.allowsScreenContext(typingContext)
+                    ? promptContext.screenSummary : promptContext.agentTurn) != nil),
                 at: env.now())
         } else {
             // Streamed growth of the same suggestion — keep the record current.
