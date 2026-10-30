@@ -563,10 +563,15 @@ struct ModelRow: View {
                 Text("Accuracy").frame(maxWidth: .infinity, alignment: .leading)
                 Text("Speed").frame(maxWidth: .infinity, alignment: .leading)
                 Text("Memory").frame(maxWidth: .infinity, alignment: .leading)
+                // Own keys: half of chordWidth fits "Korr." but not "Korrektur".
                 HStack(spacing: ModelRow.chordSpacing) {
-                    Text("Fix").foregroundStyle(Color.pink.legible)
+                    Text(String(localized: "Fix (column)", defaultValue: "Fix",
+                                comment: "Model list: header over each model's fix score, about 5 letters wide. Abbreviate."))
+                        .foregroundStyle(Color.pink.legible)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("Reply").foregroundStyle(Color.purple.legible)
+                    Text(String(localized: "Reply (column)", defaultValue: "Reply",
+                                comment: "Model list: header over each model's reply score, about 5 letters wide. Abbreviate."))
+                        .foregroundStyle(Color.purple.legible)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(width: ModelRow.chordWidth)
