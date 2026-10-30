@@ -369,21 +369,24 @@ extension Pref where Value: RawRepresentable, Value.RawValue == String {
     }
 }
 
+/// A test run's settings, in memory. The typed getters and setters come
+/// through these three.
+private final class TestDefaults: UserDefaults, @unchecked Sendable {
+    private let values = LockedValue<[String: Any]>([:])
+    override func object(forKey key: String) -> Any? { values.get()[key] }
+    override func set(_ value: Any?, forKey key: String) { values.mutate { $0[key] = value } }
+    override func removeObject(forKey key: String) { set(nil, forKey: key) }
+}
+
 enum Settings {
     /// Where the settings — and `Stats`' counters — are kept: the app's own
-    /// defaults. A test process gets a store of its own, in its temporary
-    /// directory and gone when it exits: `UserDefaults.standard` there is the
-    /// xctest tool's domain, which every test run on the Mac shares, and
-    /// parallel runs (or two checkouts testing at once) rewrote each other's
-    /// settings mid-test. Named for the run, not just the pid: a run that
-    /// crashed leaves its file behind, and the next process given that pid
-    /// would start from its settings.
-    static let store: UserDefaults = {
-        guard isTestProcess else { return .standard }
-        atexit { try? FileManager.default.removeItem(atPath: Settings.testStorePath + ".plist") }
-        return UserDefaults(suiteName: testStorePath) ?? .standard
-    }()
-    private static let testStorePath = NSTemporaryDirectory() + "pretype-tests-\(getpid())-\(UUID().uuidString)"
+    /// defaults. A test process keeps them in memory: `UserDefaults.standard`
+    /// there is the xctest tool's domain, which every test run on the Mac
+    /// shares, and parallel runs (or two checkouts testing at once) rewrote
+    /// each other's settings mid-test. A per-run suite in the temporary
+    /// directory was no better on CI, where keys stopped taking writes for the
+    /// rest of a run.
+    static let store: UserDefaults = isTestProcess ? TestDefaults() : .standard
     /// XCTest is loaded only into a test process, never into the app.
     static let isTestProcess = NSClassFromString("XCTestCase") != nil
     private static let defaults = store
