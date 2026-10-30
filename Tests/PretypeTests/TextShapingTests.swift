@@ -1,3 +1,5 @@
+import AppKit
+import NaturalLanguage
 import XCTest
 @testable import Pretype
 
@@ -258,8 +260,15 @@ final class DanishSpellingTests: XCTestCase {
 
     // A Danish writer (no Danish keyboard needed: the typed language counts)
     // keeps "Hvad" — the Swedish dictionary turned it into "Vad" — and a real
-    // Danish typo is still fixed.
-    func testACorrectDanishWordIsLeftAlone() {
+    // Danish typo is still fixed. The premise is the system's: macOS 26's
+    // recognizer (the CI runner) finds no Danish in a bare "Hvad", and the
+    // Norwegian dictionary makes it "Hvas".
+    func testACorrectDanishWordIsLeftAlone() throws {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString("Hvad")
+        try XCTSkipUnless((recognizer.languageHypotheses(withMaximum: 10)[.danish] ?? 0) >= 0.05
+                          && NSSpellChecker.shared.availableLanguages.contains { $0.hasPrefix("da") },
+                          "this Mac doesn't read a bare \"Hvad\" as Danish")
         TypedLanguage.reset()
         defer { TypedLanguage.reset() }
         for _ in 0 ..< TypedLanguage.minObservations { TypedLanguage.observe("da") }
