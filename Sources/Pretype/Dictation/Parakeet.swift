@@ -8,7 +8,9 @@ import Foundation
 /// Measured on FLEURS-ru (200 rows, `Eval/asr`): words-only WER 12.6 → 6.6,
 /// as-typed WER 30.1 → 14.2, punctuation F1 0.02 → 0.85, median 194 → 59 ms
 /// per utterance. On English it only ties `SpeechTranscriber` (WER 6.6 vs 7.8,
-/// CIs overlap), so the 30 locales Apple's newer model covers stay on it.
+/// CIs overlap), so the 30 locales Apple's newer model covers stay on it when
+/// pinned; under "Follow keyboard" Parakeet takes them too — it hears the
+/// language, Apple's model would take the layout's word for it.
 /// Runs moondream's Parakeet Ultra, a post-training of v3 with the same
 /// architecture, languages and speed: as-typed WER ru 14.3 → 12.3 (paired
 /// 95% CI of the drop 1.0–3.0), en 12.6 → 11.0, words-only ru 6.8 → 5.4.
@@ -48,7 +50,12 @@ enum Parakeet {
     static func start(locale: Locale,
                       onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
         let manager = try await prepare()
-        let language = locale.language.languageCode.flatMap { Language(rawValue: $0.identifier) }
+        // The language only filters the decoder's alphabet. A pinned one keeps
+        // that; under "Follow keyboard" a Cyrillic layout would force English
+        // speech into Cyrillic, so the model hears the language itself — on
+        // FLEURS the hint changed nothing (ru WER 14.2 without, 14.3 with).
+        let language = Settings.dictationLanguage == "auto"
+            ? nil : locale.language.languageCode.flatMap { Language(rawValue: $0.identifier) }
         // ponytail: the live preview re-transcribes the whole take, ~6 ms per
         // audio second on the ANE — a ten-minute latch costs ~4 s a refresh;
         // FluidAudio's SlidingWindowAsrManager if long takes ever matter.

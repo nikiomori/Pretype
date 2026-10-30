@@ -106,7 +106,8 @@ enum Transcription {
         /// `DictationTranscriber`, the system dictation model — Russian and
         /// most other languages land here.
         case fallback
-        /// Opted into Parakeet, which serves this fallback language instead.
+        /// Opted into Parakeet, which serves this fallback language instead —
+        /// and, under "Follow keyboard", English too.
         case parakeet
         /// A hosted speech model (Settings → API) serves every language.
         case api
@@ -116,7 +117,8 @@ enum Transcription {
     static func support(for locale: Locale) async -> LanguageSupport {
         if Settings.apiAudio.enabled { return .api }
         let resolved = await resolve(locale)
-        if resolved?.preferred != true, Settings.dictationParakeet, Parakeet.covers(locale) {
+        if resolved?.preferred != true || Settings.dictationLanguage == "auto",
+           Settings.dictationParakeet, Parakeet.covers(locale) {
             return .parakeet
         }
         guard let resolved else { return .unsupported }
@@ -206,7 +208,9 @@ enum Transcription {
         // a downloaded Parakeet when its pack is missing; retry on Parakeet
         // after `.notInstalled` if that ever matters.
         let parakeet = Parakeet.covers(locale) && (download ? Settings.dictationParakeet : Parakeet.isDownloaded)
-        if resolved?.preferred != true, parakeet {
+        // Under "Follow keyboard" Parakeet takes English too: it hears the
+        // language, Apple's model takes the layout's word for it.
+        if parakeet, resolved?.preferred != true || Settings.dictationLanguage == "auto" {
             return try await Parakeet.start(locale: locale, onPartial: onPartial)
         }
         guard let resolved else {

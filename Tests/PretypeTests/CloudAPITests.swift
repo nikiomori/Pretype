@@ -362,6 +362,32 @@ final class CloudAPITests: XCTestCase {
         XCTAssertEqual(StubProtocol.bodies.count, 1)
     }
 
+    /// "Follow keyboard" sends a speech model no language — an English layout
+    /// must not force Danish speech through English. A pinned language goes
+    /// out. Refrain gets none only when it has Parakeet to hear it with:
+    /// otherwise it falls back to the system language.
+    func testFollowKeyboardLetsTheSpeechModelDetectTheLanguage() async throws {
+        let saved = Settings.dictationLanguage
+        defer { Settings.dictationLanguage = saved }
+        var whisper = APIConfig(provider: .custom, kind: .audio)
+        whisper.baseURL = "https://speech.example.com/v1"
+        whisper.model = "whisper-1"
+        StubProtocol.response = (200, Data(#"{"text":"hej"}"#.utf8))
+        func sent(_ config: APIConfig, _ language: String) async throws -> Bool {
+            Settings.dictationLanguage = language
+            let session = try CloudTranscription.start(config, locale: Locale(identifier: "en")) { _ in }
+            session.feed(silence(seconds: 1))
+            _ = try await session.finish()
+            return multipartText.contains("name=\"language\"\r\n\r\nen\r\n")
+        }
+        let isSent = try await sent(whisper, "auto")
+        XCTAssertFalse(isSent)
+        let isPinned = try await sent(whisper, "en")
+        XCTAssertTrue(isPinned)
+        let isRefrain = try await sent(APIConfig(provider: .named("refrain"), kind: .audio), "auto")
+        XCTAssertEqual(isRefrain, !Parakeet.isDownloaded)
+    }
+
     func testHTTPErrorCarriesProviderMessage() async {
         StubProtocol.response = (401, Data(#"{"error":{"message":"Incorrect API key"}}"#.utf8))
         do {

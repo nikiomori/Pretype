@@ -16,7 +16,13 @@ enum CloudTranscription {
                       previewEvery: Duration = .seconds(1), retryAfter: Duration = .seconds(1),
                       onPartial: @escaping @Sendable (String) -> Void) throws -> TranscriptionSession {
         let endpoint = try config.endpoint()
-        let language = locale.language.languageCode?.identifier
+        // "Follow keyboard" only guesses the language, and a wrong guess sends
+        // Danish through an English decoder. A speech model hears it, so it
+        // gets none. Refrain hears it only on Parakeet (the same FluidAudio
+        // cache as ours): without it, no language means the system language.
+        let hears = config.provider != "refrain" || Parakeet.isDownloaded && Parakeet.covers(locale)
+        let language = Settings.dictationLanguage == "auto" && hears
+            ? nil : locale.language.languageCode?.identifier
         // Names and terms from the field — the same spelling hints the
         // on-device analyzer gets.
         let hints = Transcription.contextualWords.get()
