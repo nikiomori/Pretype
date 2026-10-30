@@ -30,6 +30,18 @@ final class PromptContextTests: XCTestCase {
         XCTAssertNil(ScreenContext.recognitionLanguages(keyboard: ["en", "xx"]), "unknown to Vision")
     }
 
+    /// A chat line passes in every script: words for spaced scripts, letters
+    /// for Han and kana, and the ALL-CAPS rule only where letters have case.
+    func testOCRKeepsProseInEveryScript() {
+        for line in ["I told you to wait here", "Я же сказал тебе ждать", "我告诉过你在这里等着",
+                     "ここで待っててね", "안녕하세요 저는 학생입니다", "قلت لك أن تنتظر هنا", "אמרתי לך לחכות כאן"] {
+            XCTAssertTrue(ScreenContext.looksLikeProse(line), line)
+        }
+        for line in ["Look.", "SEND MESSAGE NOW", "等着", "see ~/notes for it", "12:41 · 3 new"] {
+            XCTAssertFalse(ScreenContext.looksLikeProse(line), line)
+        }
+    }
+
     /// Only as far as needed: a shell line reads no row above it; a box
     /// reads up to its prompt line and the line over it, no further.
     func testAgentBoxRowsReadOnlyWhatTheyNeed() {

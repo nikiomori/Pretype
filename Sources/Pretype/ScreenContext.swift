@@ -150,24 +150,27 @@ enum ScreenContext {
                 summary = String(summary[summary.index(after: newline)...])
             }
         }
+        // No floor on the block's length: one short reply above the box is
+        // still the conversation (a 40-character floor dropped a third of
+        // the chat blocks, and the context gain with them).
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        // A handful of junk characters is worse than nothing.
-        return trimmed.count >= 40 ? trimmed : nil
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Keeps conversation/document text, drops terminal prompts, paths,
     /// log lines and ALL-CAPS UI fragments — OCR noise that poisons a prose
-    /// model far more than it helps.
-    private static func looksLikeProse(_ line: String) -> Bool {
+    /// model far more than it helps. Script-aware: Han and kana run words
+    /// together (4+ letters stand in for 3 words), and a script without case
+    /// (Arabic, Hebrew, Hangul, Han) can't be ALL-CAPS.
+    static func looksLikeProse(_ line: String) -> Bool {
         if line.contains("%") || line.contains("$ ") || line.contains("./")
             || line.contains("~/") || line.contains("://") {
             return false
         }
-        let words = line.split(separator: " ")
-        guard words.count >= 3 else { return false }
         let letterCount = line.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
         guard letterCount * 2 >= line.count else { return false }
-        guard line.rangeOfCharacter(from: .lowercaseLetters) != nil else { return false }
-        return true
+        let unspaced = line.unicodeScalars.contains { $0.properties.isIdeographic || (0x3040...0x30FF).contains($0.value) }
+        guard unspaced ? letterCount >= 4 : line.split(separator: " ").count >= 3 else { return false }
+        return !line.contains(where: \.isCased) || line.rangeOfCharacter(from: .lowercaseLetters) != nil
     }
 }
