@@ -106,6 +106,12 @@
             "state": "translated",
             "value": "Pretype 会在这台 Mac 上将你说的话转录到你正在输入的文本栏中。音频绝不会录制到磁盘，仅当你在“设置”→“API”中选择云端语音提供商时才会离开你的电脑。"
           }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretype omsætter det, du siger, til tekst i det tekstfelt, du skriver i, på denne Mac. Lyden gemmes aldrig på disken, og den forlader kun din computer, hvis du vælger en taletjeneste i skyen i Indstillinger → API."
+          }
         }
       }
     }

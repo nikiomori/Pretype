@@ -110,7 +110,7 @@ Each test process is isolated. `Settings` writes to a private defaults file, API
 
 ## Translations
 
-The interface is in 17 languages: English (the source) and cs, de, es, fr, it, ja, ko, nl, pl, pt-BR, ro, ru, sv, tr, uk and zh-Hans. The strings are in `Localization/Localizable.xcstrings`, a String Catalog. The English text in the code is the key.
+The interface is in 18 languages: English (the source) and cs, da, de, es, fr, it, ja, ko, nl, pl, pt-BR, ro, ru, sv, tr, uk and zh-Hans. The strings are in `Localization/Localizable.xcstrings`, a String Catalog. The English text in the code is the key.
 
 * Write each string that the user sees as a SwiftUI literal (`Text("…")`, `.help("…")`) or as `String(localized: "…")`. Keep a full sentence in one string. Do not join parts of a sentence with `+`.
 * Do not localize prompts, log lines, identifiers, or defaults keys.

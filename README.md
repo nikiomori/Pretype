@@ -91,7 +91,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 | **Hosted models** *(optional, off)* | OpenAI, Anthropic, Google Gemini, Groq, Mistral, OpenRouter, DeepSeek, or a local server such as Ollama or LM Studio. Keys stay in your keychain. See [Hosted models](docs/models.md#hosted-models-api). |
 | **One switch for each feature** | Suggestions, fixes, replies and dictation each have a switch in **Settings → General**. Typo fixes, emoji and arithmetic also have their own switches. With suggestions off, Pretype loads a model only for a fix or a reply. |
 | **Words** *(optional)* | Pretype completes only the word that you type, from your own words and the macOS dictionary of the language that you type. No model loads. Select **Words** in **Settings → General → Suggestions**. On a Mac with 8 GB, Words is the default. When memory pressure unloads the model, suggestions use Words for two minutes. |
-| **17 interface languages** | The interface uses the language of macOS. You can change it in **Settings → General**. |
+| **18 interface languages** | The interface uses the language of macOS. You can change it in **Settings → General**. |
 
 [Choosing a model](docs/models.md) has the measurements for each model.
 
