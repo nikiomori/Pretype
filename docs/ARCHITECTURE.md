@@ -31,7 +31,7 @@ Before a request, `SuggestionController` does these checks, in this sequence:
 |---|---|
 | Pretype is off in this app or on this site, or macOS reports secure input | No suggestion. |
 | Text is selected | Fix mode (<kbd>⌥Tab</kbd>). `CorrectionController` controls the overlay. |
-| A typo fix, an emoji shortcode or a sum is at the caret | The correction pill shows. No completion. |
+| An emoji shortcode or a sum is at the caret, or a space ended a misspelled word | The correction pill shows. No completion. |
 | A letter or a digit is immediately after the caret | No suggestion. A completion here joins the rest of the word. |
 | You type the same characters as the suggestion | The suggestion becomes shorter. No new request. |
 | You almost never accept suggestions in this app | No suggestion. The menu shows the numbers and a *Resume* item. |

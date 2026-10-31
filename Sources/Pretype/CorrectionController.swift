@@ -171,13 +171,13 @@ final class CorrectionController {
         }
 
         // Escape suppresses a fix until the token under the caret changes.
-        // lastToken, not trailingWord: trailingWord stops at ':', so a dismissed
+        // inlineToken, not trailingWord: trailingWord stops at ':', so a dismissed
         // ":shrug:" would read as "" and never un-suppress.
-        let tokenAtCaret = Self.lastToken(of: text)
+        let tokenAtCaret = Self.inlineToken(of: text)
         if tokenAtCaret != dismissedCorrectionWord { dismissedCorrectionWord = nil }
 
-        // Inline fix: a closed ":shrug:" previews 🤷, a misspelled word its
-        // correction, over the token (⇥ applies). Takes priority over a
+        // Inline fix: a closed ":shrug:" previews 🤷, a finished misspelled word
+        // its correction, over the token (⇥ applies). Takes priority over a
         // completion — fixing what's written matters more than predicting
         // ahead — but a live ⌥⇥ preview outranks it. A shortcode never reaches
         // the spell-check, or ":asdf:" would put a typo pill on "asdf". Nothing
@@ -193,7 +193,8 @@ final class CorrectionController {
             indicator.stop()
             // Redrawn on every read while its token stands: journaled once.
             if activeCorrection?.word != tokenAtCaret || activeCorrection?.fix != fix {
-                open(row(Self.inlineKind(of: tokenAtCaret), original: tokenAtCaret, fix: fix, ctx: text))
+                open(row(Self.inlineKind(of: tokenAtCaret), original: Self.trimmed(tokenAtCaret),
+                         fix: Self.trimmed(fix), ctx: text))
             }
             activeCorrection = (word: tokenAtCaret, fix: fix)
             showCorrection(fix, word: tokenAtCaret, caret: caret, style: ctx.host)
@@ -211,11 +212,14 @@ final class CorrectionController {
     }
 
     /// The inline fix for the token at the caret, each kind behind its own
-    /// switch: a closed shortcode, a sum ending in "=", or a misspelling.
+    /// switch: a closed shortcode, a sum ending in "=", or a misspelling. A
+    /// misspelling keeps what ended it: "teh, " gives "the, ".
     static func inlineFix(for token: String, context: String) -> String? {
         if token.hasPrefix(":") { return Settings.emojiShortcodes ? EmojiShortcodes.emoji(for: token) : nil }
         if token.hasSuffix("=") { return Settings.inlineMath ? InlineCalculator.completion(for: token) : nil }
-        return Settings.fixTypos ? SpellChecker.correction(for: token, context: context) : nil
+        guard Settings.fixTypos else { return nil }
+        let word = token.prefix(while: \.isWordChar)
+        return SpellChecker.correction(for: String(word), context: context).map { $0 + token.dropFirst(word.count) }
     }
 
     /// Which of `inlineFix`'s three a token gets — the journal's `kind`.
@@ -527,11 +531,12 @@ final class CorrectionController {
     private func liveRead(confirming fix: PendingFix) -> LiveRead? {
         guard let element = host.currentTextElement() else { return nil }
         if fix.deletesOriginal {
-            guard let ctx = env.context(of: element),
-                  ctx.textAfterCaret.first?.isLetter != true,
-                  Self.lastToken(of: ctx.textBeforeCaret) == fix.original else { return nil }
+            guard let ctx = env.context(of: element), ctx.textAfterCaret.first?.isLetter != true else { return nil }
+            let before = ctx.textBeforeCaret
+            guard Self.lastToken(of: before) == fix.original || Self.inlineToken(of: before) == fix.original
+            else { return nil }
             host.recoverCaret(ctx.caretRect)
-            return LiveRead(textBeforeCaret: ctx.textBeforeCaret)
+            return LiveRead(textBeforeCaret: before)
         }
         guard let info = env.selection(element), info.text == fix.original else { return nil }
         host.recoverCaret(info.rect)
@@ -562,8 +567,9 @@ final class CorrectionController {
         wordRect.origin.x = caret.maxX - wordWidth
         wordRect.size.width = wordWidth
         host.noteCaret(caret)
-        host.report("typo \"\(word)\" → \"\(fix)\" (\(Settings.hotkeyStyle.label) to fix)")
-        window.show(mode: .correction(original: word, fix: fix), at: wordRect, host: style)
+        let (original, fixed) = (Self.trimmed(word), Self.trimmed(fix))
+        host.report("typo \"\(original)\" → \"\(fixed)\" (\(Settings.hotkeyStyle.label) to fix)")
+        window.show(mode: .correction(original: original, fix: fixed), at: wordRect, host: style)
     }
 
     /// ⇥ on an inline spell-fix: replace the mistyped word with the correction.
@@ -623,6 +629,21 @@ final class CorrectionController {
             ?? InlineCalculator.trailingExpression(in: text)
             ?? SpellChecker.trailingWord(of: text)
     }
+
+    /// What an inline fix reads: a shortcode or a sum as soon as it closes, a
+    /// word only once a space ends it, with what ended it ("teh, "). A word
+    /// still being typed is no typo: such pills lived 225 ms at the median,
+    /// and 1 of 694 was taken.
+    static func inlineToken(of text: String) -> String {
+        let token = lastToken(of: text)
+        guard token == SpellChecker.trailingWord(of: text) else { return token }
+        guard text.hasSuffix(" ") else { return "" }
+        let marks = text.dropLast().reversed().prefix { ".,;:!?)»\"".contains($0) }
+        let word = SpellChecker.trailingWord(of: String(text.dropLast(marks.count + 1)))
+        return word.isEmpty ? "" : word + String(marks.reversed()) + " "
+    }
+
+    private static func trimmed(_ token: String) -> String { token.trimmingCharacters(in: .whitespaces) }
 }
 
 extension SuggestionController: CorrectionHost {

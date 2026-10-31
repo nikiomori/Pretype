@@ -90,6 +90,36 @@ final class CorrectionControllerTests: XCTestCase {
         XCTAssertEqual(host.refreshes, 1)
     }
 
+    // A typo waits for its word to end: no pill while the word can still
+    // grow, so a completion runs. A space ends it, after a comma too; the
+    // next letter takes the pill away, and ⇥ keeps what ended the word.
+    func testATypoWaitsForItsWordToEnd() {
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh")))
+        XCTAssertNil(world.window.currentMode)
+        XCTAssertEqual(host.completionsCleared, 0)
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh, ")))
+        XCTAssertEqual(world.window.currentMode, .correction(original: "teh,", fix: "the,"))
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh, c")))
+        XCTAssertNil(world.window.currentMode)
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh ")))
+        XCTAssertEqual(fixes.handleKey(keyCode: KeyCode.tab, flags: []), .consumed)
+        world.before = "I saw teh "
+        world.runHops()
+        XCTAssertEqual(host.typed.map(\.text), ["the "])
+        XCTAssertEqual(host.typed.first?.deleted, "teh ")
+        XCTAssertEqual(host.typed.first?.before, "I saw teh ")
+    }
+
+    func testAnInlineTokenIsClosed() {
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey teh"), "")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey teh "), "teh ")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey (teh.) "), "teh.) ")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey teh  "), "", "two spaces: the caret moved on")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey 12 "), "")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey :shrug:"), ":shrug:")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey 12*7="), "12*7=")
+    }
+
     // The pill is only re-validated on AX events, which trail typing: a ⇥
     // landing after the user typed on must not delete what is there now.
     func testAFixWhoseTokenChangedIsDropped() {
@@ -593,7 +623,7 @@ final class CorrectionControllerTests: XCTestCase {
     // expression's answer — never a spell-check of a shortcode, never under
     // a selection fix's preview, never without a caret to draw at.
     func testWhatTheInlineFixOffers() async {
-        XCTAssertTrue(fixes.handleCaret(read("I saw teh")))
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh ")))
         XCTAssertEqual(world.window.currentMode, .correction(original: "teh", fix: "the"))
         fixes.reset()
         XCTAssertTrue(fixes.handleCaret(read("ok :shrug:")))
@@ -602,11 +632,11 @@ final class CorrectionControllerTests: XCTestCase {
         world.window.hide()
         XCTAssertFalse(fixes.handleCaret(read("ok :asdfgh:")))
         XCTAssertNil(world.window.currentMode)
-        let caretless = TextContext(textBeforeCaret: "I saw teh", textAfterCaret: "", caretRect: nil, host: HostTextStyle())
+        let caretless = TextContext(textBeforeCaret: "I saw teh ", textAfterCaret: "", caretRect: nil, host: HostTextStyle())
         XCTAssertFalse(fixes.handleCaret(caretless))
 
         await previewSelectionFix()
-        XCTAssertFalse(fixes.handleCaret(read("I saw teh")), "a selection fix's preview outranks it")
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh ")), "a selection fix's preview outranks it")
         XCTAssertEqual(world.window.currentMode, .fixPreview(original: "teh cat", fix: "the cat"))
     }
 
