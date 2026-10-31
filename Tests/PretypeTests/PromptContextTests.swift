@@ -75,6 +75,21 @@ final class PromptContextTests: XCTestCase {
         XCTAssertEqual(sifted.lines.map(\.fate), [.offColumn, .kept, .kept, .offColumn, .typed])
     }
 
+    /// In a chat a line loses its time, however OCR spelled it, and a short
+    /// reply counts. Outside a chat both stay as they were.
+    func testAChatLineLosesItsTimeAndMayBeShort() {
+        let raw = ["да нет ПОТОМ 7:48 PM", "ну хорошо 7:49 PM //", "уже иду 7:49 Рм", "Как скажешь 6:25 м", "ну 7:49 PM v/",
+                   ") 7:48 PM V/", "7:47 PM //", "SEND", "see ~/notes 14:05"]
+        let read = raw.map { ScreenContext.Reading(text: $0, confidence: 0.9, box: CGRect(x: 100, y: 100, width: 100, height: 16)) }
+        let sifted = ScreenContext.sift(read, excluding: "", field: CGRect(x: 0, y: 900, width: 1000, height: 40), maxChars: 600)
+        XCTAssertEqual(sifted.summary, "да нет ПОТОМ\nну хорошо\nуже иду\nКак скажешь\nну")
+        XCTAssertEqual(sifted.lines.map(\.fate), [.kept, .kept, .kept, .kept, .kept, .tooShort, .tooShort, .notProse, .notProse])
+        XCTAssertEqual(sifted.lines[6].text, "7:47 PM //", "the list shows a line that had only the time")
+
+        let plain = ScreenContext.Reading(text: "see you there 7:49 PM", confidence: 0.9, box: .zero)
+        XCTAssertEqual(ScreenContext.sift([plain], excluding: "", maxChars: 600).summary, "see you there 7:49 PM")
+    }
+
     /// Only as far as needed: a shell line reads no row above it; a box
     /// reads up to its prompt line and the line over it, no further.
     func testAgentBoxRowsReadOnlyWhatTheyNeed() {

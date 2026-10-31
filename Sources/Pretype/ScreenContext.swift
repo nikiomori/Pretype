@@ -202,26 +202,30 @@ enum ScreenContext {
     /// The block for the prompt, and what became of each line read. With a
     /// `field` (window points, top left), a line counts only above it and
     /// over its width. A bubble starts a little past the box's edge, so the
-    /// edge gives 40 pt; a chat list or a side panel lies farther out.
+    /// edge gives 40 pt; a chat list or a side panel lies farther out. There
+    /// a line loses its time, and a reply of one or two words counts: the
+    /// rule of three words stood against interface text, and the column has
+    /// little of it.
     static func sift(_ read: [Reading], excluding typedText: String, field: CGRect? = nil,
                      maxChars: Int) -> (summary: String?, lines: [Line]) {
         let column = field?.insetBy(dx: -40, dy: 0)
         var lines = read.map { reading -> Line in
-            let text = reading.text.trimmingCharacters(in: .whitespaces)
+            let line = reading.text.trimmingCharacters(in: .whitespaces)
+            let text = field == nil ? line : withoutTime(line)
             let fate: Line.Fate
             if let column, reading.box.maxX < column.minX || reading.box.minX > column.maxX {
                 fate = .offColumn
             } else if reading.confidence <= 0.4 {
                 fate = .lowConfidence
-            } else if text.count < 3 {
+            } else if text.count < (field == nil ? 3 : 2) {
                 fate = .tooShort
             } else if typedText.contains(text) || field.map({ reading.box.midY >= $0.minY }) == true {
                 // The typed text is already in the prompt; don't duplicate it.
                 fate = .typed
             } else {
-                fate = looksLikeProse(text) ? .kept : .notProse
+                fate = looksLikeProse(text, short: field != nil) ? .kept : .notProse
             }
-            return Line(text: text, fate: fate)
+            return Line(text: text.isEmpty ? line : text, fate: fate)
         }
         let kept = lines.filter { $0.fate == .kept }.map(\.text)
         guard !kept.isEmpty else { return (nil, lines) }
@@ -246,12 +250,21 @@ enum ScreenContext {
         return (trimmed.isEmpty ? nil : trimmed, lines)
     }
 
+    /// A chat prints the time at a bubble's end, and the read marks after it:
+    /// "see you 7:47 PM //". OCR reads PM in Cyrillic too, or only its last
+    /// letter.
+    static func withoutTime(_ line: String) -> String {
+        line.replacingOccurrences(of: #"\s*\b\d{1,2}:\d{2}(\s*[AaPpРрАа]?[MmМм])?(\s*[/\\vVwW✓✔]{1,3})?\s*$"#,
+                                  with: "", options: .regularExpression)
+    }
+
     /// Keeps conversation/document text, drops terminal prompts, paths,
     /// log lines and ALL-CAPS UI fragments — OCR noise that poisons a prose
     /// model far more than it helps. Script-aware: Han and kana run words
     /// together (4+ letters stand in for 3 words), and a script without case
-    /// (Arabic, Hebrew, Hangul, Han) can't be ALL-CAPS.
-    static func looksLikeProse(_ line: String) -> Bool {
+    /// (Arabic, Hebrew, Hangul, Han) can't be ALL-CAPS. `short` lifts the
+    /// length rule.
+    static func looksLikeProse(_ line: String, short: Bool = false) -> Bool {
         if line.contains("%") || line.contains("$ ") || line.contains("./")
             || line.contains("~/") || line.contains("://") {
             return false
@@ -259,7 +272,7 @@ enum ScreenContext {
         let letterCount = line.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
         guard letterCount * 2 >= line.count else { return false }
         let unspaced = line.unicodeScalars.contains { $0.properties.isIdeographic || (0x3040...0x30FF).contains($0.value) }
-        guard unspaced ? letterCount >= 4 : line.split(separator: " ").count >= 3 else { return false }
+        guard short || (unspaced ? letterCount >= 4 : line.split(separator: " ").count >= 3) else { return false }
         return !line.contains(where: \.isCased) || line.rangeOfCharacter(from: .lowercaseLetters) != nil
     }
 }
