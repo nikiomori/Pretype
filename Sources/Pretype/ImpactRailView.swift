@@ -116,7 +116,7 @@ struct ImpactRailView: View {
                           delta: deltas.first { $0.label == m.label })
             }
             if let fixer = base.fixerName {
-                Caption(String(localized: "Fixes and replies run on \(fixer)."))
+                Caption(base.replyPct == nil ? String(localized: "Fixes run on \(fixer).") : String(localized: "Fixes and replies run on \(fixer)."))
             }
         }
         .opacity(store.enabled ? 1 : 0.4)

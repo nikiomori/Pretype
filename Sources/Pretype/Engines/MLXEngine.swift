@@ -621,7 +621,8 @@ final class MLXEngine: CompletionEngine {
     // MARK: - Voice command
 
     func rewrite(selection: String, instruction: String) async throws -> String? {
-        try await CorrectionGates.rewrite(selection, instruction: instruction) {
+        guard ModelCatalog.writesNewText(modelID) else { return nil }
+        return try await CorrectionGates.rewrite(selection, instruction: instruction) {
             try await self.chatGenerate($0, maxTokens: $1, logRaw: false)
         }
     }
@@ -633,7 +634,8 @@ final class MLXEngine: CompletionEngine {
     /// model can't follow "answer this". One shot, no prompt cache: the prompt is
     /// a fresh screenful every time, so a cache would only ever miss.
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
-        try await CorrectionGates.reply(to: conversation, request: request, instructions: instructionsBox.get()) {
+        guard ModelCatalog.writesNewText(modelID) else { return nil }
+        return try await CorrectionGates.reply(to: conversation, request: request, instructions: instructionsBox.get()) {
             try await self.chatGenerate($0, maxTokens: $1)
         }
     }

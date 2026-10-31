@@ -535,7 +535,7 @@ struct ModelRow: View {
             if let chord {
                 Text("\(chord.m.fixPct)%").foregroundStyle(Color.pink.legible)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("\(chord.m.replyPct)%").foregroundStyle(Color.purple.legible)
+                Text(verbatim: chord.m.replyPct.map { "\($0)%" } ?? "—").foregroundStyle(Color.purple.legible)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text("—").foregroundStyle(.secondary)
@@ -547,7 +547,7 @@ struct ModelRow: View {
         .help(chordHelp(chord))
         // The column names are in the header, which VoiceOver skips.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(chord.map { Text(verbatim: "\(String(localized: "Fix")) \($0.m.fixPct)%, \(String(localized: "Reply")) \($0.m.replyPct)%") }
+        .accessibilityLabel(chord.map { Text(verbatim: "\(String(localized: "Fix")) \($0.m.fixPct)%, \(String(localized: "Reply")) \($0.m.replyPct.map { "\($0)%" } ?? "—")") }
             ?? Text(verbatim: "\(String(localized: "Fix")), \(String(localized: "Reply")): —"))
     }
 
@@ -588,7 +588,10 @@ struct ModelRow: View {
         guard let c = chord else {
             return String(localized: "The fix and reply chords for this model aren't measured by the task eval yet.")
         }
-        return String(localized: "The fix and reply chords run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly [\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(c.m.replyPct)% of reply drafts on topic [\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. \(ModelMetrics.taskSource).")
+        guard let replyPct = c.m.replyPct else {
+            return String(localized: "Fixes run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly [\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)]. It writes no replies.")
+        }
+        return String(localized: "The fix and reply chords run on \(c.runsOn): \(c.m.fixPct)% of noisy lines restored exactly [\(c.m.fixCI.lowerBound)–\(c.m.fixCI.upperBound)] and \(replyPct)% of reply drafts on topic [\(c.m.replyCI.lowerBound)–\(c.m.replyCI.upperBound)] — totals over 17/19 languages at this model's recommended settings; they don't follow the language picker. \(ModelMetrics.taskSource).")
     }
 
     /// Normalization bounds across the measured catalog, so bar lengths are
@@ -801,7 +804,7 @@ private struct PriorityCard: View {
                     figures(Text(chords.fixText).foregroundStyle(Color.pink.legible),
                             Text(chords.latencyText).foregroundStyle(Color.blue.legible),
                             Text(chords.memoryText).foregroundStyle(Color.teal.legible))
-                        .help(chords.fixerName.map { Text("Fixes and replies run on \($0).") } ?? Text(verbatim: ""))
+                        .help(chords.fixerName.map { chords.replyPct == nil ? Text("Fixes run on \($0).") : Text("Fixes and replies run on \($0).") } ?? Text(verbatim: ""))
                 } else if let m = ModelMetrics.metrics(for: pick) {
                     Text(m.shortName)
                         .font(.caption2.weight(.medium))

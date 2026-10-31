@@ -462,9 +462,9 @@ struct ModelMapView: View {
     }
 
     private var chordStats: [ChordStat] {
-        ModelMetrics.tasks.map { id, t in
+        ModelMetrics.tasks.filter { lens == .fix || $0.value.replyPct != nil }.map { id, t in
             ChordStat(id: id, name: ModelMetrics.taskModelNames[id] ?? id,
-                      pct: lens == .fix ? t.fixPct : t.replyPct,
+                      pct: lens == .fix ? t.fixPct : t.replyPct ?? 0,
                       ci: lens == .fix ? t.fixCI : t.replyCI,
                       p50Ms: lens == .fix ? t.fixP50Ms : t.replyP50Ms,
                       ramGB: HostPLE.residentGB(ModelMetrics.taskRamGB(for: id) ?? 1, of: id, pleFromDisk: store.pleFromDisk))

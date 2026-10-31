@@ -137,6 +137,20 @@ enum ModelCatalog {
             title: String(localized: "Qwen3.5 2B M40 — one model for typing and fixes"),
             correctionModelID: "nikimori/Qwen3.5-2B-M40-6bit"
         ),
+        // Our own model (2026-10-31, Eval/runs-2026-10-30-fixpilot and
+        // -31-catalog): EuroLLM-1.7B fine-tuned on fixes and distilled from
+        // EuroLLM-9B, 5-bit. One 1.1 GB file completes and fixes. Completions
+        // tie E2B 4-bit on 17 languages (20.3 vs 20.8% of all, p=0.44); the fix
+        // beats its -it sibling (64 vs 49% restored, 5 vs 31% of clean lines
+        // touched, both p<0.001) at a third less energy per suggestion. An
+        // alternative, not a default: English 25 vs 28, a blind judge reads its
+        // Russian lower (83 vs 95%, p=0.004), and it writes nothing new
+        // (`writesNewText`).
+        ModelOption(
+            id: "nikimoriOne/EuroLLM-1.7B-Pretype-5bit",
+            title: String(localized: "EuroLLM 1.7B — one light model for typing and fixes"),
+            correctionModelID: "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
+        ),
         ModelOption(
             id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             title: String(localized: "Ternary Bonsai 4B — 1 GB base"),  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
@@ -306,6 +320,12 @@ enum ModelCatalog {
     /// serves the 8 GB default and every slim Gemma tier), unseen by any
     /// review. A new upload ships with the app update that pins it. Already
     /// downloaded revisions keep loading from disk (`ModelStorage.localSnapshot`).
+    ///
+    /// The `nikimori/` repos moved to the `nikimoriOne` organization on
+    /// 2026-10-31. Their ids stay: released builds and installed models name
+    /// them, and the Hub redirects them (a clean download through the redirect
+    /// gave identical outputs, runs-2026-10-31-catalog). A new repo at an old
+    /// name would end that redirect, so never create one.
     static let pinnedRevisions: [String: String] = [
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3",
         "mlx-community/Qwen2.5-0.5B-bf16": "ef6b6957374b0c7e10ebe6e8497480bbaf71ba4c",
@@ -320,6 +340,7 @@ enum ModelCatalog {
         "mlx-community/gemma-4-e4b-it-4bit": "475b9088d29754a3379866cf5aeb6b41acd313c2",
         "mlx-community/gemma-4-e4b-it-6bit": "7b781e6489f260b3a24ff38aebb6313b2db516d7",
         "nikimori/MiniCPM5-1B-Base-8bit": "5ccc5190f40e2a2d23caf12283d949d581f6fb16",
+        "nikimoriOne/EuroLLM-1.7B-Pretype-5bit": "706b5fda847227642f32129413cdb7f6b224e4f4",
         "nikimori/Qwen3.5-2B-Base-4bit": "9254a84e0f65f6d4cd97e70cd0957bf66d59a663",
         "nikimori/Qwen3.5-2B-Base-6bit": "03abc6421ac277c0a4ea27aa2d594db5143a168b",
         "nikimori/Qwen3.5-2B-4bit-slim": "d440e47342c84460814566d0f026824228acd152",
@@ -426,6 +447,14 @@ enum ModelCatalog {
             return Recommendation(style: .base, logprobGateTau: -1.18,
                                   scriptGateTau: [.kana: .infinity, .hangul: -0.57])
         }
+        // Our EuroLLM model: its own live-scale Q4 edge; 26% of the odd half
+        // pass at 43% first word right [39–47]. Silent in Hebrew: 6 of 255 shown
+        // right, and the vocabulary has 34 tokens with Hebrew letters
+        // (runs-2026-10-31-catalog).
+        if id.contains("EuroLLM") {
+            return Recommendation(style: .base, logprobGateTau: -1.05,
+                                  scriptGateTau: [.kana: .infinity, .hebrew: .infinity])
+        }
         // Gemma E-series: base, short. Instruct + persona wins on text you
         // author (~85% first-word, eval-v2) but loses on real text: E2B since
         // 2026-10-14 (5% vs 21% of all rows, runs-2026-10-14-small), E4B since
@@ -467,9 +496,20 @@ enum ModelCatalog {
     /// E4B 6-bit's sentence-long continuations as-is, the same as the author's
     /// own text (90%, p=0.85), against 69–70% for E2B 4-bit and Qwen3.5 2B
     /// (54–57% in Danish). E4B 8-bit was not judged; it is the same model at
-    /// a higher precision. Eval/runs-2026-10-28-issue4. Elsewhere Base is Short.
+    /// a higher precision. Eval/runs-2026-10-28-issue4. Our EuroLLM model
+    /// passed too, 85% against 87% for the author's text (n.s.), with shorter
+    /// continuations (runs-2026-10-30-fixpilot). Elsewhere Base is Short.
     static func writesLongBase(_ id: String) -> Bool {
         id == "mlx-community/gemma-4-e4b-8bit" || id == "mlx-community/gemma-4-e4b-6bit"
+            || id == "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
+    }
+
+    /// Whether the chat path writes new text on `id`: replies and voice
+    /// rewrites. Trained on fixes, our EuroLLM model repeats what it reads: it
+    /// copied the reply prompt on 17–43% of eval-reply rows and left 8 of 8
+    /// rewrites as they were (runs-2026-10-31-catalog), so neither runs there.
+    static func writesNewText(_ id: String) -> Bool {
+        id != "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
     }
 
     /// Whether Instruct style continues the text on `id`. Elsewhere the

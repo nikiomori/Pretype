@@ -19187,6 +19187,112 @@
         }
       }
     },
+    "EuroLLM 1.7B — one light model for typing and fixes" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — jeden lehký model pro psaní i opravy"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — én let model til skrivning og rettelser"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B – ein leichtes Modell für Tippen und Korrigieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — un modelo ligero para escribir y corregir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — un seul modèle léger pour écrire et corriger"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — un modello leggero per scrivere e correggere"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — 入力と修正を軽量な1モデルで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — 입력과 교정을 가벼운 한 모델로"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B – één licht model voor typen en corrigeren"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — jeden lekki model do pisania i poprawek"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — um modelo leve para digitar e corrigir"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — un singur model ușor pentru scris și corecturi"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — одна лёгкая модель для набора и исправлений"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — en lätt modell för skrivande och rättning"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — yazma ve düzeltme için tek hafif model"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — одна легка модель для набору й виправлень"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EuroLLM 1.7B — 输入与纠错同一个轻量模型"
+          }
+        }
+      }
+    },
     "Everything is off. Pretype waits in the menu bar and reads nothing." : {
       "localizations" : {
         "cs" : {
@@ -21736,6 +21842,218 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修正大小写、标点和听错的词。"
+          }
+        }
+      }
+    },
+    "Fixes run on %@." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opravy běží na modelu %@."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rettelser kører på %@."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korrekturen laufen auf %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las correcciones usan %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les corrections utilisent %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le correzioni usano %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正は %@ で動作します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수정은 %@에서 실행됩니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correcties draaien op %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poprawki działają na %@."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correções rodam em %@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corecturile rulează pe %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправления работают на %@."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rättningar körs på %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Düzeltmeler %@ üzerinde çalışır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Виправлення працюють на %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正在 %@ 上运行。"
+          }
+        }
+      }
+    },
+    "Fixes run on %@: %lld%% of noisy lines restored exactly [%lld–%lld]. It writes no replies." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opravy běží na modelu %@: %lld%% řádků s chybami obnoveno přesně [%lld–%lld]. Odpovědi nepíše."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rettelser kører på %@: %lld%% af linjerne med fejl gendannet præcist [%lld–%lld]. Den skriver ikke svar."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korrekturen laufen auf %@: %lld%% der fehlerhaften Zeilen exakt wiederhergestellt [%lld–%lld]. Antworten schreibt es nicht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las correcciones usan %@: %lld%% de las líneas con errores restauradas con exactitud [%lld–%lld]. No escribe respuestas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les corrections utilisent %@ : %lld%% des lignes fautives restaurées exactement [%lld–%lld]. Il n’écrit pas de réponses."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le correzioni usano %@: %lld%% delle righe con errori ripristinate esattamente [%lld–%lld]. Non scrive risposte."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正は %@ で動作します: 誤りのある行の %lld%% を正確に復元 [%lld–%lld]。返信は作成しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수정은 %@에서 실행됩니다: 오류가 있는 줄의 %lld%%를 정확히 복원 [%lld–%lld]. 답장은 작성하지 않습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correcties draaien op %@: %lld%% van de regels met fouten exact hersteld [%lld–%lld]. Het schrijft geen antwoorden."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poprawki działają na %@: %lld%% wierszy z błędami odtworzono dokładnie [%lld–%lld]. Nie pisze odpowiedzi."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correções rodam em %@: %lld%% das linhas com erros restauradas com exatidão [%lld–%lld]. Não escreve respostas."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corecturile rulează pe %@: %lld%% din liniile cu greșeli restaurate exact [%lld–%lld]. Nu scrie răspunsuri."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправления работают на %@: %lld%% строк с ошибками восстановлены точно [%lld–%lld]. Ответы модель не пишет."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rättningar körs på %@: %lld%% av raderna med fel återställda exakt [%lld–%lld]. Den skriver inga svar."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Düzeltmeler %@ üzerinde çalışır: hatalı satırların %%%lld kadarı tam olarak geri yüklendi [%lld–%lld]. Yanıt yazmaz."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Виправлення працюють на %@: %lld%% рядків із помилками відновлено точно [%lld–%lld]. Відповідей модель не пише."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正在 %@ 上运行:%lld%% 的错误行被完全还原 [%lld–%lld]。不撰写回复。"
           }
         }
       }
@@ -36266,6 +36584,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选项"
+          }
+        }
+      }
+    },
+    "Our own model: one 1.1 GB file types and fixes. Completions tie E2B 4-bit on the 17-language set (p=0.44) and it fixes more (64 vs 49%) while it touches far less clean text (5 vs 31%), at a third less energy. It writes no replies or voice rewrites and stays silent in Hebrew; English and Russian are its weak spots." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Náš vlastní model: jeden soubor o velikosti 1,1 GB pro psaní i opravy. Doplňování je na sadě 17 jazyků vyrovnané s E2B 4-bit (p=0.44), opravuje víc (64 vs 49 %), čistého textu se dotýká mnohem méně (5 vs 31 %) a spotřebuje o třetinu méně energie. Nepíše odpovědi ani hlasové přepisy a v hebrejštině mlčí; slabinou je angličtina a ruština."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vores egen model: én fil på 1,1 GB til både skrivning og rettelser. Fuldførelser står lige med E2B 4-bit på sættet med 17 sprog (p=0.44), den retter mere (64 vs 49 %), rører langt mindre ved korrekt tekst (5 vs 31 %) og bruger en tredjedel mindre energi. Den skriver ikke svar eller stemmeomskrivninger og er tavs på hebraisk; engelsk og russisk er dens svage punkter."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unser eigenes Modell: eine Datei mit 1,1 GB zum Tippen und Korrigieren. Bei den Vervollständigungen liegt es im 17-Sprachen-Set gleichauf mit E2B 4-bit (p=0.44), es korrigiert mehr (64 vs. 49 %), verändert korrekten Text weit seltener (5 vs. 31 %) und braucht ein Drittel weniger Energie. Antworten und Sprachumschreibungen schreibt es nicht, auf Hebräisch schweigt es; Englisch und Russisch sind seine Schwächen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuestro propio modelo: un archivo de 1,1 GB para escribir y corregir. Sus sugerencias empatan con E2B 4-bit en el conjunto de 17 idiomas (p=0.44), corrige más (64 frente a 49 %), toca mucho menos el texto correcto (5 frente a 31 %) y gasta un tercio menos de energía. No escribe respuestas ni reescrituras por voz y calla en hebreo; el inglés y el ruso son sus puntos débiles."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notre propre modèle : un seul fichier de 1,1 Go pour écrire et corriger. Ses suggestions font jeu égal avec E2B 4-bit sur les 17 langues (p=0.44), il corrige davantage (64 contre 49 %), touche bien moins au texte correct (5 contre 31 %) et consomme un tiers d’énergie en moins. Il n’écrit ni réponses ni réécritures vocales et reste muet en hébreu ; l’anglais et le russe sont ses points faibles."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il nostro modello: un solo file da 1,1 GB per scrivere e correggere. I completamenti pareggiano E2B 4-bit sul set di 17 lingue (p=0.44), corregge di più (64 contro 49%), tocca molto meno il testo corretto (5 contro 31%) e consuma un terzo di energia in meno. Non scrive risposte né riscritture vocali e tace in ebraico; inglese e russo sono i suoi punti deboli."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自社モデル: 1.1 GB の1ファイルで入力と修正を担当。補完は17言語セットで E2B 4-bit と同等 (p=0.44)、修正は多く (64 対 49%)、正しいテキストへの変更はずっと少なく (5 対 31%)、消費エネルギーは3分の1少なめ。返信と音声での書き換えは行わず、ヘブライ語では提案しません。英語とロシア語が弱点です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자체 모델: 1.1 GB 파일 하나로 입력과 교정을 처리합니다. 17개 언어 세트에서 완성은 E2B 4-bit와 동률이고 (p=0.44), 교정은 더 많으며 (64 대 49%), 올바른 텍스트는 훨씬 덜 건드리고 (5 대 31%), 에너지는 3분의 1 적게 씁니다. 답장과 음성 재작성은 하지 않으며 히브리어에서는 제안하지 않습니다. 영어와 러시아어가 약점입니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ons eigen model: één bestand van 1,1 GB voor typen en corrigeren. Aanvullingen staan gelijk met E2B 4-bit op de set van 17 talen (p=0.44), het corrigeert meer (64 vs 49%), raakt correcte tekst veel minder aan (5 vs 31%) en gebruikt een derde minder energie. Het schrijft geen antwoorden of spraakherschrijvingen en zwijgt in het Hebreeuws; Engels en Russisch zijn zijn zwakke punten."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nasz własny model: jeden plik 1,1 GB do pisania i poprawek. Podpowiedzi remisują z E2B 4-bit na zestawie 17 języków (p=0.44), poprawia więcej (64 vs 49%), znacznie rzadziej rusza poprawny tekst (5 vs 31%) i zużywa o jedną trzecią mniej energii. Nie pisze odpowiedzi ani przeróbek głosowych i milczy po hebrajsku; słabe strony to angielski i rosyjski."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nosso próprio modelo: um arquivo de 1,1 GB para digitar e corrigir. As sugestões empatam com E2B 4-bit no conjunto de 17 idiomas (p=0.44), corrige mais (64 vs 49%), mexe muito menos em texto correto (5 vs 31%) e gasta um terço menos de energia. Não escreve respostas nem reescritas por voz e fica em silêncio em hebraico; inglês e russo são seus pontos fracos."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelul nostru: un singur fișier de 1,1 GB pentru scris și corecturi. Completările sunt la egalitate cu E2B 4-bit pe setul de 17 limbi (p=0.44), corectează mai mult (64 vs 49%), atinge mult mai rar textul corect (5 vs 31%) și consumă cu o treime mai puțină energie. Nu scrie răspunsuri sau rescrieri vocale și tace în ebraică; engleza și rusa sunt punctele slabe."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наша собственная модель: один файл на 1.1 GB и для набора, и для исправлений. На наборе из 17 языков дополнения вровень с E2B 4-bit (p=0.44), исправляет больше (64 против 49%), чистый текст трогает намного реже (5 против 31%) и тратит на треть меньше энергии. Ответы и голосовые переписывания не делает, на иврите молчит; слабые места — английский и русский."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vår egen modell: en fil på 1,1 GB för skrivande och rättning. Kompletteringarna ligger lika med E2B 4-bit på uppsättningen med 17 språk (p=0.44), den rättar mer (64 mot 49 %), rör korrekt text mycket mindre (5 mot 31 %) och drar en tredjedel mindre energi. Den skriver inga svar eller röstomskrivningar och är tyst på hebreiska; engelska och ryska är dess svaga punkter."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kendi modelimiz: yazma ve düzeltme için 1,1 GB'lık tek dosya. Tamamlamalar 17 dilli sette E2B 4-bit ile başa baş (p=0.44), daha çok düzeltir (%64'e karşı %49), doğru metne çok daha az dokunur (%5'e karşı %31) ve üçte bir daha az enerji harcar. Yanıt ya da sesli yeniden yazım üretmez, İbranicede sessiz kalır; zayıf noktaları İngilizce ve Rusçadır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наша власна модель: один файл на 1,1 ГБ і для набору, і для виправлень. Доповнення на наборі з 17 мов нарівні з E2B 4-bit (p=0.44), виправляє більше (64 проти 49%), значно рідше чіпає правильний текст (5 проти 31%) і витрачає на третину менше енергії. Відповідей і голосових переписувань не пише, івритом мовчить; слабкі місця — англійська й російська."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们自己的模型:一个 1.1 GB 文件同时负责输入和纠错。在 17 种语言的数据集上,补全与 E2B 4-bit 持平 (p=0.44),纠错更多 (64% 对 49%),改动正确文本的情况少得多 (5% 对 31%),能耗少三分之一。不撰写回复或语音改写,希伯来语下保持静默;英语和俄语是其弱项。"
           }
         }
       }

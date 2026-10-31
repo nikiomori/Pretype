@@ -123,9 +123,10 @@ enum ModelPriority: String, CaseIterable {
     }
 
     /// The downloadable measured catalog (the system model has no place in a
-    /// footprint/speed contest).
+    /// footprint/speed contest), less a model that writes nothing new: a goal
+    /// card must not cost the user replies and voice commands.
     private static var measured: [ModelMetrics] {
-        ModelMetrics.all.filter { $0.ramGB > 0 }
+        ModelMetrics.all.filter { $0.ramGB > 0 && ModelCatalog.writesNewText($0.id) }
     }
 
     /// The goal cards worth showing on `axis`. One per landing model — when

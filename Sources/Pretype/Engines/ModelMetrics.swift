@@ -84,6 +84,13 @@ struct ModelMetrics {
                      firstWordPct: 29, ci: 27...32, coveragePct: 80,
                      logProbPerChar: -0.937, p50Ms: 32, ramGB: 1.5,
                      note: String(localized: "Qwen3.5 2B with part of its post-trained build blended in, so one 1.5 GB model both types and fixes — no second download. Completions tie the Base build (18.5 vs 18.9% on 17 languages, p=0.06). The fix chord restores more typos than the Base pick's sibling (41 vs 33%) and changes clean lines far less often (10 vs 28%), both p<0.001.")),
+        // Our own model, booked 2026-10-31 with the 10-15 rules
+        // (Eval/runs-2026-10-31-catalog: book.py, run.sh); p50 = E2B 4-bit's
+        // 34 ms × the interleaved same-binary ratio 31/47 ms.
+        ModelMetrics(id: "nikimoriOne/EuroLLM-1.7B-Pretype-5bit", shortName: "EuroLLM 1.7B",
+                     firstWordPct: 30, ci: 28...33, coveragePct: 78,
+                     logProbPerChar: -0.887, p50Ms: 22, ramGB: 1.1,
+                     note: String(localized: "Our own model: one 1.1 GB file types and fixes. Completions tie E2B 4-bit on the 17-language set (p=0.44) and it fixes more (64 vs 49%) while it touches far less clean text (5 vs 31%), at a third less energy. It writes no replies or voice rewrites and stays silent in Hebrew; English and Russian are its weak spots.")),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 24...29, coveragePct: 82,
                      logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1,
@@ -132,6 +139,7 @@ struct ModelMetrics {
         "mlx-community/Qwen2.5-0.5B-bf16": (27, 41),
         "nikimori/Qwen3.5-2B-Base-6bit": (21, 53),
         "nikimori/Qwen3.5-2B-M40-6bit": (23, 49),
+        "nikimoriOne/EuroLLM-1.7B-Pretype-5bit": (18, 53),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42),
     ]
 
@@ -168,6 +176,9 @@ struct ModelMetrics {
             ["ar": 6, "cs": 6, "da": 10, "de": 14, "en": 27, "es": 23, "fr": 19, "he": 9, "it": 15, "ja": 4, "ko": 6, "nl": 12, "pl": 12, "pt": 18, "ro": 10, "ru": 16, "sv": 5, "tr": 6, "uk": 6, "zh": 10],
         "nikimori/Qwen3.5-2B-Base-6bit":
             ["ar": 8, "cs": 11, "da": 23, "de": 20, "en": 28, "es": 28, "fr": 26, "he": 13, "it": 21, "ja": 3, "ko": 7, "nl": 21, "pl": 19, "pt": 24, "ro": 23, "ru": 21, "sv": 19, "tr": 9, "uk": 17, "zh": 9],
+        // Booked 2026-10-31 on the same rules (runs-2026-10-31-catalog/book.py).
+        "nikimoriOne/EuroLLM-1.7B-Pretype-5bit":
+            ["ar": 10, "cs": 14, "da": 26, "de": 25, "en": 25, "es": 27, "fr": 23, "he": 2, "it": 23, "ja": 9, "ko": 8, "nl": 24, "pl": 24, "pt": 23, "ro": 22, "ru": 23, "sv": 21, "tr": 12, "uk": 19, "zh": 15],
         // Booked 2026-10-16 on the same rules (runs-2026-10-16-m1/rebook/book.py).
         "nikimori/Qwen3.5-2B-M40-6bit":
             ["ar": 7, "cs": 12, "da": 21, "de": 20, "en": 27, "es": 26, "fr": 24, "he": 13, "it": 21, "ja": 2, "ko": 8, "nl": 21, "pl": 19, "pt": 24, "ro": 22, "ru": 20, "sv": 19, "tr": 9, "uk": 16, "zh": 9],
@@ -345,8 +356,10 @@ struct ModelMetrics {
         /// Warm median latency of a fix, ms, on the dev machine (release build).
         let fixP50Ms: Int
         /// % of reply drafts the judge rates on topic, over the 380 rows
-        /// with no draft (no draft = a miss; Wilson 95% CI).
-        let replyPct: Int
+        /// with no draft (no draft = a miss; Wilson 95% CI). nil where the
+        /// model writes none (`ModelCatalog.writesNewText`): the two reply
+        /// fields below then mean nothing.
+        let replyPct: Int?
         let replyCI: ClosedRange<Int>
         let replyP50Ms: Int
         /// Set when the row was booked on a run of its own rather than the
@@ -389,6 +402,10 @@ struct ModelMetrics {
             fixPct: 41, fixCI: 37...45, falseFixPct: 10, fixP50Ms: 173,
             replyPct: 56, replyCI: 50...60, replyP50Ms: 156,
             ownRun: "booked on its own run (2026-10-16), replies judged by Qwen3.8 27B, which rates the Qwen3.5 2B sibling 37% [32–42] there"),
+        "nikimoriOne/EuroLLM-1.7B-Pretype-5bit": TaskMetrics(
+            fixPct: 64, fixCI: 60...68, falseFixPct: 5, fixP50Ms: 63,
+            replyPct: nil, replyCI: 0...0, replyP50Ms: 0,
+            ownRun: "booked on its own run (2026-10-31), where E2B-it 4-bit restores 49% and touches 31% of clean lines; it writes no replies"),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
             fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 33,
             replyPct: 3, replyCI: 2...6, replyP50Ms: 78),
@@ -410,6 +427,7 @@ struct ModelMetrics {
         "mlx-community/gemma-4-e2b-it-4bit": "Gemma E2B-it 4-bit",
         "mlx-community/Qwen3.5-2B-4bit": "Qwen3.5 2B",
         "nikimori/Qwen3.5-2B-M40-6bit": "Qwen3.5 2B M40",
+        "nikimoriOne/EuroLLM-1.7B-Pretype-5bit": "EuroLLM 1.7B",
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "Qwen2.5 0.5B-it",
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": "Bonsai 4B",
     ]

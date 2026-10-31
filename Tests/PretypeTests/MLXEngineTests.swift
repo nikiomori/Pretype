@@ -704,6 +704,19 @@ final class MLXEngineTests: MLXTestCase {
         XCTAssertTrue(ModelCatalog.writesLongBase("mlx-community/gemma-4-e4b-8bit"))
         XCTAssertFalse(ModelCatalog.writesLongBase("mlx-community/gemma-4-e2b-4bit"))
         XCTAssertFalse(ModelCatalog.writesLongBase("nikimori/Qwen3.5-2B-M40-6bit"))
+        XCTAssertTrue(ModelCatalog.writesLongBase("nikimoriOne/EuroLLM-1.7B-Pretype-5bit"))
+    }
+
+    // The fix-trained model repeats what it reads: it runs no reply and no
+    // voice rewrite, and the catalog books no reply figure for it.
+    func testTheFixTrainedModelWritesNothingNew() {
+        let id = "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
+        XCTAssertFalse(ModelCatalog.writesNewText(id))
+        XCTAssertTrue(ModelCatalog.writesNewText("nikimori/Qwen3.5-2B-M40-6bit"))
+        XCTAssertNil(ModelMetrics.tasks[id]?.replyPct)
+        XCTAssertEqual(ModelCatalog.option(for: id)?.correctionModelID, id)
+        XCTAssertEqual(ModelCatalog.silentScripts(for: id), [.kana, .hebrew])
+        for card in ModelPriority.allCases { XCTAssertNotEqual(card.pick(axis: "core"), id, "\(card)") }
     }
 }
 
