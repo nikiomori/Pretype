@@ -112,6 +112,27 @@ final class PromptContextHostTests: XCTestCase {
         XCTAssertEqual(world.captures.count, 2)
     }
 
+    // The first capture after a focus change reads nothing: one more look
+    // soon, not in 25 s, and only one.
+    func testAnEmptyFirstCaptureLooksOnceMore() async {
+        context.refreshScreenIfNeeded(typed: "Hi")
+        await waitUntil { !context.screenCaptureInFlight }
+        world.screen = "Alice: lunch?"
+        world.advance(1.5)
+        await waitUntil { !context.screenCaptureInFlight }
+        XCTAssertEqual(context.screenSummary, "Alice: lunch?")
+
+        world.screen = nil
+        context.focusChanged()
+        context.refreshScreenIfNeeded(typed: "Hi")
+        await waitUntil { !context.screenCaptureInFlight }
+        world.advance(1.5)
+        await waitUntil { !context.screenCaptureInFlight }
+        world.advance(1.5)
+        XCTAssertFalse(context.screenCaptureInFlight)
+        XCTAssertEqual(world.captures.count, 4)
+    }
+
     // A capture warms the prompt only when it changed it — or when it is
     // the first since the focus moved, which finds the prompt cold even with
     // nothing captured.

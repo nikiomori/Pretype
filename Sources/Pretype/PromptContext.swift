@@ -184,12 +184,12 @@ final class PromptContext {
     /// Refreshes the window OCR at most every 25 s, off the typing path.
     /// Paused on battery: the capture only feeds completions (a reply takes
     /// its own fresh one), and its landing would warm a prompt nobody runs.
-    func refreshScreenIfNeeded(typed: String) {
+    func refreshScreenIfNeeded(typed: String, retrying: Bool = false) {
         let typingContext = host.typingContext
         guard Settings.enabled, Settings.screenContextEnabled, env.screenRecordingAllowed(),
               !env.pausedForBattery(), AppPolicy.allowsScreenContext(typingContext) else { return }
         guard !screenCaptureInFlight,
-              env.now().timeIntervalSince(screenCapturedAt) > 25,
+              retrying || env.now().timeIntervalSince(screenCapturedAt) > 25,
               host.observedPID > 0 else { return }
         screenCaptureInFlight = true
         let pid = host.observedPID
@@ -208,10 +208,20 @@ final class PromptContext {
                 }
                 // The first capture after a focus change warms even when it
                 // found nothing: the new field's prompt is cold either way.
-                let changed = summary != self.screenSummary || self.screenCapturedAt == .distantPast
+                let first = self.screenCapturedAt == .distantPast
+                let changed = summary != self.screenSummary || first
                 self.screenCapturedAt = self.env.now()
                 self.screenSummary = summary
                 if changed { self.warm() }
+                // The first capture after a focus change can read nothing,
+                // and the next one is 25 s away, past a quick reply. One more
+                // look soon.
+                if first, summary == nil {
+                    self.env.after(1.5) { [weak self] in
+                        guard let self, self.host.focusGeneration == generation else { return }
+                        self.refreshScreenIfNeeded(typed: self.host.knownTextBeforeCaret ?? typed, retrying: true)
+                    }
+                }
                 // Count only, never the text: the log is exportable and this is
                 // OTHER people's on-screen text. Passing it as `detail` here
                 // leaked it straight past the prompt log's redaction, and past

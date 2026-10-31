@@ -63,7 +63,8 @@ enum ScreenContext {
             let region = aroundCaret ? String(localized: "250 pt above and below the caret")
                                      : String(localized: "the whole window")
             let when = RelativeDateTimeFormatter().localizedString(for: date, relativeTo: .now)
-            let rows = lines.map { $0.fate == .kept ? "✓ \($0.text)" : "✗ \($0.fate.reason): \($0.text)" }
+            let rows = lines.isEmpty ? [String(localized: "No text was read.")]
+                : lines.map { $0.fate == .kept ? "✓ \($0.text)" : "✗ \($0.fate.reason): \($0.text)" }
             return ([[app, when, region].joined(separator: " · ")] + rows).joined(separator: "\n")
         }
     }
