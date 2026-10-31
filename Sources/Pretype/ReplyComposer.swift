@@ -134,6 +134,7 @@ final class ReplyComposer {
         request.agentSession = session != nil
         let engine = host.engine
         let capture = env.captureScreen
+        let field = prompts.chatField
         let pid = host.observedPID
         host.report("composing a reply…")
         host.startReply { queryID in Task { [weak self] in
@@ -142,7 +143,7 @@ final class ReplyComposer {
             // ROI either: that band is ±250 pt of the input box, while a reply
             // needs the exchange above it — the whole window, capped from the
             // bottom, which is where the recent messages are.
-            let conversation = if let session { session } else { await capture(pid, ctx.textBeforeCaret, nil, 1200) }
+            let conversation = if let session { session } else { await capture(pid, ctx.textBeforeCaret, nil, field, 1200) }
             if Task.isCancelled { return }
             let outcome: Result<String?, Error>
             if let conversation {

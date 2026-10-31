@@ -33,11 +33,12 @@ enum ScreenContext {
     /// One line OCR read and what became of it.
     struct Line: Equatable, Sendable {
         enum Fate: Sendable {
-            case kept, lowConfidence, tooShort, typed, notProse, overLimit
+            case kept, offColumn, lowConfidence, tooShort, typed, notProse, overLimit
 
             var reason: String {
                 switch self {
                 case .kept: ""
+                case .offColumn: String(localized: "outside the message column")
                 case .lowConfidence: String(localized: "unsure reading")
                 case .tooShort: String(localized: "too short")
                 case .typed: String(localized: "already typed")
@@ -51,17 +52,22 @@ enum ScreenContext {
         var fate: Fate
     }
 
+    /// A line as Vision read it. `box` is in window points from the top left.
+    struct Reading: Sendable {
+        let text: String
+        let confidence: Float
+        let box: CGRect
+    }
+
     /// The last capture, line by line. Other people's text: it stays in
     /// memory and never reaches the debug log.
     struct Report: Sendable {
         let app: String
         let date: Date
-        let aroundCaret: Bool
+        let region: String
         let lines: [Line]
 
         var listing: String {
-            let region = aroundCaret ? String(localized: "250 pt above and below the caret")
-                                     : String(localized: "the whole window")
             let when = RelativeDateTimeFormatter().localizedString(for: date, relativeTo: .now)
             let rows = lines.isEmpty ? [String(localized: "No text was read.")]
                 : lines.map { $0.fate == .kept ? "✓ \($0.text)" : "✗ \($0.fate.reason): \($0.text)" }
@@ -74,9 +80,12 @@ enum ScreenContext {
     /// OCR summary of `pid`'s frontmost window in reading order, deduplicated
     /// against the already-typed text, capped at `maxChars` (keeping the
     /// bottom of the window — in chats that's where the recent messages are).
+    /// `field`: a chat's message box, Cocoa coordinates. Then only its column
+    /// counts (`sift`) and the whole height is read: a picture above the box
+    /// can fill the ±250 pt band and leave the messages out of it.
     static let defaultMaxChars = 600
 
-    static func capture(pid: pid_t, excluding typedText: String, caretRect: CGRect?,
+    static func capture(pid: pid_t, excluding typedText: String, caretRect: CGRect?, field: CGRect? = nil,
                         maxChars: Int = defaultMaxChars) async -> String? {
         guard hasPermission else { return nil }
         // Text Input Sources answer on the main thread only.
@@ -113,7 +122,7 @@ enum ScreenContext {
             // flipped into the window frame's top-left-origin space; `top` is
             // clamped into the window so the rect stays inside the unit square.
             var roi: CGRect?
-            if let caret = caretRect {
+            if field == nil, let caret = caretRect {
                 let height = window.frame.height
                 let top = min(max(0, AXText.flipped(caret).minY - window.frame.minY - 250), height)
                 let cropHeight = min(height - top, 500)
@@ -121,9 +130,13 @@ enum ScreenContext {
             }
 
             let read = try recognizeText(in: image, regionOfInterest: roi, languages: languages)
-            let sifted = sift(read, excluding: typedText, maxChars: maxChars)
+            let box = field.map { AXText.flipped($0).offsetBy(dx: -window.frame.minX, dy: -window.frame.minY) }
+            let sifted = sift(read, excluding: typedText, field: box, maxChars: maxChars)
+            let region = field != nil ? String(localized: "the message column")
+                : roi != nil ? String(localized: "250 pt above and below the caret")
+                : String(localized: "the whole window")
             let report = Report(app: window.owningApplication?.applicationName ?? "", date: .now,
-                                aroundCaret: caretRect != nil, lines: sifted.lines)
+                                region: region, lines: sifted.lines)
             await MainActor.run { lastReport = report }
             return sifted.summary
         } catch {
@@ -158,7 +171,7 @@ enum ScreenContext {
     /// Every line Vision read, top of the window first.
     private static func recognizeText(
         in image: CGImage, regionOfInterest: CGRect?, languages: [String]?
-    ) throws -> [(text: String, confidence: Float)] {
+    ) throws -> [Reading] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         if let languages {
@@ -172,23 +185,37 @@ enum ScreenContext {
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         try handler.perform([request])
         // Vision's normalized coordinates are bottom-left; top of window first.
+        // Relative to the region when there is one: only a whole-window read
+        // uses `box`.
+        let (width, height) = (CGFloat(image.width), CGFloat(image.height))
         return (request.results ?? [])
             .sorted { $0.boundingBox.midY > $1.boundingBox.midY }
-            .compactMap { $0.topCandidates(1).first }
-            .map { (text: $0.string, confidence: $0.confidence) }
+            .compactMap { observation -> Reading? in
+                guard let candidate = observation.topCandidates(1).first else { return nil }
+                let box = observation.boundingBox
+                return Reading(text: candidate.string, confidence: candidate.confidence,
+                               box: CGRect(x: box.minX * width, y: (1 - box.maxY) * height,
+                                           width: box.width * width, height: box.height * height))
+            }
     }
 
-    /// The block for the prompt, and what became of each line read.
-    static func sift(_ read: [(text: String, confidence: Float)], excluding typedText: String,
+    /// The block for the prompt, and what became of each line read. With a
+    /// `field` (window points, top left), a line counts only above it and
+    /// over its width. A bubble starts a little past the box's edge, so the
+    /// edge gives 40 pt; a chat list or a side panel lies farther out.
+    static func sift(_ read: [Reading], excluding typedText: String, field: CGRect? = nil,
                      maxChars: Int) -> (summary: String?, lines: [Line]) {
-        var lines = read.map { raw -> Line in
-            let text = raw.text.trimmingCharacters(in: .whitespaces)
+        let column = field?.insetBy(dx: -40, dy: 0)
+        var lines = read.map { reading -> Line in
+            let text = reading.text.trimmingCharacters(in: .whitespaces)
             let fate: Line.Fate
-            if raw.confidence <= 0.4 {
+            if let column, reading.box.maxX < column.minX || reading.box.minX > column.maxX {
+                fate = .offColumn
+            } else if reading.confidence <= 0.4 {
                 fate = .lowConfidence
             } else if text.count < 3 {
                 fate = .tooShort
-            } else if typedText.contains(text) {
+            } else if typedText.contains(text) || field.map({ reading.box.midY >= $0.minY }) == true {
                 // The typed text is already in the prompt; don't duplicate it.
                 fate = .typed
             } else {

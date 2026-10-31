@@ -63,14 +63,16 @@ extension SuggestionController {
                 if Settings.repliesEnabled, Settings.autoReply, self.env.isTerminalField(element) {
                     self.watchAgentTurn(element, generation: generation, last: self.env.agentTranscript(element))
                 }
-                self.promptContext.refreshScreenIfNeeded(typed: "")
+                // Read first: the capture needs the field's place on screen,
+                // and leaves out the text already in it.
+                let context = self.currentTextElement().flatMap { self.env.context(of: $0) }
+                if let context { self.field.noteCaret(context.caretRect, style: context.host) }
+                self.promptContext.refreshScreenIfNeeded(typed: context?.textBeforeCaret ?? "")
                 // No capture coming (context off, no permission, blocked app):
                 // warm the new field's prompt now — its first keystroke would
                 // otherwise prefill the whole text. A capture warms on landing.
                 if !self.promptContext.screenCaptureInFlight {
-                    self.promptContext.warm(self.currentTextElement().flatMap {
-                        self.env.context(of: $0)?.textBeforeCaret
-                    })
+                    self.promptContext.warm(context?.textBeforeCaret)
                 }
             }
         }

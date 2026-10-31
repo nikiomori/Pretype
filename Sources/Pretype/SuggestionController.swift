@@ -66,6 +66,7 @@ final class SuggestionController {
     /// The caret of the latest context, and the field's style there
     /// (`FieldState.caret`, `.style`).
     var lastCaretRect: CGRect? { field.caret }
+    var lastFieldRect: CGRect? { field.style.fieldRect }
     var lastHostStyle: HostTextStyle { field.style }
 
     /// Bumped on every real focus change; in-flight captures and corrections

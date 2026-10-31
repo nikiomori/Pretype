@@ -7,6 +7,7 @@ private final class FakePromptHost: PromptContextHost {
     var typingContext = TypingContext()
     var focusGeneration = 0
     var lastCaretRect: CGRect?
+    var lastFieldRect: CGRect?
     var knownTextBeforeCaret: String?
     var busyReason: String?
     var completionsWelcome = true
@@ -110,6 +111,18 @@ final class PromptContextHostTests: XCTestCase {
         context.refreshScreenIfNeeded(typed: "Hi")
         await waitUntil { !context.screenCaptureInFlight }
         XCTAssertEqual(world.captures.count, 2)
+    }
+
+    // Only a chat's box names a column, and only a box wide enough to be one.
+    func testAChatReadsTheColumnOfItsBox() {
+        host.lastFieldRect = CGRect(x: 400, y: 40, width: 800, height: 30)
+        host.typingContext = TypingContext(bundleID: "ru.keepcoder.Telegram")
+        XCTAssertEqual(context.chatField, host.lastFieldRect)
+        host.lastFieldRect = CGRect(x: 400, y: 40, width: 90, height: 30)
+        XCTAssertNil(context.chatField)
+        host.lastFieldRect = CGRect(x: 400, y: 40, width: 800, height: 30)
+        host.typingContext = TypingContext(bundleID: "com.apple.Notes")
+        XCTAssertNil(context.chatField)
     }
 
     // The first capture after a focus change reads nothing: one more look

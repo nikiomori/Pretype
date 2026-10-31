@@ -14,6 +14,7 @@ private final class FakeReplyHost: ReplyHost, IndicatorHost, PromptContextHost {
     var observedPID: pid_t = 42
     var focusGeneration = 0
     var lastCaretRect: CGRect?
+    var lastFieldRect: CGRect?
     var lastHostStyle = HostTextStyle()
     var hasActiveSuggestion = false
     var isWorking = false

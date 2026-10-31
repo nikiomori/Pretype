@@ -375,7 +375,7 @@ final class FakeWorld {
             screenRecordingAllowed: { [unowned self] in screenRecording },
             // Weak: a reply task cancelled at teardown still captures first.
             networkUnmetered: { [unowned self] in networkUnmetered },
-            captureScreen: { [weak self] _, _, _, maxChars in
+            captureScreen: { [weak self] _, _, _, _, maxChars in
                 self?.captures.append(maxChars)
                 return self?.screen
             },

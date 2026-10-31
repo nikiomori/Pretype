@@ -9,6 +9,7 @@ protocol PromptContextHost: AnyObject {
     /// one belongs to the field just left.
     var focusGeneration: Int { get }
     var lastCaretRect: CGRect? { get }
+    var lastFieldRect: CGRect? { get }
     var knownTextBeforeCaret: String? { get }
     /// Why the pipeline can start nothing now, or nil.
     var busyReason: String? { get }
@@ -168,6 +169,13 @@ final class PromptContext {
         }
     }
 
+    /// A chat's message box: the OCR keeps to its column, because the rest of
+    /// the window is other chats. A narrow field is no column.
+    var chatField: CGRect? {
+        guard AppPolicy.isChat(host.typingContext), let field = host.lastFieldRect, field.width > 100 else { return nil }
+        return field
+    }
+
     /// Surfaced in the Context submenu.
     var screenStatus: String {
         guard Settings.screenContextEnabled else { return "off" }
@@ -196,9 +204,10 @@ final class PromptContext {
         let generation = host.focusGeneration
         let appName = typingContext.appName ?? "?"
         let caret = host.lastCaretRect
+        let field = chatField
         let capture = env.captureScreen
         Task { [weak self] in
-            let summary = await capture(pid, typed, caret, ScreenContext.defaultMaxChars)
+            let summary = await capture(pid, typed, caret, field, ScreenContext.defaultMaxChars)
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.screenCaptureInFlight = false

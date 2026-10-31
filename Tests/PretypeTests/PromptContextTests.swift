@@ -45,14 +45,34 @@ final class PromptContextTests: XCTestCase {
     /// The report names what kept each line out, and the block is the kept
     /// lines that fit, the bottom of the window first.
     func testTheCaptureSaysWhatBecameOfEachLine() {
-        let read: [(text: String, confidence: Float)] = [
+        let raw: [(String, Float)] = [
             ("Chats", 0.9), ("12", 0.9), ("see you at seven tonight", 0.2), ("what I am typing", 0.9),
             ("the first message here", 0.9), ("the second message here", 0.9),
         ]
+        let read = raw.map { ScreenContext.Reading(text: $0.0, confidence: $0.1, box: .zero) }
         let sifted = ScreenContext.sift(read, excluding: "what I am typing", maxChars: 30)
         XCTAssertEqual(sifted.summary, "the second message here")
         XCTAssertEqual(sifted.lines.map(\.fate), [.notProse, .tooShort, .lowConfidence, .typed, .overLimit, .kept])
-        XCTAssertNil(ScreenContext.sift([("Chats", 0.9)], excluding: "", maxChars: 30).summary)
+        XCTAssertNil(ScreenContext.sift(Array(read.prefix(1)), excluding: "", maxChars: 30).summary)
+    }
+
+    /// A chat keeps the bubbles over its box, even one that starts a little
+    /// past the edge, and drops the chat list, the side panel and the box.
+    func testAChatKeepsOnlyTheColumnAboveItsBox() {
+        func line(_ text: String, x: CGFloat, width: CGFloat, y: CGFloat) -> ScreenContext.Reading {
+            ScreenContext.Reading(text: text, confidence: 0.9, box: CGRect(x: x, y: y, width: width, height: 16))
+        }
+        let read = [
+            line("a chat in the list on the left", x: 20, width: 260, y: 100),
+            line("the message on the left side", x: 330, width: 60, y: 200),
+            line("the message on the right side", x: 1300, width: 250, y: 300),
+            line("the side panel on the right", x: 1500, width: 200, y: 300),
+            line("the draft inside the box", x: 420, width: 200, y: 905),
+        ]
+        let field = CGRect(x: 400, y: 900, width: 1000, height: 40)
+        let sifted = ScreenContext.sift(read, excluding: "", field: field, maxChars: 600)
+        XCTAssertEqual(sifted.summary, "the message on the left side\nthe message on the right side")
+        XCTAssertEqual(sifted.lines.map(\.fate), [.offColumn, .kept, .kept, .offColumn, .typed])
     }
 
     /// Only as far as needed: a shell line reads no row above it; a box
