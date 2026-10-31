@@ -79,6 +79,17 @@ final class ReplyComposerTests: XCTestCase {
         XCTAssertTrue(host.started.isEmpty)
     }
 
+    // A model that only fixes says so; an automatic offer stays silent and
+    // reads no screen for a reply that can't run.
+    func testAModelThatWritesNothingSaysSoWhenPressed() {
+        world.engine.writesNewText = false
+        XCTAssertFalse(replies.compose(auto: true))
+        XCTAssertNil(world.window.currentMode)
+        XCTAssertFalse(replies.compose())
+        XCTAssertEqual(world.window.currentMode, .hint("this model doesn't write replies"))
+        XCTAssertTrue(world.engine.conversations.isEmpty)
+    }
+
     // Pressed with Pretype's own window in front — Settings, where the gesture
     // is shown — it says where to press instead of doing nothing.
     func testPressedOverOurOwnWindowItSaysWhereToPress() {

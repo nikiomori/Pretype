@@ -425,6 +425,15 @@ final class CorrectionControllerTests: XCTestCase {
         XCTAssertEqual(world.window.currentMode, .hint("no change"))
     }
 
+    // A model that only fixes says so instead of "no change".
+    func testAVoiceCommandOnAModelThatWritesNothingSaysSo() {
+        world.engine.writesNewText = false
+        fixes.runVoiceCommand("make it formal", selection: "hi there")
+        XCTAssertFalse(fixes.inFlight)
+        XCTAssertTrue(world.engine.rewrites.isEmpty)
+        XCTAssertEqual(world.window.currentMode, .hint("this model doesn't run voice commands"))
+    }
+
     // An answer for a fix whose caret a scroll forgot is said under the
     // pointer — "no change", or a failure — never dropped unseen.
     func testAnAnswerWithNoCaretIsSaidAtThePointer() async {

@@ -345,6 +345,10 @@ final class CorrectionController {
     /// the selection (re-validated live), ⎋ keeps the original.
     func runVoiceCommand(_ instruction: String, selection text: String) {
         guard !inFlight else { return }
+        guard host.engine.writesNewText else {
+            indicator.flashTransient(.hint(String(localized: "this model doesn't run voice commands")), orAtPointer: true)
+            return
+        }
         if let element = host.currentTextElement(), let rect = env.selection(element)?.rect {
             host.noteCaret(rect)
         }

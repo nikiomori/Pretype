@@ -53,6 +53,21 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(store.effectiveAxis, "core")
     }
 
+    // A model that fixes text but writes nothing: Replies reads as blocked,
+    // until a hosted model takes the reply instead.
+    @MainActor
+    func testRepliesFollowWhetherTheModelWrites() {
+        let saved = Settings.apiText
+        defer { Settings.apiText = saved }
+        let store = SettingsStore(controller: nil)
+        store.modelID = ModelCatalog.defaultID
+        XCTAssertTrue(store.writesNewText)
+        store.modelID = "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
+        XCTAssertFalse(store.writesNewText)
+        store.apiText.enabled = true
+        XCTAssertTrue(store.writesNewText)
+    }
+
     // "Better models for <language>" in the status menu writes the stored flag
     // and relies on the window's `sync()` to pick it up: a store that kept its
     // own copy reopened the Model tab on the map instead of the ranked list.

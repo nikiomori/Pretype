@@ -442,7 +442,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let latch = Settings.dictationEnabled && Settings.dictationLatch != .off
             ? Settings.dictationLatch.label : nil
         // Only the features that are on: a key for one that's off is noise.
-        let (accept, fix, replies) = (Settings.suggestionsEnabled, Settings.fixesEnabled, Settings.repliesEnabled)
+        let (accept, fix) = (Settings.suggestionsEnabled, Settings.fixesEnabled)
+        let replies = Settings.repliesEnabled && suggestionController?.engine.writesNewText != false
         guard Stats.tutorsAccept else {
             // One cap per key: three chords in one cap read as a single combo.
             // Dictation stays in the short form too — it may be switched on

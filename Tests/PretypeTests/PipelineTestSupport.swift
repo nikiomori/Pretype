@@ -127,6 +127,7 @@ final class FakeEngine: CompletionEngine {
     /// The fix model is on disk (`isCorrectionReady`).
     var correctionReady = true
     var isCorrectionReady: Bool { correctionReady }
+    var writesNewText = true
     private(set) var requests: [CompletionRequest] = []
     private(set) var conversations: [String] = []
 

@@ -33,7 +33,7 @@ struct GeneralTab: View {
 
             if store.suggestions { suggestionsSection }
             if store.fixes { fixesSection }
-            if store.replies { repliesSection }
+            if store.replies, store.writesNewText { repliesSection }
 
             Section("Turned off in these apps") {
                 // The built-in exclusion is a row of the list, not a caption
@@ -91,9 +91,11 @@ struct GeneralTab: View {
             .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 FeatureCard(symbol: "bubble.left.and.text.bubble.right.fill", tint: .green, title: Text("Replies"),
-                            subtitle: Text("Drafts a reply to the message on screen."),
+                            subtitle: repliesLine,
                             key: replyGesture == .off ? store.hotkeyStyle.replyLabel : replyGesture.label,
-                            isOn: animated($store.replies)) {
+                            isOn: animated($store.replies), blocked: !store.writesNewText,
+                            optionsTitle: Text("Choose Model"),
+                            options: store.writesNewText ? nil : { store.activeTab = .model }) {
                     ShortcutDemo.reply
                 }
                 FeatureCard(symbol: "mic.fill", tint: .red, title: Text("Dictation"),
@@ -122,6 +124,11 @@ struct GeneralTab: View {
         guard store.suggestions else { return Text("Off. No model in memory until you fix or reply.") }
         return store.suggestionMode == .words ? Text("Finishes the word you're typing.")
                                               : Text("Continues your sentence as you type.")
+    }
+
+    private var repliesLine: Text {
+        store.writesNewText ? Text("Drafts a reply to the message on screen.")
+                            : Text("\(store.shortModelName) doesn't write replies.")
     }
 
     /// Hold-to-talk's key, or the hands-free chord when holding is off.
@@ -230,7 +237,7 @@ struct GeneralTab: View {
         if store.apiText.enabled {
             return ("cloud.fill", String(localized: "Runs on \(store.apiText.preset.name)"), .teal)
         }
-        let name = ModelMetrics.metrics(for: store.modelID)?.shortName ?? store.selectedModelName
+        let name = store.shortModelName
         guard let gb = store.projection.ramGB, gb > 0 else { return ("cpu", name, .purple) }
         return ("cpu", String(localized: "\(name) · \(gbLabel(gb)) in memory"), .purple)
     }
@@ -422,21 +429,28 @@ struct FeatureCard<Demo: View>: View {
     let subtitle: Text
     let key: String?
     @Binding var isOn: Bool
-    /// The feature's own pane, when it has one (Dictation).
+    /// On, but this model can't do it: it reads as off, and the switch keeps
+    /// the choice for the next model.
+    var blocked = false
+    var optionsTitle = Text("Options")
+    /// The feature's own pane, when it has one (Dictation), or the way out of
+    /// `blocked`.
     var options: (() -> Void)?
     @ViewBuilder let demo: () -> Demo
+
+    private var lit: Bool { isOn && !blocked }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
-                SettingsIcon(symbol: symbol, tint: isOn ? tint : .gray, size: 28)
+                SettingsIcon(symbol: symbol, tint: lit ? tint : .gray, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     title.font(.body.weight(.semibold))
-                        .foregroundStyle(isOn ? .primary : .secondary)
+                        .foregroundStyle(lit ? .primary : .secondary)
                     subtitle.font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     if let options, isOn {
-                        Button("Options", action: options)
+                        Button(action: options) { optionsTitle }
                             .buttonStyle(.link)
                             .font(.caption)
                     }
@@ -457,14 +471,14 @@ struct FeatureCard<Demo: View>: View {
             .frame(height: 36)
             .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
-            .saturation(isOn ? 1 : 0)
-            .opacity(isOn ? 1 : 0.45)
+            .saturation(lit ? 1 : 0)
+            .opacity(lit ? 1 : 0.45)
             .accessibilityHidden(true)
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
-        .animation(.easeOut(duration: 0.18), value: isOn)
+        .animation(.easeOut(duration: 0.18), value: lit)
     }
 }

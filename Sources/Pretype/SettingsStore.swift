@@ -475,6 +475,10 @@ final class SettingsStore {
     var selectedModelName: String {
         ModelCatalog.option(for: modelID)?.title ?? (modelID as NSString).lastPathComponent
     }
+    var shortModelName: String { ModelMetrics.metrics(for: modelID)?.shortName ?? selectedModelName }
+    /// Whether replies and voice commands run: the Settings side of
+    /// `CompletionEngine.writesNewText`, true for a model it hasn't loaded yet.
+    var writesNewText: Bool { apiText.enabled || ModelCatalog.writesNewText(modelID) }
 
     // MARK: Live projection — measured expectations for the current configuration
 

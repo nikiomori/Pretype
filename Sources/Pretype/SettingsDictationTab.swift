@@ -238,8 +238,13 @@ struct DictationTab: View {
             .help("The same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses; a result that rephrases is rejected. Costs one short generation before the text lands. Where the fix needs a separate model, its first use downloads it.")
             Toggle(isOn: $dictationCommands) {
                 Text("Voice commands on selected text")
-                Text("Say an edit like “make this shorter” over a selection.")
+                if store.writesNewText {
+                    Text("Say an edit like “make this shorter” over a selection.")
+                } else {
+                    Text("\(store.shortModelName) doesn't run voice commands.")
+                }
             }
+            .disabled(!store.writesNewText)
             .help("The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. Off, dictating over a selection replaces it.")
         }
         Section {

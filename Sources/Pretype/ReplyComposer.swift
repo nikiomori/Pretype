@@ -83,6 +83,9 @@ final class ReplyComposer {
             return stop(busy, notice: !Settings.enabled ? String(localized: "Paused")
                 : env.ownUIFrontmost() ? clickIn : nil)
         }
+        guard host.engine.writesNewText else {
+            return stop("the model writes no replies", notice: String(localized: "this model doesn't write replies"))
+        }
         // Element first: it reads the site the blacklist check needs.
         guard let element = host.currentTextElement() else {
             return stop("no text field in focus", notice: clickIn)

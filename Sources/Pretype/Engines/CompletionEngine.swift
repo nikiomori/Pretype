@@ -385,6 +385,10 @@ protocol CompletionEngine: AnyObject {
     /// pass, on a three-second budget, could never wait out anyway.
     var isCorrectionReady: Bool { get }
 
+    /// False on a model that fixes text but writes nothing new: `reply` and
+    /// `rewrite` can't run there, so a caller says that at once.
+    var writesNewText: Bool { get }
+
     /// Start loading whatever `correct` needs, in the background. Called by a
     /// caller that just declined to wait for it, so the next one doesn't have
     /// to decline too.
@@ -440,6 +444,7 @@ extension CompletionEngine {
     }
     /// An engine with no separate fix model has nothing to wait for.
     var isCorrectionReady: Bool { true }
+    var writesNewText: Bool { true }
     func prewarmCorrection() {}
 
     /// The ⌥⇥ spelling: text the user typed, logged as the debug export

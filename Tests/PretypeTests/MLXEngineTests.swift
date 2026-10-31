@@ -712,6 +712,9 @@ final class MLXEngineTests: MLXTestCase {
     func testTheFixTrainedModelWritesNothingNew() {
         let id = "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
         XCTAssertFalse(ModelCatalog.writesNewText(id))
+        let engine = MLXEngine(modelID: id, load: { _, _, _, _, _ in try tinyContainer() }, shadersPresent: false)
+        defer { engine.shutdown() }
+        XCTAssertFalse(engine.writesNewText)
         XCTAssertTrue(ModelCatalog.writesNewText("nikimori/Qwen3.5-2B-M40-6bit"))
         XCTAssertNil(ModelMetrics.tasks[id]?.replyPct)
         XCTAssertEqual(ModelCatalog.option(for: id)?.correctionModelID, id)
