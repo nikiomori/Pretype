@@ -113,6 +113,25 @@ final class PromptContextHostTests: XCTestCase {
         XCTAssertEqual(world.captures.count, 2)
     }
 
+    // A message's first letter reads a chat again after 3 s; mid-message, and
+    // outside a chat, the 25 s stand.
+    func testAChatReadsTheScreenAtAMessagesFirstLetter() async {
+        host.typingContext = TypingContext(bundleID: "ru.keepcoder.Telegram")
+        context.refreshScreenIfNeeded(typed: "Hi")
+        await waitUntil { !context.screenCaptureInFlight }
+        world.now += 3.5
+        context.refreshScreenIfNeeded(typed: "Hi there")
+        XCTAssertFalse(context.screenCaptureInFlight)
+        context.refreshScreenIfNeeded(typed: "H")
+        await waitUntil { !context.screenCaptureInFlight }
+        XCTAssertEqual(world.captures.count, 2)
+
+        host.typingContext = TypingContext(bundleID: "com.apple.Notes")
+        world.now += 3.5
+        context.refreshScreenIfNeeded(typed: "H")
+        XCTAssertFalse(context.screenCaptureInFlight)
+    }
+
     // Only a chat's box names a column, and only a box wide enough to be one.
     func testAChatReadsTheColumnOfItsBox() {
         host.lastFieldRect = CGRect(x: 400, y: 40, width: 800, height: 30)

@@ -192,12 +192,15 @@ final class PromptContext {
     /// Refreshes the window OCR at most every 25 s, off the typing path.
     /// Paused on battery: the capture only feeds completions (a reply takes
     /// its own fresh one), and its landing would warm a prompt nobody runs.
+    /// A chat allows one more at a message's first letter: nothing else tells
+    /// that a message went out or came in, or that the chat changed.
     func refreshScreenIfNeeded(typed: String, retrying: Bool = false) {
         let typingContext = host.typingContext
         guard Settings.enabled, Settings.screenContextEnabled, env.screenRecordingAllowed(),
               !env.pausedForBattery(), AppPolicy.allowsScreenContext(typingContext) else { return }
+        let holds: TimeInterval = typed.count == 1 && AppPolicy.isChat(typingContext) ? 3 : 25
         guard !screenCaptureInFlight,
-              retrying || env.now().timeIntervalSince(screenCapturedAt) > 25,
+              retrying || env.now().timeIntervalSince(screenCapturedAt) > holds,
               host.observedPID > 0 else { return }
         screenCaptureInFlight = true
         let pid = host.observedPID
