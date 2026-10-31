@@ -3,7 +3,7 @@
 We measure every model in the catalog on the same held-out eval. The Apple Intelligence system model is in the eval too. The eval measures first-word accuracy on real human text. If a model stays silent, the eval counts a miss. We ran the full eval again on 2026-10-15, on the engine as it ships.
 
 <div align="center">
-<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English the nine downloadable models score 26-29% first-word accuracy, a tie, and Apple Intelligence 22%; averaged over 16 other languages they fan out from 22.8% (Gemma 4 E4B) down to 8.0% (Apple Intelligence)" />
+<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English nine downloadable models score 26-29% first-word accuracy, a tie, EuroLLM 1.7B 25% and Apple Intelligence 22%; averaged over 17 other languages they fan out from 23.1% (Gemma 4 E4B) down to 8.4% (Apple Intelligence)" />
 </div>
 
 ## Which model to use
@@ -16,7 +16,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 
 | Situation | Model | Evidence |
 |---|---|---|
-| You type in English | Any downloadable model. For speed, MiniCPM5 1B. | No downloadable model is measurably better than another. The nine models score between 26% and 29%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
+| You type in English | Any downloadable model except EuroLLM 1.7B. For speed, MiniCPM5 1B. | Nine downloadable models score between 26% and 29%, and no model of the nine is measurably better than another. EuroLLM 1.7B gets 25%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
 | You type in English and have little free memory | Qwen2.5 0.5B | It runs in ≈1 GB. On English, its accuracy is equal to the other models. |
 | You type in another language | The default | Outside English, the tie stops. The Gemma 4 tiers lose 4–9 points. MiniCPM5, Bonsai and Qwen 0.5B lose more than half of their English score. |
 | You type in another language on an 8 GB Mac | Qwen3.5 2B M40, the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). M40 ties its Base build on completions, and it fixes more (see [Qwen3.5 2B M40](#qwen35-2b-m40-one-model-for-text-and-chords)). |
@@ -24,6 +24,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 | You type in Arabic or Hebrew | The default. Do not use MiniCPM5 for Hebrew. | See [Arabic and Hebrew](#arabic-and-hebrew). |
 | You type in Danish | Any Gemma 4 tier | The four Gemma tiers tie at 27–28%. The small models get 10–23%. See [Danish](#danish). |
 | You want no download and no app memory | Apple Intelligence (macOS 26+) | It is last on accuracy and on speed: 480 ms, against 17–81 ms. On macOS 27 it shows a suggestion for almost every prompt, also in Polish, Romanian and Czech. But it is correct less often than any downloadable model. |
+| You want few false fixes and low energy use in 1.1 GB | EuroLLM 1.7B | It ties Gemma E2B 4-bit outside English, and it fixes more and touches less clean text. It writes no replies. See [EuroLLM 1.7B](#eurollm-17b-our-own-model). |
 | You want the best quality and have the memory | Gemma 4 E4B 8-bit | It ties E4B 6-bit (p=0.28), and it uses ≈1 GB more. You must select it manually. |
 
 ### English and Russian are different
@@ -46,6 +47,7 @@ We measure these two languages on a separate set: 560 held-out rows (first run 2
 | Every small model | 3–13%. |
 | Gemma E2B 8-bit | 10% Arabic, 18% Hebrew. This is approximately two times the small models. Use a Gemma tier if your Mac has the memory. |
 | MiniCPM5 | 3% on Hebrew. Do not use it for Hebrew. |
+| EuroLLM 1.7B | 10% on Arabic. It shows no suggestions in Hebrew: it was correct on 6 of 255. |
 | Apple Intelligence | It shows a suggestion more frequently than any downloadable model (84–87% of the time). But only 6% of the suggestions are correct. |
 
 Inline typo fixes do not work in these two languages. macOS lists them as spell-check languages, but it has no dictionary for them.
@@ -57,6 +59,7 @@ We measure Danish on a separate set: 280 held-out rows (2026-10-28). The rows co
 | Model | Result |
 |---|---|
 | Every Gemma 4 tier | 27–28%. The four tiers tie (p ≥ 0.65). E2B 4-bit is the fastest of them. |
+| EuroLLM 1.7B | 26%. |
 | Qwen3.5 2B Base | 23%. |
 | Qwen3.5 2B M40 | 21%. This is less than every Gemma tier (p < 0.005). |
 | MiniCPM5, Qwen2.5 0.5B, Bonsai | 10–17%. When you type Danish on one of these models, the menu suggests a Gemma tier. |
@@ -84,7 +87,7 @@ Apple Intelligence has no confidence value to gate on, and its first word is cor
 
 ### Qwen3.5 2B uses its Base build
 
-Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is our own MLX conversion: [nikimori/Qwen3.5-2B-Base-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-Base-6bit).
+Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is our own MLX conversion: [nikimoriOne/Qwen3.5-2B-Base-6bit](https://huggingface.co/nikimoriOne/Qwen3.5-2B-Base-6bit).
 
 * Accuracy: 17.1% of all rows, against 16.1% for the post-trained build (p=0.005).
 * Since 2026-10-14, the build is 6-bit. It gets 19% of all rows, against 17% for the 4-bit build (p<0.001). An 8-bit build is not better (19%, 1.9 GB).
@@ -92,7 +95,7 @@ Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is o
 
 ### Qwen3.5 2B M40: one model for text and chords
 
-Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimori/Qwen3.5-2B-M40-6bit](https://huggingface.co/nikimori/Qwen3.5-2B-M40-6bit). Since 2026-10-27, it is the default on Macs with 8 GB. Before that date, the 8 GB default was the Base build.
+Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimoriOne/Qwen3.5-2B-M40-6bit](https://huggingface.co/nikimoriOne/Qwen3.5-2B-M40-6bit). Since 2026-10-27, it is the default on Macs with 8 GB. Before that date, the 8 GB default was the Base build.
 
 * The weights are a mix: 60% of the Base build and 40% of the post-trained build. The build is 6-bit.
 * One model completes text and runs the fix and reply chords. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
@@ -100,6 +103,25 @@ Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimori/Qwen3.5-
 * Fix: it restores 41% of the typo rows, against 33% for the post-trained sibling of the Base build (p<0.001).
 * Fix on clean text: it proposes a change on 10% of clean lines, against 28% (p<0.001).
 * Memory: 1.5 GB for all tasks. The Base build needs 1.5 GB, plus 1.1 GB for its post-trained sibling when you use the chords.
+
+### EuroLLM 1.7B: our own model
+
+Since 2026-10-31, the catalog has a model that we trained: [nikimoriOne/EuroLLM-1.7B-Pretype-5bit](https://huggingface.co/nikimoriOne/EuroLLM-1.7B-Pretype-5bit). It is an alternative. It is not a default.
+
+* The model is EuroLLM-1.7B, fine-tuned on fixes and distilled from EuroLLM-9B. The build is 5-bit.
+* One 1.1 GB file completes text and fixes typos. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
+* Completion: 20.3% of all rows, against 20.8% for Gemma E2B 4-bit. This difference is not significant (p=0.44).
+* Fix: it restores 64% of the typo rows, against 49% for the E2B-it sibling (p<0.001).
+* Fix on clean text: it proposes a change on 5% of clean lines, against 31% (p<0.001).
+* Energy: 715 mJ per suggestion, against 1064 mJ for E2B 4-bit, one run each. With any idle baseline, the saving is 31–37%.
+* Medium and Long suggestions: a blind judge accepted 85% [78–90], against 87% for the author's text. The suggestions are shorter than on other models: 6.5 words against 10–11.
+
+Do not select this model in these cases:
+
+* **You use replies or voice commands.** The fix training taught the model to repeat its input. On a reply prompt, it copied the prompt on 17–43% of conversations. On a rewrite, it returned the text almost unchanged. Thus Pretype runs neither on this model.
+* **You type in Hebrew.** The model shows no suggestions there. The menu suggests a Gemma tier.
+* **You type mostly in English.** It gets 25%, the lowest of the downloadable models. Three models are measurably better (p<0.01).
+* **You type mostly in Russian.** The first word ties E2B 4-bit, but a blind judge accepts fewer continuations: 83% against 95% (p=0.004).
 
 ### Suggestions on a Mac with 8 GB
 
@@ -111,7 +133,7 @@ The two fix results have different causes. The post-trained build at the same 6 
 
 ### MiniCPM5 1B uses an 8-bit build
 
-Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it used the bf16 weights from the hub. This build is our own MLX conversion: [nikimori/MiniCPM5-1B-Base-8bit](https://huggingface.co/nikimori/MiniCPM5-1B-Base-8bit).
+Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it used the bf16 weights from the hub. This build is our own MLX conversion: [nikimoriOne/MiniCPM5-1B-Base-8bit](https://huggingface.co/nikimoriOne/MiniCPM5-1B-Base-8bit).
 
 * Accuracy: the 8-bit and bf16 builds tie. Each gets 15% of all rows (14 against 21 discordant rows). English: 28% for both.
 * Size: 1.1 GB, against 2.0 GB.
@@ -218,6 +240,7 @@ We measured the chords on 2026-10-15, each on its own held-out set:
 | Gemma E4B-it 6-bit | Gemma E4B 8-bit and 6-bit | **69%** [65–73] | 18% | 0.17 s | **90%** [86–92] | 0.41 s |
 | Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 20% | 0.24 s | 87% [83–90] | 0.24 s |
 | Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [46–54] | 30% | 0.10 s | 83% [79–86] | 0.09 s |
+| EuroLLM 1.7B (itself) | EuroLLM 1.7B | 64% [60–68]² | 5% | 0.06 s | no replies | — |
 | Qwen3.5 2B M40 (itself) | Qwen3.5 2B M40 | 41% [37–45] | 10% | 0.17 s | 56% [50–60]¹ | 0.16 s |
 | Qwen3.5 2B (post-trained) | Qwen3.5 2B Base; MiniCPM5 1B | 33% [29–37] | 28% | 0.13 s | 35% [30–40] | 0.14 s |
 | Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.20 s | 22% [18–27] | 0.21 s |
@@ -235,6 +258,7 @@ Read these notes before you use the table as a ranking:
   * The threshold comes only from two baselines: the real next line of the conversation, and a line from a different conversation. The judge accepts 71% of the real lines and 20% of the random lines.
   * Four judges from four model families (GPT-6 Luna, DeepSeek V4.1 Flash, Claude Haiku 5.5, Gemma E4B-it) put all siblings in the same order. A judge from the Gemma family gives higher values to Gemma replies, but not a different order.
   * ¹ Qwen3.8 27B rated the M40 row (2026-10-16). It is the judge with the best separation of the two baselines (AUC 0.825). On the same replies, it agrees with GPT-6 Luna within 3 pp on every sibling. In the same run, it rates the post-trained Qwen3.5 sibling at 37% [32–42] (paired p=2.5×10⁻⁸).
+* ² The EuroLLM 1.7B row comes from its own run (2026-10-31). In that run, E2B-it 4-bit restores 49% and touches 31% of clean lines.
 * **"Touches clean text" is the cost of the fix chord.** If you select a line that is already correct, the sibling can still propose a change. This occurs on 12–30% of clean lines across the catalog. The figures include the app's minimal-edit gate. Press <kbd>Esc</kbd> to keep your original text.
 
 <sub>**Method.**</sub>
@@ -263,7 +287,7 @@ Disk use and memory use increase together.
 
 ### Slim Gemma re-packs
 
-The Gemma tiers download slim re-packs of the mlx-community builds ([nikimori/*-slim](https://huggingface.co/nikimori)). The re-packs have two changes:
+The Gemma tiers download slim re-packs of the mlx-community builds ([nikimoriOne/*-slim](https://huggingface.co/nikimoriOne)). The re-packs have two changes:
 
 1. They do not contain the audio and vision encoders, because the app does not use them. The instruct siblings keep vision, because their speculative-decoding load needs it.
 2. Both Gemma embedding tables are 4-bit. These are the shared input/output table and the much larger per-layer table. A table is only a lookup, so this has no speed cost. First-word accuracy does not change (paired p≥0.72 on all three tiers).
@@ -277,7 +301,7 @@ The outputs are the same as the originals, row for row. The downloads are 13–3
 | Gemma 4 E4B 6-bit | 7.1 GB | 5.3 GB | 5.0 GB |
 | Gemma 4 E4B 8-bit | 9.0 GB | 6.3 GB | 6.0 GB |
 
-The post-trained Qwen3.5 2B build also has a re-pack ([nikimori/Qwen3.5-2B-4bit-slim](https://huggingface.co/nikimori/Qwen3.5-2B-4bit-slim)). It does not contain the vision encoder. The download is 1.1 GB, against 1.7 GB. The fix and reply outputs are the same, row for row.
+The post-trained Qwen3.5 2B build also has a re-pack ([nikimoriOne/Qwen3.5-2B-4bit-slim](https://huggingface.co/nikimoriOne/Qwen3.5-2B-4bit-slim)). It does not contain the vision encoder. The download is 1.1 GB, against 1.7 GB. The fix and reply outputs are the same, row for row.
 
 If your install downloaded an original build before the re-packs, Pretype moves it to the re-pack automatically. Pretype checks at launch and then one time each hour. It never downloads on a cellular, hotspot or Low Data Mode network. After the change, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
 
@@ -313,6 +337,7 @@ On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one ti
 | MiniCPM5 | ≈1.1 GB (the post-trained Qwen3.5 build) |
 | Qwen3.5 | ≈1.1 GB (its post-trained build) |
 | Qwen3.5 M40 | None. M40 corrects with itself. |
+| EuroLLM 1.7B | None. It corrects with itself. |
 | A Gemma tier in Base style | up to ≈5.6 GB (E4B-it 6-bit on the E4B tiers) |
 | Bonsai | None. Bonsai corrects with itself. |
 | Gemma E4B, if it used Instruct style before 2026-10-15 | None. The fix sibling is the instruct build that the install already has. |

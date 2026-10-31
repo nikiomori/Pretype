@@ -146,6 +146,7 @@ per-language nudge in the menu. You select all other models manually in
 | Ternary Bonsai 4B | ≈1.1 GB | A 4B model in about one gigabyte. |
 | **Qwen3.5 2B (Base)** | ≈1.5 GB | *Default on 8 GB.* The best model below 2 GB for many languages (p<0.001). |
 | Qwen3.5 2B M40 | ≈1.5 GB | A mix of the Base and post-trained builds. One model completes text and runs the chords. It ties the Base build on completion, and its fix is better than the post-trained sibling (p<0.001). |
+| EuroLLM 1.7B | ≈1.1 GB | Our own model. One file completes text and fixes typos. It ties E2B 4-bit outside English, and it fixes better. It writes no replies. |
 | Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
 
 The sizes are the measured model memory (`ModelMetrics.ramGB`). A download

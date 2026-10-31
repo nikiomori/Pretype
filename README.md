@@ -15,7 +15,7 @@ Pretype shows a suggestion at the caret in each text field. A local model makes 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform: macOS 26+](https://img.shields.io/badge/platform-macOS%2026%2B%20·%20Apple%20Silicon-lightgrey.svg)](#quick-start)
 [![Website](https://img.shields.io/badge/pretype.app-6E56CF.svg)](https://pretype.app)
-[![Models on Hugging Face](https://img.shields.io/badge/Hugging_Face-models-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/nikimori)
+[![Models on Hugging Face](https://img.shields.io/badge/Hugging_Face-models-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/nikimoriOne)
 
 <p>
   <a href="#features"><b>Features</b></a> ·
