@@ -6,7 +6,8 @@ import Vision
 /// through local OCR. Gives the model what the text field alone can't —
 /// the conversation above a chat box, the email being replied to.
 /// Everything stays on device; the captured text is visible in
-/// "Show Last Prompt…".
+/// "Show Last Prompt…", and every line read, kept or not, in
+/// "Show Screen Capture…".
 enum ScreenContext {
     static var hasPermission: Bool {
         CGPreflightScreenCaptureAccess()
@@ -28,6 +29,46 @@ enum ScreenContext {
             NSWorkspace.shared.open(url)
         }
     }
+
+    /// One line OCR read and what became of it.
+    struct Line: Equatable, Sendable {
+        enum Fate: Sendable {
+            case kept, lowConfidence, tooShort, typed, notProse, overLimit
+
+            var reason: String {
+                switch self {
+                case .kept: ""
+                case .lowConfidence: String(localized: "unsure reading")
+                case .tooShort: String(localized: "too short")
+                case .typed: String(localized: "already typed")
+                case .notProse: String(localized: "not a sentence")
+                case .overLimit: String(localized: "over the limit")
+                }
+            }
+        }
+
+        let text: String
+        var fate: Fate
+    }
+
+    /// The last capture, line by line. Other people's text: it stays in
+    /// memory and never reaches the debug log.
+    struct Report: Sendable {
+        let app: String
+        let date: Date
+        let aroundCaret: Bool
+        let lines: [Line]
+
+        var listing: String {
+            let region = aroundCaret ? String(localized: "250 pt above and below the caret")
+                                     : String(localized: "the whole window")
+            let when = RelativeDateTimeFormatter().localizedString(for: date, relativeTo: .now)
+            let rows = lines.map { $0.fate == .kept ? "✓ \($0.text)" : "✗ \($0.fate.reason): \($0.text)" }
+            return ([[app, when, region].joined(separator: " · ")] + rows).joined(separator: "\n")
+        }
+    }
+
+    @MainActor private(set) static var lastReport: Report?
 
     /// OCR summary of `pid`'s frontmost window in reading order, deduplicated
     /// against the already-typed text, capped at `maxChars` (keeping the
@@ -78,8 +119,12 @@ enum ScreenContext {
                 roi = CGRect(x: 0, y: 1 - (top + cropHeight) / height, width: 1, height: cropHeight / height)
             }
 
-            return try recognizeText(in: image, regionOfInterest: roi, languages: languages,
-                                     excluding: typedText, maxChars: maxChars)
+            let read = try recognizeText(in: image, regionOfInterest: roi, languages: languages)
+            let sifted = sift(read, excluding: typedText, maxChars: maxChars)
+            let report = Report(app: window.owningApplication?.applicationName ?? "", date: .now,
+                                aroundCaret: caretRect != nil, lines: sifted.lines)
+            await MainActor.run { lastReport = report }
+            return sifted.summary
         } catch {
             NSLog("Pretype: screen capture failed: %@", error.localizedDescription)
             return nil
@@ -109,10 +154,10 @@ enum ScreenContext {
         return picked
     }
 
+    /// Every line Vision read, top of the window first.
     private static func recognizeText(
-        in image: CGImage, regionOfInterest: CGRect?, languages: [String]?,
-        excluding typedText: String, maxChars: Int
-    ) throws -> String? {
+        in image: CGImage, regionOfInterest: CGRect?, languages: [String]?
+    ) throws -> [(text: String, confidence: Float)] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         if let languages {
@@ -125,36 +170,52 @@ enum ScreenContext {
         }
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         try handler.perform([request])
-        guard let observations = request.results, !observations.isEmpty else { return nil }
-
         // Vision's normalized coordinates are bottom-left; top of window first.
-        let sorted = observations.sorted { $0.boundingBox.midY > $1.boundingBox.midY }
-        var lines: [String] = []
-        for observation in sorted {
-            guard let candidate = observation.topCandidates(1).first,
-                  candidate.confidence > 0.4 else { continue }
-            let line = candidate.string.trimmingCharacters(in: .whitespaces)
-            guard line.count >= 3 else { continue }
-            // The typed text is already in the prompt; don't duplicate it.
-            guard !typedText.contains(line) else { continue }
-            guard looksLikeProse(line) else { continue }
-            lines.append(line)
-        }
-        guard !lines.isEmpty else { return nil }
+        return (request.results ?? [])
+            .sorted { $0.boundingBox.midY > $1.boundingBox.midY }
+            .compactMap { $0.topCandidates(1).first }
+            .map { (text: $0.string, confidence: $0.confidence) }
+    }
 
-        var summary = lines.joined(separator: "\n")
+    /// The block for the prompt, and what became of each line read.
+    static func sift(_ read: [(text: String, confidence: Float)], excluding typedText: String,
+                     maxChars: Int) -> (summary: String?, lines: [Line]) {
+        var lines = read.map { raw -> Line in
+            let text = raw.text.trimmingCharacters(in: .whitespaces)
+            let fate: Line.Fate
+            if raw.confidence <= 0.4 {
+                fate = .lowConfidence
+            } else if text.count < 3 {
+                fate = .tooShort
+            } else if typedText.contains(text) {
+                // The typed text is already in the prompt; don't duplicate it.
+                fate = .typed
+            } else {
+                fate = looksLikeProse(text) ? .kept : .notProse
+            }
+            return Line(text: text, fate: fate)
+        }
+        let kept = lines.filter { $0.fate == .kept }.map(\.text)
+        guard !kept.isEmpty else { return (nil, lines) }
+
+        var summary = kept.joined(separator: "\n")
         if summary.count > maxChars {
             summary = String(summary.suffix(maxChars))
             // Don't start mid-line after the cut.
             if let newline = summary.firstIndex(of: "\n") {
                 summary = String(summary[summary.index(after: newline)...])
             }
+            var cut = kept.count - summary.split(separator: "\n").count
+            for index in lines.indices where cut > 0 && lines[index].fate == .kept {
+                lines[index].fate = .overLimit
+                cut -= 1
+            }
         }
         // No floor on the block's length: one short reply above the box is
         // still the conversation (a 40-character floor dropped a third of
         // the chat blocks, and the context gain with them).
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return (trimmed.isEmpty ? nil : trimmed, lines)
     }
 
     /// Keeps conversation/document text, drops terminal prompts, paths,

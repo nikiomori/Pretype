@@ -42,6 +42,19 @@ final class PromptContextTests: XCTestCase {
         }
     }
 
+    /// The report names what kept each line out, and the block is the kept
+    /// lines that fit, the bottom of the window first.
+    func testTheCaptureSaysWhatBecameOfEachLine() {
+        let read: [(text: String, confidence: Float)] = [
+            ("Chats", 0.9), ("12", 0.9), ("see you at seven tonight", 0.2), ("what I am typing", 0.9),
+            ("the first message here", 0.9), ("the second message here", 0.9),
+        ]
+        let sifted = ScreenContext.sift(read, excluding: "what I am typing", maxChars: 30)
+        XCTAssertEqual(sifted.summary, "the second message here")
+        XCTAssertEqual(sifted.lines.map(\.fate), [.notProse, .tooShort, .lowConfidence, .typed, .overLimit, .kept])
+        XCTAssertNil(ScreenContext.sift([("Chats", 0.9)], excluding: "", maxChars: 30).summary)
+    }
+
     /// Only as far as needed: a shell line reads no row above it; a box
     /// reads up to its prompt line and the line over it, no further.
     func testAgentBoxRowsReadOnlyWhatTheyNeed() {

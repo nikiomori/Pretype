@@ -539,6 +539,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
         diagnosticsMenu.addItem(.separator())
         item(String(localized: "Show Last Prompt…"), #selector(showLastPrompt), in: diagnosticsMenu)
+        item(String(localized: "Show Screen Capture…"), #selector(showScreenCapture), in: diagnosticsMenu)
         item(String(localized: "Unload Model from Memory"), #selector(unloadModel), in: diagnosticsMenu)
         item(String(localized: "Debug Console…"), #selector(openDebugConsole), key: "d", in: diagnosticsMenu)
     }
@@ -617,16 +618,27 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func showLastPrompt() {
         let prompt = suggestionController?.lastPromptDescription ?? String(localized: "No prompt has been sent yet.")
         let result = suggestionController?.lastResultDescription
+        showText(prompt + (result.map { "\n\n——— suggestion ———\n\($0)" } ?? ""),
+                 title: String(localized: "Last prompt sent to the engine"),
+                 info: String(localized: "Exactly what the model saw. Nothing leaves your Mac."))
+    }
 
+    @objc private func showScreenCapture() {
+        showText(ScreenContext.lastReport?.listing ?? String(localized: "Nothing has been captured yet."),
+                 title: String(localized: "Last screen capture"),
+                 info: String(localized: "Top to bottom. ✓ goes to the model, ✗ doesn't. Kept in memory only."))
+    }
+
+    private func showText(_ text: String, title: String, info: String) {
         let alert = NSAlert()
-        alert.messageText = String(localized: "Last prompt sent to the engine")
-        alert.informativeText = String(localized: "Exactly what the model saw. Nothing leaves your Mac.")
+        alert.messageText = title
+        alert.informativeText = info
 
         let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 480, height: 240))
         let textView = NSTextView(frame: scroll.bounds)
         textView.isEditable = false
         textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        textView.string = prompt + (result.map { "\n\n——— suggestion ———\n\($0)" } ?? "")
+        textView.string = text
         scroll.documentView = textView
         scroll.hasVerticalScroller = true
         alert.accessoryView = scroll
