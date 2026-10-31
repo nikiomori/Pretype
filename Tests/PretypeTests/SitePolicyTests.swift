@@ -46,6 +46,9 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.apple.mail")))
         XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.tinyspeck.slackmacgap", site: "github.com")),
                        "a web page inside an app is judged by its site")
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "Mattermost.Desktop", site: "chat.example.org")),
+                      "a self-hosted messenger's server has any name")
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "im.riot.app", site: "matrix.example.org")))
     }
 
     func testSiteInstructionsWinOverTheBrowsersAndTheMostSpecificSiteWins() {

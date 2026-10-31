@@ -111,13 +111,15 @@ enum AppPolicy {
     /// A messenger, where an empty message box waits for a reply. AI chats are
     /// not here: there the user writes the first message.
     static func isChat(_ context: TypingContext) -> Bool {
+        // Self-hosted: the page is on the team's own server, under any name.
+        if matches(context.bundleID, ["mattermost", "im.riot"]) { return true }
         if let host = context.site {
             return ["web.telegram.org", "web.whatsapp.com", "app.slack.com", "discord.com",
                     "teams.microsoft.com", "teams.live.com", "messenger.com", "chat.google.com"]
                 .contains { host == $0 || host.hasSuffix("." + $0) }
         }
         return matches(context.bundleID, ["mobilesms", "telegram", "whatsapp", "slack", "discord", "signal",
-                                          "microsoft.teams", "mattermost", "im.riot", "viber", "wechat", "xinwechat"])
+                                          "microsoft.teams", "viber", "wechat", "xinwechat"])
     }
 
     /// The `Settings.dictationSendApps` entry for this field: the website in a
