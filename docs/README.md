@@ -73,7 +73,6 @@ runs.
 | `demo.gif` | Typing → the panel shows the suggestion → `Tab` for each word, `⇧Tab` for the remaining text |
 | `demo-typo.gif` | Inline typo fix: the fix pill shows above the word, and `Tab` applies it |
 | `demo-fix.gif` | Fix selection: `⌥Tab` → the model runs → the word diff → `⏎` |
-| `shot-modes.png` | Inline ghost text and the floating panel, side by side |
 
 ImageMagick assembles the GIFs. It uses one palette without dithering, and a
 2% tolerance for frame differences. Do not use dithering. On a flat dark UI,
