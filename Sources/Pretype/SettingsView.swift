@@ -1,6 +1,4 @@
 import AppKit
-import AVFoundation
-import Carbon
 import SwiftUI
 
 extension Color {
@@ -21,31 +19,28 @@ extension Color {
     }
 }
 
-/// One requirement of a currently-unavailable feature: a ✓/✗ line with a
-/// one-click fix, so "why is this greyed out" is visible and actionable
+/// One missing requirement of a currently-unavailable feature: a ✗ line with
+/// a one-click fix, so "why is this greyed out" is visible and actionable
 /// instead of a sentence the user has to decode.
 struct RequirementRow: View {
-    let met: Bool
     let text: String
     let fixTitle: String
     let fix: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(met ? Color.green : Color.orange)
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(Color.orange)
                 .font(.caption)
-                // Not just symbol + color: VoiceOver read the row the same either way.
-                .accessibilityLabel(met ? Text("Done") : Text("Missing"))
+                // Not just symbol + color: VoiceOver has to hear it too.
+                .accessibilityLabel(Text("Missing"))
             Text(text)
                 .font(.caption)
-                .foregroundStyle(met ? Color.secondary : Color.primary)
-            if !met {
-                // .mini is a ~14pt target on the one button whose job is
-                // rescuing a blocked state — .small is the smallest honest size.
-                Button(fixTitle, action: fix)
-                    .controlSize(.small)
-            }
+                .foregroundStyle(Color.primary)
+            // .mini is a ~14pt target on the one button whose job is
+            // rescuing a blocked state — .small is the smallest honest size.
+            Button(fixTitle, action: fix)
+                .controlSize(.small)
             Spacer(minLength: 0)
         }
         .padding(.leading, 2)
@@ -171,19 +166,34 @@ struct SelectionMark: View {
     }
 }
 
-extension View {
-    /// The one look of every pick-one card (display, goal, precision):
-    /// separator stroke, a darker one on hover, and an accent ring with a
-    /// faint accent fill when picked.
-    func choiceCard(isSelected: Bool, hovering: Bool) -> some View {
+/// The one look of every pick-one card (display, goal, precision):
+/// separator stroke, a darker one on hover, and an accent ring with a
+/// faint accent fill when picked.
+private struct ChoiceCard: ViewModifier {
+    let isSelected: Bool
+    let hover: ((Bool) -> Void)?
+    /// Local hover only — a card highlight, never published to the store the
+    /// Form observes (that path hitches list scrolling). `hover` is the
+    /// rail's preview, which goes through the store on purpose.
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        return padding(10)
+        content.padding(10)
             .background(shape.fill(isSelected ? Color.accentColor.opacity(0.08)
                                    : (hovering ? Color.primary.opacity(0.04) : Color.clear)))
             .overlay(shape.stroke(isSelected ? Color.accentColor
                                   : (hovering ? Color.primary.opacity(0.22) : Color(nsColor: .separatorColor)),
                                   lineWidth: isSelected ? 2 : 1))
             .contentShape(shape)
+            .onHover { hovering = $0; hover?($0) }
+            .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+extension View {
+    func choiceCard(isSelected: Bool, hover: ((Bool) -> Void)? = nil) -> some View {
+        modifier(ChoiceCard(isSelected: isSelected, hover: hover))
     }
 }
 

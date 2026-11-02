@@ -77,6 +77,30 @@ final class PillTextView: NSView {
     }
 }
 
+/// A borderless panel floating over every app, on every Space, that never
+/// takes the keyboard from the field being typed in.
+class OverlayPanel: NSPanel {
+    init(size: NSSize) {
+        super.init(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+        isFloatingPanel = true
+        level = .statusBar
+        backgroundColor = .clear
+        isOpaque = false
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
+        animationBehavior = .none
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+    }
+
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
 /// Borderless, non-activating floating panel that renders the completion.
 ///
 /// A real suggestion draws as **chromeless inline ghost text** — gray, sized to
@@ -84,7 +108,7 @@ final class PillTextView: NSView {
 /// field already contains. Engine-state notices (downloading
 /// / error / the ⌥⇥-fix affordance) fall back to a small HUD pill so they stay
 /// legible against any background.
-final class SuggestionWindow: NSPanel {
+final class SuggestionWindow: OverlayPanel {
     let container = NSView()
     let pillText = PillTextView()
     let ghost = GhostTextView()
@@ -143,22 +167,9 @@ final class SuggestionWindow: NSPanel {
     var ghostAnchorX: CGFloat = 0
 
     init() {
-        super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 10, height: 10),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        isFloatingPanel = true
-        level = .statusBar
-        backgroundColor = .clear
-        isOpaque = false
+        super.init(size: NSSize(width: 10, height: 10))
         hasShadow = false
         ignoresMouseEvents = true
-        hidesOnDeactivate = false
-        isReleasedWhenClosed = false
-        animationBehavior = .none
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
 
         container.wantsLayer = true
 
@@ -171,9 +182,6 @@ final class SuggestionWindow: NSPanel {
         container.addSubview(ghost)
         contentView = container
     }
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
 
     /// `caretRect` is in Cocoa (bottom-left origin) screen coordinates; `host`
     /// describes the field it sits in (font, text color, box) when AX exposed

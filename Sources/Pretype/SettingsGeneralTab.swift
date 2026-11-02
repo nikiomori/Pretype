@@ -343,12 +343,11 @@ struct GeneralTab: View {
             // nothing is listed once it's all in place.
             if autoReply {
                 if !store.screenContext {
-                    RequirementRow(met: false, text: String(localized: "Screen context on"),
+                    RequirementRow(text: String(localized: "Screen context on"),
                                    fixTitle: String(localized: "Turn On")) { store.screenContext = true }
                 }
                 if !ScreenContext.hasPermission {
-                    RequirementRow(met: false,
-                                   text: String(localized: "Screen Recording allowed (then relaunch Pretype)"),
+                    RequirementRow(text: String(localized: "Screen Recording allowed (then relaunch Pretype)"),
                                    fixTitle: String(localized: "Open System Settings…")) { ScreenContext.openScreenRecordingPane() }
                 }
             }
@@ -374,7 +373,6 @@ struct GeneralTab: View {
                 IconLabel(symbol: "power", tint: .gray, title: Text("Open at login"))
             }
             .help("Also in System Settings → General → Login Items.")
-            .disabled(!LoginItem.isSupported)
             // The same switch lives in System Settings, and `sync()` only
             // runs when the window is (re)presented — catch the user coming
             // back from flipping it there, or this toggle only catches up
@@ -403,15 +401,10 @@ struct GeneralTab: View {
             }
             .onChange(of: language) { AppLanguage.override = language.isEmpty ? nil : language }
             if (language.isEmpty ? AppLanguage.systemChoice : language) != AppLanguage.running {
-                // Only a bundled app can reopen itself; a bare dev binary is restarted by hand.
-                if MicrophoneAccess.isBundled {
-                    LabeledContent {
-                        Button("Relaunch") { AppLanguage.relaunch() }
-                    } label: {
-                        Text("Relaunch Pretype to switch the language.")
-                    }
-                } else {
-                    Caption(String(localized: "Restart Pretype to switch the language."))
+                LabeledContent {
+                    Button("Relaunch") { AppLanguage.relaunch() }
+                } label: {
+                    Text("Relaunch Pretype to switch the language.")
                 }
             }
         } header: {

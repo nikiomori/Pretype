@@ -1,6 +1,4 @@
 import AppKit
-import AVFoundation
-import Carbon
 import SwiftUI
 
 struct SuggestionLineMock: View {
@@ -89,9 +87,6 @@ struct PreviewCard<Preview: View>: View {
     let isSelected: Bool
     let action: () -> Void
     @ViewBuilder let preview: () -> Preview
-    /// Local hover only — a card highlight, never published to the store the
-    /// Form observes (that path hitches list scrolling).
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
@@ -127,15 +122,13 @@ struct PreviewCard<Preview: View>: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .choiceCard(isSelected: isSelected, hovering: hovering)
+            .choiceCard(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
         .accessibilityHint(cost.map { "\(subtitle) \($0.text)" } ?? subtitle)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .frame(maxWidth: .infinity)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
@@ -185,8 +178,7 @@ struct TuningSection: View {
                     }
                 }
                 if store.style == .instruct, store.instructUnusable {
-                    RequirementRow(met: false,
-                                   text: String(localized: "Instruct doesn't work on \(store.selectedModelName)"),
+                    RequirementRow(text: String(localized: "Instruct doesn't work on \(store.selectedModelName)"),
                                    fixTitle: String(localized: "Switch to Base")) { withAnimation(.easeInOut(duration: 0.18)) { store.style = .base } }
                         .help("It answers the text instead of continuing it. Instruct needs a Gemma E4B model.")
                 }

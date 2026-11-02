@@ -1,6 +1,4 @@
 import AppKit
-import AVFoundation
-import Carbon
 import SwiftUI
 
 // MARK: - Store
@@ -14,7 +12,6 @@ import SwiftUI
 final class SettingsStore {
     @ObservationIgnored weak var controller: SuggestionController?
     @ObservationIgnored private var syncing = false
-    @ObservationIgnored private var statusTimer: Timer?
 
     init(controller: SuggestionController?) {
         self.controller = controller
@@ -504,7 +501,6 @@ final class SettingsStore {
     @ObservationIgnored private var dictationSupportTask: Task<Void, Never>?
 
     var recommendation: ModelCatalog.Recommendation { ModelCatalog.recommended(for: modelID) }
-    var logprobGateUsable: Bool { style == .base }
     /// Models whose recommended style is base run instruct as "answer the text"
     /// (~0% first-word measured) — warn if the user forces it.
     var instructUnusable: Bool { !ModelCatalog.instructCompletes(modelID) }
@@ -1052,8 +1048,8 @@ final class SettingsStore {
     /// A load or download is in flight — deleting now would race the writer.
     /// Keyed on `isLoading`, not `state`: the idle-unloaded resting state also
     /// reports `.preparing`, and gating on that would disable deletion exactly
-    /// when it is safest (nothing loaded, nothing writing). Polled by the
-    /// status timer and published only when it flips.
+    /// when it is safest (nothing loaded, nothing writing). Polled while the
+    /// Model pane shows and published only when it flips.
     private(set) var engineBusy = false
 
     func setOpenAtLogin(_ on: Bool) {
@@ -1061,10 +1057,6 @@ final class SettingsStore {
         // launchd is the truth, not the click: a refused or held registration
         // snaps the switch back instead of showing a state that isn't real.
         loginStatus = LoginItem.status
-    }
-
-    func resetInstructions() {
-        instructions = Settings.defaultInstructions
     }
 
     // MARK: Sync
@@ -1141,23 +1133,11 @@ final class SettingsStore {
         }
     }
 
-    func startStatusTimer() {
-        statusTimer?.invalidate()
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refreshEngineBusy() }
-        }
-    }
-
-    func stopStatusTimer() {
-        statusTimer?.invalidate()
-        statusTimer = nil
-    }
-
-    /// Assign only on change: this runs on a 1 s timer, and an `@Observable`
-    /// set notifies its readers even when the value is the same — enough to
-    /// hitch an in-flight scroll. The status line itself lives in
+    /// Assign only on change: the Model pane polls this every second, and an
+    /// `@Observable` set notifies its readers even when the value is the same
+    /// — enough to hitch an in-flight scroll. The status line itself lives in
     /// `EngineStatusFooter`, off the store for the same reason.
-    private func refreshEngineBusy() {
+    func refreshEngineBusy() {
         let busy = controller?.engine.isLoading ?? false
         guard engineBusy != busy else { return }
         engineBusy = busy

@@ -8,7 +8,7 @@ import CoreMedia
 /// macOS kills a process that touches the microphone without
 /// `NSMicrophoneUsageDescription` in its bundle, and a bare `swift run` binary
 /// has no Info.plist at all, so `isAvailable` gates the whole feature on being
-/// a real .app (same rule, and same reason, as `LoginItem.isSupported`).
+/// a real .app.
 enum MicrophoneAccess {
     static var isBundled: Bool { Bundle.main.bundleURL.pathExtension == "app" }
 

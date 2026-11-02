@@ -52,11 +52,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         // text field, and General's is the blacklist field — a ring and a
         // caret in a field nobody clicked. Tab still walks the controls.
         DispatchQueue.main.async { [weak self] in self?.window?.makeFirstResponder(nil) }
-        store.startStatusTimer()
     }
 
     func windowWillClose(_ notification: Notification) {
-        store.stopStatusTimer()
         NSApp.setActivationPolicy(.accessory)
         // Not from inside its own close: AppKit is still using it.
         DispatchQueue.main.async { [weak self] in self?.onClose?() }

@@ -3,7 +3,7 @@ import QuartzCore
 import SwiftUI
 
 @MainActor
-final class OnboardingWindow: NSPanel {
+final class OnboardingWindow: OverlayPanel {
     private weak var controller: SuggestionController?
     private let card = OnboardingCard()
 
@@ -11,36 +11,17 @@ final class OnboardingWindow: NSPanel {
         self.controller = controller
         card.controller = controller
 
-        super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 280),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-
-        isFloatingPanel = true
-        level = .statusBar
-        backgroundColor = .clear
-        isOpaque = false
+        super.init(size: NSSize(width: 400, height: 280))
         hasShadow = true
         ignoresMouseEvents = false
-        hidesOnDeactivate = false
-        isReleasedWhenClosed = false
-        animationBehavior = .none
         isMovableByWindowBackground = true
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
 
-        card.tryIt = { Self.openTextEdit() }
-        card.retry = { [weak self] in self?.controller?.engineCoordinator.rebuild() }
         card.gotIt = { [weak self] in
             Settings.onboardingCompleted = true
             self?.dismiss()
         }
         contentView = FirstMouseHostingView(rootView: OnboardingCardView(card: card))
     }
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
 
     func show() {
         guard let screen = NSScreen.main else { return }
@@ -81,7 +62,7 @@ final class OnboardingWindow: NSPanel {
 
     /// A blank document to type on: an empty file opened directly, which
     /// skips TextEdit's iCloud Open panel.
-    private static func openTextEdit() {
+    static func openTextEdit() {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("Try Pretype.txt")
         if !FileManager.default.fileExists(atPath: url.path) {
             try? "".write(to: url, atomically: true, encoding: .utf8)
@@ -135,8 +116,6 @@ final class OnboardingCard {
     @ObservationIgnored weak var controller: SuggestionController?
     var suggestionActive = false
     var celebrating = false
-    @ObservationIgnored var tryIt: () -> Void = {}
-    @ObservationIgnored var retry: () -> Void = {}
     @ObservationIgnored var gotIt: () -> Void = {}
 }
 
@@ -240,11 +219,11 @@ struct OnboardingCardView: View {
                 // TextEdit document (TextEdit launched bare opens its iCloud
                 // Open panel instead of a page to type on).
                 if !card.celebrating, failure == nil {
-                    Button("Open TextEdit", action: card.tryIt)
+                    Button("Open TextEdit", action: OnboardingWindow.openTextEdit)
                 }
                 // Only when the engine failed — the way back without a relaunch.
                 if !card.celebrating, failure != nil {
-                    Button("Retry", action: card.retry)
+                    Button("Retry") { card.controller?.engineCoordinator.rebuild() }
                 }
                 Button("Got It", action: card.gotIt)
             }

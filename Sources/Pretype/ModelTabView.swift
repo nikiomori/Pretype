@@ -56,17 +56,7 @@ struct ModelTab: View {
             Section {
                 HStack(spacing: 10) {
                     ForEach(store.shownPriorities, id: \.self) { priority in
-                        let pick = store.pick(priority)
-                        PriorityCard(priority: priority, pick: pick,
-                                     acc: ModelMetrics.axisAccuracy(for: pick, axis: axis),
-                                     chords: store.chordsOnly
-                                        ? ChordProjection.project(store.committedConfig.applying(.preset(pick)),
-                                                                  pleFromDisk: store.pleFromDisk)
-                                        : nil,
-                                     isActive: store.priorityIsActive(priority),
-                                     apply: { store.applyPriority(priority) },
-                                     hover: { store.setHover(.preset(pick), $0) },
-                                     pleFromDisk: store.pleFromDisk)
+                        PriorityCard(priority: priority, store: store)
                     }
                 }
                 // Ideal height of the tallest card, which the others then fill.
@@ -87,7 +77,7 @@ struct ModelTab: View {
             // The gate reads the base model's own confidence: Instruct and
             // Apple Intelligence have none to read, so the choice leaves
             // with them — and with the suggestions it gates.
-            if !store.chordsOnly, store.logprobGateUsable, !store.isAppleIntelligence {
+            if !store.chordsOnly, store.style == .base, !store.isAppleIntelligence {
 
                 Section {
                     HStack(spacing: 12) {
@@ -140,6 +130,14 @@ struct ModelTab: View {
             if store.chordsOnly { mapLens = .fix }
         }
         .onChange(of: store.chordsOnly) { mapLens = store.chordsOnly ? .fix : .completion }
+        // Only this pane shows the delete state, and only its rows read a
+        // download's end, so the poll lives and dies with it.
+        .task {
+            while !Task.isCancelled {
+                store.refreshEngineBusy()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
         // A download can finish while the window sits in the background; without
         // this the figures read stale the moment the user comes back to them.
         .onReceive(NotificationCenter.default.publisher(
@@ -148,14 +146,12 @@ struct ModelTab: View {
         }
         .confirmationDialog("Delete the downloaded files for this model?",
                             isPresented: Binding(get: { confirmingDelete != nil },
-                                                 set: { if !$0 { confirmingDelete = nil } })) {
-            Button("Delete", role: .destructive) {
-                if let id = confirmingDelete { store.deleteDownload(id) }
-                confirmingDelete = nil
-            }
-            Button("Cancel", role: .cancel) { confirmingDelete = nil }
-        } message: {
-            Text("Frees \(ByteCountFormatter.string(fromByteCount: store.modelDiskBytes[confirmingDelete ?? ""] ?? 0, countStyle: .file)). Picking this model again downloads it over the network.")
+                                                 set: { if !$0 { confirmingDelete = nil } }),
+                            presenting: confirmingDelete) { id in
+            Button("Delete", role: .destructive) { store.deleteDownload(id) }
+            Button("Cancel", role: .cancel) {}
+        } message: { id in
+            Text("Frees \(ByteCountFormatter.string(fromByteCount: store.modelDiskBytes[id] ?? 0, countStyle: .file)). Picking this model again downloads it over the network.")
         }
     }
 
@@ -377,6 +373,65 @@ struct ModelTab: View {
 
 // MARK: - Comparison row
 
+/// What every selectable row of "All models" shares: the whole row is the
+/// button, and the pointer lights it. Local hover for that highlight — the
+/// rail preview (`hover`) lands 500 px away in the inspector, so a highlight
+/// at the pointer confirms the row is live. Kept off the observed store.
+private struct PickRow<Content: View>: View {
+    let isSelected: Bool
+    let spacing: CGFloat
+    let select: () -> Void
+    let hover: (Bool) -> Void
+    /// The row, told whether the pointer is over it.
+    @ViewBuilder let content: (Bool) -> Content
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: select) {
+            VStack(alignment: .leading, spacing: spacing) { content(hovering) }
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 6)
+                    .fill(hovering && !isSelected ? Color.primary.opacity(0.05) : Color.clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .onHover { hovering = $0; hover($0) }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+/// A row's radio mark and name, as two items of its top line. The row's
+/// .isSelected trait says which is picked; the glyph's name would not.
+@MainActor @ViewBuilder private func pickTitle(_ title: String, isSelected: Bool) -> some View {
+    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .accessibilityHidden(true)
+    Text(title)
+        .fontWeight(isSelected ? .semibold : .regular)
+        .lineLimit(1).truncationMode(.tail)
+}
+
+/// Not accent ink on an accent tint: under Graphite that is grey on grey, and
+/// the list's one emphasis read disabled.
+@MainActor private func recommendedBadge() -> some View {
+    Text("Recommended")
+        .font(.caption2.weight(.semibold))
+        .padding(.horizontal, 5).padding(.vertical, 1.5)
+        .foregroundStyle(.secondary)
+        .background(.quaternary, in: Capsule())
+}
+
+/// "↓ 1.4 GB": what a row's model still has to download. `help` gets the size.
+@MainActor private func downloadBadge(_ gb: Double, help: (String) -> Text) -> some View {
+    let size = gbLabel(gb)
+    return Text("↓ \(size)")
+        .font(.caption2.monospacedDigit())
+        .foregroundStyle(.secondary)
+        .help(help(size))
+        .accessibilityLabel("Not downloaded, \(size)")
+}
+
 /// One selectable model with its three measured axes as labeled bars.
 struct ModelRow: View {
     let id: String
@@ -398,120 +453,88 @@ struct ModelRow: View {
     var heavyGB: Double?
     /// `Settings.pleFromDisk`, read off the store so a flip redraws the row.
     let pleFromDisk: Bool
-    /// Local hover for the row highlight — the rail preview (`hover`) lands
-    /// 500 px away in the inspector, so a highlight at the pointer confirms
-    /// the row is live. Kept off the observed store.
-    @State private var hovering = false
 
     var body: some View {
-        Button(action: select) {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 8) {
-                    // The row's .isSelected trait says it; the glyph's name would not.
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                        .accessibilityHidden(true)
-                    Text(title)
-                        .fontWeight(isSelected ? .semibold : .regular)
-                        .lineLimit(1).truncationMode(.tail)
-                    if id == ModelCatalog.defaultID {
-                        // Not accent ink on an accent tint: under Graphite that
-                        // is grey on grey, and the list's one emphasis read disabled.
-                        Text("Recommended")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 5).padding(.vertical, 1.5)
-                            .foregroundStyle(.secondary)
-                            .background(.quaternary, in: Capsule())
-                            .help(ModelCatalog.defaultRationale)
-                    }
-                    if let heavyGB {
-                        Text("Heavy for this Mac")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 5).padding(.vertical, 1.5)
-                            .foregroundStyle(Color.orange.legible)
-                            .background(Color.orange.opacity(0.15), in: Capsule())
-                            .help("Keeps ~\(oneDecimal(heavyGB)) GB resident — over a quarter of this Mac's \(String(format: "%.0f", ModelCatalog.machineRamGB)) GB, the line the auto-picked model stays under. Everything else you run gets that much less room.")
-                    }
-                    Spacer()
-                    if let downloadGB {
-                        let size = gbLabel(downloadGB)
-                        Text("↓ \(size)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .help("Not on this Mac yet — picking it downloads about \(size) first, and suggestions pause until it's ready.")
-                            .accessibilityLabel("Not downloaded, \(size)")
-                    }
-                    if let diskBytes {
-                        let size = ByteCountFormatter.string(fromByteCount: diskBytes, countStyle: .file)
-                        Text("\(size) on disk")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        // Borderless, so the click stays on the trash instead of
-                        // also selecting the row (the classic nested-Button fix).
-                        // Busy is handled in the action, NOT via .disabled: a
-                        // disabled button drops out of hit-testing, so the click
-                        // would fall through to the row and *select* the model —
-                        // the exact load the gate exists to avoid racing.
-                        Button {
-                            if !deleteDisabled { delete() }
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.caption)
-                                .foregroundStyle(hovering && !deleteDisabled ? Color.primary : Color.secondary)
-                                .opacity(deleteDisabled ? 0.5 : 1)
-                        }
-                        .buttonStyle(.borderless)
-                        .help(deleteDisabled
-                            ? Text("The model is loading — deleting is available once it finishes.")
-                            : Text("Delete the downloaded weights (\(size), incl. any \(Settings.hotkeyStyle.correctionLabel) rewrite sibling) — picking this model again re-downloads them."))
-                        .accessibilityLabel(deleteDisabled
-                            ? Text("Delete downloaded \(title) — unavailable while a model loads")
-                            : Text("Delete downloaded \(title), frees \(size)"))
-                    }
+        PickRow(isSelected: isSelected, spacing: 7, select: select, hover: hover) { hovering in
+            HStack(spacing: 8) {
+                pickTitle(title, isSelected: isSelected)
+                if id == ModelCatalog.defaultID { recommendedBadge().help(ModelCatalog.defaultRationale) }
+                if let heavyGB {
+                    Text("Heavy for this Mac")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 5).padding(.vertical, 1.5)
+                        .foregroundStyle(Color.orange.legible)
+                        .background(Color.orange.opacity(0.15), in: Capsule())
+                        .help("Keeps ~\(oneDecimal(heavyGB)) GB resident — over a quarter of this Mac's \(String(format: "%.0f", ModelCatalog.machineRamGB)) GB, the line the auto-picked model stays under. Everything else you run gets that much less room.")
                 }
-                if let m = ModelMetrics.metrics(for: id) {
-                    let gb = HostPLE.residentGB(m.ramGB, of: id, pleFromDisk: pleFromDisk)
-                    // Named once by `ColumnHeader`, not under every row.
-                    HStack(spacing: Self.columnSpacing) {
-                        if let la = langAccuracy {
-                            MetricBar(label: String(localized: "Accuracy"), fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
-                                      text: String(localized: "\(la.pct)%"),
-                                      color: .green,
-                                      help: String(localized: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other."),
-                                      showsLabel: false)
-                        } else {
-                            MetricBar(label: String(localized: "Accuracy"), fraction: Bounds.accuracy(m), text: String(localized: "\(m.firstWordPct)%"),
-                                      color: .green,
-                                      help: String(localized: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). English and Russian are pooled here; pick either as the axis to see it alone."),
-                                      showsLabel: false)
-                        }
-                        MetricBar(label: String(localized: "Speed"), fraction: Bounds.speed(m), text: String(localized: "\(m.p50Ms) ms"),
-                                  color: .blue,
-                                  help: String(localized: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster."),
-                                  showsLabel: false)
-                        MetricBar(label: String(localized: "Memory"), fraction: Bounds.lightness(gb),
-                                  text: gbLabel(gb),
-                                  color: .teal,
-                                  help: gb > 0
-                                    ? String(localized: "Resident weights: \(oneDecimal(gb)) GB — longer bar = lighter.")
-                                    : String(localized: "System model — no download, no app memory."),
-                                  showsLabel: false)
-                        chordFigures
+                Spacer()
+                if let downloadGB {
+                    downloadBadge(downloadGB) { Text("Not on this Mac yet — picking it downloads about \($0) first, and suggestions pause until it's ready.") }
+                }
+                if let diskBytes {
+                    let size = ByteCountFormatter.string(fromByteCount: diskBytes, countStyle: .file)
+                    Text("\(size) on disk")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    // Borderless, so the click stays on the trash instead of
+                    // also selecting the row (the classic nested-Button fix).
+                    // Busy is handled in the action, NOT via .disabled: a
+                    // disabled button drops out of hit-testing, so the click
+                    // would fall through to the row and *select* the model —
+                    // the exact load the gate exists to avoid racing.
+                    Button {
+                        if !deleteDisabled { delete() }
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundStyle(hovering && !deleteDisabled ? Color.primary : Color.secondary)
+                            .opacity(deleteDisabled ? 0.5 : 1)
                     }
-                    .padding(.leading, 24)
-                } else {
-                    Text("not measured")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .padding(.leading, 24)
+                    .buttonStyle(.borderless)
+                    .help(deleteDisabled
+                        ? Text("The model is loading — deleting is available once it finishes.")
+                        : Text("Delete the downloaded weights (\(size), incl. any \(Settings.hotkeyStyle.correctionLabel) rewrite sibling) — picking this model again re-downloads them."))
+                    .accessibilityLabel(deleteDisabled
+                        ? Text("Delete downloaded \(title) — unavailable while a model loads")
+                        : Text("Delete downloaded \(title), frees \(size)"))
                 }
             }
-            .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 6)
-                .fill(hovering && !isSelected ? Color.primary.opacity(0.05) : Color.clear))
-            .contentShape(Rectangle())
+            if let m = ModelMetrics.metrics(for: id) {
+                let gb = HostPLE.residentGB(m.ramGB, of: id, pleFromDisk: pleFromDisk)
+                // Named once by `ColumnHeader`, not under every row.
+                HStack(spacing: Self.columnSpacing) {
+                    if let la = langAccuracy {
+                        MetricBar(label: String(localized: "Accuracy"), fraction: la.max > 0 ? Double(la.pct) / Double(la.max) : 0,
+                                  text: String(localized: "\(la.pct)%"),
+                                  color: .green,
+                                  help: String(localized: "First word right, staying silent counted as a miss: \(la.pct)% — matched-register cells, ≈280 samples per language (±5 pp), eval-real 2026-07-16. Compare models within this view, not languages against each other."),
+                                  showsLabel: false)
+                    } else {
+                        MetricBar(label: String(localized: "Accuracy"), fraction: Bounds.accuracy(m), text: String(localized: "\(m.firstWordPct)%"),
+                                  color: .green,
+                                  help: String(localized: "First-word accuracy of shown suggestions: \(m.firstWordPct)% [\(m.ci.lowerBound)–\(m.ci.upperBound)], coverage \(m.coveragePct)% — \(ModelMetrics.evalSource). English and Russian are pooled here; pick either as the axis to see it alone."),
+                                  showsLabel: false)
+                    }
+                    MetricBar(label: String(localized: "Speed"), fraction: Bounds.speed(m), text: String(localized: "\(m.p50Ms) ms"),
+                              color: .blue,
+                              help: String(localized: "Median time per suggestion: \(m.p50Ms) ms, warm — longer bar = faster."),
+                              showsLabel: false)
+                    MetricBar(label: String(localized: "Memory"), fraction: Bounds.lightness(gb),
+                              text: gbLabel(gb),
+                              color: .teal,
+                              help: gb > 0
+                                ? String(localized: "Resident weights: \(oneDecimal(gb)) GB — longer bar = lighter.")
+                                : String(localized: "System model — no download, no app memory."),
+                              showsLabel: false)
+                    chordFigures
+                }
+                .padding(.leading, 24)
+            } else {
+                Text("not measured")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.leading, 24)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         // The trash sits in the row's label, so VoiceOver reads the row as one
         // element and never reaches it: its delete is the row's action too.
         .accessibilityActions {
@@ -520,8 +543,6 @@ struct ModelRow: View {
                 Button { delete() } label: { Text("Delete downloaded \(title), frees \(size)") }
             }
         }
-        .onHover { hovering = $0; hover($0) }
-        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
     /// The chord figures beside the bars: fix% · reply%, in the task colors
@@ -621,78 +642,51 @@ struct FixerRow: View {
     var downloadGB: Double?
     let select: () -> Void
     let hover: (Bool) -> Void
-    @State private var hovering = false
 
     var body: some View {
-        Button(action: select) {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 8) {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                        .accessibilityHidden(true)
-                    Text(title)
-                        .fontWeight(isSelected ? .semibold : .regular)
-                        .lineLimit(1).truncationMode(.tail)
-                    if isRecommended {
-                        Text("Recommended")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 5).padding(.vertical, 1.5)
-                            .foregroundStyle(.secondary)
-                            .background(.quaternary, in: Capsule())
-                    }
-                    Spacer()
-                    if let downloadGB {
-                        let size = gbLabel(downloadGB)
-                        Text("↓ \(size)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .help("Not on this Mac yet — the first fix or reply downloads about \(size).")
-                            .accessibilityLabel("Not downloaded, \(size)")
-                    }
-                }
-                if !fixer.isEmpty {
-                    (also.isEmpty ? Text("Fixes with \(fixer)")
-                                  : Text("Fixes with \(fixer) · also \(also.formatted(.list(type: .and)))"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .padding(.leading, 24)
-                }
-                if chords.fixPct != nil {
-                    HStack(spacing: ModelRow.columnSpacing) {
-                        MetricBar(label: String(localized: "Fixed right"), fraction: chords.fixFraction ?? 0,
-                                  text: chords.fixText, color: .pink,
-                                  help: String(localized: "Typo lines restored exactly — \(ModelMetrics.taskSource)."),
-                                  showsLabel: false)
-                        MetricBar(label: String(localized: "Reply on topic"), fraction: chords.replyFraction ?? 0,
-                                  text: chords.replyText, color: .purple,
-                                  help: String(localized: "Reply drafts a judge rates on topic — \(ModelMetrics.taskSource)."),
-                                  showsLabel: false)
-                        MetricBar(label: String(localized: "Speed"), fraction: chords.speedFraction ?? 0,
-                                  text: chords.latencyText, color: .blue,
-                                  help: String(localized: "Median time per fix, warm — longer bar = faster."),
-                                  showsLabel: false)
-                        MetricBar(label: String(localized: "Memory"), fraction: chords.memoryFraction ?? 0,
-                                  text: chords.memoryText, color: .teal,
-                                  help: String(localized: "Held only while it works — longer bar = lighter."),
-                                  showsLabel: false)
-                    }
-                    .padding(.leading, 24)
-                } else {
-                    Text("not measured")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .padding(.leading, 24)
+        PickRow(isSelected: isSelected, spacing: 5, select: select, hover: hover) { _ in
+            HStack(spacing: 8) {
+                pickTitle(title, isSelected: isSelected)
+                if isRecommended { recommendedBadge() }
+                Spacer()
+                if let downloadGB {
+                    downloadBadge(downloadGB) { Text("Not on this Mac yet — the first fix or reply downloads about \($0).") }
                 }
             }
-            .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 6)
-                .fill(hovering && !isSelected ? Color.primary.opacity(0.05) : Color.clear))
-            .contentShape(Rectangle())
+            if !fixer.isEmpty {
+                (also.isEmpty ? Text("Fixes with \(fixer)")
+                              : Text("Fixes with \(fixer) · also \(also.formatted(.list(type: .and)))"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.leading, 24)
+            }
+            if chords.fixPct != nil {
+                HStack(spacing: ModelRow.columnSpacing) {
+                    MetricBar(label: String(localized: "Fixed right"), fraction: chords.fixFraction ?? 0,
+                              text: chords.fixText, color: .pink,
+                              help: String(localized: "Typo lines restored exactly — \(ModelMetrics.taskSource)."),
+                              showsLabel: false)
+                    MetricBar(label: String(localized: "Reply on topic"), fraction: chords.replyFraction ?? 0,
+                              text: chords.replyText, color: .purple,
+                              help: String(localized: "Reply drafts a judge rates on topic — \(ModelMetrics.taskSource)."),
+                              showsLabel: false)
+                    MetricBar(label: String(localized: "Speed"), fraction: chords.speedFraction ?? 0,
+                              text: chords.latencyText, color: .blue,
+                              help: String(localized: "Median time per fix, warm — longer bar = faster."),
+                              showsLabel: false)
+                    MetricBar(label: String(localized: "Memory"), fraction: chords.memoryFraction ?? 0,
+                              text: chords.memoryText, color: .teal,
+                              help: String(localized: "Held only while it works — longer bar = lighter."),
+                              showsLabel: false)
+                }
+                .padding(.leading, 24)
+            } else {
+                Text("not measured")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.leading, 24)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-        .onHover { hovering = $0; hover($0) }
-        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
     /// The columns, named once over the rows.
@@ -721,8 +715,6 @@ struct FixerRow: View {
 private struct GateCard: View {
     @Bindable var store: SettingsStore
     let on: Bool
-    /// Local hover for the card highlight, kept off the observed store.
-    @State private var hovering = false
 
     var body: some View {
         var config = store.committedConfig
@@ -748,14 +740,12 @@ private struct GateCard: View {
                           help: String(localized: "Suggests \(cov)% of the time · \(acc)% right"))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .choiceCard(isSelected: isSelected, hovering: hovering)
+            .choiceCard(isSelected: isSelected) { store.setHover(.logprobGate(on), $0) }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(on ? Text("Only when sure") : Text("More often"))
         .accessibilityValue(Text("Suggests \(cov)% of the time · \(acc)% right"))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-        .onHover { hovering = $0; store.setHover(.logprobGate(on), $0) }
-        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
@@ -763,25 +753,22 @@ private struct GateCard: View {
 
 /// One "what matters most" card: goal on top, the measured landing spot below
 /// (model + its three figures), check ring when the pipeline is already there.
-/// `pick`/`acc` come from the tab's accuracy axis, so the card re-resolves
-/// when the axis changes — "Most accurate" is per-language.
+/// The pick and its accuracy come from the tab's accuracy axis, so the card
+/// re-resolves when the axis changes — "Most accurate" is per-language.
 private struct PriorityCard: View {
     let priority: ModelPriority
-    let pick: String
-    let acc: Int?
-    /// While the model serves only the chords: what they measure on `pick`,
-    /// shown instead of the completion figures.
-    var chords: ChordProjection?
-    let isActive: Bool
-    let apply: () -> Void
-    let hover: (Bool) -> Void
-    let pleFromDisk: Bool
-    /// Local hover for the card highlight — kept off the store the Form
-    /// observes, unlike the rail-preview `hover` callback below.
-    @State private var hovering = false
+    let store: SettingsStore
 
     var body: some View {
-        Button(action: apply) {
+        let pick = store.pick(priority)
+        let acc = ModelMetrics.axisAccuracy(for: pick, axis: store.effectiveAxis)
+        let isActive = store.priorityIsActive(priority)
+        let pleFromDisk = store.pleFromDisk
+        // While the model serves only the chords: what they measure on the
+        // pick, shown instead of the completion figures.
+        let chords = store.chordsOnly
+            ? ChordProjection.project(store.committedConfig.applying(.preset(pick)), pleFromDisk: pleFromDisk) : nil
+        Button { store.applyPriority(priority) } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     SettingsIcon(symbol: priority.symbol, tint: priority.tint)
@@ -818,13 +805,11 @@ private struct PriorityCard: View {
             // Full height of the row: a card whose title or figures wrapped
             // must not stand taller than its neighbours.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .choiceCard(isSelected: isActive, hovering: hovering)
+            .choiceCard(isSelected: isActive) { store.setHover(.preset(pick), $0) }
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .help(priority.goal)
-        .onHover { hovering = $0; hover($0) }
-        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
     /// The card's three figures — quality, speed, memory. One line where it

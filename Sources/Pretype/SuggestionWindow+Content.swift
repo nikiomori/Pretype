@@ -1,5 +1,4 @@
 import AppKit
-import QuartzCore
 
 extension SuggestionWindow {
     static let pillFont = NSFont.systemFont(ofSize: 13)

@@ -1,6 +1,4 @@
 import AppKit
-import AVFoundation
-import Carbon
 import SwiftUI
 
 // MARK: - Personalization tab
@@ -31,7 +29,7 @@ struct PersonalTab: View {
                         ? String(localized: "Sets the voice of Apple Intelligence.")
                         : String(localized: "Shapes replies, and suggestions in the Instruct style."))
                     Spacer()
-                    Button("Restore Default") { store.resetInstructions() }
+                    Button("Restore Default") { store.instructions = Settings.defaultInstructions }
                         .controlSize(.small)
                         .help("Rebuild it from your account name and keyboard languages")
                 }

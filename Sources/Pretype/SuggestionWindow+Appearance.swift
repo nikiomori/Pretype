@@ -1,5 +1,4 @@
 import AppKit
-import QuartzCore
 
 extension SuggestionWindow {
     /// Point the whole overlay at the appearance of what the caret actually sits

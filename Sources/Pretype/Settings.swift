@@ -57,14 +57,11 @@ enum CompletionLength: String, CaseIterable {
 }
 
 /// Whether to learn and suggest the user's own words (the personal n-gram).
-/// Collection only happens while on.
+/// Collection only happens while on. Builds before 2026-10 stored a strength
+/// (subtle/medium/strong): no case, so `@Pref` reads them as its default, on.
 enum PersonalizationLevel: String {
     case off
     case on
-
-    /// Builds before 2026-10 stored a strength (subtle/medium/strong); every
-    /// one of them reads as on.
-    init?(rawValue: String) { self = rawValue == "off" ? .off : .on }
 }
 
 /// How a completion is shown at the caret.
@@ -808,19 +805,11 @@ enum Settings {
 /// General → Login Items. A mirrored bool would drift into a switch that lies,
 /// so every read goes back to `SMAppService.mainApp.status`.
 enum LoginItem {
-    /// SMAppService registers a login item *by bundle*. A bare `swift build`
-    /// binary has no .app around it, so `register()` could only ever throw —
-    /// the toggle says so instead of failing silently.
-    static var isSupported: Bool { MicrophoneAccess.isBundled }
-
     static var status: SMAppService.Status { SMAppService.mainApp.status }
 
     /// Extra line under the toggle when the plain caption isn't the whole story.
     static func note(_ status: SMAppService.Status) -> String? {
-        guard isSupported else {
-            return String(localized: "Available in the built app only — this binary is running outside a .app bundle, and macOS registers login items by bundle.")
-        }
-        return status == .requiresApproval
+        status == .requiresApproval
             ? String(localized: "macOS is holding this one: allow Pretype in System Settings → General → Login Items.")
             : nil
     }

@@ -16,10 +16,7 @@ enum Stats {
     /// Buddhist years and Arabic-Indic digits, and changing it broke the
     /// week, the trim and the day roll; it also kept its launch time zone.
     nonisolated static func dayKey(_ date: Date) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
-        let day = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
+        date.formatted(Date.ISO8601FormatStyle(timeZone: .current).year().month().day())
     }
 
     /// Today's key, formatted once a day: every booked event asks — the
