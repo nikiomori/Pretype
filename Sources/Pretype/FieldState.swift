@@ -1,6 +1,11 @@
 import ApplicationServices
 import Foundation
 
+/// What offers a suggestion with no model; the journal books the raw value.
+enum GhostSource: String {
+    case words, names
+}
+
 /// What the completion pipeline believes about the focused field between AX
 /// reads — the text before the caret, where the caret is and how the field
 /// draws there, the ghost offered on it, the settle window after a synthetic
@@ -30,8 +35,10 @@ struct FieldState {
         /// its *abstain* must not hide it though — a confident personal phrase
         /// beats showing nothing.
         var isInstant = false
-        /// The rest of the word being typed (Words, a session's name): taken
-        /// whole, it brings its space (`takeProvisionalSpace`).
+        /// What offered it with no model: "words", "names", or nil.
+        var wordFrom: GhostSource?
+        /// The rest of the word being typed, to its end (Words, a session's
+        /// name): taken whole, it brings its space (`takeProvisionalSpace`).
         var completesWord = false
     }
 
@@ -48,6 +55,9 @@ struct FieldState {
         /// hold a dictated sentence (`docs/privacy.md`: the transcript is
         /// redacted from the log and never journaled).
         let dictated: Bool
+        /// A name out of an agent's session: the same rule (`docs/privacy.md`:
+        /// the session is never journaled).
+        var fromSession = false
     }
 
     /// The text before the caret as last known: set by every field read,
@@ -228,11 +238,11 @@ struct FieldState {
     /// otherwise streamed growth of the one up, which keeps its "already
     /// counted as accepted" flag, so accepted ≤ shown even when the user
     /// accepts word by word while the model is still streaming.
-    mutating func offer(_ text: String, before: String, after: String,
-                        fresh: Bool, trimToLine: Bool, instant: Bool, completesWord: Bool = false) {
+    mutating func offer(_ text: String, before: String, after: String, fresh: Bool, trimToLine: Bool,
+                        instant: Bool, wordFrom: GhostSource? = nil, completesWord: Bool = false) {
         ghost = Ghost(anchor: before, after: after, text: text,
                       accepted: fresh ? false : (ghost?.accepted ?? false),
-                      trimToLine: trimToLine, isInstant: instant, completesWord: completesWord)
+                      trimToLine: trimToLine, isInstant: instant, wordFrom: wordFrom, completesWord: completesWord)
     }
 
     /// The ghost against a fresh read: typing its head narrows it in place.

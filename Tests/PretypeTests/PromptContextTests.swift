@@ -209,10 +209,14 @@ final class PromptContextTests: XCTestCase {
     func testSessionNames() {
         let names = AgentPrompt.names(in: "⏺ Fixed `AgentPrompt.input` in Sources/Pretype/AgentPrompt.swift, e.g. the Settings.\n  ⎿  SuggestionController: 2 tests (v2.1)")
         XCTAssertEqual(names, ["v2.1", "SuggestionController", "Sources/Pretype/AgentPrompt.swift", "AgentPrompt.input"])
-        XCTAssertEqual(AgentPrompt.completion(of: "see Sugg", names: names), "estionController")
-        XCTAssertEqual(AgentPrompt.completion(of: "see Agent", names: names), "Prompt.input")
-        XCTAssertEqual(AgentPrompt.completion(of: "see Agent", names: names + ["AgentPrompt.swift"]), "Prompt.",
-                       "as far as the matches agree")
+        XCTAssertEqual(AgentPrompt.completion(of: "see Sugg", names: names)?.rest, "estionController")
+        XCTAssertEqual(AgentPrompt.completion(of: "see Sugg", names: names)?.whole, true)
+        XCTAssertEqual(AgentPrompt.completion(of: "see Agent", names: names)?.rest, "Prompt.input")
+        let both = names + ["AgentPrompt.swift"]
+        XCTAssertEqual(AgentPrompt.completion(of: "see Agent", names: both)?.rest, "Prompt.", "as far as the matches agree")
+        XCTAssertEqual(AgentPrompt.completion(of: "see Agent", names: both)?.whole, false)
+        XCTAssertEqual(AgentPrompt.completion(of: "see Agen", names: ["Agents", "Agents.md"])?.whole, true,
+                       "where they part is itself a name")
         XCTAssertNil(AgentPrompt.completion(of: "see sugg", names: names), "case-sensitive")
         XCTAssertNil(AgentPrompt.completion(of: "see Su", names: names), "3+ characters typed")
         XCTAssertNil(AgentPrompt.completion(of: "see SuggestionControlle", names: names), "one character is no ghost")

@@ -71,6 +71,7 @@ final class RequestPipelineTests: PipelineTestCase {
     // asks for a completion.
     func testATerminalHasNoFixPills() async {
         await enterApp(terminal)
+        fake.terminalField = true
         fake.selected = SelectionInfo(text: "some output", rect: nil)
         fake.before = "❯ 12*7="
         controller.textDidChange()
@@ -91,6 +92,7 @@ final class RequestPipelineTests: PipelineTestCase {
         XCTAssertNil(controller.queries.current, "no model asked")
         XCTAssertTrue(try press(KeyCode.tab))
         XCTAssertEqual(fake.keys, [.insert("estionController ")])
+        XCTAssertEqual(controller.lastEvent, "accepted a name", "session text stays out of Diagnostics")
         controller.dismiss()
         XCTAssertEqual(fake.offers.last?.engine, "names")
 
@@ -109,6 +111,184 @@ final class RequestPipelineTests: PipelineTestCase {
         await enterApp("com.apple.TextEdit")
         fake.terminalField = false
         XCTAssertNil(controller.promptContext.agentTurn, "the turn stays with its box")
+    }
+
+    /// The app booked for each accepted chunk.
+    private var acceptedApps: [String?] {
+        fake.bookings.compactMap { if case .accepted(_, _, let app) = $0 { return .some(app) } else { return nil } }
+    }
+
+    // "Sou" with two paths: the ghost stops where they part, a partial name,
+    // so ⇥ leaves no space for the next key to take back.
+    func testAPartialNameTakesNoSpace() async throws {
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Sources/Pretype/Alpha.swift and Sources/Pretype/Beta.swift"
+        fake.before = "see Sou"
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "rces/Pretype/")
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertEqual(fake.keys, [.insert("rces/Pretype/")])
+        XCTAssertNil(controller.provisionalSpace)
+    }
+
+    // A name cut to the line is a partial too.
+    func testANameTrimmedToTheLineTakesNoSpace() async throws {
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Updated SuggestionController"
+        fake.before = "check Sugg"
+        fake.window.room = 5
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "estio")
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertEqual(fake.keys, [.insert("estio")])
+    }
+
+    // A name's offer goes on the app's record, so its accept must too, or a
+    // terminal reads as unproductive; a word's goes on neither.
+    func testANamesAcceptCountsForTheAppAndAWordsDoesNot() async throws {
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Updated SuggestionController."
+        fake.before = "check Sugg"
+        controller.textDidChange()
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertEqual(acceptedApps, [terminal])
+
+        set(\.suggestionMode, .words)
+        fake.terminalField = false
+        fake.advance(1)
+        await enterApp("com.apple.TextEdit")
+        fake.before = "see you tomo"
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "rrow", controller.lastEvent)
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertEqual(acceptedApps, [terminal, nil])
+    }
+
+    // What the app books reaches the record `Stats.isUnproductive` reads: a
+    // name's offer and its accept, side by side; nothing of a word.
+    func testTheAppsRecordSeesANamesAcceptAndNoWord() async throws {
+        let text = "com.apple.TextEdit"
+        Stats.clearRecord(for: terminal)
+        Stats.clearRecord(for: text)
+        defer {
+            Stats.clearRecord(for: terminal)
+            Stats.clearRecord(for: text)
+        }
+        try await testANamesAcceptCountsForTheAppAndAWordsDoesNot()
+        controller.dismiss()
+        fake.bookings.forEach(SuggestionController.Environment.book)
+        XCTAssertEqual(Stats.record(for: terminal)?.shown, 1)
+        XCTAssertEqual(Stats.record(for: terminal)?.accepted, 1)
+        XCTAssertNil(Stats.record(for: text))
+    }
+
+    // A query still running when a name lands is cancelled: its stale partial
+    // would hide the ghost and leave ⇥ armed on nothing.
+    func testANameCancelsTheQueryInFlight() async throws {
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Updated SuggestionController."
+        fake.engine.holdsStreams = true
+        fake.before = "check the"
+        controller.textDidChange()
+        let held = try XCTUnwrap(controller.queries.current?.task)
+        while fake.engine.stream == nil { await Task.yield() }
+        fake.before = "check the Sugg"
+        controller.textDidChange()
+        XCTAssertNil(controller.queries.current)
+        XCTAssertEqual(fake.window.ghost, "estionController")
+        fake.engine.stream?.yield(" stale")
+        fake.engine.stream?.finish()
+        await held.value
+        XCTAssertEqual(fake.window.ghost, "estionController")
+        XCTAssertEqual(controller.field.ghost?.text, "estionController")
+    }
+
+    // The field left and entered again: the agent's turn comes back with the
+    // next read, mid-message, not with the next message.
+    func testTheAgentsTurnSurvivesARefocus() async throws {
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Tests pass. Commit?"
+        fake.before = "yes"
+        controller.textDidChange()
+        try await finishQuery()
+        XCTAssertEqual(fake.engine.requests.last?.screenSummary, "⏺ Tests pass. Commit?")
+
+        controller.focusTracker.onFocusChange?()
+        fake.before = "yes and push"
+        controller.textDidChange()
+        try await finishQuery()
+        XCTAssertEqual(fake.engine.requests.last?.screenSummary, "⏺ Tests pass. Commit?")
+    }
+
+    // A name is session text: its record keeps the counts, not the name —
+    // shown, trimmed to the line, abandoned or taken — and ⌘Z books nothing.
+    func testASessionsNameStaysOutOfTheJournal() async throws {
+        let token = "sk-abcdefgh1234"
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ The key is \(token) here"
+        fake.window.room = 8
+        fake.before = "use sk-a"
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "bcdefgh1")
+        controller.dismiss()
+        XCTAssertEqual(fake.offers.last?.engine, "names")
+        XCTAssertEqual(fake.offers.last?.suggestion, "")
+        XCTAssertEqual(fake.offers.last?.ctx, "use sk-a")
+        XCTAssertEqual(fake.offers.last?.outcome, .abandoned)
+
+        fake.window.room = nil
+        fake.advance(1)
+        controller.textDidChange()
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertEqual(fake.offers.last?.outcome, .accepted)
+        XCTAssertEqual(fake.offers.last?.suggestion, "")
+        XCTAssertEqual(fake.offers.last?.acceptedChars, token.count - 4)
+
+        fake.before = "use \(token) "
+        XCTAssertTrue(try press(KeyCode.z, .maskCommand))
+        fake.runHops()
+        XCTAssertEqual(fake.keys.last, .delete("bcdefgh1234 ", perCharacter: true), "the ⌘Z went through")
+        XCTAssertTrue(fake.undos.isEmpty)
+        let log = DebugLog.shared.snapshot().map(\.message).joined(separator: "\n")
+        XCTAssertFalse(log.contains("bcdefgh"), "the debug log is exportable")
+    }
+
+    // Words and fixes-only type on with no OCR and no retrieval.
+    func testTypingSpendsNothingNobodyReads() async throws {
+        set(\.screenContextEnabled, true)
+        await enterApp("com.apple.TextEdit")
+        fake.before = "see you at noon, then"
+        fake.phrases = [SuggestionJournal.AcceptedPhrase(ctx: "see you", next: " soon")]
+        for change in [{ self.set(\.suggestionMode, .words) },
+                       { self.set(\.suggestionMode, .sentences); self.set(\.suggestionsEnabled, false) }] {
+            change()
+            controller.textDidChange()
+            await settleMain()
+            XCTAssertTrue(fake.captures.isEmpty)
+            XCTAssertEqual(fake.phraseLookups, 0)
+        }
+        set(\.suggestionsEnabled, true)
+        controller.textDidChange()
+        let end = Date().addingTimeInterval(5)
+        while fake.phraseLookups == 0, Date() < end { await Task.yield() }
+        XCTAssertEqual(fake.phraseLookups, 1, "the guard's other side")
+    }
+
+    // A selection in a terminal inside an editor (Kelp) is screen output, as
+    // in a terminal app: no fix pill, whatever the app's bundle says.
+    func testASelectionInATerminalFieldGetsNoFixPill() async {
+        await enterApp("dev.kelp.app")
+        fake.terminalField = true
+        fake.selected = SelectionInfo(text: "some output", rect: CGRect(x: 10, y: 10, width: 50, height: 16))
+        fake.before = "❯ fix"
+        controller.textDidChange()
+        XCTAssertNil(fake.window.currentMode)
     }
 
     // A shell prompt reads nil on every key: a terminal — an app's, or one

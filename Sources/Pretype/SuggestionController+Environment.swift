@@ -123,39 +123,42 @@ extension SuggestionController {
                 screenRecordingAllowed: { ScreenContext.hasPermission },
                 networkUnmetered: { await ModelStorage.isNetworkUnmetered() },
                 captureScreen: { await ScreenContext.capture(pid: $0, excluding: $1, caretRect: $2, field: $3, maxChars: $4) },
-                book: { booking in
-                    switch booking {
-                    case .offer(let entry):
-                        // Words' ghosts stay out of the app's record: dozens of
-                        // passed-over words would read as a model nobody takes.
-                        Stats.recordOffer(outcome: entry.outcome, shownForMs: entry.shownForMs,
-                                          tookAny: entry.acceptedChars > 0, app: entry.engine == "words" ? nil : entry.app)
-                        guard Settings.suggestionJournalEnabled else { return }
-                        // Live n-gram learning from the same ctx snapshots the
-                        // startup build replays — so today's typing predicts today.
-                        if Settings.personalizationLevel != .off {
-                            PersonalNgram.shared.observe(ctx: entry.ctx, app: entry.app)
-                        }
-                        SuggestionJournal.shared.append(entry)
-                    case .undo(let entry):
-                        guard Settings.suggestionJournalEnabled else { return }
-                        SuggestionJournal.shared.append(entry)
-                    case .fix(let entry):
-                        guard Settings.suggestionJournalEnabled else { return }
-                        SuggestionJournal.fixes.append(fix: entry)
-                    case .accepted(let chunk, let countSuggestion, let app):
-                        Stats.recordAccepted(chunk: chunk, countSuggestion: countSuggestion, app: app)
-                    case .latency(let seconds):
-                        Stats.recordLatency(seconds)
-                    case .correction:
-                        Stats.recordCorrection()
-                    case .dictated(let chars):
-                        Stats.recordDictated(chars: chars)
-                    }
-                },
+                book: book,
                 isUnproductive: { Stats.isUnproductive($0) },
                 personalNgram: .shared,
                 similarAcceptedPhrases: { SuggestionJournal.shared.similarAcceptedPhrases(to: $0) })
+        }
+
+        /// The app's `book`: into `Stats`, and the journal while it is on.
+        static func book(_ booking: Booking) {
+            switch booking {
+            case .offer(let entry):
+                // Words' ghosts stay out of the app's record: dozens of
+                // passed-over words would read as a model nobody takes.
+                Stats.recordOffer(outcome: entry.outcome, shownForMs: entry.shownForMs,
+                                  tookAny: entry.acceptedChars > 0, app: entry.engine == "words" ? nil : entry.app)
+                guard Settings.suggestionJournalEnabled else { return }
+                // Live n-gram learning from the same ctx snapshots the
+                // startup build replays — so today's typing predicts today.
+                if Settings.personalizationLevel != .off {
+                    PersonalNgram.shared.observe(ctx: entry.ctx, app: entry.app)
+                }
+                SuggestionJournal.shared.append(entry)
+            case .undo(let entry):
+                guard Settings.suggestionJournalEnabled else { return }
+                SuggestionJournal.shared.append(entry)
+            case .fix(let entry):
+                guard Settings.suggestionJournalEnabled else { return }
+                SuggestionJournal.fixes.append(fix: entry)
+            case .accepted(let chunk, let countSuggestion, let app):
+                Stats.recordAccepted(chunk: chunk, countSuggestion: countSuggestion, app: app)
+            case .latency(let seconds):
+                Stats.recordLatency(seconds)
+            case .correction:
+                Stats.recordCorrection()
+            case .dictated(let chars):
+                Stats.recordDictated(chars: chars)
+            }
         }
     }
 }

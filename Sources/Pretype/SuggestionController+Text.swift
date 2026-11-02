@@ -146,6 +146,12 @@ extension SuggestionController {
         return names
     }
 
+    /// What the debug log shows of a session's name: it is exportable, and a
+    /// session can hold a token.
+    nonisolated static func redactedName(_ name: String) -> String {
+        "\(name.count) chars of session text — redacted from log"
+    }
+
     /// Leading spaces plus the first run of non-space characters.
     nonisolated static func firstWordChunk(of text: String) -> String {
         let lead = text.prefix { $0 == " " }

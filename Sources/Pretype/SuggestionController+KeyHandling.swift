@@ -275,18 +275,18 @@ extension SuggestionController {
         // A dictated chunk is a spoken sentence: it may be named by length
         // here, never quoted — the debug buffer is exported into bug reports
         // and this message field is not even length-capped on the way out.
-        lastEvent = wasDictated
-            ? "undid a dictation of \(accepted.count) characters"
-            : "undid acceptance of \"\(accepted)\""
-        DebugLog.shared.log(
-            "UNDO", wasDictated ? "\(accepted.count) chars — redacted from log" : "\"\(accepted)\"")
+        lastEvent = wasDictated ? "undid a dictation of \(accepted.count) characters"
+            : undo.fromSession ? "undid a name" : "undid acceptance of \"\(accepted)\""
+        DebugLog.shared.log("UNDO", wasDictated ? "\(accepted.count) chars — redacted from log"
+            : undo.fromSession ? Self.redactedName(accepted) : "\"\(accepted)\"")
         indicator.flashTransient(.hint(String(localized: "Undone")))
         // The accept was already journaled; an undo is the strongest reject
         // signal there is, so it gets its own event. Never for dictation: the
         // journal is on disk, the flow promises it never records a transcript,
         // and an `.undone` row only ever acts as a negative filter against a
         // phrase this pipeline suggested — which a spoken sentence never was.
-        if !wasDictated {
+        // Nor for a session's name: its accept left no phrase to filter.
+        if !wasDictated, !undo.fromSession {
             env.book(.undo(SuggestionJournal.Entry(
                 ts: SuggestionJournal.timestamp(),
                 app: typingContext.bundleID,
@@ -322,13 +322,17 @@ extension SuggestionController {
         // immediate ⌘Z fall through to the app.
         // A whole word from Words comes with its space, which the next key
         // may take back (`takeProvisionalSpace`) — not before a line's text.
-        let word = current.completesWord
-        let space = word && chunk == current.text && (current.after.first?.isNewline ?? true) ? " " : ""
+        let space = current.completesWord && chunk == current.text && (current.after.first?.isNewline ?? true) ? " " : ""
+        let fromSession = current.wordFrom == .names
         typeChunk(chunk + space, over: field.cache, dictated: false)
+        field.undoable?.fromSession = fromSession
         provisionalSpace = space.isEmpty ? nil : field.cache
-        env.book(.accepted(chunk: chunk, countSuggestion: !current.accepted, app: word ? nil : typingContext.bundleID))
-        lastEvent = "accepted \"\(chunk)\""
-        DebugLog.shared.log("ACCEPT", "\"\(chunk)\"")
+        // As an offer is booked (`Environment.book`): only Words stays out of
+        // the app's record.
+        env.book(.accepted(chunk: chunk, countSuggestion: !current.accepted,
+                           app: current.wordFrom == .words ? nil : typingContext.bundleID))
+        lastEvent = fromSession ? "accepted a name" : "accepted \"\(chunk)\""
+        DebugLog.shared.log("ACCEPT", fromSession ? Self.redactedName(chunk) : "\"\(chunk)\"")
         offer.accepted(chunk)
         if let remaining = field.advanceGhost(past: chunk) {
             // Slide the remaining ghost forward in place so accepting word by

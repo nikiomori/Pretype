@@ -118,13 +118,15 @@ enum AgentPrompt {
     /// The rest of the session name the text ends in — as far as every
     /// matching name agrees — when that adds 2+ characters to a token of 3+.
     /// Case-sensitive: "sugg" never grows into "SuggestionController".
-    static func completion(of text: String, names: [String]) -> String? {
+    /// `whole`: it ends a name, not only where the matching names part.
+    static func completion(of text: String, names: [String]) -> (rest: String, whole: Bool)? {
         let token = String(text.reversed().prefix { $0.isLetter || $0.isNumber || nameMarks.contains($0) }.reversed())
         guard token.count >= 3, token.contains(where: \.isLetter) else { return nil }
         let matches = names.filter { $0.count > token.count && $0.hasPrefix(token) }
         guard var common = matches.first else { return nil }
         for name in matches.dropFirst() { common = String(zip(common, name).prefix { $0 == $1 }.map(\.0)) }
-        return common.count >= token.count + 2 ? String(common.dropFirst(token.count)) : nil
+        guard common.count >= token.count + 2 else { return nil }
+        return (String(common.dropFirst(token.count)), matches.contains(common))
     }
 
     private static let nameMarks: Set<Character> = ["_", ".", "/", "-"]

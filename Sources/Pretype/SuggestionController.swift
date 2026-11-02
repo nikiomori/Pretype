@@ -196,6 +196,9 @@ final class SuggestionController {
     /// ended it, and neither is known until now. See `Stats.isChance`.
     func resolveJournal(_ outcome: SuggestionJournal.Outcome) {
         guard var entry = offer.resolve(outcome, ghost: field.ghost?.text, at: env.now()) else { return }
+        // Session text stays out of the journal, accepted or not: its counts
+        // are all a names row keeps.
+        if entry.engine == "names" { entry.suggestion = "" }
         // ONE snapshot for both of the journal's consumers: the n-gram's delta
         // cursor must see exactly the ctx window the journal stores, or the
         // next launch's replay re-splits the stream differently and double-learns.
@@ -435,9 +438,10 @@ final class SuggestionController {
             return
         }
         // A selection switches into fix-selection mode (⌥⇥); the correction
-        // controller owns the overlay while it's up. Not in a terminal, where
-        // a selection is screen output and the chord is off.
-        if Settings.fixesEnabled, !AppPolicy.isTerminal(typingContext.bundleID),
+        // controller owns the overlay while it's up. Not in a terminal — an
+        // app's, or one inside an editor (Kelp) — where a selection is screen
+        // output.
+        if Settings.fixesEnabled, !env.isTerminalField(element),
            correctionController.handleSelection(element) { return }
 
         // Web and Electron apps can REPLACE the focused node with no focus
@@ -520,15 +524,20 @@ final class SuggestionController {
         // An agent's session names what is typed to it next — a file, a
         // symbol it just printed: the rest of it, no model asked.
         if env.isTerminalField(element),
-           let rest = AgentPrompt.completion(of: text, names: sessionNames(in: element, typed: text)) {
-            apply(rest, requestText: text, cachedContext: ctx, instant: true, wordFrom: "names")
+           let name = AgentPrompt.completion(of: text, names: sessionNames(in: element, typed: text)) {
+            // A partial of a query still running would land stale and hide it.
+            queries.cancel()
+            apply(name.rest, requestText: text, cachedContext: ctx, instant: true, wordFrom: .names,
+                  partialWord: !name.whole)
             return
         }
 
         // Words: the rest of the word or nothing — no model, nothing to wait for.
         if Settings.activeSuggestionMode == .words {
+            queries.cancel()
+            indicator.stop()
             if let word = WordCompletion.suggestion(text: text, after: ctx.textAfterCaret, ngram: env.personalNgram) {
-                apply(word, requestText: text, cachedContext: ctx, instant: true, wordFrom: "words")
+                apply(word, requestText: text, cachedContext: ctx, instant: true, wordFrom: .words)
             }
             return
         }
@@ -655,10 +664,14 @@ final class SuggestionController {
     /// empty field as a real (empty) context, and is never trimmed to the line.
     /// Its leading space is the model's own (`cleanReply`), so landing never
     /// takes it back: "I may" + " be late" is not "maybe".
+    ///
+    /// `wordFrom`: what offers it with no model ("words", "names"), a whole
+    /// word unless `partialWord`, which takes no space when accepted.
     @discardableResult
     func apply(_ result: String?, requestText: String,
                cachedContext: TextContext? = nil, countShown: Bool = true,
-               instant: Bool = false, reply: Bool = false, wordFrom: String? = nil) -> Bool {
+               instant: Bool = false, reply: Bool = false, wordFrom: GhostSource? = nil,
+               partialWord: Bool = false) -> Bool {
         indicator.stop()
         guard Settings.enabled else { return false }
         let sanitized = result.map { Self.sanitized($0, maxChars: reply ? 400 : 120) } ?? ""
@@ -717,7 +730,8 @@ final class SuggestionController {
         // with nothing booked against it.
         let opensRecord = countShown || !offer.isOpen
         field.offer(suggestion, before: current, after: ctx.textAfterCaret,
-                    fresh: opensRecord, trimToLine: !reply, instant: instant, completesWord: wordFrom != nil)
+                    fresh: opensRecord, trimToLine: !reply, instant: instant, wordFrom: wordFrom,
+                    completesWord: wordFrom != nil && !partialWord)
         if opensRecord {
             // A fresh suggestion opens a journal record; an unresolved one at
             // this point was replaced before the user reacted to it. The offer
@@ -730,7 +744,7 @@ final class SuggestionController {
                 // for an agent session's names, else the engine's name — so
                 // the journal can compare their acceptance rates, and keeps
                 // the model's rows apart from all three.
-                engine: !instant ? engine.name : wordFrom ?? "ngram",
+                engine: !instant ? engine.name : wordFrom?.rawValue ?? "ngram",
                 // The engine's OWN resolved model — not Settings.mlxModelID,
                 // which diverges from what actually generated (instruct loads
                 // the it-sibling; Apple Intelligence has no MLX model at all).
@@ -766,12 +780,13 @@ final class SuggestionController {
                                 trimToLine: field.ghost?.trimToLine ?? true) ?? text
         if shown != text {
             field.ghost?.text = shown
+            field.ghost?.completesWord = false
             offer.showing(shown, at: ctx.textBeforeCaret)
         }
-        lastEvent = "suggesting \"\(shown.prefix(40))\""
+        lastEvent = field.ghost?.wordFrom == .names ? "suggesting a name" : "suggesting \"\(shown.prefix(40))\""
         if shown != lastLoggedSuggestion {
             lastLoggedSuggestion = shown
-            DebugLog.shared.log("SHOW", "\"\(shown)\""
+            DebugLog.shared.log("SHOW", field.ghost?.wordFrom == .names ? Self.redactedName(shown) : "\"\(shown)\""
                 + (shown != text ? " (trimmed to the line from \(text.count) chars)" : ""))
         }
         if !Settings.onboardingCompleted {

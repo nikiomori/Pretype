@@ -23,6 +23,9 @@ extension SuggestionController {
         )
         // Stale window text must not leak into the new context.
         promptContext.focusChanged()
+        // The names go with it: kept, they would keep the agent's turn out of
+        // the prompt until the next message (`sessionNames`).
+        sessionNamesRead = nil
         dismiss()
         // A capture belongs to the field it started in: carried across a focus
         // change it would type a sentence meant for one app into another.
