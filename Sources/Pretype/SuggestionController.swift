@@ -783,8 +783,7 @@ final class SuggestionController {
         let shown = window.show(mode: .suggestion(text), at: rect, host: ctx.host,
                                 trimToLine: field.ghost?.trimToLine ?? true) ?? text
         if shown != text {
-            field.ghost?.text = shown
-            field.ghost?.completesWord = false
+            field.trimGhost(to: shown)
             offer.showing(shown, at: ctx.textBeforeCaret)
         }
         lastEvent = field.ghost?.wordFrom == .names ? "suggesting a name" : "suggesting \"\(shown.prefix(40))\""

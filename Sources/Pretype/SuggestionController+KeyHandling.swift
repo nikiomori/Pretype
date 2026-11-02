@@ -192,7 +192,7 @@ extension SuggestionController {
             // The pill re-render inside advance can flip back into a trimmed
             // ghost — same contract as show: never accept more than is on screen.
             if let shown = window.advance(past: typed, remaining: remaining), shown != remaining {
-                field.ghost?.text = shown
+                field.trimGhost(to: shown)
             }
         case .retired(let outcome)?:
             retire(outcome)
@@ -340,7 +340,7 @@ extension SuggestionController {
             // the real caret. Its pill path can flip back into a trimmed ghost
             // — narrow what ⇧⇥ accepts to what it actually rendered.
             if let shown = window.advance(past: chunk, remaining: remaining), shown != remaining {
-                field.ghost?.text = shown
+                field.trimGhost(to: shown)
             }
         } else {
             retire(.accepted)

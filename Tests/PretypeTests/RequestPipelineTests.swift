@@ -132,6 +132,23 @@ final class RequestPipelineTests: PipelineTestCase {
         XCTAssertNil(controller.provisionalSpace)
     }
 
+    // A name's ghost cut short after it was shown ends at no word's end, as
+    // one cut when first shown does: ⇥ types what is drawn, with no space.
+    func testANameTrimmedWhileTypingTakesNoSpace() async throws {
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Updated SuggestionController."
+        fake.before = "check Sugg"
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "estionController")
+        fake.window.room = 5
+        try type("e")
+        XCTAssertEqual(controller.field.ghost?.text, "stion")
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertEqual(fake.keys, [.insert("stion")])
+        XCTAssertNil(controller.provisionalSpace)
+    }
+
     // A name cut to the line is a partial too.
     func testANameTrimmedToTheLineTakesNoSpace() async throws {
         await enterApp(terminal)

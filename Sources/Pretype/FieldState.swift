@@ -270,6 +270,13 @@ struct FieldState {
         return ghost.text
     }
 
+    /// The overlay drew only `shown` of the ghost, what fits on the line: that
+    /// is all ⇥ may type, and it ends at no word's end, so it brings no space.
+    mutating func trimGhost(to shown: String) {
+        ghost?.text = shown
+        ghost?.completesWord = false
+    }
+
     // MARK: - Keys
 
     /// A key the tap passed on to the app, from the characters the event
