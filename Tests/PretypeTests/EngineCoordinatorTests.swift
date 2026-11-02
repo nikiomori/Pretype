@@ -95,6 +95,12 @@ final class EngineCoordinatorTests: MLXTestCase {
             XCTAssertEqual(coordinator.current.style, .base)
             XCTAssertTrue(coordinator.engine === second)
             XCTAssertEqual(rebuilds, 1)
+
+            // A model click under Recommended commits the gate it found.
+            coordinator.apply(.logprobGate(true))
+            coordinator.apply(.model("test/third"))
+            XCTAssertTrue(Settings.logprobGate)
+            XCTAssertNotNil((coordinator.engine as? MLXEngine)?.logprobGateThreshold)
         }
     }
 

@@ -49,14 +49,23 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(stale.style, .instruct)   // usable here, kept
         XCTAssertFalse(stale.logprobGate)        // but the gate cannot ride along
 
-        // In recommended mode a model switch re-snaps everything.
+        // In recommended mode a model switch re-snaps Style and Length. The
+        // gate is the user's: Recommended never touches it.
         var auto = ProjectionConfig(modelID: mini, style: .base, length: .long,
                                     logprobGate: true,
                                     useRecommended: true)
         auto = auto.applying(.model(e4b6))
         XCTAssertEqual(auto.style, .base)  // E4B's measured best since 2026-10-15
         XCTAssertEqual(auto.length, .short)
-        XCTAssertFalse(auto.logprobGate)
+        XCTAssertTrue(auto.logprobGate)
+        // Turning Recommended on keeps it too — where the style has one.
+        let manual = ProjectionConfig(modelID: e4b6, style: .base, length: .long, logprobGate: true, useRecommended: false)
+        XCTAssertTrue(manual.applying(.useRecommended(true)).logprobGate)
+        // Apple Intelligence has no gate: the model switch and the snap clear it.
+        XCTAssertFalse(auto.applying(.model(ModelCatalog.appleIntelligenceID)).logprobGate)
+        var system = manual
+        system.modelID = ModelCatalog.appleIntelligenceID
+        XCTAssertFalse(system.applying(.useRecommended(true)).logprobGate)
     }
 
     // Each gesture's whole effect on the configuration, every field.
@@ -71,7 +80,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(cfg(e4b6, .base, .medium, gate: true, auto: false).applying(.model(mini)),
                        cfg(mini, .base, .medium, gate: true, auto: false))
         XCTAssertEqual(cfg(mini, .instruct, .long, gate: true, auto: true).applying(.model(e4b8)),
-                       cfg(e4b8, .base, .short, gate: false, auto: true))
+                       cfg(e4b8, .base, .short, gate: true, auto: true))
         // Style and length are manual choices: they leave recommended mode;
         // Instruct drops the Base-only gate, Base keeps it.
         XCTAssertEqual(cfg(e4b6, .base, .short, gate: true, auto: true).applying(.style(.instruct)),
@@ -83,7 +92,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(cfg(e4b6, .base, .short, gate: false, auto: true).applying(.logprobGate(true)),
                        cfg(e4b6, .base, .short, gate: true, auto: true))
         XCTAssertEqual(cfg(e4b6, .instruct, .long, gate: true, auto: false).applying(.useRecommended(true)),
-                       cfg(e4b6, .base, .short, gate: false, auto: true))
+                       cfg(e4b6, .base, .short, gate: true, auto: true))
         XCTAssertEqual(cfg(e4b6, .instruct, .long, gate: true, auto: true).applying(.useRecommended(false)),
                        cfg(e4b6, .instruct, .long, gate: true, auto: false))
         // A preset lands on the measured protocol, keeping the gate.

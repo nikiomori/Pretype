@@ -39,9 +39,9 @@ struct ProjectionConfig: Equatable {
             && logprobGate == other.logprobGate
     }
 
-    /// The same dependency cascades the pipeline applies on commit:
-    /// recommended mode snaps style/length and clears the gate; instruct has no
-    /// gate path.
+    /// The dependency cascades, for preview and commit alike
+    /// (`EngineCoordinator.apply`): recommended mode snaps style and length and
+    /// leaves the gate to the user; a style with no gate path clears it.
     func applying(_ change: Change) -> ProjectionConfig {
         var c = self
         switch change {
@@ -50,7 +50,6 @@ struct ProjectionConfig: Equatable {
             if c.useRecommended {
                 c.style = ModelCatalog.recommended(for: id).style
                 c.length = .short
-                c.logprobGate = false
             }
             // A switch to a base-only model never keeps the measured-broken
             // Instruct style; and if the landing style is still Instruct
@@ -71,7 +70,7 @@ struct ProjectionConfig: Equatable {
             if on {
                 c.style = ModelCatalog.recommended(for: c.modelID).style
                 c.length = .short
-                c.logprobGate = false
+                if c.style != .base { c.logprobGate = false }
             }
         case .preset(let id):
             c.modelID = id
