@@ -528,11 +528,9 @@ final class MLXEngine: CompletionEngine {
     /// stops a sentence that never ends (93% end within 40 tokens on E4B).
     static func tokenBudget(for request: CompletionRequest, length: CompletionLength,
                             longForm: Bool = false) -> Int {
-        let cyrillic = isCyrillicHeavy(request.textBeforeCaret)
         var budget = longForm && length == .long ? 40 : length.maxTokens
-        if cyrillic { budget = Int((Double(budget) * 1.7).rounded()) }
-        let chatCap = cyrillic ? 13 : 8
-        return request.isChatApp ? min(budget, chatCap) : budget
+        if request.isCyrillicHeavy { budget = Int((Double(budget) * 1.7).rounded()) }
+        return min(budget, request.chatCap?.tokens ?? budget)
     }
 
     /// Decoding parameters shared by both completion paths (base and instruct).
@@ -581,22 +579,6 @@ final class MLXEngine: CompletionEngine {
         guard gatePin != nil || Settings.logprobGate else { return (nil, [:]) }
         let recommended = ModelCatalog.recommended(for: modelID)
         return (recommended.logprobGateTau, recommended.scriptGateTau)
-    }
-
-    /// True when the recent text is majority-Cyrillic — used to widen the token
-    /// budget so Russian word-count targets aren't clipped.
-    private static func isCyrillicHeavy(_ text: String) -> Bool {
-        var cyrillic = 0
-        var letters = 0
-        for scalar in text.suffix(120).unicodeScalars {
-            if (0x0400...0x04FF).contains(scalar.value) {
-                cyrillic += 1
-                letters += 1
-            } else if CharacterSet.letters.contains(scalar) {
-                letters += 1
-            }
-        }
-        return letters >= 6 && cyrillic * 2 > letters
     }
 
     // MARK: - Fix selection

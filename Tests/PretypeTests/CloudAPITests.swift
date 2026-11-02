@@ -293,6 +293,12 @@ final class CloudAPITests: XCTestCase {
         let system = try XCTUnwrap((sentJSON["messages"] as? [[String: String]])?.first?["content"])
         XCTAssertTrue(system.contains("Writes tersely."), system)
 
+        // A chat stays short at any length.
+        let slack = CompletionRequest(textBeforeCaret: "We should meet ", appBundleID: "com.tinyspeck.slackmacgap",
+                                      endsOnCompleteWord: false)
+        let inChat = try await engine.complete(slack)
+        XCTAssertEqual(inChat, words.split(separator: " ").prefix(5).joined(separator: " "))
+
         // The context floors: 8 characters at a word boundary, 5 mid-word.
         StubProtocol.response = Self.answer("next")
         for (typed, asks) in [("Hi you ", false), ("Hi you, ", true), ("Hell", false), ("Hello", true)] {

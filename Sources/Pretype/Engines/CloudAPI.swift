@@ -410,7 +410,8 @@ final class CloudEngine: CompletionEngine {
                 endpoint, system: turn.system + "\n\nLength: \(length.wordsHint).", user: turn.user,
                 maxTokens: 128, timeout: 10)
             try Task.checkCancellation()
-            return prepared.gate(cleanInstruct: true)(Self.clip(raw, words: Self.wordCap(length)))
+            let words = min(Self.wordCap(length), request.chatCap?.words ?? .max)
+            return prepared.gate(cleanInstruct: true)(Self.clip(raw, words: words))
         } catch let error as APIError {
             // Typing must never surface a network hiccup: abstain and log. A
             // rejected key is the one failure that won't heal by itself.

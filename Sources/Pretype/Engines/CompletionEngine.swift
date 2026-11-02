@@ -274,6 +274,29 @@ extension CompletionRequest {
     var isChatApp: Bool {
         AppPolicy.isChat(TypingContext(bundleID: appBundleID, site: site))
     }
+
+    /// How far a suggestion runs in a chat app at any length; nil elsewhere.
+    /// In each engine's own measure: tokens where the budget ends the text,
+    /// words on a hosted model, where it can't (`CloudEngine.wordCap`).
+    var chatCap: (tokens: Int, words: Int)? {
+        isChatApp ? (tokens: isCyrillicHeavy ? 13 : 8, words: 5) : nil
+    }
+
+    /// True when the recent text is majority-Cyrillic — used to widen the token
+    /// budget so Russian word-count targets aren't clipped.
+    var isCyrillicHeavy: Bool {
+        var cyrillic = 0
+        var letters = 0
+        for scalar in textBeforeCaret.suffix(120).unicodeScalars {
+            if (0x0400...0x04FF).contains(scalar.value) {
+                cyrillic += 1
+                letters += 1
+            } else if CharacterSet.letters.contains(scalar) {
+                letters += 1
+            }
+        }
+        return letters >= 6 && cyrillic * 2 > letters
+    }
 }
 
 /// Minimal thread-safe value holder: completion knobs are set on the main

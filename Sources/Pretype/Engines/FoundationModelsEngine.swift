@@ -75,7 +75,7 @@ final class FoundationModelsEngine: CompletionEngine {
         // 2026-10-16: 3 and 6 at once all answered.
         let session = LanguageModelSession(instructions: turn.system)
         do {
-            let response = try await session.respond(to: turn.user, options: generationOptions())
+            let response = try await session.respond(to: turn.user, options: generationOptions(for: request))
             try Task.checkCancellation()
             // The model answers flush and sometimes quoted, like any instruct model.
             return prepared.gate(cleanInstruct: true)(response.content)
@@ -91,10 +91,15 @@ final class FoundationModelsEngine: CompletionEngine {
         }
     }
 
-    /// Decoding options: greedy (`greedy`), else Apple's default sampler. FM tokens run shorter than MLX's, so the budget carries a
-    /// little headroom.
-    private func generationOptions() -> GenerationOptions {
-        let maxTokens = lengthBox.get().maxTokens + 8
+    /// The length's token budget, held to a chat's cap. FM tokens run shorter
+    /// than MLX's, so it carries a little headroom.
+    static func tokenBudget(for request: CompletionRequest, length: CompletionLength) -> Int {
+        min(length.maxTokens, request.chatCap?.tokens ?? length.maxTokens) + 8
+    }
+
+    /// Decoding options: greedy (`greedy`), else Apple's default sampler.
+    private func generationOptions(for request: CompletionRequest) -> GenerationOptions {
+        let maxTokens = Self.tokenBudget(for: request, length: lengthBox.get())
         return Self.greedy.get()
             ? Self.greedyOptions(maxTokens: maxTokens)
             : GenerationOptions(maximumResponseTokens: maxTokens)

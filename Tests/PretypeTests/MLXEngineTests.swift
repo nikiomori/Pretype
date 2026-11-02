@@ -703,6 +703,17 @@ final class MLXEngineTests: MLXTestCase {
         XCTAssertEqual(MLXEngine.tokenBudget(for: long, length: .medium, longForm: true), 12)
     }
 
+    // One chat cap, every engine: Apple's model counts tokens like MLX, with
+    // its own headroom; nothing changes outside a chat.
+    func testAChatCapsTheSystemModelToo() {
+        var request = CompletionRequest(textBeforeCaret: "See you at the meeting")
+        request.appBundleID = "com.tinyspeck.slackmacgap"
+        XCTAssertEqual(FoundationModelsEngine.tokenBudget(for: request, length: .long), 8 + 8)
+        XCTAssertEqual(FoundationModelsEngine.tokenBudget(for: request, length: .short), 6 + 8, "the cap only ever lowers it")
+        request.appBundleID = "com.apple.TextEdit"
+        XCTAssertEqual(FoundationModelsEngine.tokenBudget(for: request, length: .long), 22 + 8)
+    }
+
     // A chat app's cap ends the text after a few words, so there Base Medium
     // and Long stay the short, trimmed suggestion; elsewhere they run long.
     func testLongFormStaysOutOfChatApps() async throws {
