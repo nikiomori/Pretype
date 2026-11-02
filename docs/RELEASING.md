@@ -33,6 +33,7 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
    * `PRETYPE_VERSION` is not set. `dist.sh` signs only an app that it builds from the tag. It never signs an existing `build/Pretype.app`.
    * The working tree has a change or an untracked file.
    * `HEAD` is not at the tag `vX.Y.Z`.
+   * `HEAD` is not on `origin/main`. Push `main` and wait for CI first. Then do `git fetch origin`.
    * The "Developer ID Application" certificate is not in the keychain.
 
    > **NOTE:** `notarytool --wait` can stop after a short network failure. The submission continues on the server. Do not submit again. Do the steps in [If notarytool stops](#if-notarytool-stops).

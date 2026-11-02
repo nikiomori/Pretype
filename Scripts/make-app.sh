@@ -25,6 +25,11 @@ if [ -n "${PRETYPE_VERSION:-}" ]; then
         echo "Refusing a release build: HEAD is not at tag $tag. Run: git switch --detach $tag"
         exit 1
     fi
+    # CI runs on main only after a push, so a tag on a local commit is untested.
+    if ! git merge-base --is-ancestor HEAD origin/main; then
+        echo "Refusing a release build: HEAD is not on origin/main. Push main, wait for CI, then run: git fetch origin"
+        exit 1
+    fi
 fi
 
 if ! xcrun metal --version >/dev/null 2>&1; then
