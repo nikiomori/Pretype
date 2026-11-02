@@ -122,6 +122,19 @@ enum AppPolicy {
                                           "microsoft.teams", "viber", "wechat", "xinwechat"])
     }
 
+    /// Return sends the message here, so a typed newline would send half of it:
+    /// a messenger, an AI chat, or a field dictation presses ⏎ in. Not `isChat`
+    /// alone: that one is about who writes first.
+    static func returnSends(_ context: TypingContext) -> Bool {
+        if isChat(context) || sendsAfterDictation(context) { return true }
+        if let host = context.site {
+            return ["chatgpt.com", "claude.ai", "gemini.google.com", "copilot.microsoft.com", "perplexity.ai",
+                    "grok.com", "chat.deepseek.com", "chat.mistral.ai", "poe.com"]
+                .contains { site(host, matches: siteEntry($0)) }
+        }
+        return matches(context.bundleID, ["openai.chat", "anthropic.claude", "perplexity"])
+    }
+
     /// The `Settings.dictationSendApps` entry for this field: the website in a
     /// browser (one browser holds many chats), else the app's bundle ID.
     static func dictationSendEntry(_ context: TypingContext) -> String? {

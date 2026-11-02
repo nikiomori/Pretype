@@ -437,6 +437,20 @@ final class DictationPipelineTests: PipelineTestCase {
         XCTAssertEqual(fix, "Hello. How are you?")
     }
 
+    // An app dictation presses ⏎ in: Return sends there too, though it is no
+    // messenger.
+    func testAVoiceCommandWhereReturnSendsStaysOnOneLine() async throws {
+        set(\.dictationSendApps, ["com.example.notes"])
+        await enterApp("com.example.notes")
+        fake.selected = SelectionInfo(text: "hi there", rect: nil)
+        fake.engine.rewritten = "Hello.\nHow are you?"
+        controller.applyVoiceCommand("make it formal", to: "hi there")
+        await controller.correctionController.correctionTask?.value
+        fake.runHops()
+        guard case .fixPreview(_, let fix)? = fake.window.currentMode else { return XCTFail("no preview") }
+        XCTAssertEqual(fix, "Hello. How are you?")
+    }
+
     // Suggestions start asking the model again: it loads. Words asks nothing.
     func testAFeatureFlipPrewarmsOnlyWhatIsAsked() {
         let before = fake.engine.prewarms

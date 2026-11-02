@@ -362,8 +362,7 @@ final class CorrectionController {
             host.noteCaret(rect)
         }
         host.clearActiveCompletion()
-        // A typed newline sends the message in a chat, half of it.
-        let oneLine = AppPolicy.isChat(host.typingContext)
+        let oneLine = AppPolicy.returnSends(host.typingContext)
         runFix(
             selectionText: text,
             proposedEvent: "voice command — ⏎ to apply, esc to keep",

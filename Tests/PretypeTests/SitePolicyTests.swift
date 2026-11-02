@@ -52,6 +52,20 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "im.riot.app", site: "matrix.example.org")))
     }
 
+    func testReturnSendsInChatsAIChatsAndTheAppsDictationSendsIn() {
+        let saved = Settings.dictationSendApps
+        defer { Settings.dictationSendApps = saved }
+        Settings.dictationSendApps = ["com.example.notes"]
+        let browser = "com.google.Chrome"
+        XCTAssertTrue(AppPolicy.returnSends(TypingContext(bundleID: "ru.keepcoder.Telegram")))
+        XCTAssertTrue(AppPolicy.returnSends(TypingContext(bundleID: browser, site: "claude.ai")))
+        XCTAssertTrue(AppPolicy.returnSends(TypingContext(bundleID: browser, site: "chatgpt.com")))
+        XCTAssertTrue(AppPolicy.returnSends(TypingContext(bundleID: "com.openai.chat")))
+        XCTAssertTrue(AppPolicy.returnSends(TypingContext(bundleID: "com.example.notes")))
+        XCTAssertFalse(AppPolicy.returnSends(TypingContext(bundleID: browser, site: "docs.google.com")))
+        XCTAssertFalse(AppPolicy.returnSends(TypingContext(bundleID: "com.apple.mail")))
+    }
+
     func testSiteInstructionsWinOverTheBrowsersAndTheMostSpecificSiteWins() {
         let saved = Settings.perAppInstructions
         defer { Settings.perAppInstructions = saved }
