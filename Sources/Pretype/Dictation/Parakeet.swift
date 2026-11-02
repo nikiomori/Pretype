@@ -35,10 +35,8 @@ enum Parakeet {
         return isOn || Locale(identifier: interface).language.languageCode == locale.language.languageCode
     }
 
-    static var isDownloaded: Bool { isDownloaded(.ultra) || isDownloaded(.v3) }
-
-    private static func isDownloaded(_ version: AsrModelVersion) -> Bool {
-        AsrModels.modelsExist(at: AsrModels.defaultCacheDirectory(for: version), version: version)
+    static var isDownloaded: Bool {
+        AsrModels.modelsExist(at: AsrModels.defaultCacheDirectory(for: .ultra), version: .ultra)
     }
 
     /// Download (once) and load (once per launch). Also what the settings
@@ -85,23 +83,14 @@ enum Parakeet {
 
         func manager() async throws -> AsrManager {
             let task = loading ?? Task {
-                // An install that opted in before Ultra keeps dictating on its
-                // v3 while Ultra downloads in the background — only while it
-                // still opts in: with Parakeet off, v3 is here just for a
-                // failed upload's fallback, which downloads nothing.
-                if Parakeet.isDownloaded(.v3), !Parakeet.isDownloaded(.ultra) {
-                    let manager = try await Parakeet.load(.v3)
-                    if Settings.dictationParakeet { Task.detached(priority: .utility) { await Parakeet.upgrade() } }
-                    return manager
-                }
-                if !Parakeet.isDownloaded(.ultra) {
+                if !Parakeet.isDownloaded {
                     DebugLog.shared.log("DICTATE", "downloading the Parakeet speech model…")
                     Transcription.downloading.set(.parakeet)
                     defer { Transcription.downloading.set(nil) }
                     try await AsrModels.download(version: .ultra)
                 }
-                let manager = try await Parakeet.load(.ultra)
-                // Superseded; deleted only here, where nothing has it loaded.
+                let manager = try await Parakeet.load()
+                // v3, which Ultra replaced; deleted only here, where nothing has it loaded.
                 try? FileManager.default.removeItem(at: AsrModels.defaultCacheDirectory(for: .v3))
                 return manager
             }
@@ -113,32 +102,12 @@ enum Parakeet {
                 throw error
             }
         }
-
-        /// The upgrade's swap: dictations already holding the old manager
-        /// finish on it, the next one gets this.
-        func replace(with manager: AsrManager) {
-            loading = Task { manager }
-        }
     }
 
-    private static func load(_ version: AsrModelVersion) async throws -> AsrManager {
-        let models = try await AsrModels.load(from: AsrModels.defaultCacheDirectory(for: version), version: version)
+    private static func load() async throws -> AsrManager {
+        let models = try await AsrModels.load(from: AsrModels.defaultCacheDirectory(for: .ultra), version: .ultra)
         let manager = AsrManager(config: .default)
         try await manager.loadModels(models)
         return manager
-    }
-
-    /// v3 → Ultra for installs that opted in earlier: fetched like the slim
-    /// Gemma re-packs, on an unmetered network only, then loaded off the
-    /// dictation path (the first CoreML compile takes ~15 s) and swapped in.
-    private static func upgrade() async {
-        guard await ModelStorage.isNetworkUnmetered() else { return }
-        do {
-            try await AsrModels.download(version: .ultra)
-            await loader.replace(with: try await load(.ultra))
-            DebugLog.shared.log("DICTATE", "Parakeet Ultra replaces v3 (v3 is deleted at the next launch)")
-        } catch {
-            DebugLog.shared.log("DICTATE", "Parakeet Ultra upgrade failed, staying on v3: \(error.localizedDescription)")
-        }
     }
 }
