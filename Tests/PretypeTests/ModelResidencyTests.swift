@@ -165,7 +165,9 @@ final class ModelResidencyTests: MLXTestCase {
     // every time.
     func testAFailedLoadCoolsDown() async throws {
         try await inScratchHub {
-            let tiny = TinyResidency(fails: true), residency = tiny.residency
+            // No load at start: on a busy Mac it fails before `begin` and the
+            // first use already sits in the cooldown.
+            let tiny = TinyResidency(fails: true, loadPrimary: false), residency = tiny.residency
             defer { residency.shutdown() }
             let lease = try XCTUnwrap(residency.begin(.completion))
             do {
