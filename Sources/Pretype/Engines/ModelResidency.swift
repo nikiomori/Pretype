@@ -19,6 +19,13 @@ final class ModelResidency {
         fileprivate let slot: Slot
         /// Its MTP drafter, when the model loaded with one.
         var drafter: (any MTPDrafterModel)? { slot.drafter.get() }
+        /// The loaded model. A release calls a load off under whoever waits
+        /// for it: to them that is no model, not a cancellation of their own,
+        /// which a fix or a reply reads as "someone else cleaned up after me"
+        /// and leaves its dots spinning.
+        func model() async throws -> ModelContainer {
+            do { return try await task.value } catch is CancellationError where !Task.isCancelled { throw EngineNotReady() }
+        }
     }
 
     /// The PRIMARY model's state, written only by its own load and unload.
@@ -73,6 +80,11 @@ final class ModelResidency {
         var lastUse = Date()
         /// When its last load failed; nil once one succeeds.
         var lastFailure: Date?
+        /// Bumped by each `letGo`: what names an older load as called off.
+        var generation = 0
+        /// A load called off with its end still to come: the next load waits
+        /// it out (`startLoad`).
+        var calledOff: Task<ModelContainer, Error>?
 
         init(id: String, drafterID: String?, retryCooldown: TimeInterval) {
             (self.id, self.drafterID, self.retryCooldown) = (id, drafterID, retryCooldown)
@@ -102,11 +114,15 @@ final class ModelResidency {
     private var didInitLoad = false
     /// The primary's `Slot.retryCooldown`.
     private static let loadRetryCooldown: TimeInterval = 30
-    /// Requests on either model; the full idle/pressure unload waits for 0.
-    /// Under `modelLock`, like `lastActivity`.
-    private var inFlight: Int { primary.inFlight + sibling.inFlight }
-    /// The last use of either model — drives the idle-unload timer.
-    private var lastActivity: Date { max(primary.lastUse, sibling.lastUse) }
+    /// The slots no load is running on: a download holds up its own slot,
+    /// not the model resident in the other. Under `modelLock`.
+    private var settled: [Slot] { [primary, sibling].filter { !isLoading($0) } }
+    /// Requests running on a model; the full idle/pressure unload waits for 0.
+    /// One still waiting for its slot's load runs on nothing yet. Under
+    /// `modelLock`, like `lastActivity`.
+    private var inFlight: Int { settled.reduce(0) { $0 + $1.inFlight } }
+    /// The last use of a settled model — drives the idle-unload timer.
+    private var lastActivity: Date { settled.map(\.lastUse).max() ?? .distantPast }
     private let maintenanceQueue = DispatchQueue(label: "app.pretype.mlx.maintenance")
     private var idleTimer: DispatchSourceTimer?
     private var memoryPressureSource: DispatchSourceMemoryPressure?
@@ -202,9 +218,13 @@ final class ModelResidency {
     var isLoading: Bool { modelLock.withLock { loading } }
 
     /// `isLoading`, under `modelLock`.
-    private var loading: Bool {
-        Self.isLoading(primary: stateBox.get(), primaryTaskLive: primary.task != nil,
-                       correctionStatus: correctionStatus.get())
+    private var loading: Bool { isLoading(primary) || isLoading(sibling) }
+
+    /// `slot`'s own load is running, under `modelLock`.
+    private func isLoading(_ slot: Slot) -> Bool {
+        slot === primary
+            ? Self.isLoading(primary: stateBox.get(), primaryTaskLive: primary.task != nil, correctionStatus: nil)
+            : correctionStatus.get() != nil
     }
 
     /// `.preparing` with a live task = loading or downloading; `.preparing`
@@ -230,49 +250,80 @@ final class ModelResidency {
     /// once the load ends so the primary's own state shows through. Called
     /// under `modelLock` (or from `start`): the status is set before the task
     /// runs, so `unload` can't cancel a load that hasn't reported itself yet.
+    ///
+    /// Called off (`letGo`), the slot is no longer the load's to write: a late
+    /// progress line would pin "loading" on a slot at rest, a late failure
+    /// would free the load that replaced it. So every write goes through
+    /// `live`. A load past its last cancellation point still lands: see below.
     private func startLoad(_ slot: Slot) -> Task<ModelContainer, Error> {
         let isPrimary = slot === primary
         let (stateBox, correctionStatus, correctionFetched) = (self.stateBox, self.correctionStatus, self.correctionFetched)
-        let (tokenizers, blueprints, load, clock) = (self.tokenizers, self.blueprints, self.load, self.clock)
-        let report: @Sendable (String) -> Void = { isPrimary ? stateBox.set(.preparing($0)) : correctionStatus.set($0) }
-        report(isPrimary ? String(localized: "loading…") : String(localized: "loading fix model…"))
+        let (tokenizers, blueprints, load, clock, modelLock) = (self.tokenizers, self.blueprints, self.load, self.clock, self.modelLock)
+        let status: @Sendable (String) -> Void = { isPrimary ? stateBox.set(.preparing($0)) : correctionStatus.set($0) }
+        let generation = slot.generation
+        let live: @Sendable (() -> Void) -> Bool = { write in
+            modelLock.withLock {
+                guard slot.generation == generation else { return false }
+                write()
+                return true
+            }
+        }
+        status(isPrimary ? String(localized: "loading…") : String(localized: "loading fix model…"))
         // Resolved once, so the load report, `fixSlot` and the blueprint all
         // name the build that loaded.
         let repo = ModelCatalog.repo(for: slot.id)
         slot.loadedRepo = repo
+        let previous = slot.calledOff
+        slot.calledOff = nil
         Self.runningLoads.mutate { $0 += 1 }
-        return Task { [weak self] in
+        return Task {
             defer { Self.runningLoads.mutate { $0 -= 1 } }
             do {
-                let loaded = try await load(repo, slot, blueprints, tokenizers) {
-                    report(Self.downloadStatus($0, fixModel: !isPrimary))
+                // A load called off may still be building: two copies at once
+                // is the memory the release was to free, and the blueprint it
+                // leaves (below) is this load's.
+                _ = await previous?.result
+                try Task.checkCancellation()
+                let loaded = try await load(repo, slot, blueprints, tokenizers) { progress in
+                    _ = live { status(Self.downloadStatus(progress, fixModel: !isPrimary)) }
                 }
                 ModelStorage.noteLoad(repo: repo, succeeded: true)
-                // A finished load is a use: the idle clock starts now, not
-                // when a download that can take minutes began — or the model
-                // the user waited for unloads within a minute of "ready".
-                self?.modelLock.withLock { (slot.lastFailure, slot.lastUse) = (nil, clock()) }
-                if isPrimary {
-                    try await Self.warmUp(loaded, report: report)
-                    stateBox.set(.ready)
-                } else {
-                    correctionStatus.set(nil)
+                if !isPrimary {
                     // Whatever the disk probe thought, the weights are provably
                     // here now — and after an idle unload nils the task, this is
                     // what keeps the next fix from being skipped as "not fetched".
                     correctionFetched.set(true)
+                }
+                // A finished load is a use: the idle clock starts now, not
+                // when a download that can take minutes began — or the model
+                // the user waited for unloads within a minute of "ready".
+                var landed = live { (slot.lastFailure, slot.lastUse) = (nil, clock()) }
+                if landed, isPrimary {
+                    await Self.warmUp(loaded) { text in _ = live { status(text) } }
+                    landed = live { stateBox.set(.ready) }
+                } else if landed {
+                    landed = live { correctionStatus.set(nil) }
+                }
+                guard landed else {
+                    // Called off past its last cancellation point. Dropped
+                    // bare, a built model takes its blueprint with it and the
+                    // next build leaks (`keepBlueprint`). Awaited: this task's
+                    // end is what the next load, and an exit, wait for.
+                    slot.drafter.set(nil)
+                    MLXEngine.keepBlueprint(Task<ModelContainer, Error> { loaded }, repo: repo, in: blueprints)
+                    _ = await blueprints.get()[repo]?.value
+                    throw CancellationError()
                 }
                 return loaded
             } catch {
                 // Called off (an engine retired mid-download) is no failure
                 // to fall back from.
                 if !MLXEngine.isCancellation(error) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
-                // Before the slot frees: a retry's fresh status must not be cleared.
-                if isPrimary { stateBox.set(.failed(error.localizedDescription)) } else { correctionStatus.set(nil) }
-                self?.modelLock.withLock {
+                _ = live {
+                    if isPrimary { stateBox.set(.failed(error.localizedDescription)) } else { correctionStatus.set(nil) }
                     slot.task = nil
                     slot.loadedRepo = nil
-                    slot.lastFailure = self?.clock() ?? Date()
+                    slot.lastFailure = clock()
                 }
                 throw error
             }
@@ -286,10 +337,10 @@ final class ModelResidency {
     /// measured). Reloads after an idle unload warm up too: kernels survive
     /// the unload, but the fresh weights and buffer pool don't — skipping it
     /// moved +30–140 ms onto the first keystroke (measured).
-    private static func warmUp(_ loaded: ModelContainer, report: (String) -> Void) async throws {
-        // Retired mid-load (a model switch, `shutdown`): don't warm up
-        // weights nobody will use next to the replacement's.
-        try Task.checkCancellation()
+    private static func warmUp(_ loaded: ModelContainer, report: (String) -> Void) async {
+        // Called off mid-load (a model switch, `shutdown`, a release): don't
+        // warm up weights nobody will use next to the replacement's.
+        guard !Task.isCancelled else { return }
         report(String(localized: "warming up…"))
         // A warm-up failure shouldn't block readiness (the next real request
         // surfaces it), but it must not be swallowed silently.
@@ -302,7 +353,6 @@ final class ModelResidency {
         } catch {
             DebugLog.shared.log("ERROR", "warm-up generation failed: \(error.localizedDescription)")
         }
-        try Task.checkCancellation()
     }
 
     private static let warmUpPrompt = String(repeating: "The weekly update covers hiring, the roadmap and next steps. ", count: 7)
@@ -420,7 +470,9 @@ final class ModelResidency {
 
     // MARK: - Unload
 
-    /// Free the resident models right now (menu action). Reloads on next use.
+    /// Free the resident models right now (menu action), and call off a load
+    /// in progress: a model nobody wants any more must not finish coming in.
+    /// Reloads on next use.
     func releaseNow() {
         unload(reason: "manual", force: true)
     }
@@ -451,15 +503,16 @@ final class ModelResidency {
 
     /// Releases the resident models (weights + buffer cache) so an idle
     /// menu-bar app doesn't hold several GB. The next request or prewarm
-    /// reloads them from disk. No-op while a request is in flight, mid-load,
-    /// or just used.
+    /// reloads them from disk. No-op while a request is running or just after
+    /// one. A load stays unless `force`, and holds up only its own slot.
     private func unload(reason: String, force: Bool = false) {
         modelLock.lock()
         let idleEnough = force || clock().timeIntervalSince(lastActivity) > 3
-        // Not mid-load. An idle-unloaded or failed primary (its task is nil
-        // either way) still lets a fix model that loaded on its own
-        // (prewarmCorrection, a base-style ⌥⇥) be freed.
-        guard inFlight == 0, idleEnough, primary.task != nil || sibling.task != nil, !loading else {
+        let slots = force ? [primary, sibling] : settled
+        // An idle-unloaded or failed primary (its task is nil either way)
+        // still lets a fix model that loaded on its own (prewarmCorrection,
+        // a base-style ⌥⇥) be freed.
+        guard inFlight == 0, idleEnough, slots.contains(where: { $0.task != nil }) else {
             modelLock.unlock(); return
         }
         let before = Memory.snapshot().activeMemory
@@ -467,14 +520,16 @@ final class ModelResidency {
         // Still under the lock: a request arriving the moment it drops starts
         // a reload, and these writes landing after it would erase that load's
         // drafter and paint "idle" over its "loading…".
-        letGo(primary, keep: !pressure)
-        letGo(sibling, keep: !pressure)
+        slots.forEach { letGo($0, keep: !pressure) }
         promptCache.clear()
         // After the KV snapshots go, not before: freeing them refills the
         // buffer pool, and it then sat at its 64 MB cap for the whole idle.
         Memory.clearCache()
-        // A failure stays on screen until a retry replaces it.
-        if case .failed = stateBox.get() {} else { stateBox.set(.preparing(String(localized: "idle — model unloaded"))) }
+        // A failure stays on screen until a retry replaces it, and a load
+        // left running keeps reporting.
+        if case .failed = stateBox.get() {} else if slots.contains(where: { $0 === primary }) {
+            stateBox.set(.preparing(String(localized: "idle — model unloaded")))
+        }
         modelLock.unlock()
 
         let freed = Int64(max(0, before - Memory.snapshot().activeMemory))
@@ -498,11 +553,16 @@ final class ModelResidency {
 
     /// Lets go of `slot`, under `modelLock`: its load task, cancelled, and
     /// its drafter — the blueprint recorded first when `keep` (see
-    /// `keepBlueprint`).
+    /// `keepBlueprint`). A load this calls off records its own, if it lands
+    /// (`startLoad`): one taken from its task could only fail.
     private func letGo(_ slot: Slot, keep: Bool) {
-        if keep {
+        if isLoading(slot) {
+            slot.calledOff = slot.task
+            if slot === sibling { correctionStatus.set(nil) }
+        } else if keep {
             MLXEngine.keepBlueprint(slot.task, repo: slot.repo(), in: blueprints)
         }
+        slot.generation += 1
         slot.task?.cancel()
         slot.task = nil
         slot.loadedRepo = nil
@@ -573,10 +633,9 @@ final class ModelResidency {
             // A late `warmPrompt` or prewarm on this retired engine must not
             // rebuild a whole model next to the replacement's.
             didInitLoad = false
-            // For the replacement (see `init`). Not mid-request (the husk
-            // would be emptied under a running generation) nor mid-load (the
-            // replacement's load would wait on this cancelled one).
-            let keep = inFlight == 0 && !loading
+            // For the replacement (see `init`). Not mid-request: the husk
+            // would be emptied under a running generation.
+            let keep = inFlight == 0
             letGo(primary, keep: keep)
             letGo(sibling, keep: keep)
         }

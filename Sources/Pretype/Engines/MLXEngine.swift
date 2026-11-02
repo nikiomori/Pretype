@@ -239,7 +239,9 @@ final class MLXEngine: CompletionEngine {
         }
         guard let lease = residency.begin(.completion) else { return nil }
         defer { residency.end(lease) }
-        let container = try await lease.task.value
+        let container: ModelContainer
+        // A release under a suggestion is no error to show: it abstains.
+        do { container = try await lease.model() } catch is EngineNotReady { return nil }
         try Task.checkCancellation()
 
         // A base model given only 3-4 tokens lands in random-language territory
@@ -630,7 +632,7 @@ final class MLXEngine: CompletionEngine {
                               logRaw: Bool = true) async throws -> String {
         guard let lease = residency.begin(.fix) else { throw EngineNotReady() }
         defer { residency.end(lease) }
-        let container = try await lease.task.value
+        let container = try await lease.model()
         try Task.checkCancellation()
         let messages: [[String: any Sendable]] = [["role": "user", "content": content]]
         return try await Self.generate(

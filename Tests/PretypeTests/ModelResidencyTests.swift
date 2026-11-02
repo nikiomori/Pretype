@@ -16,9 +16,11 @@ private final class TinyResidency {
     let promptCache = MLXEngine.PromptCache()
     let residency: ModelResidency
 
-    /// `failsPrimary`: only the completion model's loads fail.
+    /// `failsPrimary`: only the completion model's loads fail. `stubborn`: a
+    /// load past its last cancellation point, which lands all the same.
     init(primaryID: String = "test/tiny-gemma", style: CompletionStyle = .base, fails: Bool = false,
-         failsPrimary: Bool = false, hold: Bool = false, loadPrimary: Bool = true, after previous: TinyResidency? = nil) {
+         failsPrimary: Bool = false, hold: Bool = false, stubborn: Bool = false, loadPrimary: Bool = true,
+         after previous: TinyResidency? = nil) {
         now = previous?.now ?? LockedValue(Date(timeIntervalSince1970: 1_000_000))
         held = LockedValue(hold)
         let (now, seen, loads, held) = (now, blueprintsSeen, loads, held)
@@ -27,7 +29,9 @@ private final class TinyResidency {
             load: { _, slot, blueprints, _, _ in
                 loads.mutate { $0 += 1 }
                 seen.mutate { $0.append(blueprints.get().keys.sorted()) }
-                while held.get() { try await Task.sleep(for: .milliseconds(2)) }
+                while held.get() {
+                    if stubborn { usleep(2_000) } else { try await Task.sleep(for: .milliseconds(2)) }
+                }
                 if fails || (failsPrimary && slot.id == primaryID) { throw URLError(.cannotConnectToHost) }
                 return try tinyContainer()
             },
@@ -189,19 +193,129 @@ final class ModelResidencyTests: MLXTestCase {
     }
 
     // A load in flight — a first download can take minutes — is never cut
-    // off by an unload: not the idle tick's, not a manual one.
-    func testAnUnloadNeverCancelsALoadInFlight() async throws {
+    // off by the idle tick or memory pressure.
+    func testAnIdleUnloadNeverCancelsALoadInFlight() async throws {
         try await inScratchHub {
             let tiny = TinyResidency(hold: true), residency = tiny.residency
             defer { residency.shutdown() }
             XCTAssertTrue(residency.isLoading)
-            residency.releaseNow()
             tiny.advance(3_600)
             residency.idleTick(limit: 60)
+            residency.relieveMemoryPressure()
             XCTAssertTrue(residency.primaryLoadedOrLoading)
             tiny.held.set(false)
             residency.end(try await tiny.use())
             XCTAssertEqual(residency.state, .ready)
+        }
+    }
+
+    // A release calls a load off, a request waiting on it included: choosing
+    // Words mid-download must not leave gigabytes coming in. Nothing it reports
+    // after that reaches the slot, and the next use starts clean — no failure,
+    // no cooldown.
+    func testAReleaseCallsOffALoad() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(hold: true), residency = tiny.residency
+            defer { residency.shutdown() }
+            let waiting = try XCTUnwrap(residency.begin(.completion))
+            while tiny.loads.get() == 0 { try await Task.sleep(for: .milliseconds(2)) }
+            residency.releaseNow()
+            XCTAssertFalse(residency.primaryLoadedOrLoading)
+            XCTAssertFalse(residency.isLoading)
+            XCTAssertEqual(residency.state, .preparing("idle — model unloaded"))
+            do {
+                _ = try await waiting.model()
+                XCTFail("no model")
+            } catch {
+                XCTAssertTrue(error is EngineNotReady, "not a cancellation: a fix would keep its dots spinning")
+            }
+            residency.end(waiting)
+            XCTAssertEqual(residency.state, .preparing("idle — model unloaded"), "a late failure")
+            tiny.held.set(false)
+            residency.end(try await tiny.use())
+            XCTAssertEqual(tiny.loads.get(), 2)
+            XCTAssertEqual(residency.state, .ready)
+        }
+    }
+
+    // The same for a fix model: its status clears, or the app reads busy for
+    // good.
+    func testAReleaseCallsOffAFixModelsLoad() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(), residency = tiny.residency
+            defer { residency.shutdown() }
+            residency.end(try await tiny.use())
+            tiny.held.set(true)
+            let waiting = try XCTUnwrap(residency.begin(.fix))
+            XCTAssertTrue(residency.isLoading)
+            residency.releaseNow()
+            XCTAssertFalse(residency.isLoading)
+            XCTAssertNil(residency.loadedRepos.primary, "a release frees everything")
+            XCTAssertNil(residency.loadedRepos.sibling)
+            _ = await waiting.task.result
+            residency.end(waiting)
+        }
+    }
+
+    // A load past its last cancellation point lands anyway. The model goes,
+    // and no second one builds beside it: the next load waits, and finds the
+    // blueprint a load dropped bare would have taken with it (`keepBlueprint`).
+    func testALoadCalledOffAsItLandsLeavesItsBlueprint() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(hold: true, stubborn: true), residency = tiny.residency
+            defer { residency.shutdown() }
+            while tiny.loads.get() == 0 { try await Task.sleep(for: .milliseconds(2)) }
+            residency.releaseNow()
+            let next = try XCTUnwrap(residency.begin(.completion))
+            try await Task.sleep(for: .milliseconds(20))
+            XCTAssertEqual(tiny.loads.get(), 1, "a second model building beside the first")
+            tiny.held.set(false)
+            _ = try await next.task.value
+            residency.end(next)
+            XCTAssertEqual(tiny.loads.get(), 2)
+            XCTAssertEqual(tiny.blueprintsSeen.get().last, ["test/tiny-gemma"])
+            XCTAssertEqual(residency.state, .ready)
+        }
+    }
+
+    // A download holds up only its own slot: the resident primary still goes
+    // on the idle timer and under memory pressure while the fix model comes
+    // in, a request waiting on it included — and the load lands untouched.
+    func testASiblingsLoadDoesNotPinThePrimary() async throws {
+        try await inScratchHub {
+            for free in [{ (tiny: TinyResidency) in tiny.residency.idleTick(limit: 60) },
+                         { (tiny: TinyResidency) in tiny.residency.relieveMemoryPressure() }] {
+                let tiny = TinyResidency(), residency = tiny.residency
+                defer { residency.shutdown() }
+                residency.end(try await tiny.use())
+                tiny.held.set(true)
+                let fix = try XCTUnwrap(residency.begin(.fix))
+                tiny.advance(3_600)
+                free(tiny)
+                XCTAssertFalse(residency.primaryLoadedOrLoading)
+                XCTAssertTrue(residency.isLoading, "the fix model's load stays")
+                XCTAssertNotEqual(residency.state, .preparing("idle — model unloaded"), "the fix model's status shows")
+                tiny.held.set(false)
+                _ = try await fix.task.value
+                residency.end(fix)
+                XCTAssertNotNil(residency.loadedRepos.sibling)
+            }
+        }
+    }
+
+    // And the other way round: a primary downloading doesn't pin a resident
+    // fix model, whose status stays out of the primary's "loading…".
+    func testAPrimarysLoadDoesNotPinTheSibling() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(loadPrimary: false), residency = tiny.residency
+            defer { residency.shutdown() }
+            residency.end(try await tiny.use(.fix))
+            tiny.held.set(true)
+            residency.prewarm(.completion)
+            tiny.advance(3_600)
+            residency.idleTick(limit: 60)
+            XCTAssertNil(residency.loadedRepos.sibling)
+            XCTAssertEqual(residency.state, .preparing("loading…"))
         }
     }
 
