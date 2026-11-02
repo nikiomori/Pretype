@@ -73,11 +73,11 @@ extension DictationController {
                 }
                 if let selection = self.commandSelection {
                     // A spoken instruction, not text to type: no tidy-up (its
-                    // punctuation doesn't matter), and nothing to rescue if the
-                    // focus moved — the selection it was about is gone.
+                    // punctuation doesn't matter).
                     self.phase = .idle
                     self.session = nil
-                    if self.focusHeld, owner.dictationAnchor()?.selectedText == selection {
+                    self.remember(transcript)
+                    if self.focusHeld, !self.caretMoved, owner.dictationAnchor()?.selectedText == selection {
                         // A capture queued behind this one stays out: its start
                         // would reset the command (`prepareForDictation`).
                         if self.pendingBegin != nil { Self.note("queued capture dropped — a voice command runs") }
@@ -86,14 +86,12 @@ extension DictationController {
                         owner.applyVoiceCommand(transcript, to: selection)
                         return
                     }
-                    // Said out loud like every other drop: a command that
-                    // silently does nothing reads as the feature being broken.
-                    Self.note("dropped a voice command — \(self.focusHeld ? "selection" : "focus") changed")
-                    owner.showTransientOverlay(
-                        .hint(self.focusHeld ? String(localized: "voice command dropped — the selection changed")
-                                             : String(localized: "voice command dropped — the focus moved")),
-                        at: self.noticeRect, host: self.hostStyle)
-                    self.resumePendingHold(noticeIfMissed: true)
+                    // The selection it was about is gone, and the take may be
+                    // three hands-free minutes that were never an instruction:
+                    // a short command on the clipboard costs little, those a lot.
+                    Self.note("rescued \(transcript.count) chars of a voice command to the clipboard — \(self.focusHeld ? "selection" : "focus") changed")
+                    self.pendingBegin = nil  // as for a rescue below
+                    owner.rescueDictated(transcript, because: self.focusHeld ? .caretMoved : .focusMoved)
                     return
                 }
                 var text = transcript
@@ -135,10 +133,9 @@ extension DictationController {
                 // error, a local server that went away — on a take with a live
                 // preview still has that preview: on Parakeet and a local
                 // server, nearly the whole take. Minutes of speech go to the
-                // clipboard, not away. A voice command's preview is an
-                // instruction, not text: it fails.
+                // clipboard, not away.
                 let preview = Self.clean(heard)
-                guard !preview.isEmpty, self.commandSelection == nil else { return self.fail(error) }
+                guard !preview.isEmpty else { return self.fail(error) }
                 var timedOut = false
                 if case TranscriptionError.timedOut = error { timedOut = true }
                 // The error itself goes where `fail` puts it, not into the

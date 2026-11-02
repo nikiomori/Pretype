@@ -393,9 +393,9 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.inserted.isEmpty, "the caret moved — the transcript must not follow it")
     }
 
-    /// A voice command has nothing to rescue — its selection is what moved —
-    /// so a keystroke mid-write still drops it, with the notice.
-    func testKeystrokeDuringAVoiceCommandStillDropsIt() async {
+    /// A keystroke mid-write moved the selection a voice command was about:
+    /// it can't run, and the take goes to the clipboard like any other.
+    func testKeystrokeDuringAVoiceCommandRescuesIt() async {
         Settings.dictationCommands = true
         defer { Settings.dictationCommands = false }
         let rig = makeRig()
@@ -404,18 +404,12 @@ final class DictationControllerTests: XCTestCase {
         await startCapture(rig)
         await hear("make it shorter", in: rig)
         release(rig.controller)
-        let write = rig.controller.sessionTask
         rig.controller.keyPressed()
-        XCTAssertEqual(rig.controller.phase, .idle)
-        guard case .hint(let notice)? = rig.host.transientNotices.last else {
-            return XCTFail("a silently vanished command reads as a broken feature")
-        }
-        XCTAssertTrue(notice.contains("kept typing"), notice)
-        // The transcript still arrives — and finds the command already dropped.
         writing.open()
-        await write?.value
+        await pump(until: { !rig.host.rescued.isEmpty })
         XCTAssertTrue(rig.host.commands.isEmpty)
-        XCTAssertTrue(rig.host.rescued.isEmpty)
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertEqual(rig.host.rescueReasons, [.caretMoved])
     }
 
     func testSecondHoldQueuesBehindFinalize() async {
@@ -727,9 +721,9 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(why.contains("went away"), why)
     }
 
-    /// A voice command's preview is an instruction, not text: pasted, it
-    /// would be the user's own words handed back. It fails instead.
-    func testAFailedVoiceCommandIsNotRescued() async {
+    /// A failed final pass on a voice command leaves its preview on the
+    /// clipboard: the take may be minutes of speech, not an instruction.
+    func testAFailedVoiceCommandIsRescued() async {
         Settings.dictationCommands = true
         defer { Settings.dictationCommands = false }
         let rig = makeRig { $0.finishError = AudioCapture.Failure.sessionFailed("the server went away") }
@@ -738,11 +732,9 @@ final class DictationControllerTests: XCTestCase {
         await hear("make it shorter", in: rig)
         release(rig.controller)
         await pump(until: { rig.controller.phase == .idle })
-        XCTAssertTrue(rig.host.rescued.isEmpty)
+        XCTAssertEqual(rig.host.rescued, ["make it shorter"])
+        XCTAssertEqual(rig.host.rescueReasons, [.failed])
         XCTAssertTrue(rig.host.commands.isEmpty)
-        guard case .error? = rig.host.transientNotices.last else {
-            return XCTFail("a failed command must say so")
-        }
     }
 
     /// A speech API that failed the take — offline, an expired key, a second
@@ -1003,44 +995,42 @@ final class DictationControllerTests: XCTestCase {
         let live = C.Phase.listening("words")
         let cancelled = C.InterruptAction.discard(.hint("dictation cancelled"))
         let rows: [(interrupt: C.Interrupt, phase: C.Phase, trigger: C.Trigger,
-                    command: Bool, origin: Bool, heard: Bool, expect: C.InterruptAction)] = [
+                    origin: Bool, heard: Bool, expect: C.InterruptAction)] = [
             // A hold: everything ends it, and keystrokes say so.
-            (.key, live, .hold, false, true, false, cancelled),
-            (.escape, live, .hold, false, false, false, cancelled),
-            (.chord, live, .hold, false, true, false, cancelled),
-            (.click, live, .hold, false, true, false, .discard(nil)),
-            (.scroll, live, .hold, false, true, false, .discard(nil)),
-            (.focusLost, live, .hold, false, true, false, .discard(nil)),
+            (.key, live, .hold, true, false, cancelled),
+            (.escape, live, .hold, false, false, cancelled),
+            (.chord, live, .hold, true, false, cancelled),
+            (.click, live, .hold, true, false, .discard(nil)),
+            (.scroll, live, .hold, true, false, .discard(nil)),
+            (.focusLost, live, .hold, true, false, .discard(nil)),
             // A latch: only ⎋ at its origin and a focus loss reach it.
-            (.key, live, .latch, false, true, false, .ignore),
-            (.click, live, .latch, false, true, false, .ignore),
-            (.scroll, live, .latch, false, true, false, .ignore),
-            (.chord, live, .latch, false, true, false, .ignore),
-            (.escape, live, .latch, false, true, false, cancelled),
-            (.escape, live, .latch, false, false, false, .ignore),  // closing Spotlight
-            (.focusLost, live, .latch, false, true, true, .finish),
-            (.focusLost, live, .latch, false, true, false, .discard(.hint("dictation stopped — the focus moved"))),
+            (.key, live, .latch, true, false, .ignore),
+            (.click, live, .latch, true, false, .ignore),
+            (.scroll, live, .latch, true, false, .ignore),
+            (.chord, live, .latch, true, false, .ignore),
+            (.escape, live, .latch, true, false, cancelled),
+            (.escape, live, .latch, false, false, .ignore),  // closing Spotlight
+            (.focusLost, live, .latch, true, true, .finish),
+            (.focusLost, live, .latch, true, false, .discard(.hint("dictation stopped — the focus moved"))),
             // Being written down: the take is finished, whatever started it.
-            (.key, .working, .hold, false, true, false, .rescue),
-            (.click, .working, .latch, false, true, false, .rescue),
-            (.key, .working, .hold, true, true, false, .discard(.hint("dictation dropped — you kept typing"))),
-            (.click, .working, .latch, true, true, false, .discard(.hint("dictation dropped — the caret moved"))),
-            (.escape, .working, .hold, true, true, false, cancelled),
-            (.escape, .working, .latch, false, false, false, .ignore),  // pressed in another app
-            (.scroll, .working, .hold, false, true, false, .ignore),  // moves no caret
-            (.scroll, .working, .latch, true, true, false, .ignore),
-            (.chord, .working, .hold, false, true, false, .ignore),
-            (.focusLost, .working, .latch, false, true, false, .ignore),  // `finish` rescues it
+            (.key, .working, .hold, true, false, .rescue),
+            (.click, .working, .latch, true, false, .rescue),
+            (.escape, .working, .hold, true, false, cancelled),
+            (.escape, .working, .latch, false, false, .ignore),  // pressed in another app
+            (.scroll, .working, .hold, true, false, .ignore),  // moves no caret
+            (.scroll, .working, .latch, true, false, .ignore),
+            (.chord, .working, .hold, true, false, .ignore),
+            (.focusLost, .working, .latch, true, false, .ignore),  // `finish` rescues it
         ]
         for row in rows {
             // `.preparing` is part of the live capture: same rules.
             for phase in row.phase == live ? [live, .preparing] : [row.phase] {
-                XCTAssertEqual(C.action(for: row.interrupt, phase: phase, trigger: row.trigger, isCommand: row.command,
+                XCTAssertEqual(C.action(for: row.interrupt, phase: phase, trigger: row.trigger,
                                         atOrigin: row.origin, heard: row.heard), row.expect, "\(row) in \(phase)")
             }
         }
         for interrupt: C.Interrupt in [.key, .escape, .click, .scroll, .chord, .focusLost] {
-            XCTAssertEqual(C.action(for: interrupt, phase: .idle, trigger: .latch, isCommand: false,
+            XCTAssertEqual(C.action(for: interrupt, phase: .idle, trigger: .latch,
                                     atOrigin: true, heard: true), .ignore, "nothing to interrupt")
         }
     }
@@ -1279,9 +1269,9 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.inserted.isEmpty, "an instruction is never typed")
     }
 
-    /// A command whose field lost focus is dropped — its selection is gone —
-    /// but out loud, like every other drop.
-    func testAVoiceCommandDroppedByAFocusChangeSaysSo() async {
+    /// A command whose field lost focus can't run — its selection is gone —
+    /// and the take goes to the clipboard, out loud, like every other.
+    func testAVoiceCommandLostToAFocusChangeIsRescued() async {
         Settings.dictationCommands = true
         defer { Settings.dictationCommands = false }
         let rig = makeRig()
@@ -1292,15 +1282,31 @@ final class DictationControllerTests: XCTestCase {
         release(rig.controller)
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.commands.isEmpty)
-        guard case .hint(let notice)? = rig.host.transientNotices.last else {
-            return XCTFail("a silently dropped command reads as a broken feature")
-        }
-        XCTAssertTrue(notice.contains("voice command dropped"), notice)
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertEqual(rig.host.rescueReasons, [.focusMoved])
+    }
+
+    /// The take this protects: three hands-free minutes over a word selected
+    /// by accident, then a click into another app. Copy Recent Dictation has
+    /// it too.
+    func testAHandsFreeTakeOverASelectionSurvivesAFocusLoss() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.anchor?.selectedText = "word"
+        await startLatched(rig)
+        await hear("a whole paragraph", in: rig)
+        rig.host.focusGeneration += 1
+        rig.controller.invalidate()
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertEqual(rig.controller.recent, ["hello world"])
+        XCTAssertTrue(rig.host.commands.isEmpty)
     }
 
     /// Said in one app, finished in another that can't run commands: still a
-    /// command, dropped out loud. An instruction never lands on the clipboard.
-    func testAVoiceCommandFinishedInAnotherAppIsDropped() async {
+    /// command, so never typed there.
+    func testAVoiceCommandFinishedInAnotherAppIsNotTyped() async {
         Settings.dictationCommands = true
         defer { Settings.dictationCommands = false }
         let rig = makeRig()
@@ -1313,12 +1319,11 @@ final class DictationControllerTests: XCTestCase {
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.commands.isEmpty)
         XCTAssertTrue(rig.host.inserted.isEmpty)
-        guard case .hint(let notice)? = rig.host.transientNotices.last else { return XCTFail("no notice") }
-        XCTAssertTrue(notice.contains("focus moved"), notice)
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
     }
 
     /// What was no command at its start stays text when the focus leaves.
-    func testATakeThatWasNoCommandIsNoDroppedCommandAfterAFocusChange() async {
+    func testATakeThatWasNoCommandStaysTextAfterAFocusChange() async {
         Settings.dictationCommands = true
         defer { Settings.dictationCommands = false }
         let rig = makeRig()
@@ -1352,8 +1357,8 @@ final class DictationControllerTests: XCTestCase {
     }
 
     /// The selection moved during a hands-free take: the command's target is
-    /// gone. Dropped out loud, the model never asked.
-    func testAVoiceCommandWhoseSelectionMovedSaysSo() async {
+    /// gone. Rescued, the model never asked.
+    func testAVoiceCommandWhoseSelectionMovedIsRescued() async {
         Settings.dictationCommands = true
         defer { Settings.dictationCommands = false }
         let rig = makeRig()
@@ -1364,10 +1369,8 @@ final class DictationControllerTests: XCTestCase {
         release(rig.controller)
         await pump(until: { rig.controller.phase == .idle })
         XCTAssertTrue(rig.host.commands.isEmpty)
-        guard case .hint(let notice)? = rig.host.transientNotices.last else {
-            return XCTFail("a silently dropped command reads as a broken feature")
-        }
-        XCTAssertTrue(notice.contains("selection changed"), notice)
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertEqual(rig.host.rescueReasons, [.caretMoved])
     }
 
     /// A launcher's field is out of the fix path's reach: the words replace

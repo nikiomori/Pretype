@@ -39,7 +39,8 @@ struct DictationTab: View {
     }
 
     /// Voice commands can't run: they read as off, and the switch keeps the
-    /// choice for when they can.
+    /// choice for when they can. The Settings side of `canRunVoiceCommand`,
+    /// less what depends on the field in focus.
     private var commandsBlocked: Bool { !store.writesNewText || !store.fixes }
 
     /// The Language row's tooltip: what the pick does, plus a note when the

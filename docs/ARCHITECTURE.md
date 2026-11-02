@@ -279,7 +279,7 @@ they stop in different ways:
 | <kbd>Esc</kbd> | Drops the capture. | Drops the capture. |
 | Other key, click or scroll | Drops the capture. | No effect. |
 | Focus moves to a different field | Drops the capture. | The capture stops. The words that it heard go to the clipboard. |
-| Key press or click while Working | The transcript goes to the clipboard, with a notice. A voice command is dropped, with a notice. | Same as for a hold. |
+| Key press or click while Working | The transcript goes to the clipboard, with a notice. A voice command does too. | Same as for a hold. |
 | The final pass fails or times out | The preview goes to the clipboard, with a notice. | Same as for a hold. |
 | New hold while Working | Waits. It starts after the insert of the previous transcript. | Waits. A second press removes it from the queue. |
 

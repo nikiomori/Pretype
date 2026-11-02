@@ -83,7 +83,7 @@ A capture runs only in these conditions:
 * Pretype sends audio only if you turn on an API provider for dictation. See [API providers](#api-providers).
 * Pretype gives spelling hints to the same on-device recognizer, for that one capture. The spelling hints are the words in **My words** and the names and terms in the field. In the prompt box of an AI agent, they also include the names and terms in the agent's session. From the field and the session, Pretype removes words that look like a key or a token. This filter cannot find every secret.
 * The dictation flow never journals the transcript. The debug log does not contain it, as for OCR and clipboard text. An exported log shows a character count in its place.
-* Sometimes Pretype cannot type a transcript, for example when the focus moved to a password field or to a Pretype window. Then Pretype puts the transcript on the clipboard.
+* Sometimes Pretype cannot type a transcript, for example when the focus moved to a password field or to a Pretype window. Then Pretype puts the transcript on the clipboard. It does the same for a voice command when the selection is gone.
   * This clipboard is for this Mac only (no Universal Clipboard).
   * Pretype marks it as transient, so clipboard managers do not keep it in their history.
 * Pretype keeps the last five transcripts in memory for **Copy Recent Dictation** in the menu. It does not write them to disk. When Pretype quits, they are gone.

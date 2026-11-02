@@ -140,16 +140,15 @@ final class DictationController {
     /// `.working`: the sentence is finished, and on a hosted API this is the
     /// whole upload — so nothing short of ⎋ at its origin throws it away. A
     /// keystroke or click moved the caret it was headed for, so it goes to the
-    /// clipboard instead; a voice command can't be rescued (its selection is
-    /// what moved) and is dropped with a notice — a take that vanishes
-    /// without a word reads as the feature being broken. A scroll or a chord
+    /// clipboard instead, a voice command included: its selection is gone,
+    /// and `finish` rescues what can no longer run. A scroll or a chord
     /// moves no caret (`TextInjector` types at keyboard focus): it lands. A
     /// focus loss leaves it to `finish`'s own focus check, which rescues it —
     /// an app switch fires two of these ms apart, and a discard from the
     /// second would drop the take the first one was rescuing. A ⎋ pressed
     /// away from its origin was meant for the app that has focus now.
     static func action(for interrupt: Interrupt, phase: Phase, trigger: Trigger,
-                       isCommand: Bool, atOrigin: Bool, heard: Bool) -> InterruptAction {
+                       atOrigin: Bool, heard: Bool) -> InterruptAction {
         let cancelled = InterruptAction.discard(.hint(String(localized: "dictation cancelled")))
         switch (phase, trigger) {
         case (.idle, _):
@@ -168,8 +167,7 @@ final class DictationController {
         case (.working, _):
             switch interrupt {
             case .escape: return atOrigin ? cancelled : .ignore
-            case .key: return isCommand ? .discard(.hint(String(localized: "dictation dropped — you kept typing"))) : .rescue
-            case .click: return isCommand ? .discard(.hint(String(localized: "dictation dropped — the caret moved"))) : .rescue
+            case .key, .click: return .rescue
             case .scroll, .chord, .focusLost: return .ignore
             }
         }
@@ -180,7 +178,7 @@ final class DictationController {
     @discardableResult
     private func interrupted(by interrupt: Interrupt) -> InterruptAction {
         let action = Self.action(
-            for: interrupt, phase: phase, trigger: trigger, isCommand: commandSelection != nil,
+            for: interrupt, phase: phase, trigger: trigger,
             // An AX read (`focusIsInLauncher`), so only for the ⎋ that asks.
             atOrigin: interrupt == .escape && isBusy && focusHeld && !caretMoved,
             heard: heardSomething)
@@ -315,7 +313,7 @@ final class DictationController {
     /// command mode), or nil for ordinary dictation. Asked live: a model or a
     /// switch that changed during the take makes it dictation, not a lost take.
     /// Once the focus left, the app in front says nothing about this take:
-    /// what was a command stays one, and is dropped, not typed or rescued.
+    /// what was a command stays one, and is rescued, not typed.
     var commandSelection: String? {
         // The generation alone, not `focusHeld`: the tap asks this on every key.
         guard owner?.focusGeneration == focusGeneration else { return commandAtBegin ? selectionAtBegin : nil }
@@ -325,8 +323,9 @@ final class DictationController {
     }
     var commandAtBegin = false
 
-    /// The last few transcripts, newest first, typed or rescued — the status
-    /// menu copies one back. For the take that landed nowhere: typed into an
+    /// The last few transcripts, newest first, typed, run as a voice command
+    /// or rescued — the status menu copies one back. For the take that landed
+    /// nowhere: typed into an
     /// element that dropped the keystrokes, or rescued to a clipboard that has
     /// been overwritten since. Memory only, like the audio: gone on quit.
     private(set) var recent: [String] = []
