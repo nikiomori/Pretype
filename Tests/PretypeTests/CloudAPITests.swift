@@ -90,15 +90,28 @@ final class CloudAPITests: XCTestCase {
     func testOpenAIWire() async throws {
         StubProtocol.response = (200, Data(#"{"choices":[{"message":{"content":"world"}}]}"#.utf8))
         let text = try await APIClient.chat(endpoint("groq"), system: "sys", user: "hello",
-                                            maxTokens: 64, timeout: 5)
+                                            maxTokens: 64, timeout: 5, mustAnswer: true)
         XCTAssertEqual(text, "world")
         let request = try XCTUnwrap(StubProtocol.lastRequest)
         XCTAssertEqual(request.url?.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
         XCTAssertEqual((sentJSON["messages"] as? [[String: String]])?.map { $0["role"] }, ["system", "user"])
-        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 64)
+        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 64 + 1024, "no switch sent: headroom")
         XCTAssertNil(sentJSON["reasoning_effort"])  // Groq's Llama doesn't reason
+    }
+
+    /// Gemini can't turn thinking off, and it counts against the budget: a
+    /// fix's 64 tokens would end in an empty answer, read as "looks fine". A
+    /// model whose thinking is off keeps the budget it was given.
+    func testThinkingHeadroomWhereNothingTurnsItOff() async throws {
+        StubProtocol.response = (200, Data(#"{"choices":[{"message":{"content":"x"}}]}"#.utf8))
+        _ = try await APIClient.chat(endpoint("gemini"), system: "", user: "u", maxTokens: 64, timeout: 5, mustAnswer: true)
+        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 64 + 1024)
+        _ = try await APIClient.chat(endpoint("gemini"), system: "", user: "u", maxTokens: 128, timeout: 5)
+        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 128, "a suggestion on each key stays small")
+        _ = try await APIClient.chat(endpoint("deepseek"), system: "", user: "u", maxTokens: 64, timeout: 5, mustAnswer: true)
+        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 64)
     }
 
     func testReasoningSwitchedOffPerProvider() async throws {
@@ -297,7 +310,7 @@ final class CloudAPITests: XCTestCase {
         let fixed = try await engine.correct(selection: "teh")
         XCTAssertEqual(fixed, "the")
         XCTAssertEqual((sentJSON["messages"] as? [[String: String]])?.map { $0["role"] }, ["user"])
-        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 64)
+        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 64 + 1024)
         XCTAssertEqual(StubProtocol.lastRequest?.timeoutInterval, 30)
         StubProtocol.response = Self.answer("Good day")
         let rewritten = try await engine.rewrite(selection: "hi", instruction: "formal")
@@ -305,7 +318,7 @@ final class CloudAPITests: XCTestCase {
         StubProtocol.response = Self.answer("Sounds good")
         let reply = try await engine.reply(to: "Ann: lunch?", request: CompletionRequest(textBeforeCaret: ""))
         XCTAssertEqual(reply, "Sounds good")
-        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 200)
+        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 200 + 1024)
     }
 
     /// Built by the coordinator, a hosted engine starts on the saved length
@@ -645,7 +658,7 @@ final class CloudAPITests: XCTestCase {
         StubProtocol.response = Self.answer("OK")
         let passed = await CloudEngine.test(config)
         XCTAssertTrue(passed.hasPrefix("✓"), passed)
-        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 16)
+        XCTAssertEqual(sentJSON["max_tokens"] as? Int, 16 + 1024)
         XCTAssertEqual(StubProtocol.lastRequest?.timeoutInterval, 20)
         StubProtocol.response = (500, Data(#"{"error":{"message":"down"}}"#.utf8))
         let failed = await CloudEngine.test(config)

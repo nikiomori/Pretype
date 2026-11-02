@@ -212,20 +212,24 @@ enum APIKeychain {
 /// streaming: a suggestion is a few words, and a transcript arrives whole.
 /// Cancelling the calling task cancels the request (latest keystroke wins).
 enum APIClient {
+    /// `mustAnswer`: an empty answer would be read as a result (a fix's "looks
+    /// fine"), so a model that may think gets room for it. Not a suggestion:
+    /// on each keystroke a run-on would cost the 10 s budget, and an empty one
+    /// only shows nothing.
     static func chat(_ endpoint: APIEndpoint, system: String, user: String,
-                     maxTokens: Int, timeout: TimeInterval) async throws -> String {
+                     maxTokens: Int, timeout: TimeInterval, mustAnswer: Bool = false) async throws -> String {
         let key = "\(endpoint.baseURL.absoluteString) \(endpoint.model)"
         let extras = plain.get().contains(key) ? [:] : endpoint.provider.textExtras
         do {
             return try await chat(endpoint, system: system, user: user, maxTokens: maxTokens,
-                                  extras: extras, timeout: timeout)
+                                  extras: extras, mustAnswer: mustAnswer, timeout: timeout)
         } catch APIError.http(status: 400, _) where !extras.isEmpty {
             // The preset's switches fit the preset's model; one the user typed
             // in may not have them. Plain from now on — for this launch — but
             // only once plain is accepted: a 400 for the text itself (a content
             // filter) would fail plain too, and must not cost the switches.
             let text = try await chat(endpoint, system: system, user: user, maxTokens: maxTokens,
-                                      extras: [:], timeout: timeout)
+                                      extras: [:], mustAnswer: mustAnswer, timeout: timeout)
             plain.mutate { _ = $0.insert(key) }
             DebugLog.shared.log("API", "\(endpoint.model) refused the preset's speed settings — sending without them")
             return text
@@ -234,9 +238,10 @@ enum APIClient {
 
     /// Base URL + model pairs that answered 400 to `textExtras`.
     private static let plain = LockedValue<Set<String>>([])
+    private static let thinkingHeadroom = 1024
 
     private static func chat(_ endpoint: APIEndpoint, system: String, user: String, maxTokens: Int,
-                             extras: [String: Any], timeout: TimeInterval) async throws -> String {
+                             extras: [String: Any], mustAnswer: Bool, timeout: TimeInterval) async throws -> String {
         var body = extras
         body["model"] = endpoint.model
         let path: String
@@ -247,14 +252,17 @@ enum APIClient {
             if !system.isEmpty { messages.append(["role": "system", "content": system]) }
             messages.append(["role": "user", "content": user])
             body["messages"] = messages
-            body[endpoint.provider.tokenField] = maxTokens
+            // No switch sent: Gemini can't turn thinking off, and a model
+            // that refused the preset's may think too. It counts against this
+            // budget, and a fix's 64 tokens could end before the first word.
+            body[endpoint.provider.tokenField] = mustAnswer && extras.isEmpty ? maxTokens + thinkingHeadroom : maxTokens
         case .anthropic:
             path = "messages"
             if !system.isEmpty { body["system"] = system }
             body["messages"] = [["role": "user", "content": user]]
             // Current Claude models may think first, and thinking counts
             // against max_tokens: headroom for it.
-            body["max_tokens"] = maxTokens + 1024
+            body["max_tokens"] = maxTokens + thinkingHeadroom
         }
         var request = makeRequest(endpoint, path: path, timeout: timeout)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -434,7 +442,7 @@ final class CloudEngine: CompletionEngine {
         guard case .ready = stateBox.get(), let endpoint else {
             throw EngineNotReady(message: String(localized: "API isn't set up — see Settings → API"))
         }
-        return { try await APIClient.chat(endpoint, system: "", user: $0, maxTokens: $1, timeout: 30) }
+        return { try await APIClient.chat(endpoint, system: "", user: $0, maxTokens: $1, timeout: 30, mustAnswer: true) }
     }
 
     /// The token budget can't cap a hosted model's length — a thinking model
@@ -460,7 +468,7 @@ final class CloudEngine: CompletionEngine {
         let start = Date()
         do {
             _ = try await APIClient.chat(try config.endpoint(), system: "Reply with the single word OK.",
-                                         user: "ping", maxTokens: 16, timeout: 20)
+                                         user: "ping", maxTokens: 16, timeout: 20, mustAnswer: true)
             return String(localized: "✓ Connected — answered in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
         } catch {
             return "⚠︎ \(error.localizedDescription)"
