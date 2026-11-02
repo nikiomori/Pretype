@@ -138,6 +138,15 @@ final class RequestGateTests: XCTestCase {
         XCTAssertEqual(G.landing(" не", askedOn: "так же", current: "так же", flush: false), .show(" не"))
     }
 
+    // The rest of a word or a name keeps its case: lowered, ⇥ types
+    // "Suggestioncontroller.swift". A model's answer is still lowered.
+    func testTheRestOfAWordKeepsItsCapital() {
+        XCTAssertEqual(G.landing("Controller.swift", askedOn: "Suggestion", current: "Suggestion", flush: false,
+                                 completesWord: true), .show("Controller.swift"))
+        XCTAssertEqual(G.landing("Tube", askedOn: "You", current: "You", flush: false, completesWord: true), .show("Tube"))
+        XCTAssertEqual(G.landing("Поехать", askedOn: "я хочу ", current: "я хочу ", flush: false), .show("поехать"))
+    }
+
     // The glue rule on its own: only mid-word, only a flush answer, only a
     // real word fused into a non-word.
     func testWouldGlueMidWord() {

@@ -130,7 +130,8 @@ enum RequestGate {
     /// already has goes, and a wrongly capitalized mid-sentence continuation
     /// is lowered ("я хочу " + "Поехать" → "поехать"). `completesWord`: the
     /// rest of a known word (Words mode) — never a new word glued on, though
-    /// the spell-checker may not know the whole ("Ники" + "та").
+    /// the spell-checker may not know the whole ("Ники" + "та"), and it keeps
+    /// its case: "You" + "Tube" is no capitalized answer to lower.
     @MainActor
     static func landing(_ suggestion: String, askedOn requestText: String, current: String,
                         flush: Bool, completesWord: Bool = false) -> Landing {
@@ -145,8 +146,10 @@ enum RequestGate {
         }
         if flush { suggestion = SpellChecker.strippingStraySeparator(suggestion: suggestion, before: current) }
         suggestion = SuggestionController.deduplicatingSeamSpace(suggestion, after: current)
-        suggestion = SpellChecker.decapitalizeContinuation(suggestion, before: current)
-        if !completesWord, SuggestionController.wouldGlueMidWord(current: current, suggestion: suggestion) { return .glued }
+        if !completesWord {
+            suggestion = SpellChecker.decapitalizeContinuation(suggestion, before: current)
+            if SuggestionController.wouldGlueMidWord(current: current, suggestion: suggestion) { return .glued }
+        }
         return .show(suggestion)
     }
 }
