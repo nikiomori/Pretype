@@ -224,10 +224,18 @@ enum SpellChecker {
     /// ponytail: English and Russian only, the other languages' lemmatizers
     /// read acronyms as words (Italian "api"); a shouted word in another
     /// language still counts as a term.
-    static func isOrdinaryWord(_ word: String) -> Bool {
+    /// ponytail: macOS 26 has no Russian lemmatizer, not even after
+    /// `requestAssets`. There a Russian word in the dictionary with a vowel
+    /// passes: "мвд" stays a term, an acronym that reads as a word ("нато")
+    /// does not. `lemmas`: tests name the case.
+    static func isOrdinaryWord(_ word: String, lemmas: Bool? = nil) -> Bool {
+        let language: NLLanguage = isCyrillic(word) ? .russian : .english
+        guard lemmas ?? NLTagger.availableTagSchemes(for: .word, language: language).contains(.lemma) else {
+            return word.contains(where: "аеёиоуыэюя".contains) && isKnownWord(word)
+        }
         let tagger = NLTagger(tagSchemes: [.lemma])
         tagger.string = word
-        tagger.setLanguage(isCyrillic(word) ? .russian : .english, range: word.startIndex..<word.endIndex)
+        tagger.setLanguage(language, range: word.startIndex..<word.endIndex)
         return tagger.tag(at: word.startIndex, unit: .word, scheme: .lemma).0 != nil
     }
 

@@ -53,6 +53,13 @@ final class TranscriptionBiasWordsTests: XCTestCase {
                        "the user listed it")
     }
 
+    // macOS 26 has no Russian lemmatizer: the dictionary and a vowel decide.
+    func testARussianShoutWithoutALemmatizer() {
+        XCTAssertTrue(SpellChecker.isOrdinaryWord("важно", lemmas: false))
+        XCTAssertTrue(SpellChecker.isOrdinaryWord("не", lemmas: false))
+        XCTAssertFalse(SpellChecker.isOrdinaryWord("мвд", lemmas: false))
+    }
+
     // What a page shouts or spells in short parts is still speech; an acronym
     // and a long name are the terms. All-caps words of the user's own stay.
     func testOrdinaryWordsOnThePageStayOrdinary() {
