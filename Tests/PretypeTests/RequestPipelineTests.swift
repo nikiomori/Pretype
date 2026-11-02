@@ -113,6 +113,52 @@ final class RequestPipelineTests: PipelineTestCase {
         XCTAssertNil(controller.promptContext.agentTurn, "the turn stays with its box")
     }
 
+    // The reply chord in a terminal is ours on a read that found an agent's
+    // box. An idle terminal posts nothing, so entering one, or clicking in
+    // it, makes that read: the chord's first press must not reach the agent.
+    func testTheReplyChordAnswersInAnIdleAgentBox() async throws {
+        let chord: CGEventFlags = [.maskAlternate, .maskShift]
+        set(\.repliesEnabled, true)
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = "⏺ Done."
+        fake.advance(1)
+        XCTAssertTrue(try press(KeyCode.tab, chord))
+
+        controller.pointerPressed()
+        XCTAssertNil(controller.field.cache)
+        fake.advance(0.2)
+        XCTAssertTrue(try press(KeyCode.tab, chord))
+    }
+
+    // A shell prompt has no agent: the chord stays the shell's.
+    func testTheReplyChordPassesAtAShellPrompt() async throws {
+        set(\.repliesEnabled, true)
+        await enterApp(terminal)
+        fake.terminalField = true
+        fake.agentSession = nil
+        fake.advance(1)
+        XCTAssertFalse(try press(KeyCode.tab, [.maskAlternate, .maskShift]))
+    }
+
+    // Dots a query drew go with it when Words takes over and offers nothing.
+    func testWordsTakingOverHidesAQuerysDots() {
+        fake.window.show(mode: .thinking(2), at: CGRect(x: 10, y: 10, width: 1, height: 16))
+        set(\.suggestionMode, .words)
+        fake.before = "Hi there "
+        controller.textDidChange()
+        XCTAssertNil(fake.window.currentMode)
+    }
+
+    // A notice is not a query's: Words offering nothing leaves it up.
+    func testWordsLeavesANoticeUp() {
+        fake.window.show(mode: .hint("Undone"), at: CGRect(x: 10, y: 10, width: 1, height: 16))
+        set(\.suggestionMode, .words)
+        fake.before = "Hi there "
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.currentMode, .hint("Undone"))
+    }
+
     /// The app booked for each accepted chunk.
     private var acceptedApps: [String?] {
         fake.bookings.compactMap { if case .accepted(_, _, let app) = $0 { return .some(app) } else { return nil } }

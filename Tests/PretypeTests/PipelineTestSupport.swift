@@ -251,6 +251,8 @@ final class FakeWorld {
     /// tests that read after an accept accept short words.
     var before = ""
     var after = ""
+    /// Where a read puts the caret.
+    var caret = CGRect(x: 100, y: 100, width: 1, height: 16)
     /// A web or Electron field: read empty, it reports nothing unless asked
     /// to (`allowEmpty`).
     var emptyReadsNil = false
@@ -375,7 +377,7 @@ final class FakeWorld {
                 if emptyReadsNil, !allowEmpty, before.isEmpty, after.isEmpty { return nil }
                 reads += 1
                 return TextContext(textBeforeCaret: element == launcherField ? launcherText : before, textAfterCaret: after,
-                                   caretRect: CGRect(x: 100, y: 100, width: 1, height: 16), host: host)
+                                   caretRect: caret, host: host)
             },
             selection: { [unowned self] _ in selected },
             hasMarkedText: { [unowned self] _ in markedText },

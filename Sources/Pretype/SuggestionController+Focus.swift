@@ -66,6 +66,7 @@ extension SuggestionController {
                 if Settings.repliesEnabled, Settings.autoReply, self.env.isTerminalField(element) {
                     self.watchAgentTurn(element, generation: generation, last: self.env.agentTranscript(element))
                 }
+                self.adoptAgentBox(element)
                 // The rest serves a completion that asks the model. Without
                 // one, a field just entered is not read at all.
                 guard Settings.completionsAskModel else { return }
@@ -83,6 +84,19 @@ extension SuggestionController {
                 }
             }
         }
+    }
+
+    /// In a terminal the reply chord is ours only on a read that found an
+    /// agent's box (`KeyState.agentBox`). A focus change or a click forgets
+    /// the read, and an idle terminal posts nothing to bring the next one: the
+    /// first chord went to the agent as a key. A reply in flight keeps its
+    /// forgotten cache: that is what makes it land on a fresh read.
+    func adoptAgentBox(_ element: AXUIElement) {
+        guard Settings.enabled, Settings.repliesEnabled, field.cache == nil, queries.current == nil,
+              env.isTerminalField(element), env.agentTranscript(element) != nil,
+              let context = env.context(of: element, allowEmpty: true)
+        else { return }
+        field.adoptRead(context.textBeforeCaret)
     }
 
     /// The terminal posts nothing when an AI agent's session changes, so its

@@ -230,6 +230,19 @@ final class PipelineLifecycleTests: PipelineTestCase {
         XCTAssertNil(controller.field.cache)
     }
 
+    // A moved window leaves a capture's pill too. It follows the caret: a
+    // hosted API sends no partial to redraw it.
+    func testAWindowMovedUnderACaptureMovesItsPill() async {
+        await startHandsFreeCapture()
+        let pill = fake.window.currentMode
+        XCTAssertNotNil(pill)
+        fake.caret = CGRect(x: 300, y: 200, width: 1, height: 16)
+        controller.focusTracker.onViewportChange?()
+        XCTAssertEqual(fake.window.currentMode, pill)
+        XCTAssertEqual(fake.window.drawnAt?.rect, fake.caret)
+        XCTAssertNil(controller.field.cache)
+    }
+
     // A click with no ghost and only a reply in flight drops nothing.
     func testAClickLeavesAReplyAndANoticeAlone() {
         set(\.screenContextEnabled, true)

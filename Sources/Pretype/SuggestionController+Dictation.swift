@@ -207,6 +207,17 @@ extension SuggestionController: DictationHost {
         return env.systemFocusedElement(nil).flatMap(read)
     }
 
+    /// The window moved under a capture. Its pill is the only sign at the
+    /// caret that the microphone is open, and a hosted API sends no partial
+    /// to redraw it: it follows the caret, or stays where it is.
+    func captureWindowMoved() {
+        field.forgetCaret()
+        guard let rect = dictationFieldContext()?.caretRect else { return }
+        noteCaret(rect)
+        dictationController.caretRect = rect
+        dictationController.render()
+    }
+
     func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle) {
         // A live capture's own pill outranks a protected notice: the
         // protection guards notices from the completion pipeline's chatter,

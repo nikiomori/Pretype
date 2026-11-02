@@ -283,6 +283,12 @@ final class SuggestionController {
         let dictating = dictationController.isBusy
         dictationController.pointerInterrupted()
         dropCompletion(afterUnseenCaretMove: "mouse click", overlay: !dictating)
+        guard AppPolicy.isTerminal(typingContext.bundleID) else { return }
+        // Once the click landed.
+        env.after(0.1) { [weak self] in
+            guard let self, let element = self.env.trackedElement() else { return }
+            self.adoptAgentBox(element)
+        }
     }
 
     /// The overlay is placed in screen coordinates, and nothing re-places it
@@ -308,6 +314,8 @@ final class SuggestionController {
     /// the caret. Forgetting the cache and the caret is what forces that read,
     /// and keeps the thinking dots from painting at the pre-scroll spot.
     func viewScrolled(why: String = "the view scrolled") {
+        // The overlay is a capture's own (a scroll never gets here: `scrolled`).
+        if dictationController.isBusy { return captureWindowMoved() }
         guard queries.isReply || correctionController.inFlight else {
             return dropOverlay(why: why)
         }
@@ -562,6 +570,10 @@ final class SuggestionController {
             indicator.stop()
             if let word = WordCompletion.suggestion(text: text, after: ctx.textAfterCaret, ngram: env.personalNgram) {
                 apply(word, requestText: text, cachedContext: ctx, instant: true, wordFrom: .words)
+            } else if case .thinking = window.currentMode {
+                // Dots a query drew before memory pressure brought Words: the
+                // indicator that would have hidden them just stopped.
+                window.hide()
             }
             return
         }
