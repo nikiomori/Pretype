@@ -224,7 +224,7 @@ final class ModelResidencyTests: MLXTestCase {
             let tiny = TinyResidency(hold: true), residency = tiny.residency
             defer { residency.shutdown() }
             let waiting = try XCTUnwrap(residency.begin(.completion))
-            while tiny.loads.get() == 0 { try await Task.sleep(for: .milliseconds(2)) }
+            await waitUntil { tiny.loads.get() > 0 }
             residency.releaseNow()
             XCTAssertFalse(residency.primaryLoadedOrLoading)
             XCTAssertFalse(residency.isLoading)
@@ -270,7 +270,7 @@ final class ModelResidencyTests: MLXTestCase {
         try await inScratchHub {
             let tiny = TinyResidency(hold: true, stubborn: true), residency = tiny.residency
             defer { residency.shutdown() }
-            while tiny.loads.get() == 0 { try await Task.sleep(for: .milliseconds(2)) }
+            await waitUntil { tiny.loads.get() > 0 }
             residency.releaseNow()
             let next = try XCTUnwrap(residency.begin(.completion))
             try await Task.sleep(for: .milliseconds(20))
@@ -333,7 +333,7 @@ final class ModelResidencyTests: MLXTestCase {
             defer { residency.shutdown() }
             tiny.advance(3_600)
             tiny.held.set(false)
-            while residency.state != .ready { try await Task.sleep(for: .milliseconds(2)) }
+            await waitUntil { residency.state == .ready }
             residency.idleTick(limit: 60)
             XCTAssertTrue(residency.primaryLoadedOrLoading, "loaded just now")
             tiny.advance(61)
@@ -515,7 +515,7 @@ final class ModelResidencyTests: MLXTestCase {
             let tiny = TinyResidency(), residency = tiny.residency
             residency.end(try await tiny.use())
             residency.prewarm(.fix)
-            while tiny.fetches.get().isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+            await waitUntil { !tiny.fetches.get().isEmpty }
             let fix = try XCTUnwrap(ModelCatalog.option(for: ModelCatalog.options[0].id)?.correctionModelID)
             XCTAssertEqual(tiny.fetches.get().first?.repo, ModelCatalog.repo(for: fix))
             XCTAssertEqual(tiny.fetches.get().first?.sizeHint, 5_560_000_000)

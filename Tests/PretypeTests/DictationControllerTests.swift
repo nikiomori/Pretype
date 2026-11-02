@@ -888,14 +888,14 @@ final class DictationControllerTests: XCTestCase {
     func testTranscriptNeverReachesLogsOrLastEvent() async {
         let spoken = "zanzibar-confidential-sentence"
         let rig = makeRig { $0.transcript = spoken }
-        let before = DebugLog.shared.snapshot().count
+        let start = DebugLog.shared.snapshot().last?.id ?? -1
         await startCapture(rig)
         await hear(spoken, in: rig)
         release(rig.controller)
         await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, [spoken], "the capture itself must succeed")
         XCTAssertFalse(rig.host.lastEvent.contains(spoken), rig.host.lastEvent)
-        for entry in DebugLog.shared.snapshot().dropFirst(before) {
+        for entry in DebugLog.shared.snapshot() where entry.id > start {
             XCTAssertFalse(entry.message.contains(spoken), entry.message)
             XCTAssertFalse((entry.detail ?? "").contains(spoken), entry.detail ?? "")
         }

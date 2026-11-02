@@ -237,7 +237,7 @@ final class ModelLoadingTests: MLXTestCase {
                                               blueprints: LockedValue([repo: Task { blueprint }]),
                                               ple: TinyGemma.serving, progressHandler: { _ in })
             }
-            while parses.get() == 0 { try await Task.sleep(for: .milliseconds(2)) }
+            await waitUntil { parses.get() > 0 }
             load.cancel()
             let result = await load.result
             XCTAssertThrowsError(try result.get())
