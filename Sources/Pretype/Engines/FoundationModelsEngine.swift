@@ -115,6 +115,9 @@ final class FoundationModelsEngine: CompletionEngine {
         instructionsBox.set(instructions)
     }
 
+    /// `continuationTurn` carries no clipboard block.
+    var usesClipboard: Bool { false }
+
     func correct(selection: String, redactLog: Bool) async throws -> String? {
         try requireReady()
         return try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "FM") {

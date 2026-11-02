@@ -73,7 +73,7 @@ struct PersonalTab: View {
                               title: Text("Use clipboard context"),
                               subtitle: Text("Uses text you just copied."))
                 }
-                .help("Up to 600 characters, read only when the clipboard changes. Copies from password managers are never read, and nothing is written to the journal or debug log.")
+                .help("Up to 600 characters, read only when the clipboard changes. Only downloaded models use it: Apple Intelligence and API text never read it. Copies from password managers are never read, and nothing is written to the journal or debug log.")
             }
 
             // The words are learned from the journal, so the two share a

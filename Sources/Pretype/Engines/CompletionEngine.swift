@@ -386,6 +386,11 @@ protocol CompletionEngine: AnyObject {
     /// `rewrite` can't run there, so a caller says that at once.
     var writesNewText: Bool { get }
 
+    /// False where `clipboardContext` reaches no prompt: the clipboard isn't
+    /// read for an engine that won't use it. Hosted engines stay false on
+    /// purpose: a copy is not something the user typed to a provider.
+    var usesClipboard: Bool { get }
+
     /// Start loading whatever `correct` needs, in the background. Called by a
     /// caller that just declined to wait for it, so the next one doesn't have
     /// to decline too.
@@ -442,6 +447,7 @@ extension CompletionEngine {
     /// An engine with no separate fix model has nothing to wait for.
     var isCorrectionReady: Bool { true }
     var writesNewText: Bool { true }
+    var usesClipboard: Bool { true }
     func prewarmCorrection() {}
 
     /// The ⌥⇥ spelling: text the user typed, logged as the debug export

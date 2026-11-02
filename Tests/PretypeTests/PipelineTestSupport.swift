@@ -128,6 +128,7 @@ final class FakeEngine: CompletionEngine {
     var correctionReady = true
     var isCorrectionReady: Bool { correctionReady }
     var writesNewText = true
+    var usesClipboard = true
     private(set) var requests: [CompletionRequest] = []
     private(set) var conversations: [String] = []
 

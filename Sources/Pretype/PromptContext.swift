@@ -67,7 +67,7 @@ final class PromptContext {
             // Same app gate as the OCR: clipboard in a terminal/code editor is
             // usually code, which poisons a prose model. Skip once pasted —
             // the field already contains it.
-            if Settings.clipboardContextEnabled, let clip = currentClipboardContext(),
+            if Settings.clipboardContextEnabled, host.engine.usesClipboard, let clip = currentClipboardContext(),
                !text.contains(clip) {
                 request.clipboardContext = clip
             }

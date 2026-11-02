@@ -57422,108 +57422,108 @@
         }
       }
     },
-    "Up to 600 characters, read only when the clipboard changes. Copies from password managers are never read, and nothing is written to the journal or debug log." : {
+    "Up to 600 characters, read only when the clipboard changes. Only downloaded models use it: Apple Intelligence and API text never read it. Copies from password managers are never read, and nothing is written to the journal or debug log." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Až 600 znaků, čte se jen při změně schránky. Obsah zkopírovaný ze správců hesel se nikdy nečte a nic se nezapisuje do deníku ani ladicího protokolu."
+            "value" : "Až 600 znaků, čte se jen při změně schránky. Používají ho jen stažené modely: Apple Intelligence a text přes API ho nikdy nečtou. Obsah zkopírovaný ze správců hesel se nikdy nečte a nic se nezapisuje do deníku ani ladicího protokolu."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Op til 600 tegn, læses kun, når udklipsholderen ændres. Kopier fra adgangskodeadministratorer læses aldrig, og intet skrives til journalen eller fejlfindingsloggen."
+            "value" : "Op til 600 tegn, læses kun, når udklipsholderen ændres. Kun downloadede modeller bruger den: Apple Intelligence og API-tekst læser den aldrig. Kopier fra adgangskodeadministratorer læses aldrig, og intet skrives til journalen eller fejlfindingsloggen."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bis zu 600 Zeichen, nur gelesen, wenn sich die Zwischenablage ändert. Kopien aus Passwort-Managern werden nie gelesen, und nichts wird ins Journal oder Debug-Protokoll geschrieben."
+            "value" : "Bis zu 600 Zeichen, nur gelesen, wenn sich die Zwischenablage ändert. Nur geladene Modelle nutzen sie: Apple Intelligence und API-Text lesen sie nie. Kopien aus Passwort-Managern werden nie gelesen, und nichts wird ins Journal oder Debug-Protokoll geschrieben."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hasta 600 caracteres, que solo se leen cuando cambia el portapapeles. Nunca se lee lo copiado de gestores de contraseñas, y no se guarda nada en el historial ni en el registro de depuración."
+            "value" : "Hasta 600 caracteres, que solo se leen cuando cambia el portapapeles. Solo lo usan los modelos descargados: Apple Intelligence y el texto por API nunca lo leen. Nunca se lee lo copiado de gestores de contraseñas, y no se guarda nada en el historial ni en el registro de depuración."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jusqu’à 600 caractères, lus uniquement quand le presse-papiers change. Les copies depuis les gestionnaires de mots de passe ne sont jamais lues, et rien n’est écrit dans le journal ni dans le journal de débogage."
+            "value" : "Jusqu’à 600 caractères, lus uniquement quand le presse-papiers change. Seuls les modèles téléchargés l’utilisent : Apple Intelligence et le texte par API ne le lisent jamais. Les copies depuis les gestionnaires de mots de passe ne sont jamais lues, et rien n’est écrit dans le journal ni dans le journal de débogage."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fino a 600 caratteri, letti solo quando gli appunti cambiano. Le copie dai gestori di password non vengono mai lette e nulla viene scritto nel registro o nel log di debug."
+            "value" : "Fino a 600 caratteri, letti solo quando gli appunti cambiano. Li usano solo i modelli scaricati: Apple Intelligence e il testo via API non li leggono mai. Le copie dai gestori di password non vengono mai lette e nulla viene scritto nel registro o nel log di debug."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最大600文字。クリップボードが変更されたときだけ読み取ります。パスワードマネージャからのコピーは読み取らず、ジャーナルやデバッグログにも何も書き込みません。"
+            "value" : "最大600文字。クリップボードが変更されたときだけ読み取ります。使用するのはダウンロード済みのモデルだけで、Apple IntelligenceとAPIテキストは読み取りません。パスワードマネージャからのコピーは読み取らず、ジャーナルやデバッグログにも何も書き込みません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "최대 600자이며, 클립보드가 바뀔 때만 읽습니다. 암호 관리자에서 복사한 내용은 읽지 않으며, 저널이나 디버그 로그에 아무것도 기록하지 않습니다."
+            "value" : "최대 600자이며, 클립보드가 바뀔 때만 읽습니다. 다운로드한 모델만 사용하며, Apple Intelligence와 API 텍스트는 읽지 않습니다. 암호 관리자에서 복사한 내용은 읽지 않으며, 저널이나 디버그 로그에 아무것도 기록하지 않습니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tot 600 tekens, alleen gelezen als het klembord verandert. Kopieën uit wachtwoordbeheerders worden nooit gelezen en er wordt niets naar het logboek of de debuglog geschreven."
+            "value" : "Tot 600 tekens, alleen gelezen als het klembord verandert. Alleen gedownloade modellen gebruiken het: Apple Intelligence en API-tekst lezen het nooit. Kopieën uit wachtwoordbeheerders worden nooit gelezen en er wordt niets naar het logboek of de debuglog geschreven."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Do 600 znaków, odczytywane tylko przy zmianie schowka. Kopie z menedżerów haseł nigdy nie są odczytywane i nic nie trafia do dziennika podpowiedzi ani dziennika debugowania."
+            "value" : "Do 600 znaków, odczytywane tylko przy zmianie schowka. Korzystają z niego tylko pobrane modele: Apple Intelligence i tekst przez API nigdy go nie odczytują. Kopie z menedżerów haseł nigdy nie są odczytywane i nic nie trafia do dziennika podpowiedzi ani dziennika debugowania."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Até 600 caracteres, lidos só quando a área de transferência muda. O que é copiado de gerenciadores de senhas nunca é lido, e nada é gravado no histórico ou no registro de depuração."
+            "value" : "Até 600 caracteres, lidos só quando a área de transferência muda. Só os modelos baixados a usam: a Apple Intelligence e o texto por API nunca a leem. O que é copiado de gerenciadores de senhas nunca é lido, e nada é gravado no histórico ou no registro de depuração."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Până la 600 de caractere, citite doar când se schimbă clipboardul. Copierile din managerele de parole nu sunt citite niciodată și nimic nu este scris în jurnalul de sugestii sau de depanare."
+            "value" : "Până la 600 de caractere, citite doar când se schimbă clipboardul. Doar modelele descărcate îl folosesc: Apple Intelligence și textul prin API nu îl citesc niciodată. Copierile din managerele de parole nu sunt citite niciodată și nimic nu este scris în jurnalul de sugestii sau de depanare."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "До 600 символов, читается только при изменении буфера обмена. Скопированное из менеджеров паролей не читается, и ничего не записывается в журнал подсказок или отладочный лог."
+            "value" : "До 600 символов, читается только при изменении буфера обмена. Используют только скачанные модели: Apple Intelligence и текст через API его не читают. Скопированное из менеджеров паролей не читается, и ничего не записывается в журнал подсказок или отладочный лог."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Upp till 600 tecken, läses bara när urklippet ändras. Kopior från lösenordshanterare läses aldrig, och inget skrivs till journalen eller felsökningsloggen."
+            "value" : "Upp till 600 tecken, läses bara när urklippet ändras. Bara nedladdade modeller använder det: Apple Intelligence och API-text läser det aldrig. Kopior från lösenordshanterare läses aldrig, och inget skrivs till journalen eller felsökningsloggen."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En fazla 600 karakter; yalnızca pano değiştiğinde okunur. Parola yöneticilerinden kopyalananlar asla okunmaz, günlüğe veya hata ayıklama kaydına hiçbir şey yazılmaz."
+            "value" : "En fazla 600 karakter; yalnızca pano değiştiğinde okunur. Yalnızca indirilen modeller kullanır: Apple Intelligence ve API metni onu hiç okumaz. Parola yöneticilerinden kopyalananlar asla okunmaz, günlüğe veya hata ayıklama kaydına hiçbir şey yazılmaz."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "До 600 символів, читається лише після зміни буфера обміну. Скопійоване з менеджерів паролів не читається, і нічого не записується в журнал підказок чи журнал налагодження."
+            "value" : "До 600 символів, читається лише після зміни буфера обміну. Використовують лише завантажені моделі: Apple Intelligence і текст через API його не читають. Скопійоване з менеджерів паролів не читається, і нічого не записується в журнал підказок чи журнал налагодження."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最多 600 个字符，仅在剪贴板变化时读取。绝不会读取从密码管理器拷贝的内容，也不会写入建议日志或调试日志。"
+            "value" : "最多 600 个字符，仅在剪贴板变化时读取。仅已下载的模型会使用：Apple Intelligence 和 API 文本绝不会读取。绝不会读取从密码管理器拷贝的内容，也不会写入建议日志或调试日志。"
           }
         }
       }
@@ -59648,108 +59648,108 @@
         }
       }
     },
-    "What you type goes to %@ with each suggestion, with your persona and an AI agent's session, plus screen and clipboard context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request." : {
+    "What you type goes to %@ with each suggestion, with your persona and an AI agent's session, plus screen context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Text, který píšete, se s každým návrhem odesílá na %@, spolu s vaší personou a relací AI agenta a také s kontextem obrazovky a schránky a diktovaným textem pro „Doladit přepis modelem“, pokud jsou zapnuté. Z polí hesel a vypnutých aplikací se nic neodesílá. Poskytovatel může účtovat poplatek za každý požadavek."
+            "value" : "Text, který píšete, se s každým návrhem odesílá na %@, spolu s vaší personou a relací AI agenta a také s kontextem obrazovky a diktovaným textem pro „Doladit přepis modelem“, pokud jsou zapnuté. Z polí hesel a vypnutých aplikací se nic neodesílá. Poskytovatel může účtovat poplatek za každý požadavek."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det, du skriver, sendes til %@ med hvert forslag, med din persona og en AI-agents session, plus skærm- og udklipsholderkontekst og diktering, der skal ryddes op i, når de er slået til. Adgangskodefelter og apps, der er slået fra, sender intet. Udbyderen kan tage betaling pr. forespørgsel."
+            "value" : "Det, du skriver, sendes til %@ med hvert forslag, med din persona og en AI-agents session, plus skærmkontekst og diktering, der skal ryddes op i, når de er slået til. Adgangskodefelter og apps, der er slået fra, sender intet. Udbyderen kan tage betaling pr. forespørgsel."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Was Sie tippen, geht mit jedem Vorschlag an %@, mit Ihrer Persona und der Sitzung eines KI-Agenten, dazu Bildschirm- und Zwischenablagekontext sowie Diktate zum Bereinigen, wenn diese Optionen aktiv sind. Passwortfelder und ausgeschaltete Apps senden nichts. Der Anbieter berechnet eventuell pro Anfrage."
+            "value" : "Was Sie tippen, geht mit jedem Vorschlag an %@, mit Ihrer Persona und der Sitzung eines KI-Agenten, dazu Bildschirmkontext sowie Diktate zum Bereinigen, wenn diese Optionen aktiv sind. Passwortfelder und ausgeschaltete Apps senden nichts. Der Anbieter berechnet eventuell pro Anfrage."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lo que escribes se envía a %@ con cada sugerencia, con tu perfil y la sesión de un agente de IA, además del contexto de pantalla y del portapapeles y del dictado que se pule, si están activados. Los campos de contraseña y las apps desactivadas no envían nada. El proveedor puede cobrar por solicitud."
+            "value" : "Lo que escribes se envía a %@ con cada sugerencia, con tu perfil y la sesión de un agente de IA, además del contexto de pantalla y del dictado que se pule, si están activados. Los campos de contraseña y las apps desactivadas no envían nada. El proveedor puede cobrar por solicitud."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce que vous tapez est envoyé à %@ avec chaque suggestion, avec votre persona et la session d’un agent IA, ainsi que le contexte de l’écran et du presse-papiers et la dictée à mettre au propre lorsque ces options sont activées. Les champs de mot de passe et les apps désactivées n’envoient rien. Le fournisseur peut facturer chaque requête."
+            "value" : "Ce que vous tapez est envoyé à %@ avec chaque suggestion, avec votre persona et la session d’un agent IA, ainsi que le contexte de l’écran et la dictée à mettre au propre lorsque ces options sont activées. Les champs de mot de passe et les apps désactivées n’envoient rien. Le fournisseur peut facturer chaque requête."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ciò che scrivi viene inviato a %@ con ogni suggerimento, con la tua persona e la sessione di un agente IA, insieme al contesto dello schermo e degli appunti e alla dettatura da riordinare, se attivi. I campi password e le app disattivate non inviano nulla. Il fornitore può addebitare ogni richiesta."
+            "value" : "Ciò che scrivi viene inviato a %@ con ogni suggerimento, con la tua persona e la sessione di un agente IA, insieme al contesto dello schermo e alla dettatura da riordinare, se attivi. I campi password e le app disattivate non inviano nulla. Il fornitore può addebitare ogni richiesta."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "入力した内容は候補ごとに、ペルソナやAIエージェントのセッションとともに%@に送信されます。オンの場合は、画面とクリップボードのコンテキストや、「モデルで整える」ための音声入力も送信されます。パスワードフィールドやオフにしたアプリからは何も送信されません。プロバイダがリクエストごとに料金を請求する場合があります。"
+            "value" : "入力した内容は候補ごとに、ペルソナやAIエージェントのセッションとともに%@に送信されます。オンの場合は、画面のコンテキストや、「モデルで整える」ための音声入力も送信されます。パスワードフィールドやオフにしたアプリからは何も送信されません。プロバイダがリクエストごとに料金を請求する場合があります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "입력한 내용은 제안할 때마다 페르소나 및 AI 에이전트의 세션과 함께 %@(으)로 전송되며, 해당 기능이 켜져 있으면 화면 및 클립보드 맥락과 ‘모델로 다듬기’를 위한 받아쓰기 내용도 함께 전송됩니다. 암호 필드와 꺼 둔 앱에서는 아무것도 전송되지 않습니다. 제공업체가 요청마다 요금을 부과할 수 있습니다."
+            "value" : "입력한 내용은 제안할 때마다 페르소나 및 AI 에이전트의 세션과 함께 %@(으)로 전송되며, 해당 기능이 켜져 있으면 화면 맥락과 ‘모델로 다듬기’를 위한 받아쓰기 내용도 함께 전송됩니다. 암호 필드와 꺼 둔 앱에서는 아무것도 전송되지 않습니다. 제공업체가 요청마다 요금을 부과할 수 있습니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wat je typt, gaat bij elke suggestie naar %@, met je persona en de sessie van een AI-agent, plus scherm- en klembordcontext en dictees om op te schonen als die aan staan. Wachtwoordvelden en uitgeschakelde apps versturen niets. De aanbieder kan per verzoek kosten rekenen."
+            "value" : "Wat je typt, gaat bij elke suggestie naar %@, met je persona en de sessie van een AI-agent, plus schermcontext en dictees om op te schonen als die aan staan. Wachtwoordvelden en uitgeschakelde apps versturen niets. De aanbieder kan per verzoek kosten rekenen."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "To, co piszesz, trafia do %@ z każdą podpowiedzią, razem z Twoją personą i sesją agenta AI, a także kontekst ekranu i schowka oraz dyktowany tekst dla opcji „Porządkuj tekst modelem”, jeśli są włączone. Pola haseł i wyłączone aplikacje nic nie wysyłają. Dostawca może pobierać opłaty za każde zapytanie."
+            "value" : "To, co piszesz, trafia do %@ z każdą podpowiedzią, razem z Twoją personą i sesją agenta AI, a także kontekst ekranu oraz dyktowany tekst dla opcji „Porządkuj tekst modelem”, jeśli są włączone. Pola haseł i wyłączone aplikacje nic nie wysyłają. Dostawca może pobierać opłaty za każde zapytanie."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O que você digita vai para %@ a cada sugestão, com seu perfil e a sessão de um agente de IA, além do contexto da tela e da área de transferência e do ditado a revisar, quando ativados. Campos de senha e apps desativados não enviam nada. O provedor pode cobrar por solicitação."
+            "value" : "O que você digita vai para %@ a cada sugestão, com seu perfil e a sessão de um agente de IA, além do contexto da tela e do ditado a revisar, quando ativados. Campos de senha e apps desativados não enviam nada. O provedor pode cobrar por solicitação."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce tastați ajunge la %@ cu fiecare sugestie, împreună cu persona și sesiunea unui agent IA, plus contextul ecranului și al clipboardului și dictarea pentru „Finisează cu modelul”, când acestea sunt activate. Câmpurile de parolă și aplicațiile dezactivate nu trimit nimic. Furnizorul poate taxa fiecare solicitare."
+            "value" : "Ce tastați ajunge la %@ cu fiecare sugestie, împreună cu persona și sesiunea unui agent IA, plus contextul ecranului și dictarea pentru „Finisează cu modelul”, când acestea sunt activate. Câmpurile de parolă și aplicațiile dezactivate nu trimit nimic. Furnizorul poate taxa fiecare solicitare."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Набираемый текст отправляется на %@ с каждой подсказкой, вместе с вашей персоной и сессией ИИ-агента, а также контекст экрана и буфера обмена и надиктованный текст для «Приводить в порядок», если эти функции включены. Из полей паролей и выключенных приложений ничего не отправляется. Провайдер может взимать плату за каждый запрос."
+            "value" : "Набираемый текст отправляется на %@ с каждой подсказкой, вместе с вашей персоной и сессией ИИ-агента, а также контекст экрана и надиктованный текст для «Приводить в порядок», если эти функции включены. Из полей паролей и выключенных приложений ничего не отправляется. Провайдер может взимать плату за каждый запрос."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det du skriver skickas till %@ med varje förslag, med din persona och en AI-agents session, plus skärm- och urklippskontext och diktering att snygga till när de är på. Lösenordsfält och avstängda appar skickar inget. Leverantören kan ta betalt per begäran."
+            "value" : "Det du skriver skickas till %@ med varje förslag, med din persona och en AI-agents session, plus skärmkontext och diktering att snygga till när de är på. Lösenordsfält och avstängda appar skickar inget. Leverantören kan ta betalt per begäran."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yazdıklarınız her öneriyle birlikte personanız ve bir yapay zekâ ajanının oturumuyla %@ adresine gider; açıksa ekran ve pano bağlamı ile toparlanacak dikte de gönderilir. Parola alanları ve kapatılan uygulamalar hiçbir şey göndermez. Sağlayıcı istek başına ücret alabilir."
+            "value" : "Yazdıklarınız her öneriyle birlikte personanız ve bir yapay zekâ ajanının oturumuyla %@ adresine gider; açıksa ekran bağlamı ile toparlanacak dikte de gönderilir. Parola alanları ve kapatılan uygulamalar hiçbir şey göndermez. Sağlayıcı istek başına ücret alabilir."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Текст, який ви набираєте, надсилається на %@ з кожною підказкою, разом із вашою персоною та сесією ШІ-агента, а також контекст екрана й буфера обміну та надиктований текст для «Доводити до ладу моделлю», якщо ці функції ввімкнено. З полів паролів і вимкнених програм нічого не надсилається. Провайдер може стягувати плату за кожен запит."
+            "value" : "Текст, який ви набираєте, надсилається на %@ з кожною підказкою, разом із вашою персоною та сесією ШІ-агента, а також контекст екрана та надиктований текст для «Доводити до ладу моделлю», якщо ці функції ввімкнено. З полів паролів і вимкнених програм нічого не надсилається. Провайдер може стягувати плату за кожен запит."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每次生成建议时，你输入的内容都会连同你的人设和 AI 智能体的会话一起发送到 %@；如果开启了相应功能，屏幕和剪贴板上下文以及需要“用模型整理”的听写内容也会发送。密码栏和已关闭的 App 不会发送任何内容。提供商可能会按请求收费。"
+            "value" : "每次生成建议时，你输入的内容都会连同你的人设和 AI 智能体的会话一起发送到 %@；如果开启了相应功能，屏幕上下文以及需要“用模型整理”的听写内容也会发送。密码栏和已关闭的 App 不会发送任何内容。提供商可能会按请求收费。"
           }
         }
       }

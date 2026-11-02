@@ -388,6 +388,9 @@ final class CloudEngine: CompletionEngine {
         instructionsBox.set(instructions)
     }
 
+    /// The clipboard stays on this Mac: `continuationTurn` carries no block for it.
+    var usesClipboard: Bool { false }
+
     func complete(_ request: CompletionRequest) async throws -> String? {
         guard case .ready = stateBox.get(), let endpoint else { return nil }
         guard let prepared = PreparedPrompt(String(request.textBeforeCaret.suffix(1200)), request: request,

@@ -96,7 +96,7 @@ private struct APIEndpointSection: View {
         }
         // Short, but never vaguer: what leaves the Mac, when, and what doesn't.
         if kind == .text {
-            return String(localized: "What you type goes to \(host) with each suggestion, with your persona and an AI agent's session, plus screen and clipboard context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request.")
+            return String(localized: "What you type goes to \(host) with each suggestion, with your persona and an AI agent's session, plus screen context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request.")
         }
         return APIClient.sendsHints(model: config.model, provider: config.provider)
             ? String(localized: "Each recording goes to \(host) when you stop speaking, with My words, names from the field and an AI agent's session as spelling hints. Audio is never saved to disk.")

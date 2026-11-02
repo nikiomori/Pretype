@@ -279,6 +279,16 @@ final class PromptContextHostTests: XCTestCase {
 
     // MARK: - The clipboard
 
+    // An engine that sends no clipboard doesn't have it read at all.
+    func testTheClipboardIsReadOnlyForAnEngineThatUsesIt() {
+        Settings.clipboardContextEnabled = true
+        copy("meeting at 5pm in room 4")
+        world.engine.usesClipboard = false
+        XCTAssertNil(context.makeRequest(text: "Hi").clipboardContext)
+        XCTAssertFalse(CloudEngine(APIConfig(provider: .custom, kind: .text)).usesClipboard)
+        XCTAssertFalse(FoundationModelsEngine(availability: .unavailable(.deviceNotEligible)).usesClipboard)
+    }
+
     // The clipboard joins the prompt — opted in, in an app the screen may be
     // read in, not once it's pasted, never a concealed or transient copy.
     func testTheClipboardJoinsThePrompt() {
