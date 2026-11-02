@@ -68,6 +68,74 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(store.writesNewText)
     }
 
+    // Sentences, or Suggestions on, load the model at once: weights not on this
+    // Mac wait for a confirmation, with the switch showing what runs. Declining
+    // leaves it there; stopping, or weights already here, never ask.
+    @MainActor
+    func testStartingSuggestionsAsksBeforeADownload() throws {
+        let saved = (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled)
+        defer { (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled) = saved }
+        try withScratchHub {
+            (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled)
+                = ("mlx-community/gemma-4-e4b-8bit", .base, .words, true)
+            let store = SettingsStore(controller: nil)
+
+            store.suggestionMode = .sentences
+            XCTAssertEqual(store.pendingDownload?.name, "Gemma 4 E4B 8-bit")
+            XCTAssertEqual(store.suggestionMode, .words)
+            XCTAssertEqual(Settings.suggestionMode, .words)
+            store.pendingDownload?.commit()
+            XCTAssertEqual(Settings.suggestionMode, .sentences)
+            store.pendingDownload = nil
+            store.sync()
+            XCTAssertEqual(store.suggestionMode, .sentences)
+
+            store.suggestions = false
+            XCTAssertNil(store.pendingDownload, "stopping loads nothing")
+            XCTAssertFalse(Settings.suggestionsEnabled)
+            store.suggestions = true
+            XCTAssertNotNil(store.pendingDownload)
+            XCTAssertFalse(store.suggestions)
+            XCTAssertFalse(Settings.suggestionsEnabled)
+            store.pendingDownload = nil  // declined
+
+            Settings.mlxModelID = ModelCatalog.appleIntelligenceID
+            store.sync()
+            store.suggestions = true
+            XCTAssertNil(store.pendingDownload, "nothing to fetch")
+            XCTAssertTrue(Settings.suggestionsEnabled)
+        }
+    }
+
+    // Turning API text off hands suggestions back to the local model: the same
+    // confirmation if its weights aren't here, and API text stays on if declined.
+    @MainActor
+    func testLeavingTheAPIAsksBeforeADownload() throws {
+        let saved = (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled, Settings.apiText)
+        defer { (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled, Settings.apiText) = saved }
+        try withScratchHub {
+            (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled)
+                = ("mlx-community/gemma-4-e4b-8bit", .base, .words, true)
+            Settings.apiText = APIConfig(provider: .custom, kind: .text, enabled: true)
+            let store = SettingsStore(controller: nil)
+
+            // With API text on, Sentences loads nothing yet.
+            store.suggestionMode = .sentences
+            XCTAssertNil(store.pendingDownload)
+            XCTAssertEqual(Settings.suggestionMode, .sentences)
+
+            store.apiText.enabled = false
+            XCTAssertNotNil(store.pendingDownload)
+            XCTAssertTrue(store.apiText.enabled)
+            XCTAssertTrue(Settings.apiText.enabled)
+            store.pendingDownload?.commit()
+            XCTAssertFalse(Settings.apiText.enabled)
+            store.pendingDownload = nil
+            store.sync()
+            XCTAssertFalse(store.apiText.enabled)
+        }
+    }
+
     // "Better models for <language>" in the status menu writes the stored flag
     // and relies on the window's `sync()` to pick it up: a store that kept its
     // own copy reopened the Model tab on the map instead of the ranked list.

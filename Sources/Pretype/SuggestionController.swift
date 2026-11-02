@@ -170,7 +170,11 @@ final class SuggestionController {
     func featuresChanged(wasUsingModel: Bool) {
         dismiss()
         guard wasUsingModel != Settings.completionsUseModel else { return }
-        if Settings.completionsUseModel { engine.prewarmIfNeeded() } else { engine.releaseModelNow() }
+        if !Settings.completionsUseModel {
+            engine.releaseModelNow()
+        } else if Settings.completionsAskModel {
+            engine.prewarmIfNeeded()
+        }
     }
 
     func clearOnboarding() {

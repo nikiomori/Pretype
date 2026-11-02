@@ -41,11 +41,14 @@ final class SettingsStore {
     // go or loaded when suggestions stop or start asking it.
     var suggestions = true {
         didSet { guard !syncing, oldValue != suggestions else { return }
-            setFeature { Settings.suggestionsEnabled = suggestions } }
+            let picked = suggestions
+            // Held for the download confirmation: keep showing what runs.
+            if !setSuggestionFeature({ Settings.suggestionsEnabled = picked }) { quietly { suggestions = oldValue } } }
     }
     var suggestionMode = SuggestionMode.sentences {
         didSet { guard !syncing, oldValue != suggestionMode else { return }
-            setFeature { Settings.suggestionMode = suggestionMode } }
+            let picked = suggestionMode
+            if !setSuggestionFeature({ Settings.suggestionMode = picked }) { quietly { suggestionMode = oldValue } } }
     }
     var agentPromptSuggestions = true {
         didSet { guard !syncing, oldValue != agentPromptSuggestions else { return }
@@ -78,6 +81,22 @@ final class SettingsStore {
         controller?.featuresChanged(wasUsingModel: wasUsingModel)
         // The Model pane's "↓" badges name what a click — or a first use — loads.
         if wasUsingModel != Settings.completionsUseModel { refreshModelDiskUsage() }
+    }
+
+    /// `setFeature` for the two switches that decide whether suggestions ask
+    /// the model. Starting that loads it on the spot (`featuresChanged`), so
+    /// weights not on this Mac wait for the confirmation a model switch gets.
+    /// The mirrors already hold the new value, Settings the old one. Returns
+    /// whether `write` ran now.
+    private func setSuggestionFeature(_ write: @escaping () -> Void) -> Bool {
+        guard !chordsOnly, !Settings.completionsUseModel, !apiText.enabled else {
+            setFeature(write)
+            return true
+        }
+        return confirmDownload(committedConfig) { [weak self] in
+            self?.setFeature(write)
+            self?.resync()
+        }
     }
 
     /// No suggestion asks the model — off, or Words: it serves only the fix
@@ -140,8 +159,20 @@ final class SettingsStore {
             Settings.apiText = apiText
             apiTests[.text] = nil
             if apiText.enabled != oldValue.enabled {
-                apiRebuild?.cancel()
-                controller?.engineCoordinator.rebuild()
+                let picked = apiText
+                let rebuild: @MainActor () -> Void = { [weak self] in
+                    self?.apiRebuild?.cancel()
+                    Settings.apiText = picked
+                    self?.controller?.engineCoordinator.rebuild()
+                    self?.resync()
+                }
+                // Off hands the text back to a local model that may not be here.
+                if picked.enabled || chordsOnly {
+                    rebuild()
+                } else if !confirmDownload(committedConfig, rebuild) {
+                    Settings.apiText = oldValue
+                    quietly { apiText = oldValue }
+                }
             } else if apiText.enabled {
                 rebuildAfterTyping()
             } }
@@ -565,7 +596,18 @@ final class SettingsStore {
         let running = Self.weights(modelID: Settings.mlxModelID, style: Settings.completionStyle)
         // With no suggestion asking it, the switch loads nothing: the chords'
         // model comes in on the first ⌥⇥, with its own progress line.
-        guard Settings.completionsUseModel, next.id != running.id, !ModelStorage.isFetched(next.id) else {
+        guard Settings.completionsUseModel, next.id != running.id else {
+            commit()
+            return true
+        }
+        return confirmDownload(target, commit)
+    }
+
+    /// `commit` now if `target`'s weights are on this Mac, else after the
+    /// user's confirmation. Returns whether it ran now.
+    private func confirmDownload(_ target: ProjectionConfig, _ commit: @escaping @MainActor () -> Void) -> Bool {
+        let next = Self.weights(modelID: target.modelID, style: target.style)
+        guard !ModelStorage.isFetched(next.id) else {
             commit()
             return true
         }

@@ -125,7 +125,10 @@ Do not select this model in these cases:
 
 ### Suggestions on a Mac with 8 GB
 
-On a Mac with 8 GB, suggestions start in **Words** mode. Words completes only the word that you type. It uses no model. Thus on an 8 GB Mac, the model is in memory only for a fix, a reply or a dictation clean-up. It unloads again after the idle time. To get sentence suggestions, select **Sentences** in **Settings → General → Suggestions**. Your selection always stays.
+On a Mac with 8 GB, suggestions start in **Words** mode. Words completes only the word that you type. It uses no model. Thus on an 8 GB Mac, the model is in memory only for a fix, a reply or a dictation clean-up. It unloads again after the idle time. To get sentence suggestions, select **Sentences** in **Settings → General → Suggestions**. If the model is not on this Mac, Pretype asks before the download. Your selection always stays.
+
+### Qwen3.5 2B M40: replies and false fixes
+
 * Reply: 56% of its replies are on topic, against 37% for the post-trained sibling (p<0.001). Qwen3.8 27B rated both.
 * Size: 1.5 GB in total. The Base build with its sibling uses 1.5 GB + 1.1 GB.
 
@@ -371,6 +374,7 @@ We checked these presets against the documentation of each provider on 2026-10-1
 | Custom | You type it. | You type it. | None |
 
 * **Reasoning.** Most current models reason before they answer, by default. For autocomplete, this adds seconds to each suggestion. Thus Pretype turns it off where the provider permits it.
+* **Turning API text off.** If the local model is not on this Mac, Pretype asks before the download.
 * **No measured figures.** The eval on this page does not include hosted models. The Live Impact meters do not show figures while API text is on.
 * **Latency.** The network adds to each suggestion. **Test connection** shows the round trip from your Mac.
 * **Cost.** Each suggestion is one request. The provider charges for each request.
