@@ -13,9 +13,7 @@ struct ProjectionConfig: Equatable {
 
     /// The model the engine loads as the primary: Instruct style runs the
     /// entry's instruct sibling.
-    var primaryModelID: String {
-        style == .instruct ? ModelCatalog.option(for: modelID)?.instructModelID ?? modelID : modelID
-    }
+    var primaryModelID: String { ModelStorage.weights(for: modelID, style: style) }
 
     /// One user gesture on one control.
     enum Change: Equatable {

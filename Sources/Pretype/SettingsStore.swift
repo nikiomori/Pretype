@@ -570,10 +570,9 @@ final class SettingsStore {
         let option = ModelCatalog.option(for: modelID)
         let name = (option?.title ?? (modelID as NSString).lastPathComponent)
             .components(separatedBy: " — ")[0]
-        guard style == .instruct, let sibling = option?.instructModelID, sibling != modelID else {
-            return (modelID, name, Double(option?.approxSizeMB ?? 0) / 1000)
-        }
-        return (sibling, "\(name) Instruct", ModelMetrics.instructRamGB(for: modelID) ?? 0)
+        let id = ModelStorage.weights(for: modelID, style: style)
+        guard id != modelID else { return (modelID, name, Double(option?.approxSizeMB ?? 0) / 1000) }
+        return (id, "\(name) Instruct", ModelMetrics.instructRamGB(for: modelID) ?? 0)
     }
 
     /// The model the fix and reply chords load for a model + style — the
