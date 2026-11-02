@@ -20,7 +20,7 @@ enum SuggestionDisplayMode: Equatable {
     /// user's accept/cancel. Drawn as a word diff against `original`, wrapped
     /// so a long fix can be read in full before ⏎ applies it.
     case fixPreview(original: String, fix: String)
-    /// A spell-fix shown in a pill ABOVE the mistyped word (Cotypist-style):
+    /// A spell-fix shown in a pill ABOVE the mistyped word:
     /// the original struck through, an arrow, then the proposed fix. Tab to apply.
     case correction(original: String, fix: String)
     /// Dictation is capturing the microphone; the payload is the transcript so
@@ -81,7 +81,7 @@ final class PillTextView: NSView {
 ///
 /// A real suggestion draws as **chromeless inline ghost text** — gray, sized to
 /// the host font, baseline-aligned right at the caret — so it reads like text the
-/// field already contains (the Cotypist look). Engine-state notices (downloading
+/// field already contains. Engine-state notices (downloading
 /// / error / the ⌥⇥-fix affordance) fall back to a small HUD pill so they stay
 /// legible against any background.
 final class SuggestionWindow: NSPanel {

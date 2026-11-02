@@ -539,7 +539,7 @@ final class MLXEngine: CompletionEngine {
     /// Decoding parameters shared by both completion paths (base and instruct).
     /// Greedy — argmax IS the model's best guess (beam rerank on its own
     /// posterior scored p=1.0), so every draw below argmax is expected loss,
-    /// and the T=0.1 "touch of temperature" inherited from Cotabby was never
+    /// and the T=0.1 "touch of temperature" of an early recipe was never
     /// measured here: the harness always pinned greedy, so no booked number ever
     /// described that decoder. No repetition penalty for the same reason plus
     /// one of its own — in real typing the words most likely to repeat (a

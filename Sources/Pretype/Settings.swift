@@ -8,7 +8,7 @@ import ServiceManagement
 ///   instructions) — fast, faithful to mid-sentence flow, no steering.
 /// - `instruct`: the *instruct* sibling model via its chat template, conditioned
 ///   on a persona + a "continue, ~N words" directive — steerable, tone-aware
-///   (the approach Cotypist uses). Loads the instruct model as primary.
+///   Loads the instruct model as primary.
 enum CompletionStyle: String, CaseIterable {
     case base
     case instruct
@@ -22,7 +22,7 @@ enum CompletionStyle: String, CaseIterable {
 }
 
 /// Caps how much the engine generates per keystroke. Shorter = faster, less
-/// drift (Cotypist defaults to ~2–4 words for exactly this reason).
+/// drift.
 enum CompletionLength: String, CaseIterable {
     case short
     case medium
@@ -71,7 +71,7 @@ enum PersonalizationLevel: String {
 /// - `panel` (default): a small floating box beside the caret with the text + a
 ///   ⇥ hint — legible on busy backgrounds, never overlaps text, and forgiving
 ///   when the caret can only be estimated.
-/// - `inline`: ghost text drawn on the line itself (Cotypist-style) — needs an
+/// - `inline`: ghost text drawn on the line itself — needs an
 ///   accurate caret and still shows drawing glitches, so the UI marks it unstable.
 enum SuggestionPresentation: String {
     case inline
@@ -664,8 +664,7 @@ enum Settings {
     /// How long a single completion may be.
     @Pref("completionLength", CompletionLength.short) static var completionLength: CompletionLength
 
-    /// Free-text persona/voice used in instruct mode (Cotypist's "Custom AI
-    /// Instructions"). Ships with a generic default; the user can edit or clear it.
+    /// Free-text persona/voice used in instruct mode. Ships with a generic default; the user can edit or clear it.
     @Pref("customInstructions", defaultInstructions) static var customInstructions: String
 
     /// The personal n-gram fast-path. On by default; everything stays

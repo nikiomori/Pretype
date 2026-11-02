@@ -1,7 +1,7 @@
 import AppKit
 import NaturalLanguage
 
-/// System spell-check (NSSpellChecker) for the Cotypist-style inline typo fix —
+/// System spell-check (NSSpellChecker) for the inline typo fix —
 /// local, instant, multilingual (RU + EN, etc.). Fast enough to run per keystroke on
 /// the word at the caret; the LLM is reserved for the explicit ⌥⇥ fix.
 enum SpellChecker {

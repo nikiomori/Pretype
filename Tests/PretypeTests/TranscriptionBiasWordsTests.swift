@@ -4,12 +4,12 @@ import XCTest
 final class TranscriptionBiasWordsTests: XCTestCase {
     func testPicksNamesAndJargonNotSentenceStarts() {
         let words = Transcription.biasWords(in: """
-        Yesterday I met Nikolai at the office. We talked about MLX and the iPhone.
-        Then GPT4 came up, and Dubina laughed.
+        Yesterday I met Leonid at the office. We talked about MLX and the iPhone.
+        Then GPT4 came up, and Verenko laughed.
         """)
-        XCTAssertEqual(Set(words), ["Nikolai", "MLX", "iPhone", "GPT4", "Dubina"])
+        XCTAssertEqual(Set(words), ["Leonid", "MLX", "iPhone", "GPT4", "Verenko"])
         // Most recent first: what was typed last is likeliest to be said next.
-        XCTAssertEqual(words.first, "Dubina")
+        XCTAssertEqual(words.first, "Verenko")
     }
 
     func testDeduplicatesCaseInsensitivelyAndCaps() {
@@ -20,8 +20,8 @@ final class TranscriptionBiasWordsTests: XCTestCase {
     }
 
     func testCyrillicNames() {
-        XCTAssertEqual(Transcription.biasWords(in: "Вчера говорил с Николаем про Pretype."),
-                       ["Pretype", "Николаем"])
+        XCTAssertEqual(Transcription.biasWords(in: "Вчера говорил с Леонидом про Pretype."),
+                       ["Pretype", "Леонидом"])
     }
 
     // Heard in another case or split, a term comes out as written; a page's
@@ -34,9 +34,9 @@ final class TranscriptionBiasWordsTests: XCTestCase {
                        "change the settings, then GPT4")
         XCTAssertEqual(Transcription.spell("suggestion, controller", inferred: inferred), "suggestion, controller",
                        "joined across single spaces only")
-        XCTAssertEqual(Transcription.spell("pre type and dubina", inferred: [], listed: ["Pretype", "Дубина", "Dubina"]),
-                       "Pretype and Dubina")
-        XCTAssertEqual(Transcription.spell("привет, дубина", inferred: [], listed: ["Дубина"]), "привет, Дубина")
+        XCTAssertEqual(Transcription.spell("pre type and verenko", inferred: [], listed: ["Pretype", "Веренко", "Verenko"]),
+                       "Pretype and Verenko")
+        XCTAssertEqual(Transcription.spell("привет, веренко", inferred: [], listed: ["Веренко"]), "привет, Веренко")
         XCTAssertEqual(Transcription.spell("ask claude code", inferred: [], listed: ["Claude Code"]), "ask Claude Code")
         XCTAssertEqual(Transcription.spell("nothing here", inferred: []), "nothing here")
     }

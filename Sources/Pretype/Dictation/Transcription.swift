@@ -246,7 +246,7 @@ enum Transcription {
 
     /// Words from the field being dictated into — names and jargon the user
     /// already typed there — handed to the analyzer as contextual strings, so
-    /// "Dubina" or "MLX" heard again is spelled the way the page spells it.
+    /// "Verenko" or "MLX" heard again is spelled the way the page spells it.
     /// ponytail: one global for the one capture that can run at a time; thread
     /// it through `Gates.startSession` if two sessions ever overlap.
     static let contextualWords = LockedValue<[String]>([])

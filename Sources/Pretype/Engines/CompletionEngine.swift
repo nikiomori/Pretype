@@ -37,8 +37,7 @@ struct CompletionRequest {
 extension CompletionRequest {
     /// The text to hand to the completion model: a plain capped tail of the
     /// typed text — pure continuation conditioning, no instructions. When screen
-    /// context is available it is prefixed as a separate label-free block (the
-    /// format Cotabby uses for base models): a base model reads labeled metadata
+    /// context is available it is prefixed as a separate label-free block: a base model reads labeled metadata
     /// as text to imitate (which skews the completion) but reads a raw preceding
     /// block as the document to continue.
     func completionPrompt(maxChars: Int) -> String {
@@ -236,7 +235,7 @@ extension CompletionRequest {
 
     /// The instruct directive shared by the chat-model engines (Apple
     /// Intelligence, hosted APIs): continue the user's text, don't answer it.
-    /// Prompting recipe adapted from Cotabby's Foundation Models path.
+    /// The prompting recipe of the Foundation Models path.
     static let continuationDirective = """
     You complete partially-typed text. The user is the author; you produce \
     the next few words they would type, in their voice.

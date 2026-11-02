@@ -4,7 +4,7 @@ import FoundationModels
 /// Completion via the system Apple Intelligence model (macOS 26+).
 /// Zero download, zero app memory — the ~3B model is OS-managed and runs on
 /// the Neural Engine. Quality differs from Gemma; it's the lightweight option.
-/// Prompting recipe adapted from Cotabby's Foundation Models path.
+/// The prompting recipe of the Foundation Models path.
 final class FoundationModelsEngine: CompletionEngine {
     let name = "Apple Intelligence"
 

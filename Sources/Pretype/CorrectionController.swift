@@ -28,7 +28,7 @@ protocol CorrectionHost: AnyObject {
 ///   1. fix-selection — ⌥⇥ on a selection asks the engine to correct it,
 ///   2. last-word fix — ⌥⇥ with no selection corrects the just-typed word,
 ///   3. inline spell-fix — a misspelled word at the caret shows a system
-///      spell-check correction over it (⇥ applies), Cotypist-style.
+///      spell-check correction over it (⇥ applies).
 ///
 /// A fix is always *previewed* and applied only on an explicit key — never
 /// automatically. It draws into the shared overlay and reaches the pipeline

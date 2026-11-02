@@ -153,7 +153,7 @@ final class PromptContextTests: XCTestCase {
     // completions, and its soft wraps must rejoin into the typed prompt.
     func testAgentPromptInTerminal() {
         let rule = String(repeating: "─", count: 80)
-        let screen = "nikimori@mac ~ % claude\n▗ ▗   ▖ ▖  Claude Code v2.1.296\n\(rule)\n"
+        let screen = "user@mac ~ % claude\n▗ ▗   ▖ ▖  Claude Code v2.1.296\n\(rule)\n"
         let below = "\n\(rule)\n  ⏵⏵ auto mode on"
         let wrapped = screen + "❯\u{a0}please check why the build fails on CI and fix the flaky test in the \n"
             + "  dictation controller so it stops timing out when the machine is"

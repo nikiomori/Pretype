@@ -426,14 +426,14 @@ final class CloudAPITests: XCTestCase {
         StubProtocol.response = (200, Data(#"{"text":"привет","languages":[{"code":"ru"}]}"#.utf8))
         let wav = CloudTranscription.wav([0, 0.5, -2])
         let text = try await APIClient.transcribe(endpoint("openai", model: "gpt-transcribe"), wav: wav,
-                                                  language: "ru", hints: ["Dubina", "bad<word"], timeout: 5)
+                                                  language: "ru", hints: ["Verenko", "bad<word"], timeout: 5)
         XCTAssertEqual(text, "привет")
         XCTAssertEqual(StubProtocol.lastRequest?.url?.absoluteString, "https://api.openai.com/v1/audio/transcriptions")
         let body = multipartText
         // gpt-transcribe: a language LIST, never the singular field, plus keywords.
         XCTAssertTrue(body.contains("name=\"languages[]\"\r\n\r\nru\r\n"))
         XCTAssertFalse(body.contains("name=\"language\""))
-        XCTAssertTrue(body.contains("name=\"keywords[]\"\r\n\r\nDubina\r\n"))
+        XCTAssertTrue(body.contains("name=\"keywords[]\"\r\n\r\nVerenko\r\n"))
         XCTAssertFalse(body.contains("bad<word"))
         XCTAssertTrue(StubProtocol.lastBody.range(of: wav) != nil)
         XCTAssertTrue(body.contains("name=\"model\"\r\n\r\ngpt-transcribe\r\n"))
@@ -487,12 +487,12 @@ final class CloudAPITests: XCTestCase {
         StubProtocol.response = (200, Data(#"{"text":"привет"}"#.utf8))
         _ = try await APIClient.transcribe(endpoint("refrain", model: "auto", key: nil),
                                            wav: CloudTranscription.wav([0]), language: "ru",
-                                           hints: ["Dubina", "MLX"], timeout: 5)
+                                           hints: ["Verenko", "MLX"], timeout: 5)
         XCTAssertEqual(StubProtocol.lastRequest?.url?.absoluteString, "http://127.0.0.1:8178/v1/audio/transcriptions")
         XCTAssertNil(StubProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization"))
         let body = multipartText
         XCTAssertTrue(body.contains("name=\"language\"\r\n\r\nru\r\n"))
-        XCTAssertTrue(body.contains("name=\"prompt\"\r\n\r\nDubina, MLX\r\n"))
+        XCTAssertTrue(body.contains("name=\"prompt\"\r\n\r\nVerenko, MLX\r\n"))
     }
 
     /// A server on this Mac costs nothing per request, so it gets the live preview.
