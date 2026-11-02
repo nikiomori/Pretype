@@ -24,7 +24,7 @@ final class ModelResidency {
         /// which a fix or a reply reads as "someone else cleaned up after me"
         /// and leaves its dots spinning.
         func model() async throws -> ModelContainer {
-            do { return try await task.value } catch is CancellationError where !Task.isCancelled { throw EngineNotReady() }
+            do { return try await task.value } catch where MLXEngine.isCancellation(error) && !Task.isCancelled { throw EngineNotReady() }
         }
     }
 
@@ -82,9 +82,9 @@ final class ModelResidency {
         var lastFailure: Date?
         /// Bumped by each `letGo`: what names an older load as called off.
         var generation = 0
-        /// A load called off with its end still to come: the next load waits
-        /// it out (`startLoad`).
-        var calledOff: Task<ModelContainer, Error>?
+        /// Loads called off with their end still to come, the replaced
+        /// engine's included: the next load waits them out (`startLoad`).
+        var calledOff: [Task<ModelContainer, Error>] = []
 
         init(id: String, drafterID: String?, retryCooldown: TimeInterval) {
             (self.id, self.drafterID, self.retryCooldown) = (id, drafterID, retryCooldown)
@@ -176,7 +176,7 @@ final class ModelResidency {
     init(primaryID: String, style: CompletionStyle, promptCache: MLXEngine.PromptCache, after previous: ModelResidency?,
          load: @escaping Loader = ModelResidency.loadFromDisk, tokenizers cache: TokenizerCache = TokenizerCache(),
          clock: @escaping @Sendable () -> Date = Date.init,
-         fetch: @escaping Fetch = { await ModelStorage.fetchQuietly(repo: $0, sizeHint: $1) }) {
+         fetch: @escaping Fetch = ModelStorage.quietFetch) {
         blueprints = previous?.blueprints ?? LockedValue([:])
         tokenizers = previous?.tokenizers ?? cache
         self.clock = clock
@@ -186,11 +186,18 @@ final class ModelResidency {
                        retryCooldown: Self.loadRetryCooldown)
         sibling = Slot(id: correctionID, drafterID: ModelCatalog.mtpDrafterID(for: correctionID), retryCooldown: 0)
         (primary.lastUse, sibling.lastUse) = (clock(), clock())
+        let retiring = previous?.calledOff ?? []
+        (primary.calledOff, sibling.calledOff) = (retiring, retiring)
         // Models shared with the replaced engine reload without the build
         // leak or a tokenizer parse; the rest go.
         let repos: Set<String> = [ModelCatalog.repo(for: primaryID), ModelCatalog.repo(for: correctionID)]
         blueprints.mutate { kept in kept = kept.filter { repos.contains($0.key) } }
         keepTokenizers(of: repos)
+    }
+
+    /// The loads called off here, for the residency that replaces this one.
+    private var calledOff: [Task<ModelContainer, Error>] {
+        modelLock.withLock { primary.calledOff + sibling.calledOff }
     }
 
     /// Drops every cached tokenizer but those in `repos`' folders.
@@ -272,8 +279,8 @@ final class ModelResidency {
         // name the build that loaded.
         let repo = ModelCatalog.repo(for: slot.id)
         slot.loadedRepo = repo
-        let previous = slot.calledOff
-        slot.calledOff = nil
+        let calledOff = slot.calledOff
+        slot.calledOff = []
         Self.runningLoads.mutate { $0 += 1 }
         return Task {
             defer { Self.runningLoads.mutate { $0 -= 1 } }
@@ -281,7 +288,7 @@ final class ModelResidency {
                 // A load called off may still be building: two copies at once
                 // is the memory the release was to free, and the blueprint it
                 // leaves (below) is this load's.
-                _ = await previous?.result
+                for load in calledOff { _ = await load.result }
                 try Task.checkCancellation()
                 let loaded = try await load(repo, slot, blueprints, tokenizers) { progress in
                     _ = live { status(Self.downloadStatus(progress, fixModel: !isPrimary)) }
@@ -566,7 +573,7 @@ final class ModelResidency {
     /// (`startLoad`): one taken from its task could only fail.
     private func letGo(_ slot: Slot, keep: Bool) {
         if isLoading(slot) {
-            slot.calledOff = slot.task
+            if let task = slot.task { slot.calledOff.append(task) }
             if slot === sibling { correctionStatus.set(nil) }
         } else if keep {
             MLXEngine.keepBlueprint(slot.task, repo: slot.repo(), in: blueprints)

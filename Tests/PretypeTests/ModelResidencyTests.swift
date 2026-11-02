@@ -20,9 +20,10 @@ private final class TinyResidency {
 
     /// `failsPrimary`: only the completion model's loads fail. `stubborn`: a
     /// load past its last cancellation point, which lands all the same.
+    /// `urlCancel`: a load called off the way the Hub client's URLSession ends.
     init(primaryID: String = "test/tiny-gemma", style: CompletionStyle = .base, fails: Bool = false,
-         failsPrimary: Bool = false, hold: Bool = false, stubborn: Bool = false, loadPrimary: Bool = true,
-         after previous: TinyResidency? = nil) {
+         failsPrimary: Bool = false, hold: Bool = false, stubborn: Bool = false, urlCancel: Bool = false,
+         loadPrimary: Bool = true, after previous: TinyResidency? = nil) {
         now = previous?.now ?? LockedValue(Date(timeIntervalSince1970: 1_000_000))
         held = LockedValue(hold)
         let (now, seen, loads, held, fetches) = (now, blueprintsSeen, loads, held, fetches)
@@ -32,7 +33,11 @@ private final class TinyResidency {
                 loads.mutate { $0 += 1 }
                 seen.mutate { $0.append(blueprints.get().keys.sorted()) }
                 while held.get() {
-                    if stubborn { usleep(2_000) } else { try await Task.sleep(for: .milliseconds(2)) }
+                    if stubborn {
+                        usleep(2_000)
+                    } else {
+                        do { try await Task.sleep(for: .milliseconds(2)) } catch { throw urlCancel ? URLError(.cancelled) : error }
+                    }
                 }
                 if fails || (failsPrimary && slot.id == primaryID) { throw URLError(.cannotConnectToHost) }
                 return try tinyContainer()
@@ -260,6 +265,79 @@ final class ModelResidencyTests: MLXTestCase {
             XCTAssertNil(residency.loadedRepos.sibling)
             _ = await waiting.task.result
             residency.end(waiting)
+        }
+    }
+
+    // The Hub client's URLSession ends a called-off download with its own
+    // error: to whoever waits that is no model all the same, not a failure.
+    func testACalledOffDownloadIsNoModelToItsWaiter() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(hold: true, urlCancel: true), residency = tiny.residency
+            defer { residency.shutdown() }
+            let waiting = try XCTUnwrap(residency.begin(.completion))
+            await waitUntil { tiny.loads.get() > 0 }
+            residency.releaseNow()
+            do {
+                _ = try await waiting.model()
+                XCTFail("no model")
+            } catch {
+                XCTAssertTrue(error is EngineNotReady, "\(error)")
+            }
+            residency.end(waiting)
+        }
+    }
+
+    // A model switch mid-load: the replacing engine's first load waits out the
+    // one its predecessor called off, as a load in the same slot does — and
+    // finds the blueprint that load leaves.
+    func testAReplacementWaitsForALoadCalledOffBeforeIt() async throws {
+        try await inScratchHub {
+            let old = TinyResidency(hold: true, stubborn: true)
+            await waitUntil { old.loads.get() > 0 }
+            old.residency.shutdown()
+            let new = TinyResidency(after: old)
+            defer { new.residency.shutdown() }
+            old.held.set(false)
+            new.residency.end(try await new.use())
+            XCTAssertEqual(new.blueprintsSeen.get(), [["test/tiny-gemma"]])
+        }
+    }
+
+    // The fix model's load shows while it runs and then simply goes away: the
+    // primary's own state, whatever it became meanwhile, shows through (a
+    // snapshot/restore once pinned "loading…" over a ready model).
+    func testEngineLoadingIgnoresAFinishedFixModel() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(hold: true), residency = tiny.residency
+            defer { residency.shutdown() }
+            XCTAssertTrue(residency.isLoading, "the primary's own load")
+            tiny.held.set(false)
+            residency.end(try await tiny.use())
+            XCTAssertFalse(residency.isLoading)
+
+            tiny.held.set(true)
+            let fix = try XCTUnwrap(residency.begin(.fix))
+            XCTAssertTrue(residency.isLoading)
+            XCTAssertEqual(residency.state, .preparing("loading fix model…"))
+            tiny.held.set(false)
+            _ = try await fix.task.value
+            residency.end(fix)
+            XCTAssertFalse(residency.isLoading, "a finished fix model")
+            XCTAssertEqual(residency.state, .ready)
+
+            // The idle-unloaded resting state, with a fix model and without.
+            tiny.advance(3_600)
+            residency.relieveMemoryPressure()
+            XCTAssertFalse(residency.isLoading)
+            XCTAssertEqual(residency.state, .preparing("idle — model unloaded"))
+            residency.end(try await tiny.use(.fix))
+            XCTAssertFalse(residency.isLoading)
+            XCTAssertEqual(residency.state, .preparing("idle — model unloaded"))
+
+            let failed = TinyResidency(fails: true)
+            defer { failed.residency.shutdown() }
+            await waitUntil { if case .failed = failed.residency.state { true } else { false } }
+            XCTAssertFalse(failed.residency.isLoading)
         }
     }
 
