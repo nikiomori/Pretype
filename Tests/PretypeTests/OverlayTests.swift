@@ -4,6 +4,21 @@ import XCTest
 @testable import Pretype
 
 final class OverlayTests: XCTestCase {
+    // VoiceOver hears a preview when its text changes and a suggestion when it
+    // is new: not on each narrowing keystroke, nor for a pill's own notices.
+    func testVoiceOverHearsAnOfferOnce() {
+        let fix = SuggestionDisplayMode.fixPreview(original: "teh", fix: "the")
+        XCTAssertEqual(SuggestionWindow.offerToSpeak(fix, after: ""), "the")
+        XCTAssertNil(SuggestionWindow.offerToSpeak(fix, after: "the"))
+        XCTAssertEqual(SuggestionWindow.offerToSpeak(.correction(original: "teh", fix: "the"), after: ""), "the")
+        XCTAssertEqual(SuggestionWindow.offerToSpeak(.suggestion("hello world"), after: ""), "hello world")
+        XCTAssertEqual(SuggestionWindow.offerToSpeak(.suggestion("goodbye"), after: "hello world"), "goodbye")
+        XCTAssertNil(SuggestionWindow.offerToSpeak(.suggestion("llo world"), after: "hello world"), "typed its head")
+        XCTAssertNil(SuggestionWindow.offerToSpeak(.suggestion("hello"), after: "hello world"), "trimmed to the line")
+        XCTAssertNil(SuggestionWindow.offerToSpeak(.hint("copied"), after: ""), "`showTransient` speaks these")
+        XCTAssertNil(SuggestionWindow.offerToSpeak(.listening("hello"), after: ""))
+    }
+
     // An explicit ⌥⇥/⌥⇧⇥ that reached an unloaded engine says so — it used to
     // come back as nil and show "✓ looks fine" for text no model read.
     func testFailureNoticeNamesAnUnloadedEngine() {

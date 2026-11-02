@@ -278,6 +278,8 @@ final class SuggestionWindow: NSPanel {
 
         setHighlight(Self.offersSuggestion(mode) && !Settings.onboardingCompleted)
         lastShow = isVisible && !fadingOut ? (mode, caretRect, host, trimToLine, shown) : nil
+        // What fits, as for ⇧⇥: VoiceOver must not offer more than a key takes.
+        announceOffer(mode, as: shown.map(SuggestionDisplayMode.suggestion) ?? mode)
         return shown
     }
 
@@ -352,6 +354,7 @@ final class SuggestionWindow: NSPanel {
         // true the moment the dismissal is accepted, not when the fade lands.
         currentMode = nil
         lastShow = nil
+        spokenOffer = ""
         guard isVisible else { setHighlight(false); return }
         hideGeneration += 1
         let gen = hideGeneration
@@ -397,6 +400,34 @@ final class SuggestionWindow: NSPanel {
             // replaced it in the meantime bumped `hideGeneration` and never
             // reaches here.
             self.hide(force: true)
+        }
+    }
+
+    /// What VoiceOver last heard of the current offer.
+    private var spokenOffer = ""
+
+    /// The overlay has no accessibility element, so VoiceOver hears a preview
+    /// or a suggestion only when told to. A beat late, and only if it is still
+    /// up: a stream grows a suggestion token by token, and the next key
+    /// replaces it.
+    private func announceOffer(_ mode: SuggestionDisplayMode, as spoken: SuggestionDisplayMode) {
+        guard NSWorkspace.shared.isVoiceOverEnabled, Self.offerToSpeak(spoken, after: spokenOffer) != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self, self.currentMode == mode,
+                  let text = Self.offerToSpeak(spoken, after: self.spokenOffer) else { return }
+            self.spokenOffer = text
+            Self.announce(text)
+        }
+    }
+
+    /// The words of `mode` VoiceOver has yet to hear, given the last it heard.
+    /// A preview speaks when its text changes. A suggestion stays quiet while
+    /// it narrows, by a typed head or by being trimmed to the line.
+    nonisolated static func offerToSpeak(_ mode: SuggestionDisplayMode, after spoken: String) -> String? {
+        switch mode {
+        case .fixPreview(_, let fix), .correction(_, let fix): return fix == spoken ? nil : fix
+        case .suggestion(let text): return spoken.contains(text) ? nil : text
+        default: return nil
         }
     }
 
