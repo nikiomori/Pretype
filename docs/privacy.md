@@ -141,12 +141,13 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
 
 2. Delete the downloaded models (several GB).
 
-   In **Settings → Model**, the list of models shows the disk size of each downloaded model, with a trash button that deletes it. The list shows only the models of the Pretype catalog. It has no trash button for the model that you use now. Thus, for a full removal, use the command below.
+   In **Settings → Model**, the list of models shows the disk size of each downloaded model, with a trash button that deletes it. The list shows only the models of the Pretype catalog. The model that you use now has no trash button. To remove it, select a different model, and then use the trash button on its row. For a full removal, use the command below. The command also removes the lock files and the download records of these models, in `.locks` and `.metadata`.
 
    > **WARNING:** This command deletes the full `mlx-community`, `openbmb` and `prism-ml` organizations from the shared Hugging Face cache. If a different MLX tool (LM Studio, mlx_lm, …) uses this cache, remove those three names from the command. The `nikimori` and `nikimoriOne` organizations contain only Pretype's own builds (Qwen3.5 2B M40, the default on 8 GB Macs, EuroLLM 1.7B and the slim Gemma tiers).
 
    ```bash
-   find ~/.cache/huggingface/hub -maxdepth 1 \( \
+   hub=~/.cache/huggingface/hub
+   find "$hub" "$hub/.locks" "$hub/.metadata" -maxdepth 1 \( \
         -name 'models--nikimori--*' -o -name 'models--nikimoriOne--*' -o \
         -name 'models--openbmb--*' -o -name 'models--mlx-community--*' -o \
         -name 'models--prism-ml--*' \) -exec rm -rf {} +
@@ -166,13 +167,19 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
    rm -rf ~/Library/Application\ Support/Pretype
    ```
 
-5. Delete the API keys. Do this step only if you added a key in **Settings → API**. Do the command one time for each provider (`openai`, `anthropic`, `gemini`, `groq`, `mistral`, `openrouter`, `deepseek`, `ollama`, `lmstudio`, `refrain`, `custom`).
+5. Delete the download caches.
+
+   ```bash
+   rm -rf ~/Library/Caches/app.pretype.Pretype ~/Library/HTTPStorages/app.pretype.Pretype
+   ```
+
+6. Delete the API keys. Do this step only if you added a key in **Settings → API**. Do the command one time for each provider (`openai`, `anthropic`, `gemini`, `groq`, `mistral`, `openrouter`, `deepseek`, `ollama`, `lmstudio`, `refrain`, `custom`).
 
    ```bash
    security delete-generic-password -s app.pretype.api-key -a openai
    ```
 
-6. Delete the settings and reset the permission grants. If you never turned on screen context or dictation, you do not need the last two commands.
+7. Delete the settings and reset the permission grants. If you never turned on screen context or dictation, you do not need the last two commands.
 
    ```bash
    defaults delete app.pretype.Pretype

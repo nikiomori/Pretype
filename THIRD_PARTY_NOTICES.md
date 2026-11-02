@@ -32,6 +32,20 @@ Exact pinned versions are recorded in [Package.resolved](Package.resolved).
 | FluidAudio | Apache-2.0 | <https://github.com/FluidInference/FluidAudio> |
 | fastcluster (compiled into FluidAudio) | BSD-2-Clause | <https://github.com/fastcluster/fastcluster> |
 | text-processing-rs (NemoTextProcessing, linked by FluidAudio; includes NVIDIA NeMo text-processing grammars, rustfst, flate2) | Apache-2.0 | <https://github.com/FluidInference/text-processing-rs> |
+| misaki (word list and Japanese text frontend, ported in FluidAudio) | Apache-2.0 | <https://github.com/hexgrad/misaki> |
+| cutlet and Convert-Numbers-to-Japanese (ported in FluidAudio's Japanese text frontend) | MIT | <https://github.com/polm/cutlet>, <https://github.com/Greatdane/Convert-Numbers-to-Japanese> |
+| UniDic (unidic-lite, the Japanese dictionary of FluidAudio's text-to-speech) | BSD-3-Clause | <https://github.com/polm/unidic-lite> |
+| ipa-dict and CharsiuG2P (Spanish and French lexicons and models of FluidAudio's text-to-speech) | MIT | <https://github.com/open-dict-data/ipa-dict>, <https://github.com/lingjzhu/CharsiuG2P> |
+| LuxTTS English lexicon (`luxtts_en_us_lexicon.tsv.zz`, data file in FluidAudio) | Apache-2.0 as distributed by FluidAudio; see below | <https://github.com/FluidInference/FluidAudio> |
+
+Pretype uses only FluidAudio's speech recognition. Its text-to-speech code is linked in, but
+no path in Pretype reaches it. The text-to-speech dictionaries and models are downloads that
+Pretype never starts.
+
+The app does ship one text-to-speech data file: `FluidAudio_FluidAudio.bundle` holds the LuxTTS
+English lexicon, and Pretype never reads it. FluidAudio harvested this lexicon from the output of
+espeak-ng. espeak-ng is GPL-3.0-or-later. The lexicon contains no espeak-ng code, and FluidAudio
+gives it no license of its own.
 
 FluidAudio documents the third-party work it carries (including the above) in its
 [`ThirdPartyLicenses/`](https://github.com/FluidInference/FluidAudio/tree/503b4bd1bbf7220882de39fe8ae6716aae4132da/ThirdPartyLicenses)
@@ -73,6 +87,10 @@ Applies to:
 - mlx-swift-lm — Copyright (c) 2024 ml-explore
 - EventSource — Copyright 2025 Mattt (https://mat.tt)
 - yyjson — Copyright (c) 2020 YaoYuan <ibireme@gmail.com>
+- cutlet — Copyright (c) 2020 Paul O'Leary McCann
+- Convert-Numbers-to-Japanese — Copyright (c) 2018 David Wilson, <https://github.com/Greatdane>
+- ipa-dict — Copyright (c) 2016 dohliam
+- CharsiuG2P — Copyright (c) 2022 jzhu
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -108,6 +126,44 @@ Redistribution and use in source and binary forms, with or without modification,
   * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### BSD 3-Clause License (UniDic)
+
+UniDic is copyrighted free software by the UniDic Consortium. It is released under any of the
+GPL, the LGPL or the BSD License. FluidAudio takes it under the BSD License.
+
+```
+Copyright (c) 2011-2013, The UniDic Consortium
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+ * Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+ * Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the
+   distribution.
+
+ * Neither the name of the UniDic Consortium nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ### Apache License 2.0

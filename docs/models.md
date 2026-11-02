@@ -75,7 +75,7 @@ macOS often reads short Danish text as Norwegian or Swedish. Before 2026-10-28, 
 
 ### Japanese
 
-Pretype does not show suggestions in Japanese. On the 280 held-out Japanese rows (2026-10-15), the first word is correct for 4–7% of the suggestions of the downloadable models, and for 0 of 229 suggestions of Apple Intelligence. To read a wrong suggestion costs more time than a correct one saves. This is true for every model, also with the confidence gate on.
+Pretype does not show suggestions in Japanese. On the 280 held-out Japanese rows (2026-10-15), the first word is correct for 4–8% of the suggestions of the downloadable models (EuroLLM 1.7B: 13%, 24 of 180), and for 0 of 229 suggestions of Apple Intelligence. To read a wrong suggestion costs more time than a correct one saves. This is true for every model, also with the confidence gate on.
 
 The typo fix, the reply and dictation still operate in Japanese.
 

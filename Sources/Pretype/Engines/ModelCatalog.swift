@@ -397,8 +397,8 @@ enum ModelCatalog {
         /// journal's λ=1.25, a cell adopted only when 2-fold cross-fitting holds
         /// at p<0.01 and it does not lose with IME-priced CJK chars or λ=0.4
         /// (runs-2026-10-16-gate/script-tau.py). Japanese pays on no model
-        /// (first word right 6–18% of shown) → `.infinity`, never suggest —
-        /// with the gate off too (`silentScripts(for:)`).
+        /// (first word right on 4–8% of shown, 13% on EuroLLM) → `.infinity`,
+        /// never suggest — with the gate off too (`silentScripts(for:)`).
         var scriptGateTau: [GateScript: Double] = [:]
         /// One-line human summary for the settings UI, e.g. "Instruct · Short".
         var summary: String {
