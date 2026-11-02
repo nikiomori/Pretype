@@ -342,21 +342,6 @@ final class ModelResidencyTests: MLXTestCase {
         }
     }
 
-    // A load called off — the engine retired mid-load — is no failure: a
-    // re-pack marked failed falls back to the original build for the launch.
-    func testACalledOffLoadIsNoFailure() async throws {
-        try await inScratchHub {
-            let id = "mlx-community/gemma-4-e2b-4bit", repo = ModelCatalog.repo(for: id)
-            XCTAssertEqual(repo, "nikimori/gemma-4-e2b-4bit-slim")
-            let tiny = TinyResidency(primaryID: id, hold: true), residency = tiny.residency
-            let lease = try XCTUnwrap(residency.begin(.completion))
-            residency.shutdown()
-            _ = try? await lease.task.value
-            XCTAssertFalse(ModelStorage.loadFailed(repo: repo))
-            XCTAssertNil(residency.loadedRepos.primary)
-        }
-    }
-
     // A request's end is a use: a first download can outlast the idle
     // limit, and the model it brought must not go the moment it answers.
     func testARequestsEndCountsAsUse() async throws {

@@ -306,11 +306,7 @@ The outputs are the same as the originals, row for row. The downloads are 13–3
 
 The post-trained Qwen3.5 2B build also has a re-pack ([nikimoriOne/Qwen3.5-2B-4bit-slim](https://huggingface.co/nikimoriOne/Qwen3.5-2B-4bit-slim)). It does not contain the vision encoder. The download is 1.1 GB, against 1.7 GB. The fix and reply outputs are the same, row for row.
 
-If your install downloaded an original build before the re-packs, Pretype moves it to the re-pack automatically. Pretype checks at launch and then one time each hour. It never downloads on a cellular, hotspot or Low Data Mode network. After the change, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
-
-<div align="center">
-<img src="diagram-models-slim-upgrade.svg" width="440" alt="Flow diagram. Pretype starts, and then each hour: is the model in use an original build? No: nothing to do. Yes: is the free disk space more than the original size plus 2 GB? No: try again in one hour. Yes: is the network unmetered (no cellular, hotspot or Low Data Mode)? No: try again in one hour. Yes: download the re-pack in the background while the original serves. Did the re-pack load on this Mac? Yes: delete the original. Not yet: try again in one hour." />
-</div>
+If your install downloaded an original build before the re-packs, Pretype continues to use it. To get the re-pack, delete the model in **Settings → Model** and download it again. With a re-pack, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
 
 ### Memory is used only while you type
 

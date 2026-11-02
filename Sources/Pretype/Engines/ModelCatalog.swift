@@ -290,11 +290,8 @@ enum ModelCatalog {
 
     /// Entries whose completion build changed under the same pick: the builds
     /// an older install may already hold, newest first, which keep serving
-    /// until `ModelStorage.upgradeToSlim` has fetched the new one in the
-    /// background — so an update never turns into a forced download (or a
-    /// dead engine offline). One still serving as any entry's ⌥⇥ sibling is
-    /// never deleted; any other goes once the new build has loaded, like a
-    /// slim original.
+    /// while the new one isn't on disk — so an update never turns into a
+    /// forced download (or a dead engine offline).
     static let previousBuilds: [String: [String]] = [
         "nikimori/Qwen3.5-2B-Base-6bit": ["nikimori/Qwen3.5-2B-Base-4bit", "mlx-community/Qwen3.5-2B-4bit"],
         "nikimori/MiniCPM5-1B-Base-8bit": ["openbmb/MiniCPM5-1B-Base"],
@@ -302,9 +299,7 @@ enum ModelCatalog {
 
     /// The Hub repo `id`'s weights come from: its slim re-pack (or its new
     /// build), unless only the original is on disk — an install from before
-    /// keeps loading that until `ModelStorage.upgradeToSlim` has fetched the
-    /// replacement. A replacement that failed to load this launch counts as
-    /// absent, so the retry falls back to the build that worked.
+    /// keeps loading that.
     static func repo(
         for id: String,
         isFetched: (String) -> Bool = ModelStorage.isUsable(repo:)

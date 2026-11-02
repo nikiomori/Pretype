@@ -208,7 +208,7 @@ enum ModelStorage {
     /// invisible in the entry's advertised size. Leaving orphaned siblings
     /// behind is exactly how 82 GB of cache accumulates without anyone noticing.
     /// Repo names, taken literally — both builds of a model with a slim
-    /// re-pack, since an install may hold either, or both mid-upgrade.
+    /// re-pack, since an install may hold either, or both.
     static func repos(for id: String) -> Set<String> {
         guard let option = ModelCatalog.option(for: id) else { return [] }
         let models = [option.id, option.correctionModelID, option.instructModelID]
@@ -252,131 +252,10 @@ enum ModelStorage {
         try FileManager.default.removeItem(at: directory)
     }
 
-    /// Re-packs and new builds (`ModelCatalog.slimRepos` values,
-    /// `previousBuilds` keys) that have loaded on this Mac. An original is
-    /// deleted only once its replacement made it into memory here — a
-    /// re-pack that fails to load must not strand a user without the build
-    /// that worked.
-    private static let loadedKey = "loadedReplacementRepos"
-    /// Replacements whose load failed this launch: `ModelCatalog.repo(for:)`
-    /// treats them as absent, so the engine's retry falls back to the
-    /// original still on disk. In memory only — each launch tries again.
-    private static let failedLoads = LockedValue<Set<String>>([])
-
-    private static func isReplacement(_ repo: String) -> Bool {
-        ModelCatalog.slimRepos.values.contains(repo) || ModelCatalog.previousBuilds[repo] != nil
-    }
-
-    /// The engine's report on a load of `repo` (a resolved repo, not an id).
-    static func noteLoad(repo: String, succeeded: Bool) {
-        guard isReplacement(repo) else { return }
-        if succeeded {
-            _ = failedLoads.mutate { $0.remove(repo) }
-            var loaded = Set(Settings.store.stringArray(forKey: loadedKey) ?? [])
-            if loaded.insert(repo).inserted { Settings.store.set(Array(loaded), forKey: loadedKey) }
-        } else {
-            _ = failedLoads.mutate { $0.insert(repo) }
-            DebugLog.shared.log("MLX", "\(repo) failed to load — falling back to the build it replaces this launch")
-        }
-    }
-
-    static func loadFailed(repo: String) -> Bool { failedLoads.get().contains(repo) }
-
-    /// On disk, and not a build that failed to load this launch — what
-    /// `ModelCatalog.repo(for:)` may hand the engine.
+    /// On disk, taken literally — what `ModelCatalog.repo(for:)` may hand the
+    /// engine.
     static func isUsable(repo: String) -> Bool {
-        !loadFailed(repo: repo) && (cacheDirectory(repo: repo).map(isFetched(at:)) ?? false)
-    }
-
-    /// Proven to load, and not failing now. A load that worked on an earlier
-    /// launch says nothing about this one: while the replacement is failing,
-    /// the original is the build the engine fell back to.
-    static func hasLoaded(repo: String) -> Bool {
-        !loadFailed(repo: repo) && Settings.store.stringArray(forKey: loadedKey)?.contains(repo) ?? false
-    }
-
-    /// Moves an install that downloaded an original Gemma build before the
-    /// slim re-packs existed onto them: fetch the re-pack in the background
-    /// while the original keeps serving, then — once the re-pack has loaded
-    /// here (`noteLoad`) and nothing in use still loads the original
-    /// (`stillServes`) — delete it.
-    /// `ModelCatalog.repo(for:)` prefers a fetched re-pack, so the next load
-    /// (idle reload or relaunch) picks it up — the same weights the engine
-    /// already held in memory, so all that changes is disk (−0.6…2.7 GB per
-    /// model) and a faster reload. A `previousBuilds` pair is fetched the same
-    /// way; its old build stays only while it is the entry's ⌥⇥ sibling.
-    ///
-    /// Only the selected model's repos: a model nobody uses isn't worth
-    /// gigabytes of the user's bandwidth. Skipped on an expensive (cellular,
-    /// hotspot) or Low Data Mode network and when the disk can't hold both
-    /// builds at once; the next pass (`AppDelegate`, hourly) tries again.
-    /// `fetch` is `fetchQuietly`; tests record the fetches instead.
-    static func upgradeToSlim(selected: String, fetch: (_ repo: String, _ sizeHint: Int64) async -> Bool = {
-        await fetchQuietly(repo: $0, sizeHint: $1)
-    }) async {
-        let inUse = repos(for: selected)
-        for (original, slim, keepOriginal) in upgradePairs where inUse.contains(original) && inUse.contains(slim) {
-            guard let originalDir = cacheDirectory(repo: original), let slimDir = cacheDirectory(repo: slim),
-                  FileManager.default.fileExists(atPath: originalDir.path) else { continue }
-            if !isFetched(at: slimDir) {
-                // Half an original: the engine already loads (and fetches) the
-                // re-pack; this one is deleted on a later pass, once it's here.
-                guard isFetched(at: originalDir),
-                      await fetch(slim, bytes(at: originalDir)) else { continue }
-            }
-            guard !keepOriginal, hasLoaded(repo: slim), !stillServes(original, selected: selected) else { continue }
-            // An engine holding the original keeps it: its weights are in
-            // memory, and an unlinked file stays readable while open.
-            // ponytail: a reload resolving the original in the instant before
-            // this delete fails once and retries after the load cooldown.
-            try? delete(repo: original)
-            DebugLog.shared.log("MLX", "replaced \(original) with \(slim)")
-        }
-    }
-
-    /// A model `selected` runs still loads `original` (`ModelCatalog.repo(for:)`).
-    /// One original can stand in for two builds: Qwen3.5's post-trained 4-bit
-    /// is the ⌥⇥ sibling its slim re-pack replaces AND Qwen3.5 Base's previous
-    /// build — the primary until the 6-bit build is on disk. The re-pack
-    /// loading for a ⌥⇥ says nothing about that: deleting the original then
-    /// turned the next reload into a forced download, or a dead engine offline.
-    ///
-    /// A new build counts only once it has loaded here, as a re-pack does
-    /// (`hasLoaded`): one fetched but never run may still fail to load, and
-    /// with the original gone there would be nothing to fall back to.
-    static func stillServes(_ original: String, selected: String,
-                            resolve: (String) -> String = { id in
-                                ModelCatalog.repo(for: id) { repo in
-                                    isUsable(repo: repo) && (ModelCatalog.previousBuilds[repo] == nil || hasLoaded(repo: repo))
-                                }
-                            }) -> Bool {
-        guard let option = ModelCatalog.option(for: selected) else { return false }
-        return [option.id, option.correctionModelID, option.instructModelID].contains { resolve($0) == original }
-    }
-
-    /// What `upgradeToSlim` may replace: each original with its re-pack, each
-    /// previous build with its new one. A previous build that ANY entry still
-    /// runs its ⌥⇥ or Instruct style on is kept — not just the new build's own
-    /// siblings: the next catalog edit must not quietly delete weights a chord
-    /// of another model loads (Qwen3.5's post-trained build serves MiniCPM5 too).
-    static var upgradePairs: [(original: String, slim: String, keepOriginal: Bool)] {
-        let siblings = Set(ModelCatalog.options.flatMap { [$0.correctionModelID, $0.instructModelID] })
-        return ModelCatalog.slimRepos.map { (original: $0.key, slim: $0.value, keepOriginal: false) }
-            + ModelCatalog.previousBuilds.flatMap { new, olds in
-                olds.map { (original: $0, slim: new, keepOriginal: siblings.contains($0)) }
-            }
-    }
-
-    /// Auto mode follows `ModelCatalog.recommended(for:)`, and a recommendation
-    /// can move an existing install onto weights it doesn't hold (the E2B tiers'
-    /// switch to base, 2026-10-14). The stored style keeps serving while those
-    /// are fetched quietly; true once the caller can re-apply the
-    /// recommendation without a download wait.
-    static func fetchRecommendedWeights(selected: String) async -> Bool {
-        guard Settings.useRecommendedSettings, ModelCatalog.option(for: selected) != nil else { return false }
-        let style = ModelCatalog.recommended(for: selected).style
-        guard style != Settings.completionStyle else { return false }
-        return await fetchWeights(for: selected, style: style)
+        cacheDirectory(repo: repo).map(isFetched(at:)) ?? false
     }
 
     /// The weights catalog entry `id` completes on in `style`: its instruct

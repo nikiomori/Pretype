@@ -119,24 +119,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// The model upkeep an update can owe this install, in background fetches
-    /// that leave the current model serving: new builds of the pick
-    /// (`ModelStorage.upgradeToSlim`), the weights its recommended style runs
-    /// on, and a default the memory ladder moved (`Settings.pendingDefault`).
-    /// None while an API model writes the text: the local one isn't in use.
+    /// The model upkeep an update can owe this install, in a background fetch
+    /// that leaves the current model serving: a default the memory ladder
+    /// moved (`Settings.pendingDefault`). None while an API model writes the
+    /// text: the local one isn't in use.
     nonisolated private static func maintainModels(_ controller: SuggestionController) async {
-        guard !Settings.apiText.enabled else { return }
-        let selected = Settings.mlxModelID
-        await ModelStorage.upgradeToSlim(selected: selected)
-        if await ModelStorage.fetchRecommendedWeights(selected: selected) {
-            await MainActor.run {
-                // The pick may have changed while the weights downloaded.
-                guard Settings.mlxModelID == selected, Settings.useRecommendedSettings,
-                      Settings.completionStyle != ModelCatalog.recommended(for: selected).style else { return }
-                controller.engineCoordinator.apply(.useRecommended(true))
-            }
-        }
-        guard let next = Settings.pendingDefault else { return }
+        guard !Settings.apiText.enabled, let next = Settings.pendingDefault else { return }
         let style = await MainActor.run { controller.engineCoordinator.current.applying(.model(next)).style }
         guard await ModelStorage.fetchWeights(for: next, style: style) else { return }
         await MainActor.run {

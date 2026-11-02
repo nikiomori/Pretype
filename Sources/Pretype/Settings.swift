@@ -470,28 +470,11 @@ enum Settings {
         return (Unmanaged<CFArray>.fromOpaque(ptr).takeUnretainedValue() as? [String])?.first
     }
 
-    /// Gemma registered Instruct until 2026-10-14 (E2B) and -15 (E4B). An
-    /// install that never stored a style and holds only the instruct weights
-    /// keeps running them until `ModelStorage.fetchRecommendedWeights` has the
-    /// base build here — the registered default alone would make the update a
-    /// forced download.
-    static func keepsLegacyInstruct(model: String,
-                                    isFetched: (String) -> Bool = ModelStorage.isFetched) -> Bool {
-        guard model.contains("gemma-4-e"),
-              let instruct = ModelCatalog.option(for: model)?.instructModelID else { return false }
-        return !isFetched(model) && isFetched(instruct)
-    }
-
     /// One-shot rewrites of stored values. Runs first thing in main.
     static func migrate(isFetched: (String) -> Bool = ModelStorage.isFetched) {
         // The ghost slider's floor rose from 0.1 to 0.4; a value stored under
         // the old one kept the ghost near-invisible.
         if ghostOpacity < 0.4 { ghostOpacity = 0.4 }
-        // `object(forKey:)`, not `completionStyle`: the property answers an
-        // unset key with its default.
-        if defaults.object(forKey: "completionStyle") == nil, keepsLegacyInstruct(model: mlxModelID, isFetched: isFetched) {
-            completionStyle = .instruct
-        }
         // A pick whose build changed (Qwen3.5 → Base 6-bit, MiniCPM5 → 8-bit)
         // follows it; the old build keeps serving until the new one is here
         // (`ModelCatalog.repo(for:)`).

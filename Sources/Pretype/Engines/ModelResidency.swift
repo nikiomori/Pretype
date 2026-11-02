@@ -292,7 +292,6 @@ final class ModelResidency {
                 let loaded = try await load(repo, slot, blueprints, tokenizers) { progress in
                     _ = live { status(Self.downloadStatus(progress, fixModel: !isPrimary)) }
                 }
-                ModelStorage.noteLoad(repo: repo, succeeded: true)
                 if !isPrimary {
                     // Whatever the disk probe thought, the weights are provably
                     // here now — and after an idle unload nils the task, this is
@@ -321,9 +320,6 @@ final class ModelResidency {
                 }
                 return loaded
             } catch {
-                // Called off (an engine retired mid-download) is no failure
-                // to fall back from.
-                if !MLXEngine.isCancellation(error) { ModelStorage.noteLoad(repo: repo, succeeded: false) }
                 _ = live {
                     if isPrimary { stateBox.set(.failed(error.localizedDescription)) } else { correctionStatus.set(nil) }
                     slot.task = nil
