@@ -254,6 +254,8 @@ enum Transcription {
     /// The bias candidates in `text`, most recent first, deduplicated: words
     /// capitalized mid-sentence (names) and words with an inner capital or
     /// digit (iPhone, MLX, GPT4). Sentence-initial capitals carry no signal.
+    /// A word that looks like a key stays out: these go to a speech API, and
+    /// an agent's session prints anything.
     static func biasWords(in text: String) -> [String] {
         var picked: [String] = []
         for line in text.split(whereSeparator: \.isNewline) {
@@ -263,20 +265,37 @@ enum Transcription {
                 let word = raw.trimmingCharacters(in: CharacterSet.punctuationCharacters.union(.symbols))
                 guard word.count >= 3, let first = word.first, word.contains(where: \.isLetter) else { continue }
                 let inner = word.dropFirst().contains { $0.isUppercase || $0.isNumber }
-                if inner || (!atStart && first.isUppercase) { picked.append(word) }
+                if inner || (!atStart && first.isUppercase), !looksSecret(word) { picked.append(word) }
             }
         }
         var seen = Set<String>()
         return Array(picked.reversed().filter { seen.insert($0.lowercased()).inserted }.prefix(50))
     }
 
+    /// A key rather than a name: a known key prefix, alone or after `=`, `:` or
+    /// a quote, or a long run with a digit in it or with the spread of random
+    /// letters. A hint lost to this is a long identifier nobody says aloud.
+    static func looksSecret(_ word: String) -> Bool {
+        let parts = word.split { "=:\"'`,;".contains($0) }
+        if parts.contains(where: { part in part.count >= 12 && keyPrefixes.contains { part.hasPrefix($0) } }) { return true }
+        guard word.count >= 24 else { return false }
+        if word.contains(where: \.isNumber) { return true }
+        let shares = Dictionary(grouping: word) { $0 }.values.map { Double($0.count) / Double(word.count) }
+        return shares.reduce(0) { $0 - $1 * log2($1) } >= 4.4  // bits a character; a long identifier stays near 4
+    }
+
+    private static let keyPrefixes = ["sk-", "sk_", "pk_", "rk_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_",
+                                      "xox", "glpat-", "hf_", "npm_", "AKIA", "ASIA", "AIza"]
+
     /// `text` with the bias words spelled as written: a word heard in another
-    /// case ("mlx", "iphone") or split in two or three ("suggestion
-    /// controller") becomes the term. After every engine — Parakeet takes no
-    /// contextual strings at all, and the system's are only a hint. A term
-    /// read off the page only when it can't be an ordinary word — an inner
-    /// capital or a digit; a mid-sentence "Settings" on screen must not
-    /// capitalize every "settings" said. A `listed` term (the user's own)
+    /// case ("mlx", "iphone") becomes the term, and so does one split into
+    /// parts ("suggestion controller"), or heard with the term's own hyphen.
+    /// After every engine — Parakeet takes no contextual strings at all, and
+    /// the system's are only a hint. A term read off the page only when it
+    /// can't be an ordinary word — an inner capital or a digit; a mid-sentence
+    /// "Settings" on screen must not capitalize every "settings" said — and
+    /// parts join only into a term with a capital first letter: `forEach` in a
+    /// session must not take "for each file". A `listed` term (the user's own)
     /// always, and as written: "Claude Code" heard as "claude code".
     static func spell(_ text: String, inferred: [String], listed: [String] = []) -> String {
         func key(_ s: some StringProtocol) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
@@ -286,6 +305,9 @@ enum Transcription {
             spelling[key(term)] = spelling[key(term)] ?? term
         }
         guard !spelling.isEmpty else { return text }
+        func joins(_ term: String) -> Bool { term.first?.isUppercase == true || listed.contains(term) }
+        let wordCounts = listed.map { $0.split { !($0.isLetter || $0.isNumber) }.count }
+        let longest = max(3, wordCounts.max() ?? 0)
         // Words and the runs between them, in order.
         var pieces: [(text: String, word: Bool)] = []
         for character in text {
@@ -294,12 +316,14 @@ enum Transcription {
         }
         var out = "", i = 0
         while i < pieces.count {
-            // The longest join first: three words, two, one — across single spaces.
-            let match = pieces[i].word ? (1...3).reversed().lazy.compactMap { n -> (String, Int)? in
+            // The longest join first, across single spaces or what the term
+            // itself has there ("pre-trained").
+            let match = pieces[i].word ? (1...longest).reversed().lazy.compactMap { n -> (String, Int)? in
                 let end = i + 2 * (n - 1)
-                guard end < pieces.count,
-                      (i...end).allSatisfy({ ($0 - i) % 2 == 0 ? pieces[$0].word : pieces[$0].text == " " }),
-                      let term = spelling[key((i...end).filter { ($0 - i) % 2 == 0 }.map { pieces[$0].text }.joined())]
+                guard end < pieces.count else { return nil }
+                let heard = stride(from: i, through: end, by: 2).map { pieces[$0].text }.joined()
+                guard let term = spelling[key(heard)], n == 1 || joins(term),
+                      stride(from: i + 1, to: end, by: 2).allSatisfy({ pieces[$0].text == " " || term.contains(pieces[$0].text) })
                 else { return nil }
                 return (term, end + 1)
             }.first : nil

@@ -23,8 +23,9 @@ enum CloudTranscription {
         let hears = config.provider != "refrain" || Parakeet.isDownloaded && Parakeet.covers(locale)
         let language = Settings.dictationLanguage == "auto" && hears
             ? nil : locale.language.languageCode?.identifier
-        // Names and terms from the field — the same spelling hints the
-        // on-device analyzer gets.
+        // Names and terms from the field and an agent's session — the same
+        // spelling hints the on-device analyzer gets, with no key among them
+        // (`Transcription.biasWords`).
         let hints = Transcription.contextualWords.get()
         // An upload is not a local finalization: a long take over a slow link
         // legitimately takes longer than the controller's ten seconds. The WAV

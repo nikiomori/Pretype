@@ -41,6 +41,50 @@ final class TranscriptionBiasWordsTests: XCTestCase {
         XCTAssertEqual(Transcription.spell("nothing here", inferred: []), "nothing here")
     }
 
+    // An identifier in the session must not rewrite ordinary speech: parts
+    // join only into a listed term or one with a capital first letter.
+    func testPartsJoinOnlyIntoSafeTerms() {
+        let session = ["forEach", "isEmpty", "inProgress", "QuillParser"]
+        XCTAssertEqual(Transcription.spell("for each file, is empty, in progress", inferred: session),
+                       "for each file, is empty, in progress")
+        XCTAssertEqual(Transcription.spell("foreach and quill parser", inferred: session), "forEach and QuillParser",
+                       "one word heard is the term in another case; a capital joins")
+        XCTAssertEqual(Transcription.spell("for each file", inferred: [], listed: ["forEach"]), "forEach file",
+                       "the user listed it")
+    }
+
+    // "Exactly": a term of any length, and one heard with its own hyphen.
+    func testAListedTermIsSpelledAsListed() {
+        XCTAssertEqual(Transcription.spell("ask the quiet river data team", inferred: [],
+                                           listed: ["Quiet River Data Team"]), "ask the Quiet River Data Team")
+        XCTAssertEqual(Transcription.spell("a very long project name here", inferred: [],
+                                           listed: ["Very Long Project Name Here"]), "a Very Long Project Name Here")
+        XCTAssertEqual(Transcription.spell("the pre-trained model", inferred: [], listed: ["Pre-Trained"]),
+                       "the Pre-Trained model")
+        XCTAssertEqual(Transcription.spell("the pre trained model", inferred: [], listed: ["Pre-Trained"]),
+                       "the Pre-Trained model")
+        XCTAssertEqual(Transcription.spell("run gpt-4 now", inferred: ["GPT-4"]), "run GPT-4 now")
+        XCTAssertEqual(Transcription.spell("well-known", inferred: [], listed: ["Wellknown"]), "well-known",
+                       "a hyphen the term doesn't have stays")
+    }
+
+    // Keys printed in a session never become hints. The strings are invented,
+    // and assembled so that no key-shaped text sits in the repository.
+    func testKeysAreNotBiasWords() {
+        let tail = String(repeating: "k3Xp", count: 8)
+        let keys = ["sk-" + tail, "ghp_" + tail, "xoxb-" + tail, "github_pat_" + tail, "AKIA" + "QZ7TINVENTED1",
+                    "sk-" + "demoKEY12", String(repeating: "9f3a", count: 10),
+                    "QwErTyUiOpAsDfGhJkLzXcVbNmPlOkIjUh", "postgres://admin:" + tail + "@db.example.com"]
+        for key in keys { XCTAssertTrue(Transcription.looksSecret(key), key) }
+        XCTAssertTrue(Transcription.looksSecret("TOKEN=ghp_" + tail), "after an assignment")
+        XCTAssertEqual(Transcription.biasWords(in: "use \(keys[1]) with QuillParser and \"token\":\"\(keys[0])\""),
+                       ["QuillParser"])
+        for name in ["GPT4", "iPhone", "Qwen3.5-2B-M40-6bit", "sk-learn", "SuggestionControllerKeyHandling",
+                     "applicationDidFinishLaunchingWithOptions", "Sources/Pretype/Dictation/Transcription.swift"] {
+            XCTAssertFalse(Transcription.looksSecret(name), name)
+        }
+    }
+
     // The Parakeet switch shows to whoever reads the app in the language they
     // dictate, and stays in sight once on.
     func testParakeetIsOfferedInTheInterfacesLanguage() {

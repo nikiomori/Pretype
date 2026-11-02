@@ -1292,6 +1292,42 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(rig.host.commands.isEmpty)
     }
 
+    /// A key printed in an agent's session is no spelling hint: what `begin`
+    /// collects goes to a speech API as it is. The rest of the session stays,
+    /// and so does what the user listed.
+    func testAKeyInASessionStaysOutOfTheSpellingHints() async {
+        let saved = Settings.dictationWords
+        defer {
+            Settings.dictationWords = saved
+            Transcription.contextualWords.set([])
+        }
+        Settings.dictationWords = ["Kestrel"]
+        let key = "ghp_" + String(repeating: "q7Zt", count: 9)
+        let rig = makeRig()
+        rig.host.anchor?.session = "Reading QuillParser.swift with \(key) from the vault"
+        await startCapture(rig)
+        XCTAssertEqual(Transcription.contextualWords.get(), ["Kestrel", "QuillParser.swift"])
+        rig.controller.keyPressed(isEscape: true)
+    }
+
+    /// What `begin` collected spells what `finish` types: a listed term of
+    /// four words, a capitalized term split in two, and ordinary words that
+    /// only sound like an identifier on the screen.
+    func testATakeIsSpelledWithTheWordsItsCaptureCollected() async {
+        let saved = Settings.dictationWords
+        defer {
+            Settings.dictationWords = saved
+            Transcription.contextualWords.set([])
+        }
+        Settings.dictationWords = ["Quiet River Data Team"]
+        let rig = makeRig { $0.transcript = "for each quiet river data team and quill parser" }
+        rig.host.anchor?.session = "see forEach in QuillParser"
+        await startCapture(rig)
+        release(rig.controller)
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["for each Quiet River Data Team and QuillParser"])
+    }
+
     /// An app switch fires two invalidations milliseconds apart (focus change,
     /// then resign-active). The second must not discard the finish the first
     /// one started — it would bump the generation and drop the transcript.

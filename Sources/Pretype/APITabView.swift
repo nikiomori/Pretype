@@ -99,7 +99,7 @@ private struct APIEndpointSection: View {
             return String(localized: "What you type goes to \(host) with each suggestion, plus screen and clipboard context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request.")
         }
         return APIClient.sendsHints(model: config.model, provider: config.provider)
-            ? String(localized: "Each recording goes to \(host) when you stop speaking, with names from the field as spelling hints. Audio is never saved to disk.")
+            ? String(localized: "Each recording goes to \(host) when you stop speaking, with My words, names from the field and an AI agent's session as spelling hints. Audio is never saved to disk.")
             : String(localized: "Each recording goes to \(host) when you stop speaking. Audio is never saved to disk.")
     }
 }

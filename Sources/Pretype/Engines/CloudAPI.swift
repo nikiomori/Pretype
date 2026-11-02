@@ -275,8 +275,8 @@ enum APIClient {
 
     /// OpenAI's `audio/transcriptions` shape (OpenAI, Groq, Mistral, local
     /// whisper servers). `language` is ISO 639-1; nil lets the model detect
-    /// it. `hints` are names and terms already in the field, for spelling —
-    /// sent where the model documents a field for them.
+    /// it. `hints` are names and terms from the field and an agent's session,
+    /// for spelling — sent where the model documents a field for them.
     static func transcribe(_ endpoint: APIEndpoint, wav: Data, language: String?, hints: [String] = [],
                            timeout: TimeInterval) async throws -> String {
         let boundary = "pretype-\(UUID().uuidString)"

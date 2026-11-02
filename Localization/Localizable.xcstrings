@@ -7519,22 +7519,16 @@
     },
     "Add a name or term" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přidejte jméno nebo termín"
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tilføj et navn eller en term"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавьте имя или термин"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Додайте ім’я або термін"
           }
         },
         "de" : {
@@ -7543,64 +7537,22 @@
             "value" : "Namen oder Begriff hinzufügen"
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter un nom ou un terme"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Añade un nombre o término"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un nom ou un terme"
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aggiungi un nome o un termine"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adicione um nome ou termo"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Voeg een naam of term toe"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lägg till ett namn eller en term"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dodaj nazwę lub termin"
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Přidejte jméno nebo termín"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adaugă un nume sau un termen"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bir ad veya terim ekleyin"
           }
         },
         "ja" : {
@@ -7613,6 +7565,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "이름이나 용어 추가"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg een naam of term toe"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj nazwę lub termin"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicione um nome ou termo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă un nume sau un termen"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавьте имя или термин"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lägg till ett namn eller en term"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir ad veya terim ekleyin"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Додайте ім’я або термін"
           }
         },
         "zh-Hans" : {
@@ -7731,22 +7731,16 @@
     },
     "Add a word" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přidat slovo"
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tilføj et ord"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавить слово"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Додати слово"
           }
         },
         "de" : {
@@ -7755,64 +7749,22 @@
             "value" : "Wort hinzufügen"
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter un mot"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Añadir una palabra"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un mot"
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aggiungi una parola"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adicionar palavra"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Woord toevoegen"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lägg till ord"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dodaj słowo"
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Přidat slovo"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adaugă un cuvânt"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kelime ekle"
           }
         },
         "ja" : {
@@ -7825,6 +7777,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "단어 추가"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Woord toevoegen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj słowo"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar palavra"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă un cuvânt"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить слово"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lägg till ord"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kelime ekle"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Додати слово"
           }
         },
         "zh-Hans" : {
@@ -16751,22 +16751,16 @@
     },
     "Dictation writes these exactly as you spell them here. It also picks up names and terms already in the field you dictate into, and on an AI agent's terminal screen." : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diktování je píše přesně tak, jak jsou zde. Bere také jména a termíny z pole, do kterého diktujete, a z obrazovky terminálu AI agenta."
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Diktering skriver dem præcis, som du staver dem her. Den opfanger også navne og termer, der allerede står i det felt, du dikterer i, og på en AI-agents terminalskærm."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Диктовка пишет их точно так, как они записаны здесь. Ещё она берёт имена и термины из поля, в которое вы диктуете, и с экрана терминала ИИ-агента."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Диктування пише їх точно так, як вони записані тут. Ще воно бере імена й терміни з поля, у яке ви диктуєте, і з екрана термінала ШІ-агента."
           }
         },
         "de" : {
@@ -16775,64 +16769,22 @@
             "value" : "Das Diktat schreibt sie genau so, wie sie hier stehen. Außerdem übernimmt es Namen und Begriffe aus dem Feld, in das du diktierst, und vom Terminal eines KI-Agenten."
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La dictée les écrit exactement comme ici. Elle reprend aussi les noms et termes du champ où vous dictez et de l’écran du terminal d’un agent IA."
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El dictado los escribe tal como aparecen aquí. También toma nombres y términos del campo en el que dictas y de la pantalla del terminal de un agente de IA."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La dictée les écrit exactement comme ici. Elle reprend aussi les noms et termes du champ où vous dictez et de l’écran du terminal d’un agent IA."
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "La dettatura li scrive esattamente come sono qui. Prende anche nomi e termini dal campo in cui detti e dallo schermo del terminale di un agente IA."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O ditado os escreve exatamente como estão aqui. Ele também usa nomes e termos do campo em que você dita e da tela do terminal de um agente de IA."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dicteren schrijft ze precies zoals ze hier staan. Het neemt ook namen en termen over uit het veld waarin je dicteert en van het terminalscherm van een AI-agent."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diktering skriver dem precis som de står här. Den hämtar också namn och termer från fältet du dikterar i och från en AI-agents terminalskärm."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dyktowanie zapisuje je dokładnie tak, jak tutaj. Bierze też nazwy i terminy z pola, do którego dyktujesz, oraz z ekranu terminala agenta AI."
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diktování je píše přesně tak, jak jsou zde. Bere také jména a termíny z pole, do kterého diktujete, a z obrazovky terminálu AI agenta."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dictarea îi scrie exact cum apar aici. Preia și nume și termeni din câmpul în care dictezi și de pe ecranul terminalului unui agent AI."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dikte bunları tam burada yazıldığı gibi yazar. Dikte ettiğiniz alandaki ve bir yapay zekâ ajanının terminal ekranındaki adları ve terimleri de alır."
           }
         },
         "ja" : {
@@ -16845,6 +16797,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "받아쓰기는 여기에 적힌 그대로 씁니다. 받아쓰는 필드와 AI 에이전트의 터미널 화면에 있는 이름과 용어도 가져옵니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dicteren schrijft ze precies zoals ze hier staan. Het neemt ook namen en termen over uit het veld waarin je dicteert en van het terminalscherm van een AI-agent."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dyktowanie zapisuje je dokładnie tak, jak tutaj. Bierze też nazwy i terminy z pola, do którego dyktujesz, oraz z ekranu terminala agenta AI."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O ditado os escreve exatamente como estão aqui. Ele também usa nomes e termos do campo em que você dita e da tela do terminal de um agente de IA."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dictarea îi scrie exact cum apar aici. Preia și nume și termeni din câmpul în care dictezi și de pe ecranul terminalului unui agent AI."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диктовка пишет их точно так, как они записаны здесь. Ещё она берёт имена и термины из поля, в которое вы диктуете, и с экрана терминала ИИ-агента."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diktering skriver dem precis som de står här. Den hämtar också namn och termer från fältet du dikterar i och från en AI-agents terminalskärm."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dikte bunları tam burada yazıldığı gibi yazar. Dikte ettiğiniz alandaki ve bir yapay zekâ ajanının terminal ekranındaki adları ve terimleri de alır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диктування пише їх точно так, як вони записані тут. Ще воно бере імена й терміни з поля, у яке ви диктуєте, і з екрана термінала ШІ-агента."
           }
         },
         "zh-Hans" : {
@@ -18657,108 +18657,108 @@
         }
       }
     },
-    "Each recording goes to %@ when you stop speaking, with names from the field as spelling hints. Audio is never saved to disk." : {
+    "Each recording goes to %@ when you stop speaking, with My words, names from the field and an AI agent's session as spelling hints. Audio is never saved to disk." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Každá nahrávka se odešle na %@, jakmile přestanete mluvit, spolu se jmény z pole jako nápovědou k pravopisu. Zvuk se nikdy neukládá na disk."
+            "value" : "Každá nahrávka se odešle na %@, jakmile přestanete mluvit, spolu se seznamem „Moje slova“, jmény z pole a relací AI agenta jako nápovědou k pravopisu. Zvuk se nikdy neukládá na disk."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hver optagelse sendes til %@, når du holder op med at tale, med navne fra feltet som stavehjælp. Lyd gemmes aldrig på disken."
+            "value" : "Hver optagelse sendes til %@, når du holder op med at tale, med “Mine ord”, navne fra feltet og en AI-agents session som stavehjælp. Lyd gemmes aldrig på disken."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jede Aufnahme geht an %@, sobald Sie aufhören zu sprechen, mit Namen aus dem Feld als Schreibhilfe. Audio wird nie auf der Festplatte gespeichert."
+            "value" : "Jede Aufnahme geht an %@, sobald Sie aufhören zu sprechen, mit „Meine Wörter“, Namen aus dem Feld und der Sitzung eines KI-Agenten als Schreibhilfe. Audio wird nie auf der Festplatte gespeichert."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cada grabación se envía a %@ cuando dejas de hablar, con los nombres del campo como pistas de ortografía. El audio nunca se guarda en el disco."
+            "value" : "Cada grabación se envía a %@ cuando dejas de hablar, con “Mis palabras”, los nombres del campo y la sesión de un agente de IA como pistas de ortografía. El audio nunca se guarda en el disco."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chaque enregistrement est envoyé à %@ quand vous cessez de parler, avec les noms du champ comme indications d’orthographe. L’audio n’est jamais enregistré sur le disque."
+            "value" : "Chaque enregistrement est envoyé à %@ quand vous cessez de parler, avec « Mes mots », les noms du champ et la session d’un agent IA comme indications d’orthographe. L’audio n’est jamais enregistré sur le disque."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ogni registrazione viene inviata a %@ quando smetti di parlare, con i nomi presenti nel campo come indicazioni di ortografia. L'audio non viene mai salvato su disco."
+            "value" : "Ogni registrazione viene inviata a %@ quando smetti di parlare, con «Le mie parole», i nomi presenti nel campo e la sessione di un agente IA come indicazioni di ortografia. L'audio non viene mai salvato su disco."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "話し終えると、録音はフィールド内の名前を表記のヒントとして添えて%@に送信されます。音声がディスクに保存されることはありません。"
+            "value" : "話し終えると、録音は「マイワード」、フィールド内の名前、AIエージェントのセッションを表記のヒントとして添えて%@に送信されます。音声がディスクに保存されることはありません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "말을 멈추면 각 녹음이 필드의 이름을 철자 힌트로 삼아 %@(으)로 전송됩니다. 오디오는 디스크에 저장되지 않습니다."
+            "value" : "말을 멈추면 각 녹음이 ‘내 단어’, 필드의 이름, AI 에이전트의 세션을 철자 힌트로 삼아 %@(으)로 전송됩니다. 오디오는 디스크에 저장되지 않습니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elke opname gaat naar %@ zodra je stopt met praten, met namen uit het veld als spellinghulp. Audio wordt nooit op schijf bewaard."
+            "value" : "Elke opname gaat naar %@ zodra je stopt met praten, met “Mijn woorden”, namen uit het veld en de sessie van een AI-agent als spellinghulp. Audio wordt nooit op schijf bewaard."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Każde nagranie trafia do %@, gdy przestaniesz mówić, razem z nazwami z pola jako wskazówkami pisowni. Dźwięk nigdy nie jest zapisywany na dysku."
+            "value" : "Każde nagranie trafia do %@, gdy przestaniesz mówić, razem z listą „Moje słowa”, nazwami z pola i sesją agenta AI jako wskazówkami pisowni. Dźwięk nigdy nie jest zapisywany na dysku."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cada gravação vai para %@ quando você para de falar, com os nomes do campo como dicas de grafia. O áudio nunca é salvo no disco."
+            "value" : "Cada gravação vai para %@ quando você para de falar, com “Minhas palavras”, os nomes do campo e a sessão de um agente de IA como dicas de grafia. O áudio nunca é salvo no disco."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fiecare înregistrare este trimisă la %@ când terminați de vorbit, cu nume din câmp ca indicii de ortografie. Audio nu este salvat niciodată pe disc."
+            "value" : "Fiecare înregistrare este trimisă la %@ când terminați de vorbit, cu „Cuvintele mele”, nume din câmp și sesiunea unui agent IA ca indicii de ortografie. Audio nu este salvat niciodată pe disc."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Каждая запись отправляется на %@, когда вы перестаёте говорить, вместе с именами из поля ввода — для верного написания. Аудио никогда не сохраняется на диск."
+            "value" : "Каждая запись отправляется на %@, когда вы перестаёте говорить, вместе со списком «Мои слова», именами из поля ввода и сессией ИИ-агента — для верного написания. Аудио никогда не сохраняется на диск."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Varje inspelning skickas till %@ när du slutar tala, med namn från fältet som stavningstips. Ljud sparas aldrig på disk."
+            "value" : "Varje inspelning skickas till %@ när du slutar tala, med ”Mina ord”, namn från fältet och en AI-agents session som stavningstips. Ljud sparas aldrig på disk."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Konuşmayı bitirdiğinizde her kayıt, alandaki adlar yazım ipucu olarak eklenip %@ adresine gönderilir. Ses asla diske kaydedilmez."
+            "value" : "Konuşmayı bitirdiğinizde her kayıt, “Kelimelerim”, alandaki adlar ve bir yapay zekâ ajanının oturumu yazım ipucu olarak eklenip %@ adresine gönderilir. Ses asla diske kaydedilmez."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Кожен запис надсилається на %@, коли ви перестаєте говорити, разом з іменами з поля — для правильного написання. Аудіо ніколи не зберігається на диск."
+            "value" : "Кожен запис надсилається на %@, коли ви перестаєте говорити, разом зі списком «Мої слова», іменами з поля та сесією ШІ-агента — для правильного написання. Аудіо ніколи не зберігається на диск."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每段录音会在你停止说话时发送到 %@，并附上文本栏中的名称作为拼写提示。音频绝不会存储到磁盘。"
+            "value" : "每段录音会在你停止说话时发送到 %@，并附上“我的词语”、文本栏中的名称和 AI 智能体的会话作为拼写提示。音频绝不会存储到磁盘。"
           }
         }
       }
@@ -27367,22 +27367,16 @@
     },
     "In an AI agent's prompt in a terminal, it drafts your next message when the agent finishes its turn." : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ve vstupu AI agenta v terminálu připraví koncept vaší další zprávy, když agent dokončí svůj tah."
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "I en AI-agents prompt i en terminal skriver den et udkast til din næste besked, når agenten er færdig med sin tur."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В поле ввода ИИ-агента в терминале черновик следующего сообщения появляется, когда агент заканчивает свой ход."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "У полі введення ШІ-агента в терміналі чернетка наступного повідомлення з’являється, коли агент завершує свій хід."
           }
         },
         "de" : {
@@ -27391,64 +27385,22 @@
             "value" : "Im Eingabefeld eines KI-Agenten im Terminal entwirft es deine nächste Nachricht, sobald der Agent fertig ist."
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dans l’invite d’un agent IA dans un terminal, il rédige votre prochain message quand l’agent a terminé son tour."
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "En el prompt de un agente de IA en un terminal, redacta tu siguiente mensaje cuando el agente termina su turno."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans l’invite d’un agent IA dans un terminal, il rédige votre prochain message quand l’agent a terminé son tour."
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nel prompt di un agente IA in un terminale, scrive la bozza del tuo prossimo messaggio quando l’agente finisce il suo turno."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No prompt de um agente de IA em um terminal, ele rascunha sua próxima mensagem quando o agente termina a vez dele."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In de prompt van een AI-agent in een terminal maakt het een concept van je volgende bericht zodra de agent klaar is met zijn beurt."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I en AI-agents prompt i en terminal skriver den ett utkast till ditt nästa meddelande när agenten är klar med sin tur."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "W polu agenta AI w terminalu przygotowuje szkic twojej następnej wiadomości, gdy agent skończy swoją turę."
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ve vstupu AI agenta v terminálu připraví koncept vaší další zprávy, když agent dokončí svůj tah."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "În promptul unui agent AI dintr-un terminal, schițează următorul tău mesaj când agentul își termină rândul."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Terminaldeki bir yapay zekâ ajanının istem kutusunda, ajan sırasını bitirdiğinde bir sonraki mesajınızın taslağını hazırlar."
           }
         },
         "ja" : {
@@ -27461,6 +27413,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "터미널의 AI 에이전트 입력란에서는 에이전트가 차례를 마치면 다음 메시지 초안을 씁니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In de prompt van een AI-agent in een terminal maakt het een concept van je volgende bericht zodra de agent klaar is met zijn beurt."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "W polu agenta AI w terminalu przygotowuje szkic twojej następnej wiadomości, gdy agent skończy swoją turę."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No prompt de um agente de IA em um terminal, ele rascunha sua próxima mensagem quando o agente termina a vez dele."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În promptul unui agent AI dintr-un terminal, schițează următorul tău mesaj când agentul își termină rândul."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В поле ввода ИИ-агента в терминале черновик следующего сообщения появляется, когда агент заканчивает свой ход."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I en AI-agents prompt i en terminal skriver den ett utkast till ditt nästa meddelande när agenten är klar med sin tur."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminaldeki bir yapay zekâ ajanının istem kutusunda, ajan sırasını bitirdiğinde bir sonraki mesajınızın taslağını hazırlar."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У полі введення ШІ-агента в терміналі чернетка наступного повідомлення з’являється, коли агент завершує свій хід."
           }
         },
         "zh-Hans" : {
@@ -33092,22 +33092,16 @@
     },
     "My words" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moje slova"
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mine ord"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мои слова"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мої слова"
           }
         },
         "de" : {
@@ -33116,64 +33110,22 @@
             "value" : "Meine Wörter"
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mes mots"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mis palabras"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mes mots"
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le mie parole"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Minhas palavras"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mijn woorden"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mina ord"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moje słowa"
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moje slova"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cuvintele mele"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kelimelerim"
           }
         },
         "ja" : {
@@ -33186,6 +33138,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "내 단어"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mijn woorden"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moje słowa"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minhas palavras"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuvintele mele"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мои слова"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mina ord"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kelimelerim"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мої слова"
           }
         },
         "zh-Hans" : {
@@ -33304,22 +33304,16 @@
     },
     "Names and terms dictation spells your way." : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jména a termíny, které diktování píše po vašem."
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Navne og termer, som diktering staver på din måde."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Имена и термины, которые диктовка пишет по-вашему."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Імена й терміни, які диктування пише по-вашому."
           }
         },
         "de" : {
@@ -33328,64 +33322,22 @@
             "value" : "Namen und Begriffe, die das Diktat so schreibt wie du."
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Noms et termes que la dictée écrit à votre façon."
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nombres y términos que el dictado escribe a tu manera."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noms et termes que la dictée écrit à votre façon."
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nomi e termini che la dettatura scrive a modo tuo."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nomes e termos que o ditado escreve do seu jeito."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Namen en termen die dicteren schrijft zoals jij."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Namn och termer som diktering stavar på ditt sätt."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nazwy i terminy, które dyktowanie zapisuje po twojemu."
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jména a termíny, které diktování píše po vašem."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nume și termeni pe care dictarea îi scrie ca tine."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dikte özelliğinin sizin gibi yazdığı adlar ve terimler."
           }
         },
         "ja" : {
@@ -33398,6 +33350,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "받아쓰기가 내 방식대로 쓰는 이름과 용어."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Namen en termen die dicteren schrijft zoals jij."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nazwy i terminy, które dyktowanie zapisuje po twojemu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nomes e termos que o ditado escreve do seu jeito."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nume și termeni pe care dictarea îi scrie ca tine."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имена и термины, которые диктовка пишет по-вашему."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Namn och termer som diktering stavar på ditt sätt."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dikte özelliğinin sizin gibi yazdığı adlar ve terimler."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Імена й терміни, які диктування пише по-вашому."
           }
         },
         "zh-Hans" : {
@@ -43904,22 +43904,16 @@
     },
     "Remove %@" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odstranit „%@“"
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fjern “%@”"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удалить «%@»"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вилучити «%@»"
           }
         },
         "de" : {
@@ -43928,64 +43922,22 @@
             "value" : "„%@“ entfernen"
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supprimer « %@ »"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eliminar «%@»"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer « %@ »"
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rimuovi «%@»"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remover “%@”"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‘%@’ verwijderen"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ta bort ”%@”"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usuń „%@”"
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Odstranit „%@“"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elimină „%@”"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” öğesini kaldır"
           }
         },
         "ja" : {
@@ -43998,6 +43950,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "‘%@’ 제거"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘%@’ verwijderen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń „%@”"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover “%@”"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimină „%@”"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить «%@»"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta bort ”%@”"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” öğesini kaldır"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вилучити «%@»"
           }
         },
         "zh-Hans" : {
@@ -44222,22 +44222,16 @@
     },
     "Remove this word" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odstranit toto slovo"
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fjern dette ord"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удалить это слово"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вилучити це слово"
           }
         },
         "de" : {
@@ -44246,64 +44240,22 @@
             "value" : "Dieses Wort entfernen"
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supprimer ce mot"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eliminar esta palabra"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer ce mot"
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rimuovi questa parola"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remover esta palavra"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dit woord verwijderen"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ta bort det här ordet"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usuń to słowo"
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Odstranit toto slovo"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elimină acest cuvânt"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu kelimeyi kaldır"
           }
         },
         "ja" : {
@@ -44316,6 +44268,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "이 단어 제거"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit woord verwijderen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń to słowo"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover esta palavra"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimină acest cuvânt"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить это слово"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta bort det här ordet"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kelimeyi kaldır"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вилучити це слово"
           }
         },
         "zh-Hans" : {
@@ -49319,22 +49319,16 @@
     },
     "Spelling" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pravopis"
+          }
+        },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stavning"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Написание"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Написання"
           }
         },
         "de" : {
@@ -49343,64 +49337,22 @@
             "value" : "Schreibweise"
           }
         },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Orthographe"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ortografía"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orthographe"
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ortografia"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Grafia"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spelling"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stavning"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pisownia"
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pravopis"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ortografie"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yazım"
           }
         },
         "ja" : {
@@ -49413,6 +49365,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "표기"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spelling"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pisownia"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grafia"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ortografie"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Написание"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stavning"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yazım"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Написання"
           }
         },
         "zh-Hans" : {
