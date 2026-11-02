@@ -507,7 +507,7 @@ enum AXText {
            !placeholder.isEmpty,
            value.trimmingCharacters(in: .whitespacesAndNewlines)
                == placeholder.trimmingCharacters(in: .whitespacesAndNewlines) {
-            DebugLog.shared.log("AX", "web field shows placeholder \"\(placeholder)\""
+            DebugLog.shared.log("AX", "web field shows its \(placeholder.count)-char placeholder"
                 + (allowEmpty ? " — reading it as an empty field" : " — no suggestion"))
             if !allowEmpty { return nil }
             value = ""

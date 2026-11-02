@@ -364,7 +364,10 @@ final class AXTextReadTests: XCTestCase {
     func testAPlaceholderIsNoText() {
         let field = tree.field(" Type / for commands", native: false)
         tree.set(field, kAXPlaceholderValueAttribute, "Type / for commands ")
+        let start = DebugLog.shared.snapshot().last?.id ?? -1
         XCTAssertNil(context(field))
+        XCTAssertFalse(DebugLog.shared.snapshot().contains { $0.id > start && $0.message.contains("Type /") },
+                       "a placeholder can name a person, and the log is exportable")
         XCTAssertEqual(context(field, allowEmpty: true)?.textBeforeCaret, "")
         tree.set(field, kAXPlaceholderValueAttribute, "Message")
         XCTAssertEqual(context(field)?.textBeforeCaret, " Type / for commands")

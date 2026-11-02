@@ -19,7 +19,10 @@ extension SuggestionController {
         DebugLog.shared.log(
             "FOCUS",
             "\(typingContext.appName ?? "?")\(policy)",
-            detail: "window: \(typingContext.windowTitle ?? "—")\nfield: \(typingContext.fieldLabel ?? "—")"
+            // Counts: a browser's title names the page, a label can be a
+            // placeholder naming a person, and the log is exportable.
+            detail: "window title: \(typingContext.windowTitle?.count ?? 0) chars\n"
+                + "field label: \(typingContext.fieldLabel?.count ?? 0) chars"
         )
         // Stale window text must not leak into the new context.
         promptContext.focusChanged()

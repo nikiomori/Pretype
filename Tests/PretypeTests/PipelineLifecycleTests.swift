@@ -18,6 +18,18 @@ final class PipelineLifecycleTests: PipelineTestCase {
         XCTAssertEqual(fake.window.presentation, .inline)
     }
 
+    // The FOCUS line counts what names the page: the log is exportable.
+    func testTheFocusLogHoldsNoTitleOrLabel() async throws {
+        let start = DebugLog.shared.snapshot().last?.id ?? -1
+        let app = FakeFocusApp()
+        app.fields = [(FakeWorld.element(1), "Message Alice")]
+        app.focused = FakeWorld.element(1)
+        app.title = "Inbox - someone@example.com"
+        _ = await trackRealFocus(app)
+        let line = try XCTUnwrap(DebugLog.shared.snapshot().last { $0.id > start && $0.category == "FOCUS" })
+        XCTAssertEqual(line.detail, "window title: 27 chars\nfield label: 13 chars")
+    }
+
     // The tracker's and the tap's events reach the pipeline.
     func testTheTrackerAndTheTapAreWired() throws {
         showGhost("to be", on: "Hi ")
