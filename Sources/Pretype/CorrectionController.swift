@@ -470,12 +470,12 @@ final class CorrectionController {
                 resolveShown(.abandoned)
                 if let kind { open(row(kind, engine: engine, original: selectionText, fix: fixed, ctx: ctx)) }
                 host.report(proposedEvent)
-                DebugLog.shared.log("FIX", "proposed", detail: "\"\(selectionText)\" → \"\(fixed)\"")
+                DebugLog.shared.log("FIX", "proposed, \(selectionText.count) → \(fixed.count) chars")
                 self.showPreview(fix)
             case .success(nil):
                 if let kind { book(row(kind, engine: engine, original: selectionText, fix: nil, ctx: ctx), .unchanged) }
                 host.report("nothing to fix")
-                DebugLog.shared.log("FIX", "no changes for \"\(selectionText.prefix(60))\"")
+                DebugLog.shared.log("FIX", "no changes for \(selectionText.count) chars")
                 indicator.flashTransient(.hint(unchangedNotice), orAtPointer: true)
             case .failure(let error):
                 if let kind { book(row(kind, engine: engine, original: selectionText, fix: nil, ctx: ctx), .failed) }
@@ -527,7 +527,7 @@ final class CorrectionController {
         host.typeFix(fix.replacement, deleting: fix.deletesOriginal ? fix.original : "", over: live.textBeforeCaret)
         env.book(.correction)
         host.report(event)
-        DebugLog.shared.log("FIX", "applied \"\(fix.original)\" → \"\(fix.replacement)\"")
+        DebugLog.shared.log("FIX", "applied, \(fix.original.count) → \(fix.replacement.count) chars")
     }
 
     /// What a confirming live read saw: the text before the caret for a
