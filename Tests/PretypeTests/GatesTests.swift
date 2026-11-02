@@ -338,9 +338,15 @@ final class GatesTests: XCTestCase {
         _ = try await rewrite(long, "shorter", "y")
         XCTAssertEqual(asked.last?.maxTokens, 1024)
         let before = asked.count
-        for (text, instruction) in [(long + "y", "shorter"), ("  ", "shorter"), ("hi", " ")] {
+        for (text, instruction) in [("  ", "shorter"), ("hi", " ")] {
             let none = try await rewrite(text, instruction, "anything")
             XCTAssertNil(none)
+        }
+        do {
+            _ = try await rewrite(long + "y", "shorter", "anything")
+            XCTFail("too much selected is not \"no change\"")
+        } catch {
+            XCTAssertEqual((error as? EngineNotReady)?.message, "over the limit")
         }
         XCTAssertEqual(asked.count, before, "never asked")
     }

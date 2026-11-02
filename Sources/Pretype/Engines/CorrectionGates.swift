@@ -127,8 +127,10 @@ enum CorrectionGates {
 
     /// Voice command mode on any engine: `selection` rewritten the way the
     /// spoken `instruction` asks ("make it more formal", "translate to
-    /// English"); nil when nothing new came back. Unlike the fix, the rewrite
-    /// is the point — no minimal-edit guard follows it.
+    /// English"); nil when nothing new came back, and a throw when too much
+    /// was selected to ask at all: "no change" would be a verdict that never
+    /// ran. Unlike the fix, the rewrite is the point — no minimal-edit guard
+    /// follows it.
     static func rewrite(_ selection: String, instruction: String,
                         generate: Generate) async throws -> String? {
         let text = selection.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -140,7 +142,8 @@ enum CorrectionGates {
 
             \(text)
             """
-        guard !text.isEmpty, text.count <= 2000, !spoken.isEmpty,
+        guard text.count <= 2000 else { throw EngineNotReady(message: String(localized: "over the limit")) }
+        guard !text.isEmpty, !spoken.isEmpty,
               let raw = try await generate(prompt, min(1024, max(64, text.count)))
         else { return nil }
         try Task.checkCancellation()

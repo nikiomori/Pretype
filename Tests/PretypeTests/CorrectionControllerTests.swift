@@ -457,6 +457,15 @@ final class CorrectionControllerTests: XCTestCase {
         XCTAssertEqual(world.window.currentMode, .hint("no change"))
     }
 
+    // Too much selected: the rewrite never ran, and "no change" would say it did.
+    func testARewriteThatNeverRanIsNoVerdict() async {
+        world.selected = SelectionInfo(text: "hi there", rect: nil)
+        world.engine.correctionError = EngineNotReady(message: "over the limit")
+        fixes.runVoiceCommand("make it formal", selection: "hi there")
+        await fixes.correctionTask?.value
+        XCTAssertEqual(world.window.currentMode, .hint("over the limit"))
+    }
+
     // A command runs only where its preview can be confirmed.
     func testAVoiceCommandCantRunWithoutAWritingModelOrFixes() {
         let saved = Settings.fixesEnabled

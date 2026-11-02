@@ -181,6 +181,7 @@ final class FakeEngine: CompletionEngine {
     var rewritten: String?
     func rewrite(selection: String, instruction: String) async throws -> String? {
         rewrites.append((selection, instruction))
+        if let correctionError { throw correctionError }
         return rewritten
     }
     private(set) var correctionPrewarms = 0
