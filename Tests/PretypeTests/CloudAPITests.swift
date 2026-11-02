@@ -404,7 +404,7 @@ final class CloudAPITests: XCTestCase {
         let isPinned = try await sent(whisper, "en")
         XCTAssertTrue(isPinned)
         let isRefrain = try await sent(APIConfig(provider: .named("refrain"), kind: .audio), "auto")
-        XCTAssertEqual(isRefrain, !Parakeet.isDownloaded)
+        XCTAssertEqual(isRefrain, !Parakeet.refrainHasParakeet())
     }
 
     /// What Settings says about "Automatic" is what `start` does: Refrain on a
@@ -412,7 +412,10 @@ final class CloudAPITests: XCTestCase {
     func testOnlyRefrainWithoutParakeetNeedsTheLayout() {
         XCTAssertTrue(CloudTranscription.hearsLanguage("openai", locale: Locale(identifier: "ja")))
         XCTAssertFalse(CloudTranscription.hearsLanguage("refrain", locale: Locale(identifier: "ja")))
-        XCTAssertEqual(CloudTranscription.hearsLanguage("refrain", locale: Locale(identifier: "en")), Parakeet.isDownloaded)
+        XCTAssertEqual(CloudTranscription.hearsLanguage("refrain", locale: Locale(identifier: "en")), Parakeet.refrainHasParakeet())
+        // Refrain runs v3 until Ultra is here: a v3-only cache hears the language too.
+        XCTAssertTrue(Parakeet.refrainHasParakeet { $0 == .v3 })
+        XCTAssertFalse(Parakeet.refrainHasParakeet { _ in false })
     }
 
     /// A key in the text that the hints are read from never reaches the

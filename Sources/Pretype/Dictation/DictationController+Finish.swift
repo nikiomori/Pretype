@@ -303,6 +303,8 @@ extension DictationController {
         limitTimer = nil
         silenceTimer?.invalidate()
         silenceTimer = nil
+        preparingTimer?.invalidate()
+        preparingTimer = nil
         meter = nil
     }
 
@@ -333,6 +335,8 @@ extension DictationController {
         if phase != .preparing || !Transcription.isDownloading(for: Settings.resolvedDictationLocale) {
             sessionTask?.cancel()
             sessionTask = nil
+        } else {
+            startLeftRunning = generation - 1
         }
         phase = .idle
         armTimer?.invalidate()

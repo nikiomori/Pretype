@@ -103,9 +103,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.bind(to: controller)
         controller.start()
         // Load (or, after an OS update, recompile — ~14 s once) the opted-in
-        // Parakeet model now, not at the first held key.
-        if Settings.dictationEnabled, Settings.dictationParakeet, Parakeet.isDownloaded {
-            Task.detached(priority: .utility) { _ = try? await Parakeet.prepare() }
+        // Parakeet model now, not at the first held key. Hourly: a v3 install
+        // on a metered network gets Ultra at the first unmetered pass.
+        let refrain = UpdateChecker.isRefrainInstalled
+        Task.detached(priority: .utility) {
+            Parakeet.dropV3IfUnused(refrainInstalled: refrain)
+            while !Task.isCancelled {
+                await Parakeet.prefetchIfDue()
+                try? await Task.sleep(for: .seconds(3600))
+            }
         }
         // Hourly, not only at launch: a menu-bar app runs for weeks, and a
         // fetch declined at launch (cellular, Low Data Mode, a full disk)

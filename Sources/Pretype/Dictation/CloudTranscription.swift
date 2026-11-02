@@ -50,7 +50,7 @@ enum CloudTranscription {
     /// Parakeet (the same FluidAudio cache as ours): without it, no language
     /// means the system language, so it gets the layout's.
     static func hearsLanguage(_ provider: String, locale: Locale) -> Bool {
-        provider != "refrain" || Parakeet.covers(locale) && Parakeet.isDownloaded
+        provider != "refrain" || Parakeet.covers(locale) && Parakeet.refrainHasParakeet()
     }
 
     /// 16 kHz 16-bit PCM WAV, mono — the one format every transcription API takes.

@@ -35,8 +35,47 @@ enum Parakeet {
         return isOn || Locale(identifier: interface).language.languageCode == locale.language.languageCode
     }
 
-    static var isDownloaded: Bool {
-        AsrModels.modelsExist(at: AsrModels.defaultCacheDirectory(for: .ultra), version: .ultra)
+    static var isDownloaded: Bool { exists(.ultra) }
+
+    private static func exists(_ version: AsrModelVersion) -> Bool {
+        AsrModels.modelsExist(at: AsrModels.defaultCacheDirectory(for: version), version: version)
+    }
+
+    /// Refrain finds the language itself: it shares this cache and runs Ultra,
+    /// or v3 until Ultra is here.
+    static func refrainHasParakeet(exists: (AsrModelVersion) -> Bool = exists) -> Bool {
+        exists(.ultra) || exists(.v3)
+    }
+
+    /// The opted-in model, ready before the first held key: loaded when it is
+    /// here, fetched first on an unmetered network with room on the disk, unless
+    /// an API provider takes the dictation. An install still on v3 gets Ultra
+    /// this way. A pass that can't is retried by the next one, and
+    /// a press downloads on any network: that one the user asked for. Launch
+    /// and the hourly pass; a no-op once loaded. The arguments: tests answer them.
+    static func prefetchIfDue(downloaded: Bool = isDownloaded, apiOn: Bool = Settings.apiAudio.enabled,
+                              room: Bool = ModelStorage.hasRoom(for: 610_000_000, at: AsrModels.defaultCacheDirectory(for: .ultra)),
+                              unmetered: () async -> Bool = ModelStorage.isNetworkUnmetered,
+                              prepare: () async throws -> Void = { _ = try await Parakeet.prepare() }) async {
+        guard Settings.dictationEnabled, Settings.dictationParakeet else { return }
+        if !downloaded { guard !apiOn, room, await unmetered() else { return } }
+        do {
+            try await prepare()
+        } catch {
+            DebugLog.shared.log("DICTATE", "Parakeet prefetch failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// v3, which Ultra replaced, when this install will never load it: with
+    /// Parakeet off nothing downloads Ultra to end it (`Loader`), and with
+    /// Ultra here nothing reads it. Pretype itself never loads v3 any more, so
+    /// only Refrain can be using it: it keeps v3 while Ultra isn't here. Tests
+    /// name their own `folder`.
+    static func dropV3IfUnused(refrainInstalled: Bool, parakeetOn: Bool = Settings.dictationParakeet,
+                               ultraHere: Bool = isDownloaded,
+                               folder: URL = AsrModels.defaultCacheDirectory(for: .v3)) {
+        guard ultraHere || !(parakeetOn || refrainInstalled) else { return }
+        try? FileManager.default.removeItem(at: folder)
     }
 
     /// Download (once) and load (once per launch). Also what the settings
@@ -83,13 +122,9 @@ enum Parakeet {
 
         func manager() async throws -> AsrManager {
             let task = loading ?? Task {
-                if !Parakeet.isDownloaded {
-                    DebugLog.shared.log("DICTATE", "downloading the Parakeet speech model…")
-                    Transcription.downloading.set(.parakeet)
-                    defer { Transcription.downloading.set(nil) }
-                    try await AsrModels.download(version: .ultra)
-                }
-                let manager = try await Parakeet.load()
+                let manager = try await Parakeet.fetchThenLoad(needsFetch: !Parakeet.isDownloaded,
+                                                               fetch: { try await AsrModels.download(version: .ultra) },
+                                                               load: Parakeet.load)
                 // v3, which Ultra replaced; deleted only here, where nothing has it loaded.
                 try? FileManager.default.removeItem(at: AsrModels.defaultCacheDirectory(for: .v3))
                 return manager
@@ -102,6 +137,19 @@ enum Parakeet {
                 throw error
             }
         }
+    }
+
+    /// `load`, after `fetch` when the model isn't here. `downloading` stays up
+    /// through the load: the first CoreML compile (~15 s) is the same wait, and
+    /// a release in it would otherwise read as the microphone being slow.
+    static func fetchThenLoad<T: Sendable>(needsFetch: Bool, fetch: () async throws -> Void,
+                                           load: () async throws -> T) async throws -> T {
+        guard needsFetch else { return try await load() }
+        DebugLog.shared.log("DICTATE", "downloading the Parakeet speech model…")
+        Transcription.downloading.set(.parakeet)
+        defer { Transcription.downloading.set(nil) }
+        try await fetch()
+        return try await load()
     }
 
     private static func load() async throws -> AsrManager {

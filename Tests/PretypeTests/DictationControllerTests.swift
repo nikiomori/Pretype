@@ -573,11 +573,121 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.capture.startCount, 0)
     }
 
+    /// A hands-free press can sit minutes in `.preparing` on a download. The
+    /// pill says so from the tick after it starts, and the clock ends with
+    /// the phase: "starting dictation…" has them talking to a closed microphone.
+    func testPreparingPillFollowsADownloadAndItsClockEnds() async throws {
+        let rig = makeRig()
+        let opening = gatedStart(rig)
+        rig.controller.toggleLatch()
+        XCTAssertEqual(rig.host.shownModes.last, .status("starting dictation…"))
+        Transcription.downloading.set(.languagePack)
+        defer { Transcription.downloading.set(nil) }
+        try XCTUnwrap(rig.controller.preparingTimer).fire()
+        XCTAssertEqual(rig.host.shownModes.last, .status("getting the dictation model ready…"))
+        Transcription.downloading.set(nil)
+        opening.open()
+        await pump(until: { rig.controller.phase == .listening("") })
+        let shown = rig.host.shownModes.count
+        try XCTUnwrap(rig.controller.preparingTimer).fire()
+        XCTAssertEqual(rig.host.shownModes.count, shown, "no repaint past `.preparing`")
+        XCTAssertEqual(rig.controller.preparingTimer?.isValid ?? false, false, "and no next tick")
+    }
+
+    /// Released during a download, told to wait, and the download fails: the
+    /// user hears it, whether the error reaches the capture or Apple's model
+    /// took over and hid it. Only a start left running for its download.
+    func testADownloadThatFailsAfterTheReleaseSaysSo() async {
+        for fallback in [false, true] {
+            let rig = makeRig()
+            let session = rig.session
+            let opening = makeGate()
+            rig.controller.gates.startSession = { _, _ in
+                await opening.wait()
+                return try await Transcription.parakeetFirst({ throw URLError(.notConnectedToInternet) },
+                                                             orElse: fallback ? { session } : nil)
+            }
+            holdDown(rig.controller)
+            Transcription.downloading.set(.parakeet)
+            let saved = Settings.dictationParakeet, language = Settings.dictationLanguage
+            Settings.dictationParakeet = true
+            Settings.dictationLanguage = "ru"
+            release(rig.controller)
+            Transcription.downloading.set(nil)
+            (Settings.dictationParakeet, Settings.dictationLanguage) = (saved, language)
+            opening.open()
+            await pump(until: { rig.host.transientNotices.count == 2 })
+            guard case .error(let notice)? = rig.host.transientNotices.last else {
+                return XCTFail("fallback \(fallback): \(rig.host.transientNotices)")
+            }
+            XCTAssertTrue(notice.contains("Download failed"), notice)
+            XCTAssertEqual(session.cancelCount, fallback ? 1 : 0)
+        }
+    }
+
+    /// The background fetch keeps the terms of a download nobody clicked for:
+    /// on, opted in, unmetered, room on the disk, no API provider. What is already here only loads, asking nothing.
+    func testParakeetPrefetchRunsOnlyWhenDue() async {
+        let saved = (Settings.dictationEnabled, Settings.dictationParakeet)
+        defer { (Settings.dictationEnabled, Settings.dictationParakeet) = saved }
+        func prepared(downloaded: Bool = false, apiOn: Bool = false, room: Bool = true, unmetered: Bool) async -> Bool {
+            let ran = LockedValue(false)
+            await Parakeet.prefetchIfDue(downloaded: downloaded, apiOn: apiOn, room: room, unmetered: { unmetered },
+                                         prepare: { ran.set(true) })
+            return ran.get()
+        }
+        (Settings.dictationEnabled, Settings.dictationParakeet) = (true, true)
+        let unmetered = await prepared(unmetered: true)
+        XCTAssertTrue(unmetered, "a v3 install fetches Ultra")
+        let metered = await prepared(unmetered: false)
+        XCTAssertFalse(metered, "never on a metered network")
+        let full = await prepared(room: false, unmetered: true)
+        XCTAssertFalse(full, "never onto a full disk")
+        let hosted = await prepared(apiOn: true, unmetered: true)
+        XCTAssertFalse(hosted, "an API provider takes the dictation")
+        let here = await prepared(downloaded: true, unmetered: false)
+        XCTAssertTrue(here, "a model on disk needs no network to load")
+        Settings.dictationParakeet = false
+        let optedOut = await prepared(unmetered: true)
+        XCTAssertFalse(optedOut)
+    }
+
+    /// v3 goes when nothing will read it: not while Parakeet still needs its
+    /// replacement fetched, and not from under Refrain, which runs it until
+    /// Ultra is here.
+    func testV3GoesOnlyWhenNothingWillLoadIt() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func survives(on: Bool, ultra: Bool, refrain: Bool) throws -> Bool {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            Parakeet.dropV3IfUnused(refrainInstalled: refrain, parakeetOn: on, ultraHere: ultra, folder: folder)
+            return FileManager.default.fileExists(atPath: folder.path)
+        }
+        XCTAssertTrue(try survives(on: true, ultra: false, refrain: false), "the next fetch replaces it")
+        XCTAssertTrue(try survives(on: false, ultra: false, refrain: true), "Refrain's only model")
+        XCTAssertFalse(try survives(on: false, ultra: false, refrain: false))
+        XCTAssertFalse(try survives(on: true, ultra: true, refrain: true))
+    }
+
+    /// The first CoreML compile counts as the download it follows; a model
+    /// already here loads under no flag, so a press during it still waits it
+    /// out instead of being refused.
+    func testParakeetDownloadFlagHoldsThroughTheLoad() async throws {
+        func flagDuringLoad(needsFetch: Bool) async throws -> Transcription.Download? {
+            try await Parakeet.fetchThenLoad(needsFetch: needsFetch, fetch: {}, load: { Transcription.downloading.get() })
+        }
+        let fetched = try await flagDuringLoad(needsFetch: true)
+        XCTAssertEqual(fetched, .parakeet)
+        XCTAssertNil(Transcription.downloading.get())
+        let cached = try await flagDuringLoad(needsFetch: false)
+        XCTAssertNil(cached)
+    }
+
     /// Parakeet's 610 MB download (the Settings toggle's prefetch, say) holds
     /// up only the captures Parakeet would serve. One global flag refused
     /// every capture for the length of it — Apple's model and a hosted API
     /// included, neither of which touches Parakeet.
-    func testParakeetsDownloadHoldsUpOnlyParakeetCaptures() async {
+    func testParakeetsDownloadHoldsUpNoCapture() async {
         let saved = (Settings.dictationParakeet, Settings.dictationLanguage)
         Settings.dictationLanguage = "ru"
         Transcription.downloading.set(.parakeet)
@@ -591,13 +701,24 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(other.controller.phase, .listening(""), "this capture never touches Parakeet")
 
         Settings.dictationParakeet = true
-        let waits = makeRig()
-        holdDown(waits.controller)
-        XCTAssertEqual(waits.controller.phase, .idle)
-        guard case .hint(let notice)? = waits.host.transientNotices.last else {
-            return XCTFail("a capture waiting on its own model's download should say so")
+        let opted = makeRig()
+        await startCapture(opted)
+        XCTAssertEqual(opted.controller.phase, .listening(""), "a background fetch runs for minutes")
+    }
+
+    // The fetch keeps running; a press takes Apple's model where there is one.
+    func testAPressGoesAroundParakeetsFetch() {
+        func picks(offered: Bool = true, fetching: Bool = false, appleServes: Bool = true,
+                   preferred: Bool = false, automatic: Bool = false) -> Bool {
+            Transcription.picksParakeet(offered: offered, fetching: fetching, appleServes: appleServes,
+                                        applePreferred: preferred, automatic: automatic)
         }
-        XCTAssertTrue(notice.contains("getting the dictation model ready"), notice)
+        XCTAssertTrue(picks())
+        XCTAssertFalse(picks(fetching: true))
+        XCTAssertTrue(picks(fetching: true, appleServes: false), "only Parakeet has this language: it waits")
+        XCTAssertFalse(picks(preferred: true))
+        XCTAssertTrue(picks(preferred: true, automatic: true))
+        XCTAssertFalse(picks(offered: false))
     }
 
     // Our own Settings window in front: the field the hold would type into

@@ -20,7 +20,11 @@ extension DictationController {
             owner.hideOverlay()
             return
         case .preparing:
-            mode = .status(String(localized: "starting dictation…"))
+            // A download is minutes with the microphone shut: "starting" would
+            // have a hands-free user talking to nothing.
+            mode = .status(Transcription.isDownloading(for: Settings.resolvedDictationLocale)
+                ? String(localized: "getting the dictation model ready…")
+                : String(localized: "starting dictation…"))
         case .listening(let text):
             mode = .listening(Self.tail(text))
         case .working:

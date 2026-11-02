@@ -134,9 +134,8 @@ extension DictationController {
         }
         // A released capture's language-pack download is still running (see
         // `discard`). A second session start now would race it for the same
-        // install and reservation, so wait it out with the same words — but
-        // only a download this capture's engine would wait on.
-        guard !Transcription.isDownloading(for: Settings.resolvedDictationLocale) else {
+        // install and reservation, so wait it out with the same words.
+        guard !Transcription.isInstallingPack else {
             return refuse("the language pack is still downloading",
                           notice: .hint(String(localized: "getting the dictation model ready…")), at: rect)
         }
@@ -181,6 +180,7 @@ extension DictationController {
         phase = .preparing
         if Settings.dictationPolish || commandSelection != nil { owner.prewarmTidy() }
         render()
+        armPreparingWatch()
         owner.report("listening…")
         Self.note("listening (\(requested == .latch ? Settings.dictationLatch.label + ", hands-free" : Settings.dictationGesture.label))")
         // Armed here, not at the `.listening` flip, so the ceiling covers
@@ -214,6 +214,7 @@ extension DictationController {
         let meter = VoiceMeter(now: clock())
         self.meter = meter
         let startSession = gates.startSession
+        Transcription.parakeetFailure.set(nil)
         sessionTask = Task { @MainActor [weak self] in
             let locale = Settings.resolvedDictationLocale
             // Held OUTSIDE the do-block so the catch can see it: a session that
@@ -228,7 +229,11 @@ extension DictationController {
                 // released by then; `finish` says so instead of hanging.
                 let session = try await startSession(locale, onPartial)
                 started = session
-                guard let self, self.generation == gen else { return session.cancel() }
+                guard let self, self.generation == gen else {
+                    session.cancel()
+                    self?.startLeftRunningEnded(gen, failure: Transcription.parakeetFailure.exchange(nil))
+                    return
+                }
                 try await self.openMic(for: session, meter: meter, generation: gen, epoch: epoch)
                 // Re-checked across the device-open suspension: a discard that
                 // landed mid-open already called `capture.stop()`, but ours
@@ -254,10 +259,39 @@ extension DictationController {
                 self.armSilenceWatch()
             } catch {
                 started?.cancel()
-                guard let self, self.generation == gen else { return }
+                guard let self else { return }
+                guard self.generation == gen else { return self.startLeftRunningEnded(gen, failure: error) }
                 self.fail(error)
             }
         }
+    }
+
+    /// The pill follows a download that starts or ends under `.preparing`:
+    /// nothing tells the controller, and it is a second's look. One-shot, as
+    /// `armSilenceWatch`, and over with the phase.
+    private func armPreparingWatch() {
+        preparingTimer?.invalidate()
+        preparingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.phase == .preparing else { return }
+                self.render()
+                self.armPreparingWatch()
+            }
+        }
+    }
+
+    /// A session start that `discard` left running for its download came to
+    /// its end. The user was told "getting the model ready" and left: a
+    /// failure is theirs to hear, minutes on, wherever they are now.
+    private func startLeftRunningEnded(_ gen: Int, failure: Error?) {
+        guard startLeftRunning == gen else { return }
+        startLeftRunning = nil
+        guard let failure, !(failure is CancellationError), phase == .idle, let owner else { return }
+        Self.note("the download a released capture waited on failed")
+        guard Settings.enabled, AppPolicy.allowsCompletions(owner.typingContext) else { return }
+        owner.showTransientOverlay(
+            .error(String(localized: "⚠︎ Download failed: \(failure.localizedDescription). The next dictation tries again.")),
+            at: owner.lastCaretRect ?? Self.pointerAnchor(), host: owner.lastHostStyle)
     }
 
     private func updatePartial(_ text: String, generation: Int) {

@@ -207,18 +207,26 @@ enum Transcription {
         // ponytail: a language Apple's newer model serves never falls back to
         // a downloaded Parakeet when its pack is missing; retry on Parakeet
         // after `.notInstalled` if that ever matters.
-        let parakeet = Parakeet.covers(locale) && (download ? Settings.dictationParakeet : Parakeet.isDownloaded)
+        let offered = Parakeet.covers(locale) && (download ? Settings.dictationParakeet : Parakeet.isDownloaded)
         let apple = { () async throws -> TranscriptionSession in
             guard let resolved else { throw TranscriptionError.unsupportedLanguage(name(of: locale)) }
             return try await startApple(resolved, download: download, onPartial: onPartial)
         }
         // Under "Follow keyboard" Parakeet takes English too: it hears the
         // language, Apple's model takes the layout's word for it.
-        if parakeet, resolved?.preferred != true || Settings.dictationLanguage == "auto" {
+        if picksParakeet(offered: offered, fetching: downloading.get() == .parakeet, appleServes: resolved != nil,
+                         applePreferred: resolved?.preferred == true, automatic: Settings.dictationLanguage == "auto") {
             return try await parakeetFirst({ try await Parakeet.start(locale: locale, onPartial: onPartial) },
                                            orElse: resolved == nil ? nil : apple)
         }
         return try await apple()
+    }
+
+    /// While Parakeet downloads, a press takes Apple's model where there is
+    /// one: the background fetch can run for minutes.
+    static func picksParakeet(offered: Bool, fetching: Bool, appleServes: Bool,
+                              applePreferred: Bool, automatic: Bool) -> Bool {
+        offered && !(fetching && appleServes) && (!applePreferred || automatic)
     }
 
     /// Parakeet, or Apple's model when Parakeet can't start: its one-time
@@ -230,9 +238,15 @@ enum Transcription {
         } catch {
             guard let apple, !Task.isCancelled else { throw error }
             DebugLog.shared.log("DICTATE", "Parakeet can't start (\(error.localizedDescription)) — using Apple's model")
+            parakeetFailure.set(error)
             return try await apple()
         }
     }
+
+    /// Why Parakeet handed the last start over to Apple's model. The session
+    /// hides it; a capture released during the download still has to say so
+    /// (`DictationController.startLeftRunningEnded`). Cleared by `begin`.
+    static let parakeetFailure = LockedValue<Error?>(nil)
 
     private static func startApple(_ resolved: (locale: Locale, preferred: Bool), download: Bool,
                                    onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
@@ -384,14 +398,16 @@ enum Transcription {
     enum Download { case languagePack, parakeet }
     static let downloading = LockedValue<Download?>(nil)
 
-    /// A download is running that a capture in `locale` would wait on — and
-    /// only that one. Parakeet's 610 MB prefetch is nothing to a capture
-    /// going to a hosted API or to Apple's model, and one global flag held
-    /// every one of them up for the length of it.
-    /// ponytail: "Parakeet serves it" skips `start`'s async "Apple's newer
-    /// model has it" test, so an English capture with Parakeet on still waits
-    /// out Parakeet's one-time download; resolve the engine at `begin` if
-    /// that ever matters.
+    /// A language pack is installing: a second session start would race it
+    /// for the same install and reservation. Parakeet's loader is single-flight,
+    /// and `picksParakeet` sends a press around it, so its download holds up
+    /// nobody.
+    static var isInstallingPack: Bool {
+        downloading.get() == .languagePack && !Settings.apiAudio.enabled
+    }
+
+    /// A download is running that a capture in `locale` may wait on: what a
+    /// pill in `.preparing` tells the user.
     static func isDownloading(for locale: Locale) -> Bool {
         guard let download = downloading.get(), !Settings.apiAudio.enabled else { return false }
         return download == .languagePack || (Settings.dictationParakeet && Parakeet.covers(locale))

@@ -265,6 +265,7 @@ final class DictationController {
     var armTimer: Timer?
     var limitTimer: Timer?
     var silenceTimer: Timer?
+    var preparingTimer: Timer?
     /// A start that arrived while the previous capture was still being written
     /// down, and what asked for it. Honored by `resumePendingHold` the moment
     /// that write resolves — the alternative was a generation bump that
@@ -284,6 +285,9 @@ final class DictationController {
     /// Readable so a test can await the step in flight — the session start,
     /// or the write-down — instead of guessing how long it takes.
     var sessionTask: Task<Void, Never>?
+    /// The generation of the start `discard` left running for its download
+    /// (`startLeftRunningEnded`).
+    var startLeftRunning: Int?
 
     init(capture: any AudioCapturing = AudioCapture()) {
         self.capture = capture
