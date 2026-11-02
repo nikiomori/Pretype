@@ -463,8 +463,6 @@ final class SuggestionController {
         let text = ctx.textBeforeCaret
         reread.fieldRead()
         field.noteCaret(ctx.caretRect, style: ctx.host)
-        promptContext.refreshScreenIfNeeded(typed: text)
-        promptContext.refreshExamplesIfNeeded(typed: text)
 
         // A reviving last-word fix preview, or an inline spell-fix on the word at
         // the caret, preempts a completion — fixing what's written matters more
@@ -476,6 +474,8 @@ final class SuggestionController {
         // everything below is the suggestion's.
         guard Settings.suggestionsEnabled,
               Settings.agentPromptSuggestions || !env.isTerminalField(element) else { return }
+        promptContext.refreshScreenIfNeeded(typed: text)
+        promptContext.refreshExamplesIfNeeded(typed: text)
 
         // The correction flows carry this same guard.
         if RequestGate.caretSplitsWord(before: ctx.textAfterCaret) {

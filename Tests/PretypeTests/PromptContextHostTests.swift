@@ -27,19 +27,25 @@ final class PromptContextHostTests: XCTestCase {
     private lazy var host = FakePromptHost(engine: world.engine)
     private lazy var context = PromptContext(host: host, env: world.env)
     private var saved = (screen: false, clipboard: false, enabled: true, battery: false)
+    private var savedFeature = (suggestions: true, mode: SuggestionMode.sentences)
 
     override func setUp() {
         super.setUp()
         saved = (Settings.screenContextEnabled, Settings.clipboardContextEnabled, Settings.enabled,
                  Settings.pauseOnBattery)
+        savedFeature = (Settings.suggestionsEnabled, Settings.suggestionMode)
         Settings.screenContextEnabled = true
         Settings.clipboardContextEnabled = false
         Settings.enabled = true
+        Settings.suggestionsEnabled = true
+        // Not the RAM's default: a CI runner's 7 GB would pick Words.
+        Settings.suggestionMode = .sentences
     }
 
     override func tearDown() {
         (Settings.screenContextEnabled, Settings.clipboardContextEnabled, Settings.enabled, Settings.pauseOnBattery)
             = saved
+        (Settings.suggestionsEnabled, Settings.suggestionMode) = savedFeature
         super.tearDown()
     }
 

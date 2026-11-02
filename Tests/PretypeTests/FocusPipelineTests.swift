@@ -11,6 +11,9 @@ final class FocusPipelineTests: PipelineTestCase {
         controller.focusTracker.onFocusChange?()
     }
 
+    /// A chat's message box, as a read reports it.
+    private let chatBox = CGRect(x: 400, y: 40, width: 800, height: 30)
+
     private var bigText: HostTextStyle {
         var style = HostTextStyle()
         style.font = .systemFont(ofSize: 20)
@@ -179,6 +182,58 @@ final class FocusPipelineTests: PipelineTestCase {
         await enterApp("com.tinyspeck.slackmacgap")
         fake.advance(0.8)
         XCTAssertFalse(controller.queries.isReply)
+    }
+
+    // Everything off: a field entered is not read, the window is not captured,
+    // and a copy reads nothing.
+    func testWithEveryFeatureOffAFieldEnteredIsNotRead() async throws {
+        set(\.suggestionsEnabled, false)
+        set(\.fixesEnabled, false)
+        set(\.repliesEnabled, false)
+        set(\.screenContextEnabled, true)
+        set(\.clipboardContextEnabled, true)
+        fake.before = "Hi there"
+        await enterApp("com.example.notes")
+        fake.advance(0.8)
+        await settleMain()
+        try press(Self.keyC, .maskCommand)
+        fake.pasteboard.clearContents()
+        fake.pasteboard.setString("lunch?", forType: .string)
+        fake.advance(0.2)
+        XCTAssertEqual(fake.reads, 0)
+        XCTAssertTrue(fake.captures.isEmpty)
+        XCTAssertEqual(fake.engine.prewarms, 0)
+    }
+
+    // Fixes only, or Words: neither needs the model, the OCR or a read on
+    // arrival; a keystroke's own read is theirs.
+    func testAFieldEnteredInWordsOrFixesOnlyCostsNothing() async {
+        set(\.screenContextEnabled, true)
+        fake.before = "see you at noon"
+        for change in [{ self.set(\.suggestionMode, .words) },
+                       { self.set(\.suggestionMode, .sentences); self.set(\.suggestionsEnabled, false) }] {
+            change()
+            await enterApp("com.example.notes")
+            fake.advance(0.8)
+            await settleMain()
+            XCTAssertEqual(fake.reads, 0)
+            XCTAssertTrue(fake.captures.isEmpty)
+            XCTAssertTrue(fake.engine.warmed.isEmpty)
+            XCTAssertEqual(fake.engine.prewarms, 0)
+        }
+    }
+
+    // A reply is its own feature: with suggestions off, an empty chat box is
+    // still offered one, on its own read and capture.
+    func testAutoReplyWorksWithSuggestionsOff() async {
+        set(\.suggestionsEnabled, false)
+        set(\.autoReply, true)
+        set(\.screenContextEnabled, true)
+        fake.before = ""
+        fake.host.fieldRect = chatBox
+        await enterApp("com.tinyspeck.slackmacgap")
+        fake.advance(0.8)
+        XCTAssertTrue(controller.queries.isReply)
     }
 
     // An AI agent's box is offered the next message once its session has

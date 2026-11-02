@@ -97,7 +97,7 @@ final class PromptContext {
     /// frozen between refreshes so the instruct prompt prefix — and with it the
     /// KV cache — survives incremental typing.
     func refreshExamplesIfNeeded(typed: String) {
-        guard !examplesRefreshInFlight,
+        guard Settings.completionsAskModel, !examplesRefreshInFlight,
               typed.count >= 12,
               env.now().timeIntervalSince(examplesRefreshedAt) > 25 else { return }
         examplesRefreshInFlight = true
@@ -145,7 +145,7 @@ final class PromptContext {
     /// the engine re-read the prompt now, in the background, rather than on
     /// the next keystroke (where a cold prefill measured ~0.45 s on E4B-8bit).
     func warm(_ typed: String? = nil) {
-        guard host.busyReason == nil, host.completionsWelcome,
+        guard Settings.completionsAskModel, host.busyReason == nil, host.completionsWelcome,
               let text = typed ?? host.knownTextBeforeCaret,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         host.engine.warmPrompt(for: makeRequest(text: text))
@@ -156,7 +156,8 @@ final class PromptContext {
     /// same way as a screen refresh. The check is a counter compare; the
     /// pasteboard is only read (by `makeRequest`) when it moved.
     func warmIfClipboardChanges() {
-        guard Settings.clipboardContextEnabled, AppPolicy.allowsScreenContext(host.typingContext) else { return }
+        guard Settings.completionsAskModel, Settings.clipboardContextEnabled,
+              AppPolicy.allowsScreenContext(host.typingContext) else { return }
         let before = env.pasteboard.changeCount
         env.after(0.15) { [weak self] in
             guard let self, self.env.pasteboard.changeCount != before else { return }
@@ -190,8 +191,9 @@ final class PromptContext {
     }
 
     /// Refreshes the window OCR at most every 25 s, off the typing path.
-    /// Paused on battery: the capture only feeds completions (a reply takes
-    /// its own fresh one), and its landing would warm a prompt nobody runs.
+    /// Paused on battery, and in Words or with suggestions off: the capture
+    /// only feeds completions that ask the model (a reply takes its own fresh
+    /// one), and its landing would warm a prompt nobody runs.
     /// A chat allows one more at a message's first letter: nothing else tells
     /// that a message went out or came in, or that the chat changed.
     func refreshScreenIfNeeded(typed: String, retrying: Bool = false) {

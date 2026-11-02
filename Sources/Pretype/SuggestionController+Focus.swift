@@ -39,7 +39,7 @@ extension SuggestionController {
             // it was idle-unloaded) so the first keystroke doesn't wait for it.
             // Unless no suggestion asks it (or Words stands in while memory is
             // short): then it loads for a fix or a reply.
-            let usesModel = Settings.completionsUseModel && Settings.activeSuggestionMode == .sentences
+            let usesModel = Settings.completionsAskModel
             if usesModel {
                 engine.prewarmIfNeeded()
             }
@@ -63,6 +63,9 @@ extension SuggestionController {
                 if Settings.repliesEnabled, Settings.autoReply, self.env.isTerminalField(element) {
                     self.watchAgentTurn(element, generation: generation, last: self.env.agentTranscript(element))
                 }
+                // The rest serves a completion that asks the model. Without
+                // one, a field just entered is not read at all.
+                guard Settings.completionsAskModel else { return }
                 // Read first: the capture needs the field's place on screen,
                 // and leaves out the text already in it.
                 let context = self.currentTextElement().flatMap { self.env.context(of: $0) }
