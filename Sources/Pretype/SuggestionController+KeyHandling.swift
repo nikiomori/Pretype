@@ -90,6 +90,9 @@ extension SuggestionController {
         // Our own Settings/Debug field is focused — pass every key through
         // untouched (never accept a stale background suggestion into it).
         if isOwnUIFrontmost { return false }
+        // A held key repeats: nothing it does may run again, or on what just
+        // appeared under it, unseen.
+        let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
         let keyEvent = NSEvent(cgEvent: event)
         if takeProvisionalSpace(typed: keyEvent?.characters, flags: flags) { return true }
         // Everything else is the pipeline's: one table decides
@@ -109,7 +112,7 @@ extension SuggestionController {
             ghost: field.ghost, ghostOnScreen: window.showsSuggestion,
             style: Settings.hotkeyStyle, fixes: Settings.fixesEnabled, replies: Settings.repliesEnabled)
         let action = Self.keyAction(for: key,
-                                    fix: { correctionController.handleKey(keyCode: keyCode, flags: flags) },
+                                    fix: { correctionController.handleKey(keyCode: keyCode, flags: flags, isRepeat: isRepeat) },
                                     focusElsewhere: { keyboardFocusIsElsewhere })
         switch action {
         case .undo:
@@ -120,7 +123,7 @@ extension SuggestionController {
             return true
         case .reply:
             field.undoable = nil
-            env.hop { [weak self] in self?.replyComposer.compose() }
+            if !isRepeat { env.hop { [weak self] in self?.replyComposer.compose() } }
             return true
         case .fix(let swallowed):
             field.undoable = nil
@@ -136,7 +139,7 @@ extension SuggestionController {
             // same ≤60 ms window, where Tab accepts instead of picking a
             // candidate. Upgrade path if that's ever seen in the wild: query
             // `AXText.isComposing` on the focused element here too.
-            accept(chunk: chunk)
+            if !isRepeat { accept(chunk: chunk) }
             return true
         case .decline(let before, let after):
             // Escape still reaches the app (close a dialog, clear a field).

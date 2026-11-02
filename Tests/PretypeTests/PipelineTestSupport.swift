@@ -494,9 +494,11 @@ class PipelineTestCase: XCTestCase {
 
     /// A key the user presses: the tap's view of it, `typing` its characters.
     @discardableResult
-    func press(_ keyCode: Int64, _ flags: CGEventFlags = [], typing text: String? = nil) throws -> Bool {
+    func press(_ keyCode: Int64, _ flags: CGEventFlags = [], typing text: String? = nil,
+               autorepeat: Bool = false) throws -> Bool {
         let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(keyCode), keyDown: true))
         event.flags = flags
+        if autorepeat { event.setIntegerValueField(.keyboardEventAutorepeat, value: 1) }
         if let text {
             let units = Array(text.utf16)
             event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)

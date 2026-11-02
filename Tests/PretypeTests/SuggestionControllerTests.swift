@@ -205,6 +205,46 @@ final class SuggestionControllerTests: PipelineTestCase {
         XCTAssertTrue(controller.queries.isReply)
     }
 
+    // Unplugged with the pause on, an agent's turn ending offers nothing: an
+    // automatic reply is model work. Asked for, it runs.
+    func testAnAutomaticReplyStaysOutOnBattery() {
+        set(\.screenContextEnabled, true)
+        fake.pausedForBattery = true
+        fake.before = ""
+        XCTAssertFalse(controller.replyComposer.compose(auto: true))
+        XCTAssertNil(controller.queries.current)
+        XCTAssertTrue(controller.replyComposer.compose())
+        XCTAssertTrue(controller.queries.isReply)
+    }
+
+    // A held key repeats. The reply chord stays swallowed and composes once;
+    // the fix chord, repeating over the preview it just raised, doesn't type
+    // a rewrite barely seen. The next press does.
+    func testAHeldChordActsOnce() async throws {
+        set(\.screenContextEnabled, true)
+        let reply: CGEventFlags = [.maskAlternate, .maskShift]
+        XCTAssertTrue(try press(KeyCode.tab, reply))
+        XCTAssertEqual(fake.hops.count, 1)
+        XCTAssertTrue(try press(KeyCode.tab, reply, autorepeat: true))
+        XCTAssertEqual(fake.hops.count, 1)
+        fake.runHops()
+        controller.dismiss()
+
+        fake.selected = SelectionInfo(text: "teh cat", rect: nil)
+        controller.textDidChange()
+        fake.engine.correction = "the cat"
+        XCTAssertTrue(try press(KeyCode.tab, .maskAlternate))
+        fake.runHops()
+        await controller.correctionController.correctionTask?.value
+        XCTAssertEqual(fake.window.currentMode, .fixPreview(original: "teh cat", fix: "the cat"))
+        XCTAssertTrue(try press(KeyCode.tab, .maskAlternate, autorepeat: true))
+        fake.runHops()
+        XCTAssertEqual(fake.keys, [])
+        XCTAssertTrue(try press(KeyCode.tab, .maskAlternate))
+        fake.runHops()
+        XCTAssertFalse(fake.keys.isEmpty)
+    }
+
     // Without the screen there is nothing to reply to: the chord says which of
     // the three is missing; an automatic offer stays silent.
     func testAReplyThatCannotReadTheScreenSaysWhy() {
@@ -235,6 +275,14 @@ final class SuggestionControllerTests: PipelineTestCase {
 
     // ⇥ types the ghost's next word, ⇧⇥ the rest: exactly those characters,
     // with the cache and the ⌘Z record moved in step.
+    // A held ⇥ repeats: a repeat stays ours but types nothing unseen.
+    func testAHeldTabAcceptsOnce() throws {
+        showGhost("there you", on: "Hi ")
+        XCTAssertTrue(try press(KeyCode.tab))
+        XCTAssertTrue(try press(KeyCode.tab, autorepeat: true))
+        XCTAssertEqual(fake.keys, [.insert("there")])
+    }
+
     func testAcceptTypesExactlyWhatIsShown() throws {
         showGhost("there you", on: "Hi ")
         XCTAssertTrue(try press(KeyCode.tab))

@@ -295,10 +295,13 @@ final class CorrectionController {
         return .none
     }
 
-    func handleKey(keyCode: Int64, flags: CGEventFlags) -> KeyOutcome {
+    /// `isRepeat`: the key is held. It stays ours, but a fix drawn under a
+    /// held chord would be applied barely seen.
+    func handleKey(keyCode: Int64, flags: CGEventFlags, isRepeat: Bool = false) -> KeyOutcome {
         let action = Self.fixKey(FixKeyState(
             keyCode: keyCode, flags: flags, style: Settings.hotkeyStyle, proposal: pendingFix != nil,
             inline: activeCorrection != nil, onScreen: window.showsCorrection, selection: selection != nil))
+        if isRepeat, action.outcome == .consumed { return .consumed }
         switch action {
         case .propose(let fixSelection):
             // Neither fix runs here, inside the event-tap callback: the

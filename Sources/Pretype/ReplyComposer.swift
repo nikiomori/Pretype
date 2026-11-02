@@ -12,6 +12,9 @@ protocol ReplyHost: AnyObject {
     var engine: CompletionEngine { get }
     /// Why the pipeline can start nothing now, or nil (`SuggestionController.busyReason`).
     var busyReason: String? { get }
+    /// Completions are wanted in the app in front: an automatic reply is
+    /// model work nobody asked for (`SuggestionController.completionsWelcome`).
+    var completionsWelcome: Bool { get }
     /// The field the pipeline reads and types into.
     func currentTextElement() -> AXUIElement?
     /// The app whose window holds the conversation.
@@ -105,6 +108,7 @@ final class ReplyComposer {
             return stop("cannot read the field or place the ghost", notice: clickIn)
         }
         if auto {
+            guard host.completionsWelcome else { return stop("completions aren't welcome here") }
             guard (ctx.textBeforeCaret + ctx.textAfterCaret).allSatisfy(\.isWhitespace) else {
                 return stop("the message box isn't empty")
             }
