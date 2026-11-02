@@ -27,13 +27,15 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
    git switch main
    ```
 
-   CI builds with Xcode 26.6 (`XCODE_VERSION` in `ci.yml`). The release builds with the Xcode of the maintainer's Mac. If this Xcode has a different major version, do a smoke test of the zip before you publish it.
+   CI builds with Xcode 26.6 (`XCODE_VERSION` in `ci.yml`). The release uses the same version.
 
    The scripts stop before the build in these conditions:
    * `PRETYPE_VERSION` is not set. `dist.sh` signs only an app that it builds from the tag. It never signs an existing `build/Pretype.app`.
    * The working tree has a change or an untracked file.
    * `HEAD` is not at the tag `vX.Y.Z`.
    * `HEAD` is not on `origin/main`. Push `main` and wait for CI first. Then do `git fetch origin`.
+   * CI on `HEAD` did not pass. This check needs the `gh` CLI.
+   * The Xcode version is not the version in `ci.yml`. Install it next to your Xcode, as `/Applications/Xcode_X.Y.app`. `dist.sh` then selects it. To build with another Xcode, set `PRETYPE_ANY_XCODE=1`, and do a smoke test of the zip on the oldest macOS that Pretype supports.
    * The "Developer ID Application" certificate is not in the keychain.
 
    > **NOTE:** `notarytool --wait` can stop after a short network failure. The submission continues on the server. Do not submit again. Do the steps in [If notarytool stops](#if-notarytool-stops).

@@ -35,7 +35,7 @@ jobs:
     # A cold run (two module trees plus the Release bundle) fits well inside.
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Pinned so a runner-image toolchain bump can't break builds silently.
       # Floor is the macOS 26 SDK: FoundationModelsEngine imports the
@@ -56,7 +56,7 @@ jobs:
           for script in Scripts/*.sh docs/diagrams/render.sh; do bash -n "$script"; done
 
       - name: Cache SwiftPM
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             .build
@@ -86,7 +86,12 @@ jobs:
       # run while CI showed green. They skip without a Metal device
       # (Tests/PretypeTests/MLXTestCase) but FAIL here when the shaders are
       # missing, so that can't happen silently again.
+      - name: Build
+        run: swift build --build-system swiftbuild --build-tests
+
+      # The tests take a minute or two. A hung one must not bill the job limit.
       - name: Test
+        timeout-minutes: 15
         run: swift test --build-system swiftbuild
 
       # A `String(localized:)` or SwiftUI literal that never reached

@@ -30,6 +30,12 @@ if [ -n "${PRETYPE_VERSION:-}" ]; then
         echo "Refusing a release build: HEAD is not on origin/main. Push main, wait for CI, then run: git fetch origin"
         exit 1
     fi
+    # On main is not green: main takes direct pushes.
+    ci=$(gh api "repos/{owner}/{repo}/commits/$(git rev-parse HEAD)/check-runs" --jq '[.check_runs[].conclusion] | unique | join(",")')
+    if [ "$ci" != "success" ]; then
+        echo "Refusing a release build: CI on HEAD reads \"$ci\", not success."
+        exit 1
+    fi
 fi
 
 if ! xcrun metal --version >/dev/null 2>&1; then

@@ -26,6 +26,16 @@ if [ -z "$IDENTITY" ]; then
     echo "Refusing to package: no \"Developer ID Application\" identity in the keychain."
     exit 1
 fi
+# The compiler CI tested. `.github/workflows/ci.yml` is the one pin.
+want=$(sed -n "s/^  XCODE_VERSION: '\(.*\)'/\1/p" .github/workflows/ci.yml)
+if [ -d "/Applications/Xcode_$want.app" ]; then
+    export DEVELOPER_DIR="/Applications/Xcode_$want.app/Contents/Developer"
+fi
+have=$(xcodebuild -version | sed -n 's/^Xcode //p')
+if [ "$have" != "$want" ] && [ -z "${PRETYPE_ANY_XCODE:-}" ]; then
+    echo "Refusing to package: Xcode $have is not the $want that CI tests. Install it as /Applications/Xcode_$want.app, or see docs/RELEASING.md."
+    exit 1
+fi
 # Built here, under make-app.sh's release guard — never taken from whatever
 # build/Pretype.app a dev build left.
 ./Scripts/make-app.sh
