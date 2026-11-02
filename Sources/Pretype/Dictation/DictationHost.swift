@@ -116,6 +116,9 @@ protocol DictationHost: AnyObject {
     /// say so: a latched capture can be minutes of speech. Also the last live
     /// preview of a take whose final pass timed out or failed.
     func rescueDictated(_ text: String, because reason: DictationRescue)
+    /// A voice command can run here and its preview can be confirmed. When it
+    /// can't, words over a selection are ordinary dictation.
+    var canRunVoiceCommand: Bool { get }
     /// Voice command mode: rewrite `selection` as the spoken `instruction`
     /// asks, previewed like a ⌥⇥ fix (⏎/⇥ applies, ⎋ keeps the original).
     func applyVoiceCommand(_ instruction: String, to selection: String)

@@ -168,13 +168,21 @@ extension SuggestionController: DictationHost {
     }
 
     func dictationAnchor() -> DictationAnchor? {
-        guard let ctx = dictationFieldContext() else { return nil }
-        // Only read when it can matter: the selection is a voice command's target.
-        let selected = Settings.dictationCommands
-            ? dictationElement().flatMap { env.selection($0)?.text } ?? "" : ""
-        let session = dictationElement().flatMap { env.isTerminalField($0) ? env.agentTranscript($0) : nil }
-        return DictationAnchor(caretRect: ctx.caretRect, host: ctx.host,
-                               textBeforeCaret: ctx.textBeforeCaret, selectedText: selected, session: session)
+        let element = dictationElement()
+        // A terminal's selection is screen output, never a command's target.
+        let selection = element.flatMap { env.isTerminalField($0) ? nil : env.selection($0) }
+        let session = element.flatMap { env.isTerminalField($0) ? env.agentTranscript($0) : nil }
+        if let ctx = dictationFieldContext() {
+            return DictationAnchor(caretRect: ctx.caretRect, host: ctx.host, textBeforeCaret: ctx.textBeforeCaret,
+                                   selectedText: selection?.text ?? "", session: session)
+        }
+        // A field with a selection reads as no context (`AXText.fieldContext`
+        // has no caret to read around), and the selection is a voice command's
+        // target. Never in a terminal: there a nil anchor is what keeps
+        // dictation out of a shell.
+        guard let selection, !AppPolicy.isTerminal(typingContext.bundleID) else { return nil }
+        return DictationAnchor(caretRect: selection.rect, host: HostTextStyle(), textBeforeCaret: "",
+                               selectedText: selection.text, session: session)
     }
 
     /// The focused field, read for a dictation — with one re-resolve when the

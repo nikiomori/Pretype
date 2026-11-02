@@ -276,6 +276,61 @@ final class DictationPipelineTests: PipelineTestCase {
         XCTAssertEqual(fake.engine.rewrites.map(\.selection), ["hi there"])
     }
 
+    /// A take over a selection, on a real controller, all the way to its end.
+    private func dictateOverASelection(_ transcript: String) async {
+        set(\.dictationCommands, true)
+        set(\.dictationPolish, false)
+        fake.selected = SelectionInfo(text: "hi there", rect: CGRect(x: 100, y: 100, width: 40, height: 16))
+        let session = HeldSession(transcript: transcript)
+        await startHandsFreeCapture(session: session)
+        controller.dictationController.toggleLatch()
+        var entered = session.gate.entered.makeAsyncIterator()
+        _ = await entered.next()
+        session.gate.open()
+        await controller.dictationController.sessionTask?.value
+    }
+
+    // Both ends of the switch: on, the words are an instruction for the engine.
+    func testTakeOverASelectionIsAVoiceCommand() async {
+        await dictateOverASelection("make it formal")
+        let end = Date().addingTimeInterval(5)
+        while fake.engine.rewrites.isEmpty, Date() < end { await Task.yield() }
+        XCTAssertEqual(fake.engine.rewrites.map(\.instruction), ["make it formal"])
+        XCTAssertEqual(fake.keys, [])
+    }
+
+    // With Fixes off, ⏎ and ⎋ would never reach a preview (`keyAction`), so
+    // none is drawn: the words are typed, and kept.
+    func testWithFixesOffATakeOverASelectionIsTyped() async {
+        set(\.fixesEnabled, false)
+        await dictateOverASelection("see you at seven")
+        XCTAssertEqual(fake.keys, [.insert("see you at seven")])
+        XCTAssertTrue(fake.engine.rewrites.isEmpty)
+        XCTAssertEqual(controller.dictationController.recent, ["see you at seven"])
+    }
+
+    // A model that writes nothing: no flash, and the words are not lost.
+    func testOnAModelThatWritesNothingATakeOverASelectionIsTyped() async {
+        fake.engine.writesNewText = false
+        await dictateOverASelection("see you at seven")
+        XCTAssertEqual(fake.keys, [.insert("see you at seven")])
+        XCTAssertEqual(controller.dictationController.recent, ["see you at seven"])
+    }
+
+    // A terminal keeps ⏎ too, even in an agent's box: a preview there would
+    // send the message under it.
+    func testAVoiceCommandNeedsKeysThatReachItsPreview() async {
+        XCTAssertTrue(controller.canRunVoiceCommand)
+        set(\.fixesEnabled, false)
+        XCTAssertFalse(controller.canRunVoiceCommand)
+        set(\.fixesEnabled, true)
+        fake.engine.writesNewText = false
+        XCTAssertFalse(controller.canRunVoiceCommand)
+        fake.engine.writesNewText = true
+        await enterApp("com.apple.Terminal")
+        XCTAssertFalse(controller.canRunVoiceCommand)
+    }
+
     // The fix model is warmed for a tidy-up only once it is on disk.
     func testATidyUpWarmsOnlyAModelOnDisk() {
         controller.prewarmTidy()
@@ -343,12 +398,71 @@ final class DictationPipelineTests: PipelineTestCase {
         XCTAssertTrue(fake.hops.isEmpty)
     }
 
-    // The selection is read only for voice commands — the text they act on.
-    func testTheSelectionIsReadOnlyForVoiceCommands() {
-        fake.selected = SelectionInfo(text: "hi there", rect: CGRect(x: 100, y: 100, width: 40, height: 16))
+    // A field with a selection reads as no context, and a dictation anchors on
+    // the selection: it is a voice command's target and the place for the pill.
+    func testASelectionAnchorsADictation() {
+        let rect = CGRect(x: 100, y: 100, width: 40, height: 16)
+        fake.selected = SelectionInfo(text: "hi there", rect: rect)
+        let anchor = controller.dictationAnchor()
+        XCTAssertEqual(anchor?.selectedText, "hi there")
+        XCTAssertEqual(anchor?.caretRect, rect)
+    }
+
+    // A terminal field inside an editor: a selection there is screen output,
+    // not a command's target, and the field still reads.
+    func testATerminalFieldsSelectionIsNoCommandTarget() async {
+        await enterApp("com.microsoft.VSCode")
+        fake.terminalField = true
+        fake.before = "❯ "
+        fake.selected = SelectionInfo(text: "some output", rect: nil)
         XCTAssertEqual(controller.dictationAnchor()?.selectedText, "")
-        set(\.dictationCommands, true)
-        XCTAssertEqual(controller.dictationAnchor()?.selectedText, "hi there")
+    }
+
+    // Paused, a command can't run: the preview's keys wouldn't reach it.
+    func testPauseStopsVoiceCommands() {
+        XCTAssertTrue(controller.correctionController.canRunVoiceCommand)
+        set(\.enabled, false)
+        XCTAssertFalse(controller.correctionController.canRunVoiceCommand)
+    }
+
+    // In a chat a typed newline sends the message, half of it.
+    func testAVoiceCommandInAChatStaysOnOneLine() async throws {
+        await enterApp("com.tinyspeck.slackmacgap")
+        fake.selected = SelectionInfo(text: "hi there", rect: nil)
+        fake.engine.rewritten = "Hello.\nHow are you?"
+        controller.applyVoiceCommand("make it formal", to: "hi there")
+        await controller.correctionController.correctionTask?.value
+        fake.runHops()
+        guard case .fixPreview(_, let fix)? = fake.window.currentMode else { return XCTFail("no preview") }
+        XCTAssertEqual(fix, "Hello. How are you?")
+    }
+
+    // Suggestions start asking the model again: it loads. Words asks nothing.
+    func testAFeatureFlipPrewarmsOnlyWhatIsAsked() {
+        let before = fake.engine.prewarms
+        controller.featuresChanged(wasUsingModel: false)
+        XCTAssertEqual(fake.engine.prewarms, before + 1)
+        set(\.suggestionMode, .words)
+        controller.featuresChanged(wasUsingModel: true)
+        XCTAssertEqual(fake.engine.prewarms, before + 1)
+    }
+
+    // A rewrite that only broke the line is no change there.
+    func testAFlattenedRewriteThatChangesNothingShowsNoPreview() async throws {
+        await enterApp("com.tinyspeck.slackmacgap")
+        fake.selected = SelectionInfo(text: "hi there", rect: nil)
+        fake.engine.rewritten = "hi\nthere"
+        controller.applyVoiceCommand("make it formal", to: "hi there")
+        await controller.correctionController.correctionTask?.value
+        fake.runHops()
+        if case .fixPreview? = fake.window.currentMode { XCTFail("a preview of the same text") }
+    }
+
+    // In a shell a nil anchor is what refuses the dictation.
+    func testASelectionInATerminalAnchorsNothing() async {
+        await enterApp("com.apple.Terminal")
+        fake.selected = SelectionInfo(text: "rm -rf build", rect: nil)
+        XCTAssertNil(controller.dictationAnchor())
     }
 
     // An empty web field reads as nothing to the completion pipeline, but a

@@ -135,6 +135,7 @@ private final class MockDictationHost: DictationHost {
         rescued.append(text)
         rescueReasons.append(reason)
     }
+    var canRunVoiceCommand = true
     private(set) var commands: [(instruction: String, selection: String)] = []
     func applyVoiceCommand(_ instruction: String, to selection: String) {
         commands.append((instruction, selection))
@@ -1280,6 +1281,94 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertTrue(notice.contains("voice command dropped"), notice)
     }
 
+    /// Said in one app, finished in another that can't run commands: still a
+    /// command, dropped out loud. An instruction never lands on the clipboard.
+    func testAVoiceCommandFinishedInAnotherAppIsDropped() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("make it shorter", in: rig)
+        rig.host.canRunVoiceCommand = false
+        rig.host.focusGeneration += 1
+        release(rig.controller)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertTrue(rig.host.commands.isEmpty)
+        XCTAssertTrue(rig.host.inserted.isEmpty)
+        guard case .hint(let notice)? = rig.host.transientNotices.last else { return XCTFail("no notice") }
+        XCTAssertTrue(notice.contains("focus moved"), notice)
+    }
+
+    /// What was no command at its start stays text when the focus leaves.
+    func testATakeThatWasNoCommandIsNoDroppedCommandAfterAFocusChange() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.canRunVoiceCommand = false
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("hello world", in: rig)
+        rig.host.focusGeneration += 1
+        release(rig.controller)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertTrue(rig.host.commands.isEmpty)
+        XCTAssertEqual(rig.controller.recent.first, "hello world", "kept like any take")
+    }
+
+    /// A hold queued behind a command would reset it on start: only the
+    /// command runs.
+    func testAHoldQueuedBehindAVoiceCommandStaysOut() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        let writing = holdFinish(rig)
+        await startCapture(rig)
+        await hear("make it shorter", in: rig)
+        release(rig.controller)
+        holdDown(rig.controller)
+        writing.open()
+        await pump(until: { !rig.host.commands.isEmpty })
+        XCTAssertEqual(rig.capture.startCount, 1)
+        XCTAssertFalse(rig.controller.isCapturing)
+    }
+
+    /// The selection moved during a hands-free take: the command's target is
+    /// gone. Dropped out loud, the model never asked.
+    func testAVoiceCommandWhoseSelectionMovedSaysSo() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("make it shorter", in: rig)
+        rig.host.anchor?.selectedText = "another line"
+        release(rig.controller)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertTrue(rig.host.commands.isEmpty)
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a silently dropped command reads as a broken feature")
+        }
+        XCTAssertTrue(notice.contains("selection changed"), notice)
+    }
+
+    /// A launcher's field is out of the fix path's reach: the words replace
+    /// its selection, as any take.
+    func testInALauncherASelectionIsDictatedOver() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.focusIsInLauncher = true
+        rig.host.anchor?.selectedText = "last query"
+        await startCapture(rig)
+        await hear("hello world", in: rig)
+        release(rig.controller)
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertTrue(rig.host.commands.isEmpty)
+    }
+
     /// Off (the default), dictating over a selection types — replacing it.
     func testWithoutVoiceCommandsASelectionIsDictatedOver() async {
         let rig = makeRig()
@@ -1290,6 +1379,75 @@ final class DictationControllerTests: XCTestCase {
         await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
         XCTAssertTrue(rig.host.commands.isEmpty)
+    }
+
+    /// A voice command that can't run here (Fixes off, a model that writes
+    /// nothing, a terminal) is off: the words replace the selection, and are
+    /// kept like any take.
+    func testAVoiceCommandThatCantRunIsDictatedOverTheSelection() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        rig.host.canRunVoiceCommand = false
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("hello world", in: rig)
+        release(rig.controller)
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertTrue(rig.host.commands.isEmpty)
+        XCTAssertEqual(rig.controller.recent, ["hello world"])
+    }
+
+    /// The model or the switch changed while the take was being written down:
+    /// it still lands.
+    func testAVoiceCommandThatStopsBeingPossibleMidTakeIsTyped() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        let writing = holdFinish(rig)
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        release(rig.controller)
+        await pump(until: { rig.session.finishStarted.get() })
+        rig.host.canRunVoiceCommand = false
+        writing.open()
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+        XCTAssertTrue(rig.host.commands.isEmpty)
+    }
+
+    /// With no command to run, a take is text: a keystroke rescues it, where
+    /// it would drop a command.
+    func testAKeystrokeRescuesAVoiceCommandThatCantRun() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig()
+        let writing = holdFinish(rig)
+        rig.host.canRunVoiceCommand = false
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        release(rig.controller)
+        rig.controller.keyPressed()
+        writing.open()
+        await pump(until: { !rig.host.rescued.isEmpty })
+        XCTAssertEqual(rig.host.rescued, ["hello world"])
+        XCTAssertEqual(rig.controller.recent, ["hello world"])
+    }
+
+    /// The same take, with its final pass failed: the preview is rescued, as
+    /// for any dictation.
+    func testAFailedTakeOverASelectionIsRescuedWhenNoCommandCanRun() async {
+        Settings.dictationCommands = true
+        defer { Settings.dictationCommands = false }
+        let rig = makeRig { $0.finishError = AudioCapture.Failure.sessionFailed("the server went away") }
+        rig.host.canRunVoiceCommand = false
+        rig.host.anchor?.selectedText = "the draft paragraph"
+        await startCapture(rig)
+        await hear("minutes of speech", in: rig)
+        release(rig.controller)
+        await pump(until: { rig.controller.phase == .idle })
+        XCTAssertEqual(rig.host.rescued, ["minutes of speech"])
     }
 
     /// A key printed in an agent's session is no spelling hint: what `begin`

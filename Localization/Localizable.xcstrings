@@ -59015,6 +59015,112 @@
         }
       }
     },
+    "Voice commands need Fixes on." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hlasové příkazy vyžadují zapnuté „Opravy“."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stemmekommandoer kræver, at “Rettelser” er slået til."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprachbefehle erfordern aktivierte „Korrekturen“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los comandos de voz necesitan “Correcciones” activadas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les commandes vocales nécessitent que « Corrections » soit activé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I comandi vocali richiedono che “Correzioni” sia attivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声コマンドには「修正」をオンにする必要があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성 명령을 사용하려면 ‘수정’을 켜야 합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spraakopdrachten vereisen dat “Correcties” aan staat."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Polecenia głosowe wymagają włączenia opcji „Poprawki”."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os comandos de voz precisam que “Correções” esteja ativado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comenzile vocale necesită activarea opțiunii „Corecturi”."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для голосовых команд включите «Исправления»."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Röstkommandon kräver att ”Rättningar” är på."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ses komutları için “Düzeltmeler” açık olmalıdır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для голосових команд увімкніть «Виправлення»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语音命令需要开启“修正”。"
+          }
+        }
+      }
+    },
     "Voice commands on selected text" : {
       "localizations" : {
         "cs" : {
@@ -73255,112 +73361,6 @@
         }
       }
     },
-    "this model doesn't run voice commands" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tento model neprovádí hlasové příkazy"
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "denne model udfører ikke stemmekommandoer"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "dieses Modell führt keine Sprachbefehle aus"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "este modelo no ejecuta comandos de voz"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ce modèle n’exécute pas les commandes vocales"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "questo modello non esegue comandi vocali"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このモデルは音声コマンドを実行しません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 모델은 음성 명령을 실행하지 않습니다"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "dit model voert geen spraakopdrachten uit"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ten model nie wykonuje poleceń głosowych"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "este modelo não executa comandos de voz"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "acest model nu execută comenzi vocale"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "эта модель не выполняет голосовые команды"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "den här modellen kör inte röstkommandon"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bu model ses komutlarını çalıştırmaz"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ця модель не виконує голосові команди"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此模型不执行语音命令"
-          }
-        }
-      }
-    },
     "this model doesn't write replies" : {
       "localizations" : {
         "cs" : {
@@ -74951,6 +74951,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "语音命令已放弃：焦点已移动"
+          }
+        }
+      }
+    },
+    "voice command dropped — the selection changed" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hlasový příkaz zahozen — výběr se změnil"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "stemmekommandoen blev kasseret — markeringen ændrede sig"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprachbefehl verworfen – Auswahl geändert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "comando de voz descartado — la selección ha cambiado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "commande vocale abandonnée — la sélection a changé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "comando vocale scartato — la selezione è cambiata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声コマンドを破棄しました — 選択範囲が変わりました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성 명령 취소됨 — 선택 영역이 바뀜"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "spraakopdracht vervallen – de selectie is gewijzigd"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "polecenie głosowe przerwane — zaznaczenie się zmieniło"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "comando de voz descartado — a seleção mudou"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "comandă vocală abandonată — selecția s-a schimbat"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "голосовая команда сброшена — выделение изменилось"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "röstkommandot förkastades — markeringen ändrades"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sesli komut atıldı — seçim değişti"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "голосову команду скинуто — виділення змінилося"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语音命令已放弃：所选内容已更改"
           }
         }
       }

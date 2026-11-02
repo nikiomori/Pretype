@@ -309,9 +309,21 @@ final class DictationController {
     var startedInLauncher = false
     var caretRect: CGRect?
     var hostStyle = HostTextStyle()
+    /// What was selected when this capture began.
+    var selectionAtBegin: String?
     /// The selection this capture's words are an instruction for (voice
-    /// command mode), or nil for ordinary dictation.
-    var commandSelection: String?
+    /// command mode), or nil for ordinary dictation. Asked live: a model or a
+    /// switch that changed during the take makes it dictation, not a lost take.
+    /// Once the focus left, the app in front says nothing about this take:
+    /// what was a command stays one, and is dropped, not typed or rescued.
+    var commandSelection: String? {
+        // The generation alone, not `focusHeld`: the tap asks this on every key.
+        guard owner?.focusGeneration == focusGeneration else { return commandAtBegin ? selectionAtBegin : nil }
+        // Not in a launcher: its field is out of the fix path's reach.
+        guard !startedInLauncher, Settings.dictationCommands, owner?.canRunVoiceCommand == true else { return nil }
+        return selectionAtBegin
+    }
+    var commandAtBegin = false
 
     /// The last few transcripts, newest first, typed or rescued — the status
     /// menu copies one back. For the take that landed nowhere: typed into an

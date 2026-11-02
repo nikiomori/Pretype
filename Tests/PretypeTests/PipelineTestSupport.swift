@@ -177,9 +177,10 @@ final class FakeEngine: CompletionEngine {
     }
     /// The voice commands asked for, and the fix-model downloads started.
     private(set) var rewrites: [(selection: String, instruction: String)] = []
+    var rewritten: String?
     func rewrite(selection: String, instruction: String) async throws -> String? {
         rewrites.append((selection, instruction))
-        return nil
+        return rewritten
     }
     private(set) var correctionPrewarms = 0
     func prewarmCorrection() { correctionPrewarms += 1 }
@@ -356,6 +357,9 @@ final class FakeWorld {
             },
             readContext: { [unowned self] element, allowEmpty in
                 guard readable, !dead.contains(element) else { return nil }
+                // As `AXText.fieldContext`: a selection leaves no caret to read
+                // around. A terminal's selection is its own: the field still reads.
+                if selected != nil, !terminalField { return nil }
                 if emptyReadsNil, !allowEmpty, before.isEmpty, after.isEmpty { return nil }
                 reads += 1
                 return TextContext(textBeforeCaret: element == launcherField ? launcherText : before, textAfterCaret: after,

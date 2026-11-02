@@ -28,6 +28,7 @@ private final class FieldHost: DictationHost {
     func hideOverlay() {}
     func insertDictated(_ text: String) { inserted.append(text) }
     func rescueDictated(_ text: String, because reason: DictationRescue) {}
+    let canRunVoiceCommand = true
     func applyVoiceCommand(_ instruction: String, to selection: String) {}
     func tidyDictation(_ text: String) async -> String? { nil }
     func prewarmTidy() {}

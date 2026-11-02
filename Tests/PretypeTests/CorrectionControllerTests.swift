@@ -346,6 +346,7 @@ final class CorrectionControllerTests: XCTestCase {
     func testAResetForgetsTheSelection() async {
         XCTAssertTrue(affordance(over: "teh cat"))
         fixes.reset()
+        world.selected = nil
         world.before = "I saw teh"
         _ = fixes.handleKey(keyCode: KeyCode.tab, flags: .maskAlternate)
         world.runHops()
@@ -358,6 +359,7 @@ final class CorrectionControllerTests: XCTestCase {
     func testAnUnfixableSelectionAndASecondChord() async {
         XCTAssertTrue(affordance(over: "teh cat"))
         XCTAssertFalse(affordance(over: "ab"))
+        world.selected = nil
         world.before = "I saw teh"
         _ = fixes.handleKey(keyCode: KeyCode.tab, flags: .maskAlternate)
         world.runHops()
@@ -455,13 +457,20 @@ final class CorrectionControllerTests: XCTestCase {
         XCTAssertEqual(world.window.currentMode, .hint("no change"))
     }
 
-    // A model that only fixes says so instead of "no change".
-    func testAVoiceCommandOnAModelThatWritesNothingSaysSo() {
+    // A command runs only where its preview can be confirmed.
+    func testAVoiceCommandCantRunWithoutAWritingModelOrFixes() {
+        let saved = Settings.fixesEnabled
+        defer { Settings.fixesEnabled = saved }
+        Settings.fixesEnabled = true
+        XCTAssertTrue(fixes.canRunVoiceCommand)
         world.engine.writesNewText = false
-        fixes.runVoiceCommand("make it formal", selection: "hi there")
-        XCTAssertFalse(fixes.inFlight)
-        XCTAssertTrue(world.engine.rewrites.isEmpty)
-        XCTAssertEqual(world.window.currentMode, .hint("this model doesn't run voice commands"))
+        XCTAssertFalse(fixes.canRunVoiceCommand)
+        world.engine.writesNewText = true
+        Settings.fixesEnabled = false
+        XCTAssertFalse(fixes.canRunVoiceCommand)
+        Settings.fixesEnabled = true
+        host.typingContext.bundleID = "com.googlecode.iterm2"
+        XCTAssertFalse(fixes.canRunVoiceCommand)
     }
 
     // An answer for a fix whose caret a scroll forgot is said under the

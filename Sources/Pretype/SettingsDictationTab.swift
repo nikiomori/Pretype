@@ -38,6 +38,10 @@ struct DictationTab: View {
         }
     }
 
+    /// Voice commands can't run: they read as off, and the switch keeps the
+    /// choice for when they can.
+    private var commandsBlocked: Bool { !store.writesNewText || !store.fixes }
+
     /// The Language row's tooltip: what the pick does, plus a note when the
     /// language falls back to the rougher system model.
     private var languageHelp: String {
@@ -245,15 +249,17 @@ struct DictationTab: View {
                 Text("Fixes capitalization, punctuation and mishearings.")
             }
             .help("The same minimal-edit fix \(store.hotkeyStyle.correctionLabel) uses; a result that rephrases is rejected. Costs one short generation before the text lands. Where the fix needs a separate model, its first use downloads it.")
-            Toggle(isOn: $dictationCommands) {
+            Toggle(isOn: commandsBlocked ? .constant(false) : $dictationCommands) {
                 Text("Voice commands on selected text")
-                if store.writesNewText {
-                    Text("Say an edit like “make this shorter” over a selection.")
-                } else {
+                if !store.writesNewText {
                     Text("\(store.shortModelName) doesn't run voice commands.")
+                } else if !store.fixes {
+                    Text("Voice commands need Fixes on.")
+                } else {
+                    Text("Say an edit like “make this shorter” over a selection.")
                 }
             }
-            .disabled(!store.writesNewText)
+            .disabled(commandsBlocked)
             .help("The rewrite is previewed like a fix: ⏎ applies it, ⎋ keeps the original. Off, dictating over a selection replaces it.")
         }
         Section {

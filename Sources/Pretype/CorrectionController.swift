@@ -344,24 +344,36 @@ final class CorrectionController {
         )
     }
 
+    /// A voice command can run, and `keyAction` will hand ⏎ and ⎋ over its
+    /// preview to `handleKey`: not with Fixes off or while paused, nor in a
+    /// terminal, where they stay the app's and ⏎ would send the message under
+    /// the preview.
+    var canRunVoiceCommand: Bool {
+        Settings.enabled && Settings.fixesEnabled && host.engine.writesNewText
+            && !AppPolicy.isBlacklisted(host.typingContext)
+    }
+
     /// Voice command mode: the spoken `instruction` applied to `selection`,
     /// previewed and confirmed exactly like a ⌥⇥ fix — so ⏎/⇥ applies it over
     /// the selection (re-validated live), ⎋ keeps the original.
     func runVoiceCommand(_ instruction: String, selection text: String) {
         guard !inFlight else { return }
-        guard host.engine.writesNewText else {
-            indicator.flashTransient(.hint(String(localized: "this model doesn't run voice commands")), orAtPointer: true)
-            return
-        }
         if let element = host.currentTextElement(), let rect = env.selection(element)?.rect {
             host.noteCaret(rect)
         }
         host.clearActiveCompletion()
+        // A typed newline sends the message in a chat, half of it.
+        let oneLine = AppPolicy.isChat(host.typingContext)
         runFix(
             selectionText: text,
             proposedEvent: "voice command — ⏎ to apply, esc to keep",
             unchangedNotice: String(localized: "no change"),
-            perform: { try await $0.rewrite(selection: text, instruction: instruction) }
+            perform: { engine in
+                let rewritten = try await engine.rewrite(selection: text, instruction: instruction)
+                guard oneLine else { return rewritten }
+                let flat = rewritten?.split(whereSeparator: \.isNewline).joined(separator: " ")
+                return flat == text ? nil : flat
+            }
         )
     }
 
@@ -647,6 +659,8 @@ final class CorrectionController {
 }
 
 extension SuggestionController: CorrectionHost {
+    var canRunVoiceCommand: Bool { correctionController.canRunVoiceCommand }
+
     func typeFix(_ text: String, deleting deleted: String, over before: String?) {
         inject(text, deleting: deleted, over: before)
         scheduleKeystrokeRefresh(after: 0.12)

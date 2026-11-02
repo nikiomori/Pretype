@@ -169,8 +169,8 @@ extension DictationController {
         startedInLauncher = owner.focusIsInLauncher
         caretRect = rect
         hostStyle = anchor?.host ?? HostTextStyle()
-        commandSelection = Settings.dictationCommands
-            ? anchor.flatMap { $0.selectedText.isEmpty ? nil : $0.selectedText } : nil
+        selectionAtBegin = anchor.flatMap { $0.selectedText.isEmpty ? nil : $0.selectedText }
+        commandAtBegin = commandSelection != nil
         // The user's own words, then the session: what the field holds is
         // newer, and leads it.
         Transcription.contextualWords.set(Settings.dictationWords + Transcription.biasWords(

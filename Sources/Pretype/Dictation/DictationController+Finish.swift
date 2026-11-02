@@ -77,17 +77,22 @@ extension DictationController {
                     // focus moved — the selection it was about is gone.
                     self.phase = .idle
                     self.session = nil
-                    if self.focusHeld {
+                    if self.focusHeld, owner.dictationAnchor()?.selectedText == selection {
+                        // A capture queued behind this one stays out: its start
+                        // would reset the command (`prepareForDictation`).
+                        if self.pendingBegin != nil { Self.note("queued capture dropped — a voice command runs") }
+                        self.pendingBegin = nil
                         owner.hideOverlay()
                         owner.applyVoiceCommand(transcript, to: selection)
-                    } else {
-                        // Said out loud like every other drop: a command that
-                        // silently does nothing reads as the feature being broken.
-                        Self.note("dropped a voice command — focus changed")
-                        owner.showTransientOverlay(
-                            .hint(String(localized: "voice command dropped — the focus moved")),
-                            at: self.noticeRect, host: self.hostStyle)
+                        return
                     }
+                    // Said out loud like every other drop: a command that
+                    // silently does nothing reads as the feature being broken.
+                    Self.note("dropped a voice command — \(self.focusHeld ? "selection" : "focus") changed")
+                    owner.showTransientOverlay(
+                        .hint(self.focusHeld ? String(localized: "voice command dropped — the selection changed")
+                                             : String(localized: "voice command dropped — the focus moved")),
+                        at: self.noticeRect, host: self.hostStyle)
                     self.resumePendingHold(noticeIfMissed: true)
                     return
                 }
