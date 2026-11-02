@@ -107,6 +107,23 @@ final class SettingsTests: XCTestCase {
         }
     }
 
+    // With API text on, nothing the Model pane does loads a local model: no
+    // download to confirm, and the pick waits for the API to go off.
+    @MainActor
+    func testAModelSwitchUnderTheAPIAsksNothing() throws {
+        let saved = (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled, Settings.apiText)
+        defer { (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled, Settings.apiText) = saved }
+        try withScratchHub {
+            (Settings.mlxModelID, Settings.completionStyle, Settings.suggestionMode, Settings.suggestionsEnabled)
+                = (ModelCatalog.appleIntelligenceID, .base, .sentences, true)
+            Settings.apiText = APIConfig(provider: .custom, kind: .text, enabled: true)
+            let store = SettingsStore(controller: nil)
+            store.selectModel("mlx-community/gemma-4-e4b-8bit")
+            XCTAssertNil(store.pendingDownload)
+            XCTAssertEqual(store.modelID, "mlx-community/gemma-4-e4b-8bit")
+        }
+    }
+
     // Turning API text off hands suggestions back to the local model: the same
     // confirmation if its weights aren't here, and API text stays on if declined.
     @MainActor

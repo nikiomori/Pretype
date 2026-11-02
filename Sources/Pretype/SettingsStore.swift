@@ -89,7 +89,7 @@ final class SettingsStore {
     /// The mirrors already hold the new value, Settings the old one. Returns
     /// whether `write` ran now.
     private func setSuggestionFeature(_ write: @escaping () -> Void) -> Bool {
-        guard !chordsOnly, !Settings.completionsUseModel, !apiText.enabled else {
+        guard suggestionsLoadModel, !Settings.completionsUseModel else {
             setFeature(write)
             return true
         }
@@ -102,6 +102,12 @@ final class SettingsStore {
     /// No suggestion asks the model — off, or Words: it serves only the fix
     /// and reply chords, and the Model pane measures it by those.
     var chordsOnly: Bool { !suggestions || suggestionMode == .words }
+
+    /// A suggestion asks the local model, so a switch of what the engine
+    /// loads brings the weights in on the spot. Not with an API model writing
+    /// the text, and not while it serves only the chords: their model comes in
+    /// on the first ⌥⇥, with its own progress line.
+    private var suggestionsLoadModel: Bool { !chordsOnly && !apiText.enabled }
 
     /// Hold-to-talk dictation. The write goes through `setDictation` because
     /// switching it on is what asks for the microphone — and has to report a
@@ -167,7 +173,7 @@ final class SettingsStore {
                     self?.resync()
                 }
                 // Off hands the text back to a local model that may not be here.
-                if picked.enabled || chordsOnly {
+                if !suggestionsLoadModel {
                     rebuild()
                 } else if !confirmDownload(committedConfig, rebuild) {
                     Settings.apiText = oldValue
@@ -593,9 +599,7 @@ final class SettingsStore {
                               _ commit: @escaping @MainActor () -> Void) -> Bool {
         let next = Self.weights(modelID: target.modelID, style: target.style)
         let running = Self.weights(modelID: Settings.mlxModelID, style: Settings.completionStyle)
-        // With no suggestion asking it, the switch loads nothing: the chords'
-        // model comes in on the first ⌥⇥, with its own progress line.
-        guard Settings.completionsUseModel, next.id != running.id else {
+        guard suggestionsLoadModel, next.id != running.id else {
             commit()
             return true
         }
