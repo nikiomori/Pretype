@@ -218,6 +218,19 @@ enum SpellChecker {
         return misspelled.location == NSNotFound
     }
 
+    /// An everyday word, not an acronym's letters: "not" and "todo", but not
+    /// "api" or "mlx". The spell checker passes all four in lower case; the
+    /// lemmatizer knows only words of the language. By the word's own script.
+    /// ponytail: English and Russian only, the other languages' lemmatizers
+    /// read acronyms as words (Italian "api"); a shouted word in another
+    /// language still counts as a term.
+    static func isOrdinaryWord(_ word: String) -> Bool {
+        let tagger = NLTagger(tagSchemes: [.lemma])
+        tagger.string = word
+        tagger.setLanguage(isCyrillic(word) ? .russian : .english, range: word.startIndex..<word.endIndex)
+        return tagger.tag(at: word.startIndex, unit: .word, scheme: .lemma).0 != nil
+    }
+
     /// The available spell-check language for the word's own script:
     /// Cyrillic → a Russian variant, anything else → English.
     private static func scriptLanguage(_ word: String) -> String {

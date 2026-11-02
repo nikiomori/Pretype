@@ -322,20 +322,28 @@ enum Transcription {
     /// parts ("suggestion controller"), or heard with the term's own hyphen.
     /// After every engine — Parakeet takes no contextual strings at all, and
     /// the system's are only a hint. A term read off the page only when it
-    /// can't be an ordinary word — an inner capital or a digit; a mid-sentence
-    /// "Settings" on screen must not capitalize every "settings" said — and
-    /// parts join only into a term with a capital first letter: `forEach` in a
-    /// session must not take "for each file". A `listed` term (the user's own)
-    /// always, and as written: "Claude Code" heard as "claude code".
+    /// can't be an ordinary word: an inner capital or a digit, so a mid-sentence
+    /// "Settings" on screen doesn't capitalize every "settings" said, and not
+    /// a shouted word: `NOT` must not take every "not", while `MLX` takes "mlx".
+    /// Parts join only into a term with a capital first letter, and only when
+    /// each has four letters or one has a digit: `forEach`, `ForEach` and
+    /// `SetUp` in a session must not take "for each file" or "set up". A
+    /// `listed` term (the user's own) always, and as written: "Claude Code"
+    /// heard as "claude code".
     static func spell(_ text: String, inferred: [String], listed: [String] = []) -> String {
         func key(_ s: some StringProtocol) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
         func codeLike(_ s: String) -> Bool { s.dropFirst().contains { $0.isUppercase || $0.isNumber } }
+        func shouted(_ s: String) -> Bool { s.allSatisfy(\.isUppercase) && SpellChecker.isOrdinaryWord(s.lowercased()) }
         var spelling: [String: String] = [:]
-        for term in listed + inferred.filter(codeLike) where key(term).count >= 2 {
+        for term in listed + inferred.filter({ codeLike($0) && !shouted($0) }) where key(term).count >= 2 {
             spelling[key(term)] = spelling[key(term)] ?? term
         }
         guard !spelling.isEmpty else { return text }
-        func joins(_ term: String) -> Bool { term.first?.isUppercase == true || listed.contains(term) }
+        func joins(_ term: String, parts: [String]) -> Bool {
+            if listed.contains(term) { return true }
+            return term.first?.isUppercase == true
+                && (parts.allSatisfy { $0.count >= 4 } || parts.contains { $0.contains(where: \.isNumber) })
+        }
         let wordCounts = listed.map { $0.split { !($0.isLetter || $0.isNumber) }.count }
         let longest = max(3, wordCounts.max() ?? 0)
         // Words and the runs between them, in order.
@@ -351,8 +359,8 @@ enum Transcription {
             let match = pieces[i].word ? (1...longest).reversed().lazy.compactMap { n -> (String, Int)? in
                 let end = i + 2 * (n - 1)
                 guard end < pieces.count else { return nil }
-                let heard = stride(from: i, through: end, by: 2).map { pieces[$0].text }.joined()
-                guard let term = spelling[key(heard)], n == 1 || joins(term),
+                let parts = stride(from: i, through: end, by: 2).map { pieces[$0].text }
+                guard let term = spelling[key(parts.joined())], n == 1 || joins(term, parts: parts),
                       stride(from: i + 1, to: end, by: 2).allSatisfy({ pieces[$0].text == " " || term.contains(pieces[$0].text) })
                 else { return nil }
                 return (term, end + 1)

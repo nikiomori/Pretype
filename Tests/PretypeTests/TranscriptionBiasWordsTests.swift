@@ -53,6 +53,24 @@ final class TranscriptionBiasWordsTests: XCTestCase {
                        "the user listed it")
     }
 
+    // What a page shouts or spells in short parts is still speech; an acronym
+    // and a long name are the terms. All-caps words of the user's own stay.
+    func testOrdinaryWordsOnThePageStayOrdinary() {
+        let page = Transcription.biasWords(in: "DO NOT push TODO before ForEach loop")
+        XCTAssertEqual(page, ["ForEach", "TODO", "NOT"])
+        XCTAssertEqual(Transcription.spell("do not push this", inferred: page), "do not push this")
+        XCTAssertEqual(Transcription.spell("for each file add a todo", inferred: page), "for each file add a todo")
+        XCTAssertEqual(Transcription.spell("set up a to do", inferred: ["SetUp", "ToDo"]), "set up a to do")
+        for word in ["NEW", "IMPORTANT", "НЕ", "ВАЖНО"] {
+            XCTAssertEqual(Transcription.spell(word.lowercased(), inferred: [word]), word.lowercased())
+        }
+        for word in ["MLX", "API", "URL", "HTML", "МВД"] {
+            XCTAssertEqual(Transcription.spell(word.lowercased(), inferred: [word]), word)
+        }
+        XCTAssertEqual(Transcription.spell("do not push", inferred: [], listed: ["NOT"]), "do NOT push")
+        XCTAssertEqual(Transcription.spell("to do", inferred: [], listed: ["ToDo"]), "ToDo")
+    }
+
     // "Exactly": a term of any length, and one heard with its own hyphen.
     func testAListedTermIsSpelledAsListed() {
         XCTAssertEqual(Transcription.spell("ask the quiet river data team", inferred: [],
