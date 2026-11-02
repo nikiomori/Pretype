@@ -28,8 +28,8 @@ struct PersonalTab: View {
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
                 HStack {
                     Caption(store.isAppleIntelligence
-                        ? String(localized: "Sets the voice of Apple Intelligence. Stays on this Mac.")
-                        : String(localized: "Shapes replies, and suggestions in the Instruct style. Stays on this Mac."))
+                        ? String(localized: "Sets the voice of Apple Intelligence.")
+                        : String(localized: "Shapes replies, and suggestions in the Instruct style."))
                     Spacer()
                     Button("Restore Default") { store.resetInstructions() }
                         .controlSize(.small)
@@ -67,7 +67,7 @@ struct PersonalTab: View {
                               title: Text("Use screen context"),
                               subtitle: Text("Reads the focused window on this Mac."))
                 }
-                .help("On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It never leaves the Mac and is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor.")
+                .help("On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It stays on this Mac unless API text is on, and it is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor.")
                 Toggle(isOn: $clipboardContext) {
                     IconLabel(symbol: "doc.on.clipboard.fill", tint: .orange,
                               title: Text("Use clipboard context"),

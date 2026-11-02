@@ -387,10 +387,12 @@ struct AppIcon: View {
     var body: some View {
         if let icon {
             Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+                .accessibilityHidden(true)  // the app's name is next to it
         } else {
             Image(systemName: "app.dashed")
                 .frame(width: 20, height: 20)
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
         }
     }
 }

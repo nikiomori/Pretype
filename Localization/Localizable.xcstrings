@@ -1,9 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-      "shouldTranslate" : false
-    },
     " %@" : {
       "shouldTranslate" : false
     },
@@ -35952,108 +35949,108 @@
         }
       }
     },
-    "On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It never leaves the Mac and is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor." : {
+    "On-device OCR of the focused window — the conversation above a chat box, the email being replied to. It stays on this Mac unless API text is on, and it is never written to the journal. With Screen Recording, the overlay also adapts to the background under the cursor." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lokální rozpoznávání textu (OCR) v aktivním okně — konverzace nad polem chatu, e-mail, na který odpovídáte. Text nikdy neopustí Mac a nikdy se nezapisuje do deníku. S povolením „Záznam obrazovky“ se okénko návrhu také přizpůsobí pozadí u kurzoru."
+            "value" : "Lokální rozpoznávání textu (OCR) v aktivním okně — konverzace nad polem chatu, e-mail, na který odpovídáte. Text zůstává v tomto Macu, pokud není zapnutý model API pro text, a nikdy se nezapisuje do deníku. S povolením „Záznam obrazovky“ se okénko návrhu také přizpůsobí pozadí u kurzoru."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lokal OCR af det aktive vindue — samtalen over et chatfelt, den e-mail, du svarer på. Det forlader aldrig din Mac og skrives aldrig til journalen. Med Skærmoptagelse tilpasser forslagsboksen sig også baggrunden under markøren."
+            "value" : "Lokal OCR af det aktive vindue — samtalen over et chatfelt, den e-mail, du svarer på. Det bliver på denne Mac, medmindre en API-model til tekst er slået til, og det skrives aldrig til journalen. Med Skærmoptagelse tilpasser forslagsboksen sig også baggrunden under markøren."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lokale Texterkennung (OCR) im aktiven Fenster – die Unterhaltung über einem Chatfeld, die E-Mail, auf die Sie antworten. Der Text verlässt nie den Mac und wird nie ins Journal geschrieben. Mit Bildschirmaufnahme passt sich das Vorschlagsfenster zudem an den Hintergrund unter dem Cursor an."
+            "value" : "Lokale Texterkennung (OCR) im aktiven Fenster – die Unterhaltung über einem Chatfeld, die E-Mail, auf die Sie antworten. Der Text bleibt auf diesem Mac, außer ein API-Modell für Text ist aktiv, und wird nie ins Journal geschrieben. Mit Bildschirmaufnahme passt sich das Vorschlagsfenster zudem an den Hintergrund unter dem Cursor an."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OCR local de la ventana activa: la conversación sobre un cuadro de chat, el correo al que respondes. Nunca sale del Mac ni se guarda en el historial. Con Grabación de pantalla, la sugerencia también se adapta al fondo bajo el cursor."
+            "value" : "OCR local de la ventana activa: la conversación sobre un cuadro de chat, el correo al que respondes. Se queda en este Mac salvo que un modelo de API para el texto esté activado, y nunca se guarda en el historial. Con Grabación de pantalla, la sugerencia también se adapta al fondo bajo el cursor."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OCR locale de la fenêtre active — la conversation au-dessus d’un champ de chat, l’e-mail auquel vous répondez. Ne quitte jamais le Mac et n’est jamais écrit dans le journal. Avec « Enregistrement de l’écran », l’affichage des suggestions s’adapte aussi au fond sous le curseur."
+            "value" : "OCR locale de la fenêtre active — la conversation au-dessus d’un champ de chat, l’e-mail auquel vous répondez. Reste sur ce Mac sauf si un modèle API pour le texte est activé, et n’est jamais écrit dans le journal. Avec « Enregistrement de l’écran », l’affichage des suggestions s’adapte aussi au fond sous le curseur."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OCR sul dispositivo della finestra attiva: la conversazione sopra il campo di chat, l'email a cui rispondi. Non lascia mai il Mac e non viene mai scritto nel registro. Con Registrazione schermo, il riquadro si adatta anche allo sfondo sotto il cursore."
+            "value" : "OCR sul dispositivo della finestra attiva: la conversazione sopra il campo di chat, l'email a cui rispondi. Resta su questo Mac, a meno che non sia attivo un modello API per il testo, e non viene mai scritto nel registro. Con Registrazione schermo, il riquadro si adatta anche allo sfondo sotto il cursore."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "アクティブなウインドウをオンデバイスでOCRします（チャット欄の上の会話や、返信中のメールなど）。Macの外部に送信されることも、ジャーナルに書き込まれることもありません。「画面収録」を許可すると、オーバーレイもカーソル下の背景に合わせて調整されます。"
+            "value" : "アクティブなウインドウをオンデバイスでOCRします（チャット欄の上の会話や、返信中のメールなど）。テキストにAPIモデルを使用していない限りこのMac上にとどまり、ジャーナルに書き込まれることはありません。「画面収録」を許可すると、オーバーレイもカーソル下の背景に合わせて調整されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "활성 윈도우를 기기에서 OCR로 읽습니다. 채팅 상자 위의 대화나 답장하려는 이메일 등이 해당됩니다. Mac 밖으로 전송되지 않으며 저널에도 기록되지 않습니다. ‘화면 기록’ 권한이 있으면 오버레이가 커서 아래 배경에 맞춰 조정됩니다."
+            "value" : "활성 윈도우를 기기에서 OCR로 읽습니다. 채팅 상자 위의 대화나 답장하려는 이메일 등이 해당됩니다. 텍스트에 API 모델을 사용하지 않는 한 이 Mac에만 남으며, 저널에는 기록되지 않습니다. ‘화면 기록’ 권한이 있으면 오버레이가 커서 아래 배경에 맞춰 조정됩니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lokale tekstherkenning (OCR) van het actieve venster – het gesprek boven een chatveld, de e-mail waarop je antwoordt. Het verlaat nooit de Mac en wordt nooit in het logboek geschreven. Met Schermopname past het suggestievenster zich ook aan de achtergrond onder de cursor aan."
+            "value" : "Lokale tekstherkenning (OCR) van het actieve venster – het gesprek boven een chatveld, de e-mail waarop je antwoordt. Het blijft op deze Mac, tenzij een API-model voor tekst aan staat, en wordt nooit in het logboek geschreven. Met Schermopname past het suggestievenster zich ook aan de achtergrond onder de cursor aan."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lokalne rozpoznawanie tekstu (OCR) w aktywnym oknie — rozmowa nad polem czatu, e-mail, na który odpowiadasz. Tekst nie opuszcza Maca i nigdy nie trafia do dziennika. Z uprawnieniem „Nagrywanie ekranu” okienko podpowiedzi dopasowuje się też do tła pod kursorem."
+            "value" : "Lokalne rozpoznawanie tekstu (OCR) w aktywnym oknie — rozmowa nad polem czatu, e-mail, na który odpowiadasz. Tekst pozostaje na tym Macu, chyba że włączony jest model API do tekstu, i nigdy nie trafia do dziennika. Z uprawnieniem „Nagrywanie ekranu” okienko podpowiedzi dopasowuje się też do tła pod kursorem."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OCR local da janela ativa: a conversa acima de uma caixa de chat, o e-mail que você está respondendo. Nunca sai do Mac nem é gravado no histórico. Com a Gravação de Tela, a sugestão também se adapta ao fundo sob o cursor."
+            "value" : "OCR local da janela ativa: a conversa acima de uma caixa de chat, o e-mail que você está respondendo. Fica neste Mac, a menos que um modelo de API para texto esteja ativado, e nunca é gravado no histórico. Com a Gravação de Tela, a sugestão também se adapta ao fundo sob o cursor."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OCR pe dispozitiv al ferestrei active — conversația de deasupra casetei de chat, e-mailul la care răspundeți. Nu părăsește niciodată Mac-ul și nu este scris niciodată în jurnal. Cu Înregistrare ecran, fereastra sugestiei se adaptează și la fundalul de sub cursor."
+            "value" : "OCR pe dispozitiv al ferestrei active — conversația de deasupra casetei de chat, e-mailul la care răspundeți. Rămâne pe acest Mac, cu excepția cazului în care este activat un model API pentru text, și nu este scris niciodată în jurnal. Cu Înregistrare ecran, fereastra sugestiei se adaptează și la fundalul de sub cursor."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Локальное распознавание текста (OCR) в активном окне — переписка над полем чата, письмо, на которое вы отвечаете. Текст не покидает Mac и не записывается в журнал. С разрешением «Запись экрана» окно подсказки также подстраивается под фон у курсора."
+            "value" : "Локальное распознавание текста (OCR) в активном окне — переписка над полем чата, письмо, на которое вы отвечаете. Текст остаётся на этом Mac, если не включена модель API для текста, и никогда не записывается в журнал. С разрешением «Запись экрана» окно подсказки также подстраивается под фон у курсора."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OCR på enheten av det aktiva fönstret — konversationen ovanför en chattruta, mejlet du svarar på. Det lämnar aldrig Macen och skrivs aldrig till journalen. Med Skärminspelning anpassar sig även förslagsrutan efter bakgrunden under markören."
+            "value" : "OCR på enheten av det aktiva fönstret — konversationen ovanför en chattruta, mejlet du svarar på. Det stannar på den här Macen om inte en API-modell för text är på, och skrivs aldrig till journalen. Med Skärminspelning anpassar sig även förslagsrutan efter bakgrunden under markören."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Etkin pencerede aygıt üzerinde OCR — sohbet kutusunun üstündeki konuşma, yanıtlanan e-posta. Metin Mac’ten asla çıkmaz ve günlüğe asla yazılmaz. Ekran Kaydı izniyle öneri kutusu imlecin altındaki arka plana da uyum sağlar."
+            "value" : "Etkin pencerede aygıt üzerinde OCR — sohbet kutusunun üstündeki konuşma, yanıtlanan e-posta. Metin için API modeli kapalıysa içerik bu Mac’te kalır; günlüğe asla yazılmaz. Ekran Kaydı izniyle öneri kutusu imlecin altındaki arka plana da uyum sağlar."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Локальне розпізнавання тексту (OCR) в активному вікні — листування над полем чату, лист, на який ви відповідаєте. Текст не залишає Mac і не записується в журнал. З дозволом «Запис екрана» вікно підказки також підлаштовується під тло біля курсора."
+            "value" : "Локальне розпізнавання тексту (OCR) в активному вікні — листування над полем чату, лист, на який ви відповідаєте. Текст залишається на цьому Mac, якщо не ввімкнено модель API для тексту, і ніколи не записується в журнал. З дозволом «Запис екрана» вікно підказки також підлаштовується під тло біля курсора."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在设备上对当前窗口进行文字识别，例如聊天框上方的对话、正在回复的邮件。识别内容绝不会离开 Mac，也不会写入日志。获得“屏幕录制”权限后，浮层还会根据光标下方的背景自动调整。"
+            "value" : "在设备上对当前窗口进行文字识别，例如聊天框上方的对话、正在回复的邮件。除非开启了使用 API 模型处理文本，否则识别内容会保留在这台 Mac 上；它绝不会写入日志。获得“屏幕录制”权限后，浮层还会根据光标下方的背景自动调整。"
           }
         }
       }
@@ -47621,108 +47618,108 @@
         }
       }
     },
-    "Sets the voice of Apple Intelligence. Stays on this Mac." : {
+    "Sets the voice of Apple Intelligence." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Určuje tón Apple Intelligence. Zůstává v tomto Macu."
+            "value" : "Určuje tón Apple Intelligence."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bestemmer tonen for Apple Intelligence. Bliver på denne Mac."
+            "value" : "Bestemmer tonen for Apple Intelligence."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bestimmt den Ton von Apple Intelligence. Bleibt auf diesem Mac."
+            "value" : "Bestimmt den Ton von Apple Intelligence."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Define el tono de Apple Intelligence. Se queda en este Mac."
+            "value" : "Define el tono de Apple Intelligence."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Définit le ton d’Apple Intelligence. Reste sur ce Mac."
+            "value" : "Définit le ton d’Apple Intelligence."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Imposta il tono di Apple Intelligence. Resta su questo Mac."
+            "value" : "Imposta il tono di Apple Intelligence."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Intelligenceの口調を設定します。このMac上にとどまります。"
+            "value" : "Apple Intelligenceの口調を設定します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Intelligence의 어조를 설정합니다. 이 Mac에만 저장됩니다."
+            "value" : "Apple Intelligence의 어조를 설정합니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bepaalt de toon van Apple Intelligence. Blijft op deze Mac."
+            "value" : "Bepaalt de toon van Apple Intelligence."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Określa ton Apple Intelligence. Pozostaje na tym Macu."
+            "value" : "Określa ton Apple Intelligence."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Define o tom do Apple Intelligence. Fica neste Mac."
+            "value" : "Define o tom do Apple Intelligence."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Setează tonul Apple Intelligence. Rămâne pe acest Mac."
+            "value" : "Setează tonul Apple Intelligence."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Задаёт тон Apple Intelligence. Остаётся на этом Mac."
+            "value" : "Задаёт тон Apple Intelligence."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bestämmer tonen för Apple Intelligence. Stannar på den här Macen."
+            "value" : "Bestämmer tonen för Apple Intelligence."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Intelligence için üslubu belirler. Bu Mac’te kalır."
+            "value" : "Apple Intelligence için üslubu belirler."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Задає тон Apple Intelligence. Залишається на цьому Mac."
+            "value" : "Задає тон Apple Intelligence."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "设定 Apple Intelligence 的语气。仅保留在这台 Mac 上。"
+            "value" : "设定 Apple Intelligence 的语气。"
           }
         }
       }
@@ -47939,108 +47936,108 @@
         }
       }
     },
-    "Shapes replies, and suggestions in the Instruct style. Stays on this Mac." : {
+    "Shapes replies, and suggestions in the Instruct style." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ovlivňuje odpovědi a návrhy ve stylu „Instrukční“. Zůstává v tomto Macu."
+            "value" : "Ovlivňuje odpovědi a návrhy ve stylu „Instrukční“."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Former svar og forslag i stilen “Instruktion”. Bliver på denne Mac."
+            "value" : "Former svar og forslag i stilen “Instruktion”."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prägt Antworten und Vorschläge im Stil „Instruktiv“. Bleibt auf diesem Mac."
+            "value" : "Prägt Antworten und Vorschläge im Stil „Instruktiv“."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Moldea las respuestas y las sugerencias del estilo “Instrucción”. Se queda en este Mac."
+            "value" : "Moldea las respuestas y las sugerencias del estilo “Instrucción”."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Influence les réponses et les suggestions du style « Instruct ». Reste sur ce Mac."
+            "value" : "Influence les réponses et les suggestions du style « Instruct »."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Influenza le risposte e i suggerimenti dello stile “Instruct”. Resta su questo Mac."
+            "value" : "Influenza le risposte e i suggerimenti dello stile “Instruct”."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "返信と「インストラクト」スタイルの候補に反映されます。このMac上にとどまります。"
+            "value" : "返信と「インストラクト」スタイルの候補に反映されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "답장과 '인스트럭트' 스타일의 제안에 반영됩니다. 이 Mac에만 저장됩니다."
+            "value" : "답장과 '인스트럭트' 스타일의 제안에 반영됩니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bepaalt antwoorden en suggesties in de stijl “Instructie”. Blijft op deze Mac."
+            "value" : "Bepaalt antwoorden en suggesties in de stijl “Instructie”."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wpływa na odpowiedzi i podpowiedzi w stylu „Instrukcyjny”. Pozostaje na tym Macu."
+            "value" : "Wpływa na odpowiedzi i podpowiedzi w stylu „Instrukcyjny”."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Molda as respostas e as sugestões do estilo “Instrução”. Fica neste Mac."
+            "value" : "Molda as respostas e as sugestões do estilo “Instrução”."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modelează răspunsurile și sugestiile în stilul „Instructiv”. Rămâne pe acest Mac."
+            "value" : "Modelează răspunsurile și sugestiile în stilul „Instructiv”."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Влияет на ответы и на подсказки в стиле «Инструктивный». Остаётся на этом Mac."
+            "value" : "Влияет на ответы и на подсказки в стиле «Инструктивный»."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Påverkar svar och förslag i stilen ”Instruktion”. Stannar på den här Macen."
+            "value" : "Påverkar svar och förslag i stilen ”Instruktion”."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yanıtları ve “Talimatlı” stildeki önerileri şekillendirir. Bu Mac’te kalır."
+            "value" : "Yanıtları ve “Talimatlı” stildeki önerileri şekillendirir."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Впливає на відповіді й на підказки в стилі «Інструктивний». Залишається на цьому Mac."
+            "value" : "Впливає на відповіді й на підказки в стилі «Інструктивний»."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "影响回复和“指令”风格的建议。仅保留在这台 Mac 上。"
+            "value" : "影响回复和“指令”风格的建议。"
           }
         }
       }
@@ -59651,108 +59648,108 @@
         }
       }
     },
-    "What you type goes to %@ with each suggestion, plus screen and clipboard context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request." : {
+    "What you type goes to %@ with each suggestion, with your persona and an AI agent's session, plus screen and clipboard context and dictation to tidy up when those are on. Password fields and turned-off apps send nothing. The provider may charge per request." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Text, který píšete, se s každým návrhem odesílá na %@, spolu s kontextem obrazovky a schránky a diktovaným textem pro „Doladit přepis modelem“, pokud jsou zapnuté. Z polí hesel a vypnutých aplikací se nic neodesílá. Poskytovatel může účtovat poplatek za každý požadavek."
+            "value" : "Text, který píšete, se s každým návrhem odesílá na %@, spolu s vaší personou a relací AI agenta a také s kontextem obrazovky a schránky a diktovaným textem pro „Doladit přepis modelem“, pokud jsou zapnuté. Z polí hesel a vypnutých aplikací se nic neodesílá. Poskytovatel může účtovat poplatek za každý požadavek."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det, du skriver, sendes til %@ med hvert forslag, plus skærm- og udklipsholderkontekst og diktering, der skal ryddes op i, når de er slået til. Adgangskodefelter og apps, der er slået fra, sender intet. Udbyderen kan tage betaling pr. forespørgsel."
+            "value" : "Det, du skriver, sendes til %@ med hvert forslag, med din persona og en AI-agents session, plus skærm- og udklipsholderkontekst og diktering, der skal ryddes op i, når de er slået til. Adgangskodefelter og apps, der er slået fra, sender intet. Udbyderen kan tage betaling pr. forespørgsel."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Was Sie tippen, geht mit jedem Vorschlag an %@, dazu Bildschirm- und Zwischenablagekontext sowie Diktate zum Bereinigen, wenn diese Optionen aktiv sind. Passwortfelder und ausgeschaltete Apps senden nichts. Der Anbieter berechnet eventuell pro Anfrage."
+            "value" : "Was Sie tippen, geht mit jedem Vorschlag an %@, mit Ihrer Persona und der Sitzung eines KI-Agenten, dazu Bildschirm- und Zwischenablagekontext sowie Diktate zum Bereinigen, wenn diese Optionen aktiv sind. Passwortfelder und ausgeschaltete Apps senden nichts. Der Anbieter berechnet eventuell pro Anfrage."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lo que escribes se envía a %@ con cada sugerencia, además del contexto de pantalla y del portapapeles y del dictado que se pule, si están activados. Los campos de contraseña y las apps desactivadas no envían nada. El proveedor puede cobrar por solicitud."
+            "value" : "Lo que escribes se envía a %@ con cada sugerencia, con tu perfil y la sesión de un agente de IA, además del contexto de pantalla y del portapapeles y del dictado que se pule, si están activados. Los campos de contraseña y las apps desactivadas no envían nada. El proveedor puede cobrar por solicitud."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce que vous tapez est envoyé à %@ avec chaque suggestion, ainsi que le contexte de l’écran et du presse-papiers et la dictée à mettre au propre lorsque ces options sont activées. Les champs de mot de passe et les apps désactivées n’envoient rien. Le fournisseur peut facturer chaque requête."
+            "value" : "Ce que vous tapez est envoyé à %@ avec chaque suggestion, avec votre persona et la session d’un agent IA, ainsi que le contexte de l’écran et du presse-papiers et la dictée à mettre au propre lorsque ces options sont activées. Les champs de mot de passe et les apps désactivées n’envoient rien. Le fournisseur peut facturer chaque requête."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ciò che scrivi viene inviato a %@ con ogni suggerimento, insieme al contesto dello schermo e degli appunti e alla dettatura da riordinare, se attivi. I campi password e le app disattivate non inviano nulla. Il fornitore può addebitare ogni richiesta."
+            "value" : "Ciò che scrivi viene inviato a %@ con ogni suggerimento, con la tua persona e la sessione di un agente IA, insieme al contesto dello schermo e degli appunti e alla dettatura da riordinare, se attivi. I campi password e le app disattivate non inviano nulla. Il fornitore può addebitare ogni richiesta."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "入力した内容は候補ごとに%@に送信されます。オンの場合は、画面とクリップボードのコンテキストや、「モデルで整える」ための音声入力も送信されます。パスワードフィールドやオフにしたアプリからは何も送信されません。プロバイダがリクエストごとに料金を請求する場合があります。"
+            "value" : "入力した内容は候補ごとに、ペルソナやAIエージェントのセッションとともに%@に送信されます。オンの場合は、画面とクリップボードのコンテキストや、「モデルで整える」ための音声入力も送信されます。パスワードフィールドやオフにしたアプリからは何も送信されません。プロバイダがリクエストごとに料金を請求する場合があります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "입력한 내용은 제안할 때마다 %@(으)로 전송되며, 해당 기능이 켜져 있으면 화면 및 클립보드 맥락과 ‘모델로 다듬기’를 위한 받아쓰기 내용도 함께 전송됩니다. 암호 필드와 꺼 둔 앱에서는 아무것도 전송되지 않습니다. 제공업체가 요청마다 요금을 부과할 수 있습니다."
+            "value" : "입력한 내용은 제안할 때마다 페르소나 및 AI 에이전트의 세션과 함께 %@(으)로 전송되며, 해당 기능이 켜져 있으면 화면 및 클립보드 맥락과 ‘모델로 다듬기’를 위한 받아쓰기 내용도 함께 전송됩니다. 암호 필드와 꺼 둔 앱에서는 아무것도 전송되지 않습니다. 제공업체가 요청마다 요금을 부과할 수 있습니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wat je typt, gaat bij elke suggestie naar %@, plus scherm- en klembordcontext en dictees om op te schonen als die aan staan. Wachtwoordvelden en uitgeschakelde apps versturen niets. De aanbieder kan per verzoek kosten rekenen."
+            "value" : "Wat je typt, gaat bij elke suggestie naar %@, met je persona en de sessie van een AI-agent, plus scherm- en klembordcontext en dictees om op te schonen als die aan staan. Wachtwoordvelden en uitgeschakelde apps versturen niets. De aanbieder kan per verzoek kosten rekenen."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "To, co piszesz, trafia do %@ z każdą podpowiedzią, a także kontekst ekranu i schowka oraz dyktowany tekst dla opcji „Porządkuj tekst modelem”, jeśli są włączone. Pola haseł i wyłączone aplikacje nic nie wysyłają. Dostawca może pobierać opłaty za każde zapytanie."
+            "value" : "To, co piszesz, trafia do %@ z każdą podpowiedzią, razem z Twoją personą i sesją agenta AI, a także kontekst ekranu i schowka oraz dyktowany tekst dla opcji „Porządkuj tekst modelem”, jeśli są włączone. Pola haseł i wyłączone aplikacje nic nie wysyłają. Dostawca może pobierać opłaty za każde zapytanie."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O que você digita vai para %@ a cada sugestão, além do contexto da tela e da área de transferência e do ditado a revisar, quando ativados. Campos de senha e apps desativados não enviam nada. O provedor pode cobrar por solicitação."
+            "value" : "O que você digita vai para %@ a cada sugestão, com seu perfil e a sessão de um agente de IA, além do contexto da tela e da área de transferência e do ditado a revisar, quando ativados. Campos de senha e apps desativados não enviam nada. O provedor pode cobrar por solicitação."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce tastați ajunge la %@ cu fiecare sugestie, plus contextul ecranului și al clipboardului și dictarea pentru „Finisează cu modelul”, când acestea sunt activate. Câmpurile de parolă și aplicațiile dezactivate nu trimit nimic. Furnizorul poate taxa fiecare solicitare."
+            "value" : "Ce tastați ajunge la %@ cu fiecare sugestie, împreună cu persona și sesiunea unui agent IA, plus contextul ecranului și al clipboardului și dictarea pentru „Finisează cu modelul”, când acestea sunt activate. Câmpurile de parolă și aplicațiile dezactivate nu trimit nimic. Furnizorul poate taxa fiecare solicitare."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Набираемый текст отправляется на %@ с каждой подсказкой, а также контекст экрана и буфера обмена и надиктованный текст для «Приводить в порядок», если эти функции включены. Из полей паролей и выключенных приложений ничего не отправляется. Провайдер может взимать плату за каждый запрос."
+            "value" : "Набираемый текст отправляется на %@ с каждой подсказкой, вместе с вашей персоной и сессией ИИ-агента, а также контекст экрана и буфера обмена и надиктованный текст для «Приводить в порядок», если эти функции включены. Из полей паролей и выключенных приложений ничего не отправляется. Провайдер может взимать плату за каждый запрос."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det du skriver skickas till %@ med varje förslag, plus skärm- och urklippskontext och diktering att snygga till när de är på. Lösenordsfält och avstängda appar skickar inget. Leverantören kan ta betalt per begäran."
+            "value" : "Det du skriver skickas till %@ med varje förslag, med din persona och en AI-agents session, plus skärm- och urklippskontext och diktering att snygga till när de är på. Lösenordsfält och avstängda appar skickar inget. Leverantören kan ta betalt per begäran."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yazdıklarınız her öneriyle birlikte %@ adresine gider; açıksa ekran ve pano bağlamı ile toparlanacak dikte de gönderilir. Parola alanları ve kapatılan uygulamalar hiçbir şey göndermez. Sağlayıcı istek başına ücret alabilir."
+            "value" : "Yazdıklarınız her öneriyle birlikte personanız ve bir yapay zekâ ajanının oturumuyla %@ adresine gider; açıksa ekran ve pano bağlamı ile toparlanacak dikte de gönderilir. Parola alanları ve kapatılan uygulamalar hiçbir şey göndermez. Sağlayıcı istek başına ücret alabilir."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Текст, який ви набираєте, надсилається на %@ з кожною підказкою, а також контекст екрана й буфера обміну та надиктований текст для «Доводити до ладу моделлю», якщо ці функції ввімкнено. З полів паролів і вимкнених програм нічого не надсилається. Провайдер може стягувати плату за кожен запит."
+            "value" : "Текст, який ви набираєте, надсилається на %@ з кожною підказкою, разом із вашою персоною та сесією ШІ-агента, а також контекст екрана й буфера обміну та надиктований текст для «Доводити до ладу моделлю», якщо ці функції ввімкнено. З полів паролів і вимкнених програм нічого не надсилається. Провайдер може стягувати плату за кожен запит."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每次生成建议时，你输入的内容都会发送到 %@；如果开启了相应功能，屏幕和剪贴板上下文以及需要“用模型整理”的听写内容也会发送。密码栏和已关闭的 App 不会发送任何内容。提供商可能会按请求收费。"
+            "value" : "每次生成建议时，你输入的内容都会连同你的人设和 AI 智能体的会话一起发送到 %@；如果开启了相应功能，屏幕和剪贴板上下文以及需要“用模型整理”的听写内容也会发送。密码栏和已关闭的 App 不会发送任何内容。提供商可能会按请求收费。"
           }
         }
       }
@@ -60709,6 +60706,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已是最新版本。"
+          }
+        }
+      }
+    },
+    "Your API provider got this text, with its instructions." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tento text dostal váš poskytovatel API spolu s pokyny."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Din API-udbyder fik denne tekst sammen med dens instruktioner."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr API-Anbieter hat diesen Text samt Anweisungen erhalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu proveedor de API recibió este texto, junto con sus instrucciones."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre fournisseur d’API a reçu ce texte, avec ses instructions."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il tuo fornitore API ha ricevuto questo testo, con le relative istruzioni."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APIプロバイダは、このテキストを指示とともに受け取りました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 제공업체가 이 텍스트를 지침과 함께 받았습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je API-aanbieder kreeg deze tekst, met de bijbehorende instructies."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twój dostawca API otrzymał ten tekst wraz z instrukcjami."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seu provedor de API recebeu este texto, junto com as instruções."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Furnizorul API a primit acest text, împreună cu instrucțiunile sale."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваш API-провайдер получил этот текст вместе с инструкциями."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Din API-leverantör fick den här texten, med tillhörande instruktioner."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API sağlayıcınız bu metni talimatlarıyla birlikte aldı."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваш API-провайдер отримав цей текст разом з інструкціями."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 API 提供商收到了这段文本及其指令。"
           }
         }
       }

@@ -629,9 +629,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func showLastPrompt() {
         let prompt = suggestionController?.lastPromptDescription ?? String(localized: "No prompt has been sent yet.")
         let result = suggestionController?.lastResultDescription
+        let hosted = Settings.apiText.enabled && !Settings.apiText.isLocal
         showText(prompt + (result.map { "\n\n——— suggestion ———\n\($0)" } ?? ""),
                  title: String(localized: "Last prompt sent to the engine"),
-                 info: String(localized: "Exactly what the model saw. Nothing leaves your Mac."))
+                 info: hosted ? String(localized: "Your API provider got this text, with its instructions.")
+                              : String(localized: "Exactly what the model saw. Nothing leaves your Mac."))
     }
 
     @objc private func showScreenCapture() {
@@ -650,6 +652,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         textView.isEditable = false
         textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         textView.string = text
+        textView.setAccessibilityLabel(title)
         scroll.documentView = textView
         scroll.hasVerticalScroller = true
         alert.accessoryView = scroll

@@ -51,7 +51,8 @@ struct GeneralTab: View {
                     BlacklistRow(entry: entry) { store.removeBlacklistEntry(entry) }
                 }
                 HStack(spacing: 10) {
-                    TextField("", text: $blacklistDraft, prompt: Text("or type part of an app ID, like “slack”"))
+                    TextField("Turned off in these apps", text: $blacklistDraft,
+                              prompt: Text("or type part of an app ID, like “slack”"))
                         .labelsHidden()
                         .textFieldStyle(.roundedBorder)
                         .help("A fragment like “slack” covers Slack everywhere. ⏎ adds it.")
