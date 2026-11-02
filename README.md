@@ -108,7 +108,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 * Hold <kbd>⌥</kbd>, say a sentence, and release the key. For longer text, push <kbd>⌃⌥D</kbd> to start and push it again to stop.
 * The speech models of macOS transcribe on your Mac. Audio does not go to the disk.
 * A tidy-up pass adds the punctuation and the capital letters.
-* Dictation uses the language of your keyboard layout.
+* Dictation uses the language of your keyboard layout. With Parakeet on and the language set to **Automatic**, Parakeet hears the language itself.
 * **Names.** Names and terms in the field, and in the session of an AI agent, come out as they are written there: "mlx" becomes "MLX", "suggestion controller" becomes "SuggestionController". This also operates with Parakeet. Add your own names and terms in **Settings → Dictation → My words**. Dictation always writes them as you wrote them there.
 * **Voice commands.** Select text and dictate an instruction, for example *"make it shorter"* or *"translate to English"*. Enable this in **Settings → Dictation → Advanced**.
 * **Send.** Pretype can push <kbd>Return</kbd> after a dictation, for example in a chat. To enable this for an app, select **Press Return after Dictation** in the menu.

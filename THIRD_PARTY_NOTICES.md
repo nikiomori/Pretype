@@ -64,7 +64,7 @@ first use. Those weights are licensed by their publishers, not by Pretype's MIT 
 | EuroLLM 1.7B (Pretype's post-trained build) | EuroLLM project; build by Pretype | Apache-2.0 — see the [model card](https://huggingface.co/nikimoriOne/EuroLLM-1.7B-Pretype-5bit) |
 | Ternary Bonsai | prism-ml | Apache-2.0 — see the [model card](https://huggingface.co/prism-ml/Ternary-Bonsai-4B-mlx-2bit) |
 | Parakeet Ultra — moondream's post-training of NVIDIA Parakeet TDT 0.6B v3 (opt-in dictation, CoreML conversion by FluidInference) | moondream, NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/moondream/parakeet-ultra) |
-| Parakeet TDT 0.6B v3 (installs that opted in before Ultra, until the background swap) | NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |
+| Parakeet TDT 0.6B v3 (installs that opted in before Ultra, until Ultra replaces it) | NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |
 
 The `mlx-community` conversions of the Gemma 4 instruct builds and drafters tag their cards
 `license: gemma`. Google's own cards for the same models (`google/gemma-4-*`) state Apache-2.0.

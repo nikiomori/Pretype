@@ -112,7 +112,7 @@ The default model depends on the memory of your Mac:
 | 16 GB and more | A Gemma 4 tier, which has the widest language coverage |
 | 8 GB | Qwen3.5 2B, which is the strongest small model outside English |
 
-In **Settings → Model**, set **Accuracy in** to the language that you type. Each figure on that tab then shows the result for that language, with its sample size and tolerance.
+In **Settings → Model**, set **Accuracy in** to the language that you type. Each figure on that tab then shows the result for that language. The tooltip gives the sample size and the tolerance.
 
 Inline typo fixes use the macOS spell checker, in the language that it detects. All dictionaries that macOS has installed operate. English and Russian have the most tests.
 

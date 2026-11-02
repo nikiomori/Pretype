@@ -177,8 +177,8 @@ hides the most important split for the small models. MiniCPM5 ties Gemma E2B
 25, p<0.001).
 
 Each language cell has 280 rows (English 560, Russian 689). That gives
-±5 pp near 20%. The app shows this tolerance next to each figure. Thus a
-two-point gap shows as the tie that it usually is.
+±5 pp near 20%. The app shows this tolerance in the tooltip of the language view. Thus a
+two-point gap reads as the tie that it usually is.
 
 On the Gemma builds, the **Instruct** completion style loads an instruct
 sibling of the same RAM class. Thus no selection loads weights that are too
@@ -336,7 +336,7 @@ without this suffix.
 ### Which speech model
 
 <div align="center">
-<img src="diagram-arch-speech-model.svg" width="560" alt="Speech model selection for the keyboard language. If API dictation is on in Settings → API, use the API provider, for all languages. Else, if SpeechTranscriber supports the language, one of 30 locales, use SpeechTranscriber. Else, if Parakeet is on and the language is one of its 25, use Parakeet. Else, if DictationTranscriber supports it, use DictationTranscriber, which serves Russian and most other languages. Else there is no dictation for this language." />
+<img src="diagram-arch-speech-model.svg" width="560" alt="Speech model selection for the keyboard language. If API dictation is on in Settings → API, use the API provider, for all languages. Else, if Parakeet is on, the language is one of its 25, and the language is Automatic or SpeechTranscriber does not support the language, use Parakeet. Else, if SpeechTranscriber supports the language, one of 30 locales, use SpeechTranscriber. Else, if DictationTranscriber supports it, use DictationTranscriber, which serves Russian and most other languages. Else there is no dictation for this language." />
 </div>
 
 * **SpeechTranscriber.** The newer and better model. It covers exactly 30
@@ -348,7 +348,9 @@ without this suffix.
 * **Parakeet (opt-in).** The model from NVIDIA, through FluidAudio
   (`Parakeet.swift`). It downloads one time into
   `~/Library/Application Support/FluidAudio`. It serves the languages for
-  which Apple has only the older model. Settings shows its switch only when
+  which Apple has only the older model. With the language set to **Automatic**, it also
+  serves the languages of SpeechTranscriber, because it hears the language
+  and Apple's models use the language of the layout. Settings shows its switch only when
   the interface language of Pretype is the dictation language
   (`Parakeet.isOffered`). A switch that is on stays visible.
 * **API provider (opt-in).** A hosted speech model, for all languages
@@ -420,7 +422,7 @@ All app code is in `Sources/Pretype/`:
 | Read the field | `FocusTracker`, `AXText`, `RereadSchedule`, `AgentPrompt`, `ScreenContext`, `AppPolicy` | Follow the focused element with `AXObserver`. Read text, caret and font. Read again 60 ms after a key press when no AX notification gave a read. Find an agent prompt in a terminal. Opt-in OCR. Rules for each app and site. |
 | Input and output | `KeyTap`, `TextInjector`, `SuggestionWindow` (+`Content`, +`Appearance`, +`Layout`), `CaretIndicator`, `BackgroundProbe` | Event tap, accept keys and modifier gestures. Synthetic key events. The panel, inline ghost text and pills. Light or dark below the overlay. |
 | Pipeline | `SuggestionController` (+`Keys`, +`KeyHandling`, +`Focus`, +`Text`, +`Dictation`, +`Environment`), `FieldState`, `RequestGate`, `QuerySlot`, `OfferRecord`, `PromptContext`, `ReplyComposer`, `EngineCoordinator`, `CorrectionController`, `SpellChecker`, `EmojiShortcodes`, `InlineCalculator` | `SuggestionController` is the hub: text → engine → overlay → accept → inject, and dictation inserts. It orders the steps. The rules are in pure types: `FieldState` keeps the ghost, the text cache, the settle time after an injection, the declined suggestion and the ⌘Z record. `RequestGate` decides when a pass over the field asks for a suggestion, and which part of the answer lands. `QuerySlot` keeps the request that is in flight. `OfferRecord` keeps the journal record of the suggestion on the screen. `keyAction` (+`Keys`) is one table that decides each key press: accept, decline, undo, reply, fix or pass the key to the app. `PromptContext` collects OCR, clipboard and personal examples. `ReplyComposer` writes replies through the `ReplyHost` protocol. `EngineCoordinator` controls the life of the engine. `CorrectionController` runs ⌥⇥, last-word fixes and inline spell fixes. |
-| Engines (`Engines/`) | `CompletionEngine`, `MLXEngine`, `MLXEngine+Generation`, `MLXEngine+Loading`, `ModelResidency`, `HostPLE`, `FoundationModelsEngine`, `CloudAPI`, `CompletionGates`, `CorrectionGates`, `ModelCatalog`, `ModelMetrics`, `ModelStorage`, `ConfigProjection` | The protocol. Requests, KV cache and decode loop. Model building and the reload-leak blueprints. Which models are resident: one slot for the primary and one for the fix sibling, loads, idle and memory-pressure unloads, and which slot serves fixes. `MLXEngine.routes` sets the load order: a blueprint, then a Gemma build with its per-layer table served from disk (`HostPLE`), then the library factory. The Apple Intelligence engine. API presets, keys, the HTTP client and `CloudEngine`. Shared output gates. Catalog entries, RAM ladder and recommended settings. Measured figures. Disk, deletes and the slim upgrade. |
+| Engines (`Engines/`) | `CompletionEngine`, `MLXEngine`, `MLXEngine+Generation`, `MLXEngine+Loading`, `ModelResidency`, `HostPLE`, `FoundationModelsEngine`, `CloudAPI`, `CompletionGates`, `CorrectionGates`, `ModelCatalog`, `ModelMetrics`, `ModelStorage`, `ConfigProjection` | The protocol. Requests, KV cache and decode loop. Model building and the reload-leak blueprints. Which models are resident: one slot for the primary and one for the fix sibling, loads, idle and memory-pressure unloads, and which slot serves fixes. `MLXEngine.routes` sets the load order: a blueprint, then a Gemma build with its per-layer table served from disk (`HostPLE`), then the library factory. The Apple Intelligence engine. API presets, keys, the HTTP client and `CloudEngine`. Shared output gates. Catalog entries, RAM ladder and recommended settings. Measured figures. Disk and deletes. |
 | Personalization | `SuggestionJournal`, `PersonalNgram`, `TypedLanguage`, `Stats` | The local journal, the personal n-gram model, the typed language and the usage statistics. |
 | Dictation (`Dictation/`) | `DictationController` (+`Capture`, +`Finish`, +`Display`), `DictationHost`, `AudioCapture`, `AudioDevices`, `VoiceMeter`, `Transcription`, `Parakeet`, `CloudTranscription` | The state machine and its host protocol. Microphone capture, device selection and the voice level. Apple's `SpeechAnalyzer`. The opt-in Parakeet engine. The opt-in API transcription. |
 | Settings UI | `Settings`, `SettingsWindowController`, `SettingsStore`, `SettingsView`, `SettingsSuggestionViews`, `SettingsDictationTab`, `SettingsPersonalTab`, `SettingsUI`, `ModelTabView`, `ModelMapView`, `ImpactRailView`, `APITabView` | Stored defaults. The observable bridge to the pipeline, and its alerts. Tabs. Presets and sharing. The model list and the model map. The Live Impact meters. The API tab. |

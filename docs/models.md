@@ -145,7 +145,7 @@ Since 2026-10-15, MiniCPM5 1B completes text with an 8-bit build. Before, it use
 
 The fix and reply chords of MiniCPM5 now run on the post-trained Qwen3.5 2B build. MiniCPM5's own instruct build fixed 4% of rows, and 34% of its replies were on topic. The Qwen3.5 build fixes 33%, and 35% of its replies are on topic. It is also smaller: 1.1 GB, against 2.2 GB.
 
-If your install has the bf16 build, Pretype downloads the 8-bit build in the background. When the 8-bit build has loaded, Pretype deletes the bf16 build.
+If your install has the bf16 build, Pretype downloads the 8-bit build in the background, and then uses it. Pretype keeps the bf16 build. To free the space, select another model and delete MiniCPM5 in **Settings → Model**. Then download it again.
 
 ### The Gemma tiers use Base style
 
@@ -227,7 +227,7 @@ The chart uses an equal-weight mean over `cs da de es fr it ja ko nl pl pt ro ru
 We measured Arabic and Hebrew later, on their own sets. They are not in the chart.
 Do not compare absolute values *between* languages: zh and ja are character-masked. Thus the mean shows the spread across languages, not the skill in one language.
 Each language cell has 280 held-out rows. English has 560 and Russian has 689. This gives ±5 pp near 20%, and ±3 pp at the size of the Russian cell. A smaller gap is not a result.
-The app shows the same tolerance and sample size next to each figure. You can also select one language as the axis, in place of the average.</sub>
+The tooltip of the language view in the app shows the same tolerance and sample size. You can also select one language as the axis, in place of the average.</sub>
 
 ## Fixing and replying
 
@@ -306,7 +306,7 @@ The outputs are the same as the originals, row for row. The downloads are 13–3
 
 The post-trained Qwen3.5 2B build also has a re-pack ([nikimoriOne/Qwen3.5-2B-4bit-slim](https://huggingface.co/nikimoriOne/Qwen3.5-2B-4bit-slim)). It does not contain the vision encoder. The download is 1.1 GB, against 1.7 GB. The fix and reply outputs are the same, row for row.
 
-If your install downloaded an original build before the re-packs, Pretype continues to use it. To get the re-pack, delete the model in **Settings → Model** and download it again. With a re-pack, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
+If your install downloaded an original build before the re-packs, Pretype continues to use it. To get the re-pack, select another model, delete this model in **Settings → Model**, and download it again. With a re-pack, a reload after an idle pause is about two times faster (E4B 6-bit: 0.8–1.9 s → 0.4–0.5 s).
 
 ### Memory is used only while you type
 
