@@ -327,6 +327,11 @@ enum AXText {
     /// an empty (or placeholder-showing) value.
     static func context(for element: AXUIElement, maxChars: Int = 1200,
                         allowEmpty: Bool = false) -> TextContext? {
+        // Privacy floor: never read text while a password field is active
+        // anywhere (covers web/Electron password inputs the subrole check
+        // misses). Here and in `agentTranscript`, ahead of any of the reads:
+        // a terminal's goes to its rows, not to `fieldContext`.
+        if isSecureInputActive() { return nil }
         // A terminal is text only inside an AI agent's input box — the whole
         // screen otherwise, and the shell's command line is never ours. Read
         // wider there: the box sits under its rule, a full terminal row up.
@@ -354,6 +359,7 @@ enum AXText {
     /// nil outside one. Read on demand, never per keystroke: in an xterm it
     /// is every row of the viewport, two AX reads each.
     static func agentTranscript(for element: AXUIElement) -> String? {
+        if isSecureInputActive() { return nil }
         switch kind(of: element) {
         case .xterm:
             return xtermContext(element, wholeScreen: true).flatMap {
@@ -422,14 +428,9 @@ enum AXText {
 
     private static func fieldContext(for element: AXUIElement, maxChars: Int,
                                      allowEmpty: Bool) -> TextContext? {
-        // Privacy floor: never read field text while a password field is active
-        // anywhere (covers web/Electron password inputs the subrole check misses).
-        if isSecureInputActive() { return nil }
-        // The chokepoint: six call sites route through here, and
+        // The chokepoint: every read of a field routes through here, and
         // `SuggestionController.textDidChange` already turns a nil into a
         // dismiss, so one guard both stops the read and kills a live ghost.
-        // Secure input goes first — while it's on the element may be unreadable
-        // anyway and the extra AX round-trip buys nothing.
         if isComposing(element) { return nil }
         guard let selection = selectedRange(of: element),
               selection.length == 0, selection.location >= 0 else { return nil }

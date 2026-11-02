@@ -528,6 +528,48 @@ final class AXTextReadTests: XCTestCase {
         return helper
     }
 
+    // Secure input stops an xterm's reads too — they reach its rows, not the
+    // field — before one row is asked for, and a terminal app's rule check.
+    func testSecureInputStopsATerminalsReads() throws {
+        let rule = String(repeating: "─", count: 40)
+        let helper = xterm(["$ make", rule, "❯ fix it", rule, ""], cursor: (2, 8))
+        XCTAssertNotNil(context(helper))
+        XCTAssertNotNil(tree.reading { AXText.agentTranscript(for: helper) })
+        let root = try XCTUnwrap(xtermRoot)
+        let fresh = xterm(["$ make", rule, "❯ fix it", rule, ""], cursor: (2, 8))
+        let walked = tree.reads(root, kAXChildrenAttribute)
+        tree.secureInput = true
+        XCTAssertNil(context(fresh))
+        XCTAssertNil(tree.reading { AXText.agentTranscript(for: fresh) })
+        XCTAssertEqual(tree.reads(fresh, kAXPositionAttribute), 0)
+        XCTAssertEqual(tree.reads(root, kAXChildrenAttribute), walked)
+
+        let text = "$ make\n\(rule)\n❯ fix it\n\(rule)\n"
+        let shell = tree.field(text, caret: (text as NSString).length - rule.count - 2)
+        tree.belongs(shell, to: "com.apple.Terminal")
+        XCTAssertNil(context(shell))
+        XCTAssertEqual(tree.reads(shell, kAXNumberOfCharactersAttribute), 0)
+    }
+
+    // The window AX calls focused, read from the app, chooses among those the
+    // screen lists: the smaller one, here.
+    func testTheWindowReadIsAXsFocusedOne() {
+        let pid: pid_t = 77_001
+        let app = AXUIElementCreateApplication(pid), focused = FakeAXTree.newElement()
+        tree.set(app, kAXFocusedWindowAttribute, focused)
+        tree.set(focused, kAXPositionAttribute, CGPoint(x: 200, y: 100))
+        tree.set(focused, kAXSizeAttribute, CGSize(width: 800, height: 600))
+        tree.set(focused, kAXTitleAttribute, "Docs")
+        let windows = [ScreenContext.Window(frame: CGRect(x: 0, y: 25, width: 1600, height: 1000), title: "Inbox"),
+                       ScreenContext.Window(frame: CGRect(x: 200, y: 100, width: 800, height: 600), title: "Docs")]
+        let read = tree.reading { AXText.focusedWindow(of: pid) }
+        XCTAssertEqual(read, windows[1])
+        XCTAssertEqual(ScreenContext.focusedWindow(among: windows, focused: read, caret: nil), 1)
+
+        tree.set(app, kAXFocusedWindowAttribute, nil)
+        XCTAssertNil(tree.reading { AXText.focusedWindow(of: pid) })
+    }
+
     // xterm.js in an editor (VS Code, Cursor): only an agent's input box is
     // text; the box is rebuilt from the rows around the cursor.
     func testAnXtermReadsOnlyAnAgentsBox() throws {
