@@ -52,23 +52,34 @@ enum SpellChecker {
         // is an abbreviation, and a guess only a lookalike ("dept" → "sept").
         // Autocorrect may only finish such a word: anything else replaces a
         // shorthand with a lookalike ("wip" → "rip", "завт" → "зав").
-        let startsRealWords = !(checker.completions(
-            forPartialWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-        ) ?? []).isEmpty
-        let corrected = checker.correction(
-            forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-        )
-        let candidate = startsRealWords
-            ? corrected.flatMap { finishes(word, with: $0) ? $0 : nil }
-            : corrected ?? checker.guesses(
+        let candidate = candidate(
+            for: word,
+            completions: checker.completions(
+                forPartialWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
+            ),
+            corrected: checker.correction(
+                forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
+            ),
+            guess: checker.guesses(
                 forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
             )?.first
+        )
 
         guard let fix = candidate,
               fix.caseInsensitiveCompare(word) != .orderedSame,
               CorrectionGates.isMinimalCorrection(original: word, fixed: fix)
         else { return nil }
         return fix
+    }
+
+    /// The fix for a misspelled `word`. `completions` nil: the spell server
+    /// did not answer (it is starting, or busy), which says nothing about the
+    /// word, so nothing is offered.
+    static func candidate(for word: String, completions: [String]?, corrected: String?,
+                          guess: @autoclosure () -> String?) -> String? {
+        guard let completions else { return nil }
+        guard completions.isEmpty else { return corrected.flatMap { finishes(word, with: $0) ? $0 : nil } }
+        return corrected ?? guess()
     }
 
     /// `fix` only adds letters at the end of `word`, whatever the case.

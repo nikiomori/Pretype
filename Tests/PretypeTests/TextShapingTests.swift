@@ -275,6 +275,7 @@ final class DanishSpellingTests: XCTestCase {
     func testAFinishedPrefixOfRealWords() {
         XCTAssertTrue(waitForDictionary("en", knowing: "where"), "the spell server never loaded English")
         XCTAssertTrue(waitForDictionary("ru", knowing: "завтра"), "the spell server never loaded Russian")
+        XCTAssertTrue(waitForCompletions("en", of: "wher"), "the spell server never loaded English completions")
         XCTAssertEqual(SpellChecker.correction(for: "wher", context: "I wonder wher"), "where")
         XCTAssertEqual(SpellChecker.correction(for: "woul", context: "I think we woul"), "would")
         // AppleSpell's answer for this one varies with its state: "завтра", or
@@ -286,11 +287,15 @@ final class DanishSpellingTests: XCTestCase {
         XCTAssertEqual(SpellChecker.correction(for: "teh", context: "I saw teh"), "the", "no prefix: as before")
     }
 
-    // The spell server loads a dictionary the first time it is asked about a
-    // language, and until it has, calls every word misspelled: a moment here,
-    // seconds on a fresh CI runner. While the server itself is starting its
-    // calls time out, which reads as "spelled", so only a word checked once
-    // completions answer counts.
+    func testASpellServerThatDoesNotAnswerOffersNoFix() {
+        XCTAssertNil(SpellChecker.candidate(for: "dept", completions: nil, corrected: nil, guess: "sept"))
+        XCTAssertNil(SpellChecker.candidate(for: "dept", completions: ["depth"], corrected: nil, guess: "sept"))
+        XCTAssertNil(SpellChecker.candidate(for: "wip", completions: ["wipe"], corrected: "rip", guess: "rip"))
+        XCTAssertEqual(SpellChecker.candidate(for: "wher", completions: ["where"], corrected: "where", guess: nil), "where")
+        XCTAssertEqual(SpellChecker.candidate(for: "teh", completions: [], corrected: "the", guess: nil), "the")
+        XCTAssertEqual(SpellChecker.candidate(for: "сабака", completions: [], corrected: nil, guess: "собака"), "собака")
+    }
+
     func testOnlyAnEndingFinishesAWord() {
         XCTAssertTrue(SpellChecker.finishes("wher", with: "where"))
         XCTAssertTrue(SpellChecker.finishes("Завт", with: "завтра"))
@@ -298,6 +303,24 @@ final class DanishSpellingTests: XCTestCase {
         XCTAssertFalse(SpellChecker.finishes("wip", with: "rip"))
         XCTAssertFalse(SpellChecker.finishes("кароч", with: "каро"))
         XCTAssertFalse(SpellChecker.finishes("same", with: "same"))
+    }
+
+    // The spell server loads a dictionary the first time it is asked about a
+    // language, and until it has, calls every word misspelled: a moment here,
+    // seconds on a fresh CI runner. While the server itself is starting its
+    // calls time out, which reads as "spelled", so only a word checked once
+    // completions answer counts.
+    // Completions load after spelling: on a cold macOS 26 runner they stay
+    // empty, with no error, for many seconds after a word already checks.
+    private func waitForCompletions(_ language: String, of word: String) -> Bool {
+        let range = NSRange(location: 0, length: (word as NSString).length)
+        let deadline = Date(timeIntervalSinceNow: 60)
+        while Date() < deadline {
+            if NSSpellChecker.shared.completions(forPartialWordRange: range, in: word, language: language,
+                                                 inSpellDocumentWithTag: 0)?.isEmpty == false { return true }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        return false
     }
 
     private func waitForDictionary(_ language: String, knowing word: String) -> Bool {
