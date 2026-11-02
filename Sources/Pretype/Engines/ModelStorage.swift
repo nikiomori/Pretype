@@ -140,22 +140,9 @@ enum ModelStorage {
         if let shards = shards(listedIn: root.appendingPathComponent("model.safetensors.index.json")) {
             return shards.allSatisfy(present)
         }
-        // No shard index to go by. Anything that looks like weights — by
-        // extension, or simply by being far too big to be metadata — counts
-        // once its link resolves (a single-file repo mid-download leaves a
-        // dangling snapshot symlink), and an unrecognized layout is read as
-        // ready on purpose: the cost of guessing wrong that way is one stalled
-        // tidy-up during a download, while guessing the other way turns the
-        // feature permanently off.
-        return files.contains { name in
-            if name.hasSuffix(".safetensors") || name.hasSuffix(".npz") || name.hasSuffix(".gguf") {
-                return present(name)
-            }
-            guard name != "config.json", present(name) else { return false }
-            let size = try? root.appendingPathComponent(name)
-                .resourceValues(forKeys: [.fileSizeKey]).fileSize
-            return (size ?? 0) > 20_000_000
-        }
+        // No shard index to go by: a single-file repo, ready once its link
+        // resolves (mid-download it dangles). MLX loads nothing but safetensors.
+        return files.contains { $0.hasSuffix(".safetensors") && present($0) }
     }
 
     /// The shard files a `model.safetensors.index.json` names, or nil without

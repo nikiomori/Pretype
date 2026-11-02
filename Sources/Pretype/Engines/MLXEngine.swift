@@ -500,15 +500,7 @@ final class MLXEngine: CompletionEngine {
             makeTokens: { context in
                 // infill already embeds BEFORE/AFTER in the directive.
                 let userContent = infill ? directiveText : "\(directiveText)\n\nText:\n\(promptText)"
-                let messages: [[String: any Sendable]] = [["role": "user", "content": userContent]]
-                // Hybrid-reasoning templates (MiniCPM5/Qwen3-style) default to a
-                // <think> block that burns the whole token budget; ask for the
-                // no-think branch. Templates without the variable (Gemma) ignore it.
-                let render = {
-                    try context.tokenizer.applyChatTemplate(
-                        messages: messages, tools: nil,
-                        additionalContext: ["enable_thinking": false])
-                }
+                let render = { try Self.chatTokens(userContent, in: context) }
                 // The text is the user turn's tail here, so only it changes per
                 // keystroke — splice it instead of re-rendering the template.
                 return infill
@@ -634,23 +626,26 @@ final class MLXEngine: CompletionEngine {
         defer { residency.end(lease) }
         let container = try await lease.model()
         try Task.checkCancellation()
-        let messages: [[String: any Sendable]] = [["role": "user", "content": content]]
         return try await Self.generate(
             in: container,
-            makeTokens: { context in
-                // Without enable_thinking=false the MiniCPM RL template opens a
-                // think turn and the fix path generates NOTHING (eval-correct
-                // 2026-07-25: 0/510 offered); Gemma templates ignore the key.
-                try context.tokenizer.applyChatTemplate(
-                    messages: messages, tools: nil,
-                    additionalContext: ["enable_thinking": false])
-            },
+            makeTokens: { try Self.chatTokens(content, in: $0) },
             parameters: GenerateParameters(maxTokens: maxTokens, temperature: 0.0),
             promptCache: nil,
             drafter: lease.drafter,
             lookup: copiesInput,
             logRaw: logRaw
         )
+    }
+
+    /// One user turn through the model's chat template, on its no-think branch:
+    /// hybrid-reasoning templates (MiniCPM5/Qwen3-style) default to a <think>
+    /// block that burns the whole token budget — the fix path generated NOTHING
+    /// without this (eval-correct 2026-07-25: 0/510 offered). Templates without
+    /// the variable (Gemma) ignore it.
+    private static func chatTokens(_ content: String, in context: ModelContext) throws -> [Int] {
+        try context.tokenizer.applyChatTemplate(
+            messages: [["role": "user", "content": content]], tools: nil,
+            additionalContext: ["enable_thinking": false])
     }
 
     /// FIM emulation is only reliable on E4B-class instruct models; on the smaller

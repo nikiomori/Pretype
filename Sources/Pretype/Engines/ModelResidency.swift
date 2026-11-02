@@ -225,22 +225,16 @@ final class ModelResidency {
     /// `isLoading`, under `modelLock`.
     private var loading: Bool { isLoading(primary) || isLoading(sibling) }
 
-    /// `slot`'s own load is running, under `modelLock`.
+    /// `slot`'s own load is running, under `modelLock`. The primary:
+    /// `.preparing` with a live task = loading or downloading; with no task =
+    /// the idle-unloaded resting state, where nothing runs and nothing writes
+    /// — the protocol's default (any `.preparing` is busy) would report the
+    /// app's most common state as busy forever. A finished fix model doesn't
+    /// count: its task outlives its load.
     private func isLoading(_ slot: Slot) -> Bool {
-        slot === primary
-            ? Self.isLoading(primary: stateBox.get(), primaryTaskLive: primary.task != nil, correctionStatus: nil)
-            : correctionStatus.get() != nil
-    }
-
-    /// `.preparing` with a live task = loading or downloading; `.preparing`
-    /// with no task = the idle-unloaded resting state, where nothing runs and
-    /// nothing writes — the protocol's default (any `.preparing` is busy)
-    /// would report the app's most common state as busy forever. A finished
-    /// fix model doesn't count: its task outlives its load.
-    static func isLoading(primary: EngineState, primaryTaskLive: Bool, correctionStatus: String?) -> Bool {
-        if correctionStatus != nil { return true }
-        guard case .preparing = primary else { return false }
-        return primaryTaskLive
+        guard slot === primary else { return correctionStatus.get() != nil }
+        guard case .preparing = stateBox.get() else { return false }
+        return primary.task != nil
     }
 
     /// The completion model is resident or on its way — a context refresh

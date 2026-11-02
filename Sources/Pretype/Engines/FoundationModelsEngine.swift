@@ -13,24 +13,10 @@ final class FoundationModelsEngine: CompletionEngine {
     private let lengthBox = LockedValue<CompletionLength>(.medium)
     private let instructionsBox = LockedValue<String>("")
 
-    /// Greedy, the decoder every booked Apple Intelligence number was measured
-    /// with (`ModelMetrics`, the kana/han/hangul silence). Apple's default
-    /// sampler picked a less likely word some of the time — worse for
-    /// predicting what the user types next, and no figure described it.
-    static let greedy = LockedValue<Bool>(true)
-
     var statusLine: String? {
         switch state {
         case .ready: return String(localized: "Apple Intelligence: ready (system model)")
         case .preparing(let detail), .failed(let detail): return "Apple Intelligence: \(detail)"
-        }
-    }
-
-    /// Fix and reply are explicit requests: an unavailable model is said so
-    /// (the status line carries why), never answered with "nothing to fix".
-    private func requireReady() throws {
-        guard case .ready = state else {
-            throw EngineNotReady(message: String(localized: "Apple Intelligence isn't available — see the menu"))
         }
     }
 
@@ -75,7 +61,8 @@ final class FoundationModelsEngine: CompletionEngine {
         // 2026-10-16: 3 and 6 at once all answered.
         let session = LanguageModelSession(instructions: turn.system)
         do {
-            let response = try await session.respond(to: turn.user, options: generationOptions(for: request))
+            let maxTokens = Self.tokenBudget(for: request, length: lengthBox.get())
+            let response = try await session.respond(to: turn.user, options: Self.greedyOptions(maxTokens: maxTokens))
             try Task.checkCancellation()
             // The model answers flush and sometimes quoted, like any instruct model.
             return prepared.gate(cleanInstruct: true)(response.content)
@@ -97,15 +84,11 @@ final class FoundationModelsEngine: CompletionEngine {
         min(length.maxTokens, request.chatCap?.tokens ?? length.maxTokens) + 8
     }
 
-    /// Decoding options: greedy (`greedy`), else Apple's default sampler.
-    private func generationOptions(for request: CompletionRequest) -> GenerationOptions {
-        let maxTokens = Self.tokenBudget(for: request, length: lengthBox.get())
-        return Self.greedy.get()
-            ? Self.greedyOptions(maxTokens: maxTokens)
-            : GenerationOptions(maximumResponseTokens: maxTokens)
-    }
-
-    /// Greedy decoding in both SDKs' spelling: Xcode 26 (CI) has only
+    /// Greedy, the decoder every booked Apple Intelligence number was measured
+    /// with (`ModelMetrics`, the kana/han/hangul silence). Apple's default
+    /// sampler picked a less likely word some of the time — worse for
+    /// predicting what the user types next, and no figure described it.
+    /// In both SDKs' spelling: Xcode 26 (CI) has only
     /// `sampling:`, Xcode 27 renamed it `samplingMode:` and deprecated the old.
     private static func greedyOptions(maxTokens: Int) -> GenerationOptions {
         #if compiler(>=6.4)
@@ -124,25 +107,26 @@ final class FoundationModelsEngine: CompletionEngine {
     var usesClipboard: Bool { false }
 
     func correct(selection: String, redactLog: Bool) async throws -> String? {
-        try requireReady()
-        return try await CorrectionGates.fix(selection, logTag: "FM") {
-            try await Self.respond(to: $0, maxTokens: $1, label: "fix")
-        }
+        try await CorrectionGates.fix(selection, logTag: "FM", generate: try chat("fix"))
     }
 
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {
-        try requireReady()
-        return try await CorrectionGates.reply(to: conversation, request: request,
-                                               instructions: instructionsBox.get()) {
-            try await Self.respond(to: $0, maxTokens: $1, label: "reply")
-        }
+        try await CorrectionGates.reply(to: conversation, request: request,
+                                        instructions: instructionsBox.get(), generate: try chat("reply"))
     }
 
     func rewrite(selection: String, instruction: String) async throws -> String? {
-        try requireReady()
-        return try await CorrectionGates.rewrite(selection, instruction: instruction) {
-            try await Self.respond(to: $0, maxTokens: $1, label: "voice command")
+        try await CorrectionGates.rewrite(selection, instruction: instruction, generate: try chat("voice command"))
+    }
+
+    /// One turn for fix, reply and voice commands. These are explicit requests:
+    /// an unavailable model is said so (the status line carries why), never
+    /// answered with "nothing to fix".
+    private func chat(_ label: String) throws -> CorrectionGates.Generate {
+        guard case .ready = state else {
+            throw EngineNotReady(message: String(localized: "Apple Intelligence isn't available — see the menu"))
         }
+        return { try await Self.respond(to: $0, maxTokens: $1, label: label) }
     }
 
     /// One greedy turn in a fresh session, for fix, reply and voice commands —

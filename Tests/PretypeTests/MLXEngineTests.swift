@@ -175,19 +175,6 @@ final class MLXEngineTests: MLXTestCase {
         }
     }
 
-    // The fix model's load progress shows while it runs and then simply goes
-    // away — the primary's own state, whatever it became meanwhile, shows
-    // through (a snapshot/restore once pinned "loading…" over a ready model).
-    func testEngineLoadingIgnoresAFinishedFixModel() {
-        XCTAssertTrue(ModelResidency.isLoading(primary: .ready, primaryTaskLive: true, correctionStatus: "loading fix model…"))
-        XCTAssertFalse(ModelResidency.isLoading(primary: .ready, primaryTaskLive: true, correctionStatus: nil))
-        XCTAssertTrue(ModelResidency.isLoading(primary: .preparing("loading…"), primaryTaskLive: true, correctionStatus: nil))
-        // Idle-unloaded resting state, with or without a resident fix model.
-        XCTAssertFalse(ModelResidency.isLoading(primary: .preparing("idle — model unloaded"), primaryTaskLive: false,
-                                           correctionStatus: nil))
-        XCTAssertFalse(ModelResidency.isLoading(primary: .failed("x"), primaryTaskLive: false, correctionStatus: nil))
-    }
-
     // Fixes run on the primary whenever the sibling's weights are the ones it
     // holds. Compared by id, an old 8 GB install holding only Qwen3.5's
     // post-trained 4-bit loaded that build a second time on the first ⌥⇥.

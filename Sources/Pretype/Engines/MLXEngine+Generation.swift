@@ -451,7 +451,7 @@ extension MLXEngine {
             self.decode = decode
         }
 
-        func prompt(_ prompt: MLXArray) { inner?.prompt(prompt) }
+        func prompt(_ prompt: MLXArray) {}
 
         func process(logits: MLXArray) -> MLXArray {
             let processed = inner?.process(logits: logits) ?? logits
@@ -532,14 +532,13 @@ extension MLXEngine {
         /// See `MLXEngine.warmPrompt`.
         prefillOnly: Bool = false,
         /// A Gemma 4 MTP drafter: decode speculatively (`MTPSpeculativeTokenIterator`,
-        /// greedy-verified by the target) instead of token by token. Used only
-        /// when nothing needs per-token logits — no healing and no logprob
-        /// gate; the confidence trim and the first-word logprob
-        /// are skipped on this path (the iterator exposes no per-token logits).
+        /// greedy-verified by the target) instead of token by token. The fix
+        /// and reply path only: no prompt cache, nothing that reads per-token
+        /// logits (the iterator exposes none).
         drafter: (any MTPDrafterModel)? = nil,
         /// Copy-heavy output (fix, tidy-up): draft from the prompt
-        /// itself (`PromptLookupIterator`) instead of the drafter.
-        /// Processor-free generations only; anything else decodes as usual.
+        /// itself (`PromptLookupIterator`) instead of the drafter. The same
+        /// path, with the same limits.
         lookup: Bool = false,
         /// False when the generated text is not ours to print: the dictation
         /// tidy-up pass hands this path a SPOKEN sentence, and the debug buffer
@@ -663,7 +662,6 @@ extension MLXEngine {
                     inner: processor, expected: healExpected, eosID: eosIDs.first,
                     decode: { context.tokenizer.decode(tokenIds: $0, skipSpecialTokens: true) })
             }
-            processor?.prompt(MLXArray(fullTokens.map { Int32($0) }))
             let sampler = parameters.sampler()
 
             /// One forward + sample, enqueued on the GPU together with the
@@ -691,22 +689,20 @@ extension MLXEngine {
             var copier: PromptLookupIterator?
             // A recurrent layer (Qwen3.5) can't rewind a rejected draft; there
             // the unpipelined rounds would only be slower than plain decoding.
-            if lookup, processor == nil, cache.allSatisfy(\.isTrimmable) {
+            if lookup, cache.allSatisfy(\.isTrimmable) {
                 copier = PromptLookupIterator(
                     input: Array(fullTokens[splitAt...]), prompt: fullTokens, model: context.model,
                     cache: cache, maxTokens: maxTokens)
-            } else if let drafter, healExpected == nil, gateLogProb == nil {
+            } else if let drafter {
                 mtp = try MTPSpeculativeTokenIterator(
                     input: LMInput(tokens: firstInput), mainModel: context.model, drafter: drafter,
                     mainCache: cache, parameters: parameters, blockSize: mtpBlock)
-                recorder = nil
             }
             let speculative = mtp != nil || copier != nil
             var current: MLXArray? = speculative ? nil : step(firstInput)
             let decodeStart = Date()
             var generated: [Int] = []       // sampled tokens, in order
             var cachedGenerated = 0         // of those, how many the cache holds
-            var liveMatchesPrompt = true    // false: speculative trim fell short
             var textTokens: [Int] = []
             var perToken: [Float] = []
             var perEntropy: [Float] = []
@@ -778,18 +774,6 @@ extension MLXEngine {
                 }
             }
             if longForm, budgetStop { text = droppingCutWord(text) }
-            if speculative {
-                // The speculative iterator leaves the cache holding the prompt
-                // plus whatever it committed; bring it back to the prompt so the
-                // live state below describes exactly `fullTokens`.
-                let held = cache.first?.offset ?? n
-                if held > n, canTrimPromptCache(cache) {
-                    // A short trim leaves the cache longer than `fullTokens` (from
-                    // mlx-swift-lm #622 it trims nothing if any layer can't rewind).
-                    liveMatchesPrompt = trimPromptCache(cache, numTokens: held - n) == held - n
-                }
-                cachedGenerated = 0
-            }
             let decodeSeconds = Date().timeIntervalSince(decodeStart)
             let prefillSeconds = decodeStart.timeIntervalSince(prefillStart)
 
@@ -825,7 +809,7 @@ extension MLXEngine {
             if let pc = promptCache {
                 // The cache now holds the prompt + every sampled token that was
                 // fed back in. Keep it only if it can trim back next time.
-                let live = liveMatchesPrompt && canTrimPromptCache(cache)
+                let live = canTrimPromptCache(cache)
                     ? PromptCache.Snapshot(tokens: fullTokens + generated.prefix(cachedGenerated), cache: cache)
                     : nil
                 pc.store(forFullTokens: fullTokens, live: live, checkpoint: checkpoint)
