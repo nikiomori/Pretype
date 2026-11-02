@@ -3,8 +3,8 @@
 # Accessibility permission to the app itself (not your terminal).
 #
 # NOTE: the build goes through xcodebuild (Release, .build/xcode), the path
-# every shipped bundle has taken. `swift build` compiles MLX's Metal shaders
-# too, so Scripts/dev.sh uses it for the inner loop.
+# every shipped bundle has taken. `swift build --build-system swiftbuild`
+# compiles MLX's Metal shaders too, so Scripts/dev.sh uses it for the inner loop.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

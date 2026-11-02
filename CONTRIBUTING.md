@@ -47,9 +47,9 @@ To build and run the app:
 
 For a fast inner loop:
 
-* Run `./Scripts/dev.sh`. This script runs `swift build`, puts the per-app styles and the translations next to the binary, and starts it.
+* Run `./Scripts/dev.sh`. This script runs `swift build --build-system swiftbuild`, puts the per-app styles and the translations next to the binary, and starts it.
 
-`swift build` also compiles the Metal shaders of MLX. For this, Xcode needs the Metal Toolchain component (`xcodebuild -downloadComponent MetalToolchain`). If the shaders are missing, Pretype disables the MLX engine. It does not crash.
+With `--build-system swiftbuild`, the build also compiles the Metal shaders of MLX. Do not remove this flag: on Xcode 26, the default build system compiles no shaders. For this, Xcode needs the Metal Toolchain component (`xcodebuild -downloadComponent MetalToolchain`). If the shaders are missing, Pretype disables the MLX engine. It does not crash.
 
 > **Permissions.** Pretype needs these permissions:
 >
@@ -133,14 +133,14 @@ The interface is in 18 languages: English (the source) and cs, da, de, es, fr, i
 
 ```mermaid
 flowchart LR
-    B["swift build --build-tests"] --> T["swift test"] --> L["swiftlint --strict"]
+    B["swift build --build-system swiftbuild --build-tests"] --> T["swift test --build-system swiftbuild"] --> L["swiftlint --strict"]
     L --> R["Test in a real text field<br/>(TextEdit, Notes)"] --> PR["Open the pull request"]
     PR --> Q{"Prompt, model,<br/>or gate change?"}
     Q -- yes --> E["A maintainer runs the eval<br/>and posts the numbers"] --> V["Review"]
     Q -- no --> V
 ```
 
-- [ ] `swift build --build-tests` and `swift test` pass, and `swiftlint --strict` shows no problems. If you changed text that the user sees, you ran `Scripts/sync-strings.py`. CI runs all of these checks. The strings check fails only on translations you could not write: say so in the pull request (see *Translations*).
+- [ ] `swift build --build-system swiftbuild --build-tests` and `swift test --build-system swiftbuild` pass. Without the flag, the six MLX test suites can skip on Xcode 26. Also, `swiftlint --strict` shows no problems. If you changed text that the user sees, you ran `Scripts/sync-strings.py`. CI runs all of these checks. The strings check fails only on translations you could not write: say so in the pull request (see *Translations*).
 - [ ] The app starts, and the change operates in a real text field. TextEdit and Notes have the best Accessibility support.
 - [ ] For prompt, model, or gate changes: you asked for eval numbers. A maintainer runs the harness. See *Quality eval* above.
 - [ ] The diff contains only the change. Comments explain the decisions that are not obvious.

@@ -27,6 +27,8 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
    git switch main
    ```
 
+   CI builds with Xcode 26.6 (`XCODE_VERSION` in `ci.yml`). The release builds with the Xcode of the maintainer's Mac. If this Xcode has a different major version, do a smoke test of the zip before you publish it.
+
    The scripts stop before the build in these conditions:
    * `PRETYPE_VERSION` is not set. `dist.sh` signs only an app that it builds from the tag. It never signs an existing `build/Pretype.app`.
    * The working tree has a change or an untracked file.

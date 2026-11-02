@@ -9,8 +9,8 @@
 
 ## Testing
 
-- [ ] `swift build --build-tests` succeeds
-- [ ] `swift test` passes
+- [ ] `swift build --build-system swiftbuild --build-tests` succeeds
+- [ ] `swift test --build-system swiftbuild` passes
 - [ ] `swiftlint --strict` shows no problems
 - [ ] If you changed text that the user sees: I ran `Scripts/sync-strings.py` (if I could not translate, I say so under Notes; the strings check then fails until the maintainer translates)
 - [ ] Tested in a real text field (TextEdit / Notes)
