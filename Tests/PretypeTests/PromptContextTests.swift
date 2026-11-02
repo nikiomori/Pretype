@@ -219,6 +219,37 @@ final class PromptContextTests: XCTestCase {
         XCTAssertNil(AgentPrompt.completion(of: "see SuggestionController", names: names))
     }
 
+    // The window read is the focused one, never the largest, and never a
+    // guess: AX's by frame, by title too on a shared frame, else the one
+    // holding the caret.
+    func testTheFocusedWindowIsRead() {
+        typealias Window = ScreenContext.Window
+        let large = Window(frame: CGRect(x: 0, y: 25, width: 1600, height: 1000), title: "Inbox")
+        let small = Window(frame: CGRect(x: 200, y: 100, width: 800, height: 600), title: "Docs")
+        func pick(_ windows: [Window], _ focused: Window?, caret: CGRect? = nil) -> Int? {
+            ScreenContext.focusedWindow(among: windows, focused: focused, caret: caret)
+        }
+        XCTAssertEqual(pick([large, small], small), 1, "not the largest")
+        XCTAssertEqual(pick([large, small], Window(frame: small.frame.offsetBy(dx: 1, dy: -1), title: nil)), 1, "rounding")
+        XCTAssertNil(pick([large], small), "the focused window is on another Space: nothing else stands in")
+        XCTAssertNil(pick([], small))
+        XCTAssertNil(pick([large, small], Window(frame: CGRect(x: 300, y: 200, width: 400, height: 300), title: nil),
+                          caret: CGRect(x: 310, y: 210, width: 1, height: 16)),
+                     "AX names a window not listed: the one under its caret is not it")
+
+        let twin = Window(frame: large.frame, title: "Docs")
+        XCTAssertEqual(pick([large, twin], Window(frame: large.frame, title: "Docs")), 1, "two maximized windows")
+        XCTAssertNil(pick([large, twin], Window(frame: large.frame, title: "Mail")))
+        XCTAssertNil(pick([large, large], large), "nothing tells them apart")
+        XCTAssertEqual(pick([Window(frame: large.frame, title: nil)], large), 0, "the frame alone settles one")
+
+        let caret = CGRect(x: 1500, y: 900, width: 1, height: 16)
+        XCTAssertEqual(pick([large, small], nil, caret: caret), 0, "AX has no answer")
+        XCTAssertNil(pick([large, small], nil, caret: CGRect(x: 300, y: 200, width: 1, height: 16)), "both hold it")
+        XCTAssertNil(pick([small], nil, caret: caret), "the caret is in no window listed")
+        XCTAssertNil(pick([large, small], nil), "nothing to go on")
+    }
+
     // Base-path RAG: accepted phrases form a separate label-free preamble block
     // the engine prepends to the GENERATION prompt only — completionPrompt
     // (what the context floor, the gates and the n-gram context reason about)

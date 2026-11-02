@@ -290,6 +290,8 @@ final class FakeWorld {
     /// What OCR reads off the window, and the captures asked for (their caps).
     var screen: String?
     private(set) var captures: [Int] = []
+    /// The chat column each capture was told to keep to.
+    private(set) var captureColumns: [CGRect?] = []
     /// How long a liveness probe takes: an app that answers slowly is one
     /// whose reads are timing out.
     var probeTakes: TimeInterval = 0
@@ -375,8 +377,9 @@ final class FakeWorld {
             screenRecordingAllowed: { [unowned self] in screenRecording },
             // Weak: a reply task cancelled at teardown still captures first.
             networkUnmetered: { [unowned self] in networkUnmetered },
-            captureScreen: { [weak self] _, _, _, _, maxChars in
+            captureScreen: { [weak self] _, _, _, field, maxChars in
                 self?.captures.append(maxChars)
+                self?.captureColumns.append(field)
                 return self?.screen
             },
             book: { [weak self] in self?.bookings.append($0) },

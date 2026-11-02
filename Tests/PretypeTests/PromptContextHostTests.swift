@@ -123,6 +123,7 @@ final class PromptContextHostTests: XCTestCase {
     // outside a chat, the 25 s stand.
     func testAChatReadsTheScreenAtAMessagesFirstLetter() async {
         host.typingContext = TypingContext(bundleID: "ru.keepcoder.Telegram")
+        host.lastFieldRect = CGRect(x: 400, y: 40, width: 800, height: 30)
         context.refreshScreenIfNeeded(typed: "Hi")
         await waitUntil { !context.screenCaptureInFlight }
         world.now += 3.5
@@ -148,6 +149,42 @@ final class PromptContextHostTests: XCTestCase {
         host.lastFieldRect = CGRect(x: 400, y: 40, width: 800, height: 30)
         host.typingContext = TypingContext(bundleID: "com.apple.Notes")
         XCTAssertNil(context.chatField)
+    }
+
+    // The rest of a chat's window is other chats: with no column, no capture.
+    // The next read names it. Outside a chat there is no column to wait for.
+    func testAChatWithNoColumnIsNotRead() async {
+        host.typingContext = TypingContext(bundleID: "ru.keepcoder.Telegram")
+        context.refreshScreenIfNeeded(typed: "")
+        XCTAssertFalse(context.screenCaptureInFlight)
+        XCTAssertTrue(world.captures.isEmpty)
+
+        host.lastFieldRect = CGRect(x: 400, y: 40, width: 800, height: 30)
+        context.refreshScreenIfNeeded(typed: "")
+        await waitUntil { !context.screenCaptureInFlight }
+        XCTAssertEqual(world.captureColumns, [host.lastFieldRect])
+    }
+
+    // Nothing else consumes them: in Words, or with suggestions off, no OCR,
+    // no retrieval and no prefill. The clipboard block is not re-read either.
+    func testOnlyACompletionThatAsksTheModelSpendsAnything() async {
+        for change in [{ Settings.suggestionMode = .words },
+                       { Settings.suggestionMode = .sentences; Settings.suggestionsEnabled = false }] {
+            change()
+            context.refreshScreenIfNeeded(typed: "see you at noon")
+            XCTAssertFalse(context.screenCaptureInFlight)
+            context.refreshExamplesIfNeeded(typed: "see you at noon")
+            context.warm("Hi")
+            Settings.clipboardContextEnabled = true
+            context.warmIfClipboardChanges()
+            copy("lunch?")
+            world.advance(0.2)
+            for _ in 0..<5 { await Task.yield() }
+            XCTAssertTrue(world.captures.isEmpty)
+            XCTAssertEqual(world.phraseLookups, 0)
+            XCTAssertTrue(world.engine.warmed.isEmpty)
+            XCTAssertEqual(world.reads, 0)
+        }
     }
 
     // The first capture after a focus change reads nothing: one more look

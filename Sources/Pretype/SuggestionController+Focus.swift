@@ -67,8 +67,9 @@ extension SuggestionController {
                 // one, a field just entered is not read at all.
                 guard Settings.completionsAskModel else { return }
                 // Read first: the capture needs the field's place on screen,
-                // and leaves out the text already in it.
-                let context = self.currentTextElement().flatMap { self.env.context(of: $0) }
+                // and leaves out the text already in it. An empty web box
+                // reads too: it is the case that names a chat's column.
+                let context = self.currentTextElement().flatMap { self.env.context(of: $0, allowEmpty: true) }
                 if let context { self.field.noteCaret(context.caretRect, style: context.host) }
                 self.promptContext.refreshScreenIfNeeded(typed: context?.textBeforeCaret ?? "")
                 // No capture coming (context off, no permission, blocked app):

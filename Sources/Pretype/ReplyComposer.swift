@@ -130,6 +130,10 @@ final class ReplyComposer {
             indicator.flashTransient(.hint(why), hideAfter: 3.5)
             return false
         }
+        // The rest of a chat's window is other chats.
+        guard session != nil || !prompts.chatColumnUnknown else {
+            return stop("no message column", notice: String(localized: "nothing to reply to"))
+        }
         var request = prompts.makeRequest(text: ctx.textBeforeCaret, after: ctx.textAfterCaret)
         request.agentSession = session != nil
         let engine = host.engine

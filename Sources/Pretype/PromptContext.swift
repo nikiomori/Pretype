@@ -177,6 +177,9 @@ final class PromptContext {
         return field
     }
 
+    /// A chat with no column to keep to: its window is not read at all.
+    var chatColumnUnknown: Bool { AppPolicy.isChat(host.typingContext) && chatField == nil }
+
     /// Surfaced in the Context submenu.
     var screenStatus: String {
         guard Settings.screenContextEnabled else { return "off" }
@@ -198,8 +201,9 @@ final class PromptContext {
     /// that a message went out or came in, or that the chat changed.
     func refreshScreenIfNeeded(typed: String, retrying: Bool = false) {
         let typingContext = host.typingContext
-        guard Settings.enabled, Settings.screenContextEnabled, env.screenRecordingAllowed(),
-              !env.pausedForBattery(), AppPolicy.allowsScreenContext(typingContext) else { return }
+        guard Settings.enabled, Settings.completionsAskModel, Settings.screenContextEnabled,
+              env.screenRecordingAllowed(), !env.pausedForBattery(),
+              AppPolicy.allowsScreenContext(typingContext), !chatColumnUnknown else { return }
         let holds: TimeInterval = typed.count == 1 && AppPolicy.isChat(typingContext) ? 3 : 25
         guard !screenCaptureInFlight,
               retrying || env.now().timeIntervalSince(screenCapturedAt) > holds,

@@ -77,7 +77,37 @@ enum ScreenContext {
 
     @MainActor private(set) static var lastReport: Report?
 
-    /// OCR summary of `pid`'s frontmost window in reading order, deduplicated
+    /// An app's window as ScreenCaptureKit and AX both describe it. `frame`
+    /// is in top-left-origin screen points.
+    struct Window: Equatable, Sendable {
+        let frame: CGRect
+        var title: String?
+    }
+
+    /// Which of `windows` is the app's focused one: the one AX calls focused,
+    /// by frame, by title as well when two sit on the same frame (two
+    /// maximized browser windows). With no answer from AX, the one window
+    /// holding `caret`. nil when that is not exactly one: another window's
+    /// text must never reach the prompt, so a doubt reads nothing.
+    static func focusedWindow(among windows: [Window], focused: Window?, caret: CGRect?) -> Int? {
+        let hits: [Int]
+        if let focused {
+            let framed = windows.indices.filter {
+                let frame = windows[$0].frame
+                return frame.insetBy(dx: -2, dy: -2).contains(focused.frame)
+                    && focused.frame.insetBy(dx: -2, dy: -2).contains(frame)
+            }
+            let titled = framed.filter { windows[$0].title == focused.title }
+            hits = titled.isEmpty ? framed : titled
+        } else if let caret {
+            hits = windows.indices.filter { windows[$0].frame.contains(CGPoint(x: caret.midX, y: caret.midY)) }
+        } else {
+            hits = []
+        }
+        return hits.count == 1 ? hits[0] : nil
+    }
+
+    /// OCR summary of `pid`'s focused window in reading order, deduplicated
     /// against the already-typed text, capped at `maxChars` (keeping the
     /// bottom of the window — in chats that's where the recent messages are).
     /// `field`: a chat's message box, Cocoa coordinates. Then only its column
@@ -98,15 +128,16 @@ enum ScreenContext {
             let content = try await SCShareableContent.excludingDesktopWindows(
                 true, onScreenWindowsOnly: true
             )
-            guard let window = content.windows
-                .filter({
-                    $0.owningApplication?.processID == pid
-                        && $0.isOnScreen
-                        && $0.windowLayer == 0
-                        && $0.frame.width > 200 && $0.frame.height > 150
-                })
-                .max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
-            else { return nil }
+            let windows = content.windows.filter {
+                $0.owningApplication?.processID == pid
+                    && $0.isOnScreen
+                    && $0.windowLayer == 0
+                    && $0.frame.width > 200 && $0.frame.height > 150
+            }
+            guard let index = focusedWindow(among: windows.map { Window(frame: $0.frame, title: $0.title) },
+                                            focused: AXText.focusedWindow(of: pid),
+                                            caret: (caretRect ?? field).map(AXText.flipped)) else { return nil }
+            let window = windows[index]
 
             let config = SCStreamConfiguration()
             config.width = Int(window.frame.width)

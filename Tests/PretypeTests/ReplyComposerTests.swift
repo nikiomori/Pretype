@@ -127,6 +127,22 @@ final class ReplyComposerTests: XCTestCase {
         XCTAssertEqual(host.offered.map(\.on), ["Ok "])
     }
 
+    // A chat's window is other chats: a reply reads its column, and with no
+    // box to give one, it reads nothing and says so.
+    func testAChatWithNoColumnIsNotRead() async {
+        host.typingContext = TypingContext(appName: "Slack", bundleID: "com.tinyspeck.slackmacgap")
+        world.screen = "Alice: lunch?"
+        world.engine.reply = "sure, noon"
+        XCTAssertFalse(replies.compose())
+        XCTAssertEqual(world.window.currentMode, .hint("nothing to reply to"))
+        XCTAssertTrue(world.captures.isEmpty)
+
+        host.lastFieldRect = CGRect(x: 400, y: 40, width: 800, height: 30)
+        XCTAssertTrue(replies.compose())
+        await host.task?.value
+        XCTAssertEqual(world.captureColumns, [host.lastFieldRect])
+    }
+
     // An AI agent's box answers the session on the terminal itself: no
     // screen context, no Screen Recording, no capture.
     func testAnAgentsBoxRepliesToItsSessionWithoutTheScreen() async {

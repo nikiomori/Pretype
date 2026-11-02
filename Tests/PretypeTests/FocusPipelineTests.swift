@@ -155,6 +155,7 @@ final class FocusPipelineTests: PipelineTestCase {
         set(\.autoReply, true)
         set(\.screenContextEnabled, true)
         fake.before = ""
+        fake.host.fieldRect = chatBox
         await enterApp("com.tinyspeck.slackmacgap")
         fake.advance(0.8)
         XCTAssertTrue(controller.queries.isReply)
@@ -167,6 +168,7 @@ final class FocusPipelineTests: PipelineTestCase {
         set(\.autoReply, true)
         set(\.screenContextEnabled, true)
         fake.before = "Hi "
+        fake.host.fieldRect = chatBox
         await enterApp("com.tinyspeck.slackmacgap")
         fake.advance(0.8)
         await settleMain()
@@ -182,6 +184,32 @@ final class FocusPipelineTests: PipelineTestCase {
         await enterApp("com.tinyspeck.slackmacgap")
         fake.advance(0.8)
         XCTAssertFalse(controller.queries.isReply)
+    }
+
+    // An empty web chat box reads nil unless asked to read empty: its first
+    // read must still name the column, or the capture takes the whole window
+    // with the other chats in it.
+    func testAnEmptyWebChatBoxStillGetsItsColumn() async {
+        set(\.screenContextEnabled, true)
+        fake.emptyReadsNil = true
+        fake.before = ""
+        fake.host.fieldRect = chatBox
+        await enterApp("com.tinyspeck.slackmacgap")
+        fake.advance(0.8)
+        await settleMain()
+        XCTAssertEqual(fake.captureColumns, [chatBox])
+    }
+
+    // A chat whose box can't be read at all: no capture, and no prefill for a
+    // read that never came.
+    func testAChatThatReadsNothingIsNotCaptured() async {
+        set(\.screenContextEnabled, true)
+        fake.readable = false
+        await enterApp("com.tinyspeck.slackmacgap")
+        fake.advance(0.8)
+        await settleMain()
+        XCTAssertTrue(fake.captures.isEmpty)
+        XCTAssertTrue(fake.engine.warmed.isEmpty)
     }
 
     // Everything off: a field entered is not read, the window is not captured,

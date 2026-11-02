@@ -833,6 +833,14 @@ enum AXText {
         return r
     }
 
+    /// The window of app `pid` that AX calls focused.
+    static func focusedWindow(of pid: pid_t) -> ScreenContext.Window? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, FocusTracker.axMessagingTimeout)
+        guard let window = element(app, kAXFocusedWindowAttribute), let frame = elementFrame(window) else { return nil }
+        return ScreenContext.Window(frame: frame, title: attribute(window, kAXTitleAttribute))
+    }
+
     private static func elementFrame(_ element: AXUIElement) -> CGRect? {
         guard let position = axValue(attribute(element, kAXPositionAttribute), .cgPoint, CGPoint.zero),
               let size = axValue(attribute(element, kAXSizeAttribute), .cgSize, CGSize.zero) else { return nil }
