@@ -213,16 +213,26 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// hadn't. The header is the one item with a designed width, so it stays the
     /// only one that sets it; anything longer is truncated here and the full
     /// sentence goes on the item's tooltip.
-    private func fitting(_ title: String) -> String {
-        let font = NSFont.menuFont(ofSize: 0)
-        let budget = MenuHeaderView.width - Self.titleChrome
-        func width(_ text: String) -> CGFloat {
-            (text as NSString).size(withAttributes: [.font: font]).width
+    ///
+    /// A few measures of a short prefix, whatever the title's length: a
+    /// transcript can be thousands of characters, on every menu open.
+    static func fitting(_ title: String, budget: CGFloat,
+                        width: (String) -> CGFloat = { text in
+                            (text as NSString).size(withAttributes: [.font: NSFont.menuFont(ofSize: 0)]).width
+                        }) -> String {
+        // A character is wider than a point: past this many, nothing fits.
+        let head = title.prefix(Int(budget))
+        guard head.endIndex < title.endIndex || width(String(head)) > budget else { return title }
+        var fits = 0, over = head.count + 1
+        while over - fits > 1 {
+            let middle = (fits + over) / 2
+            if width(head.prefix(middle) + "…") > budget { over = middle } else { fits = middle }
         }
-        guard width(title) > budget else { return title }
-        var text = title
-        while !text.isEmpty, width(text + "…") > budget { text.removeLast() }
-        return text.trimmingCharacters(in: .whitespaces) + "…"
+        return head.prefix(fits).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
+    private func fitting(_ title: String) -> String {
+        Self.fitting(title, budget: MenuHeaderView.width - Self.titleChrome)
     }
 
     /// Menu-sized template symbol. Every action row gets one: half-iconned rows
@@ -573,7 +583,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     /// One row per transcript in `DictationController.recent`, as one line;
-    /// the whole of it on the tooltip and on the clipboard.
+    /// the start of it on the tooltip (a ten-minute take is taller than the
+    /// screen), the whole of it on the clipboard.
     private func refreshRecentDictationsItem() {
         let recent = suggestionController?.dictationController.recent ?? []
         recentDictationsItem.isHidden = !Settings.dictationEnabled || recent.isEmpty
@@ -583,7 +594,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             let row = item(fitting(text.split(whereSeparator: \.isNewline).joined(separator: " ")),
                            #selector(copyRecentDictation), in: submenu)
             row.representedObject = text
-            row.toolTip = text
+            row.toolTip = text.count > 1_000 ? text.prefix(1_000) + "…" : text
         }
     }
 

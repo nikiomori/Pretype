@@ -154,6 +154,36 @@ final class StatusMenuTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(menu.size.height, header.frame.height + hints.frame.height)
     }
 
+    // A transcript can be a ten-minute take, on every menu open: the work must
+    // not grow with the title. A fake width, so the count is the assertion.
+    @MainActor
+    func testFittingALongTitleMeasuresAFewShortPrefixes() {
+        var measures = 0, longest = 0
+        func width(_ text: String) -> CGFloat {
+            measures += 1
+            longest = max(longest, text.count)
+            return CGFloat(text.count) * 7
+        }
+        let title = String(repeating: "see you at seven ", count: 100_000)
+        let fitted = StatusMenuController.fitting(title, budget: 168, width: width)
+        XCTAssertTrue(fitted.hasSuffix("…"))
+        XCTAssertEqual(fitted.count, 24, "the widest prefix within the budget")
+        XCTAssertLessThanOrEqual(measures, 10)
+        XCTAssertLessThanOrEqual(longest, 169)
+    }
+
+    // A title that fits stays as it is, and a word cut at a space drops it.
+    @MainActor
+    func testFittingKeepsATitleThatFits() {
+        let budget = MenuHeaderView.width - 100
+        XCTAssertEqual(StatusMenuController.fitting("Pause Pretype", budget: budget), "Pause Pretype")
+        XCTAssertEqual(StatusMenuController.fitting("one two three", budget: 35) { CGFloat($0.count) * 7 }, "one…")
+        // Real measures: the budget holds in the menu's own font.
+        let fitted = StatusMenuController.fitting(String(repeating: "wide ", count: 3_000), budget: budget)
+        let font = NSFont.menuFont(ofSize: 0)
+        XCTAssertLessThanOrEqual((fitted as NSString).size(withAttributes: [.font: font]).width, budget)
+    }
+
     /// `legible` keeps every metric tint readable as caption text — the menu's
     /// gain figure, the Settings cards, badges and map stats: 4.5:1 or better on
     /// the grouped form's card fill in both appearances (HIG › Accessibility).
