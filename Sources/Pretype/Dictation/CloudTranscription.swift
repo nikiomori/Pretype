@@ -18,10 +18,8 @@ enum CloudTranscription {
         let endpoint = try config.endpoint()
         // "Follow keyboard" only guesses the language, and a wrong guess sends
         // Danish through an English decoder. A speech model hears it, so it
-        // gets none. Refrain hears it only on Parakeet (the same FluidAudio
-        // cache as ours): without it, no language means the system language.
-        let hears = config.provider != "refrain" || Parakeet.isDownloaded && Parakeet.covers(locale)
-        let language = Settings.dictationLanguage == "auto" && hears
+        // gets none.
+        let language = Settings.dictationLanguage == "auto" && hearsLanguage(config.provider, locale: locale)
             ? nil : locale.language.languageCode?.identifier
         // Names and terms from the field and an agent's session — the same
         // spelling hints the on-device analyzer gets, with no key among them
@@ -47,6 +45,13 @@ enum CloudTranscription {
     }
 
     private static let uploadPerSecond: TimeInterval = 0.3
+
+    /// The speech API finds the language by itself. Refrain does only on
+    /// Parakeet (the same FluidAudio cache as ours): without it, no language
+    /// means the system language, so it gets the layout's.
+    static func hearsLanguage(_ provider: String, locale: Locale) -> Bool {
+        provider != "refrain" || Parakeet.covers(locale) && Parakeet.isDownloaded
+    }
 
     /// 16 kHz 16-bit PCM WAV, mono — the one format every transcription API takes.
     static func wav(_ samples: [Float]) -> Data {

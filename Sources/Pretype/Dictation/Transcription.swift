@@ -208,14 +208,34 @@ enum Transcription {
         // a downloaded Parakeet when its pack is missing; retry on Parakeet
         // after `.notInstalled` if that ever matters.
         let parakeet = Parakeet.covers(locale) && (download ? Settings.dictationParakeet : Parakeet.isDownloaded)
+        let apple = { () async throws -> TranscriptionSession in
+            guard let resolved else { throw TranscriptionError.unsupportedLanguage(name(of: locale)) }
+            return try await startApple(resolved, download: download, onPartial: onPartial)
+        }
         // Under "Follow keyboard" Parakeet takes English too: it hears the
         // language, Apple's model takes the layout's word for it.
         if parakeet, resolved?.preferred != true || Settings.dictationLanguage == "auto" {
-            return try await Parakeet.start(locale: locale, onPartial: onPartial)
+            return try await parakeetFirst({ try await Parakeet.start(locale: locale, onPartial: onPartial) },
+                                           orElse: resolved == nil ? nil : apple)
         }
-        guard let resolved else {
-            throw TranscriptionError.unsupportedLanguage(name(of: locale))
+        return try await apple()
+    }
+
+    /// Parakeet, or Apple's model when Parakeet can't start: its one-time
+    /// download fails offline, and the language may well be installed.
+    static func parakeetFirst(_ parakeet: () async throws -> TranscriptionSession,
+                              orElse apple: (() async throws -> TranscriptionSession)?) async throws -> TranscriptionSession {
+        do {
+            return try await parakeet()
+        } catch {
+            guard let apple, !Task.isCancelled else { throw error }
+            DebugLog.shared.log("DICTATE", "Parakeet can't start (\(error.localizedDescription)) — using Apple's model")
+            return try await apple()
         }
+    }
+
+    private static func startApple(_ resolved: (locale: Locale, preferred: Bool), download: Bool,
+                                   onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
         if resolved.preferred {
             // `.volatileResults` is what makes the live preview possible: the
             // transcriber re-emits its best guess as you speak and finalizes a

@@ -388,6 +388,31 @@ final class CloudAPITests: XCTestCase {
         XCTAssertEqual(isRefrain, !Parakeet.isDownloaded)
     }
 
+    /// What Settings says about "Automatic" is what `start` does: Refrain on a
+    /// language Parakeet can't hear takes the layout's.
+    func testOnlyRefrainWithoutParakeetNeedsTheLayout() {
+        XCTAssertTrue(CloudTranscription.hearsLanguage("openai", locale: Locale(identifier: "ja")))
+        XCTAssertFalse(CloudTranscription.hearsLanguage("refrain", locale: Locale(identifier: "ja")))
+        XCTAssertEqual(CloudTranscription.hearsLanguage("refrain", locale: Locale(identifier: "en")), Parakeet.isDownloaded)
+    }
+
+    /// A key in the text that the hints are read from never reaches the
+    /// provider; the names next to it do.
+    func testAKeyInTheSessionIsNotUploaded() async throws {
+        defer { Transcription.contextualWords.set([]) }
+        let key = "xoxb-" + String(repeating: "q7Zt", count: 9)
+        Transcription.contextualWords.set(Transcription.biasWords(in: "saw \(key) in QuillParser"))
+        var whisper = APIConfig(provider: .custom, kind: .audio)
+        whisper.baseURL = "https://speech.example.com/v1"
+        whisper.model = "whisper-1"
+        StubProtocol.response = (200, Data(#"{"text":"hej"}"#.utf8))
+        let session = try CloudTranscription.start(whisper, locale: Locale(identifier: "en")) { _ in }
+        session.feed(silence(seconds: 1))
+        _ = try await session.finish()
+        XCTAssertTrue(multipartText.contains("QuillParser"))
+        XCTAssertFalse(multipartText.contains(key))
+    }
+
     func testHTTPErrorCarriesProviderMessage() async {
         StubProtocol.response = (401, Data(#"{"error":{"message":"Incorrect API key"}}"#.utf8))
         do {

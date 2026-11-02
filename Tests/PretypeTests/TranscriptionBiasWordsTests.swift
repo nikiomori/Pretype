@@ -85,6 +85,25 @@ final class TranscriptionBiasWordsTests: XCTestCase {
         }
     }
 
+    // Parakeet that can't start hands over to Apple's model, when there is
+    // one; with none, or for a cancelled capture, its error stands.
+    func testParakeetFallsBackToAppleOnlyWhenAppleCanServe() async throws {
+        let apple = EmptySession()
+        func start(_ fallback: (() async throws -> TranscriptionSession)?) async throws -> TranscriptionSession {
+            try await Transcription.parakeetFirst({ throw URLError(.notConnectedToInternet) }, orElse: fallback)
+        }
+        let session = try await start { apple }
+        XCTAssertTrue(session === apple)
+        do {
+            _ = try await start(nil)
+            XCTFail("no model to fall back on")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
+        }
+        let untouched = try await Transcription.parakeetFirst({ apple }, orElse: { throw URLError(.badURL) })
+        XCTAssertTrue(untouched === apple)
+    }
+
     // The Parakeet switch shows to whoever reads the app in the language they
     // dictate, and stays in sight once on.
     func testParakeetIsOfferedInTheInterfacesLanguage() {

@@ -1328,6 +1328,24 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(rig.host.inserted, ["for each Quiet River Data Team and QuillParser"])
     }
 
+    /// Parakeet's download failed offline, and Apple's model has the language:
+    /// the capture goes on, and the take lands.
+    func testAFailedParakeetDownloadFallsBackToAppleDuringACapture() async {
+        let rig = makeRig()
+        let apple = rig.session
+        rig.controller.gates.startSession = { _, onPartial in
+            try await Transcription.parakeetFirst({ throw URLError(.notConnectedToInternet) }, orElse: {
+                apple.onPartial = onPartial
+                return apple
+            })
+        }
+        await startCapture(rig)
+        await hear("hello world", in: rig)
+        release(rig.controller)
+        await pump(until: { !rig.host.inserted.isEmpty })
+        XCTAssertEqual(rig.host.inserted, ["hello world"])
+    }
+
     /// An app switch fires two invalidations milliseconds apart (focus change,
     /// then resign-active). The second must not discard the finish the first
     /// one started — it would bump the generation and drop the transcript.

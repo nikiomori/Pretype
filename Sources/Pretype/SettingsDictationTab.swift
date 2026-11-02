@@ -28,12 +28,22 @@ struct DictationTab: View {
         }
     }
 
+    /// The speech model finds the language itself, so the layout doesn't
+    /// matter. Only Apple's models, and Refrain without Parakeet, need it.
+    private var hearsLanguage: Bool {
+        switch store.dictationSupport {
+        case .parakeet: return true
+        case .api: return CloudTranscription.hearsLanguage(store.apiAudio.provider, locale: Settings.resolvedDictationLocale)
+        default: return false
+        }
+    }
+
     /// The Language row's tooltip: what the pick does, plus a note when the
     /// language falls back to the rougher system model.
     private var languageHelp: String {
         let pick = store.dictationLanguage != "auto"
             ? String(localized: "Always listens for this language, whatever the keyboard is set to.")
-            : [.api, .parakeet].contains(store.dictationSupport)
+            : hearsLanguage
             ? String(localized: "The speech model hears which language you speak — no need to switch layouts.")
             : String(localized: "Follows the keyboard layout that's active when you start — switch layouts to switch dictation language.")
         guard store.dictationSupport == .fallback else { return pick }
@@ -154,8 +164,7 @@ struct DictationTab: View {
     private var languageSection: some View {
         Section("Language") {
             Picker(selection: $store.dictationLanguage) {
-                // A hosted model or Parakeet hears the language; only Apple's needs the layout.
-                Text([.api, .parakeet].contains(store.dictationSupport) ? "Automatic" : "Follow keyboard").tag("auto")
+                Text(hearsLanguage ? "Automatic" : "Follow keyboard").tag("auto")
                 Divider()
                 ForEach(store.dictationLocales, id: \.identifier) { locale in
                     Text(Transcription.name(of: locale)).tag(locale.identifier)
@@ -164,7 +173,7 @@ struct DictationTab: View {
                 Text("Language")
                 // Which speech model it lands on, right where the
                 // language is picked.
-                let line = [store.dictationLanguage == "auto" && ![.api, .parakeet].contains(store.dictationSupport)
+                let line = [store.dictationLanguage == "auto" && !hearsLanguage
                                 ? String(localized: "Now \(store.dictationLanguageName)") : nil,
                             speechModel].compactMap { $0 }
                 if !line.isEmpty {
