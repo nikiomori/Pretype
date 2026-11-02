@@ -263,8 +263,7 @@ final class HostPLETests: MLXTestCase {
     }
 
     private func scratch() throws -> URL {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("pretype-ple-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let directory = try TinyGemma.scratch("ple")
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         return directory
     }

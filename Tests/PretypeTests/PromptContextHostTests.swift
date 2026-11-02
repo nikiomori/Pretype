@@ -56,13 +56,6 @@ final class PromptContextHostTests: XCTestCase {
         if let type { world.pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(type)) }
     }
 
-    /// Until `condition` holds — the capture's task hops off the main actor and
-    /// back. The deadline only bounds a wedge.
-    private func waitUntil(_ condition: () -> Bool) async {
-        let end = Date().addingTimeInterval(5)
-        while !condition(), Date() < end { try? await Task.sleep(for: .milliseconds(1)) }
-    }
-
     // A warm-up re-reads the prompt for text being typed into an idle
     // pipeline — none while paused, our window is up or a capture listens,
     // and none for a field with nothing in it.

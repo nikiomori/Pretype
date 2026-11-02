@@ -3,6 +3,14 @@ import AVFoundation
 import XCTest
 @testable import Pretype
 
+/// Until `condition` holds — a task's answer hops off the main actor and
+/// back. The deadline only bounds a wedge.
+@MainActor
+func waitUntil(_ condition: () -> Bool) async {
+    let end = Date().addingTimeInterval(5)
+    while !condition(), Date() < end { try? await Task.sleep(for: .milliseconds(1)) }
+}
+
 /// The overlay as a recorder: what is on screen is `currentMode`, nothing more.
 @MainActor
 final class FakeOverlay: SuggestionOverlay {

@@ -52,13 +52,6 @@ final class CorrectionControllerTests: XCTestCase {
         TextContext(textBeforeCaret: before, textAfterCaret: "", caretRect: caret, host: HostTextStyle())
     }
 
-    /// Until `condition` holds — the engine's answer hops off the main actor
-    /// and back. The deadline only bounds a wedge.
-    private func waitUntil(_ condition: () -> Bool) async {
-        let end = Date().addingTimeInterval(5)
-        while !condition(), Date() < end { try? await Task.sleep(for: .milliseconds(1)) }
-    }
-
     /// Each inline fix answers to its own switch; a shortcode or a sum
     /// turned off never falls through to the spell-checker.
     func testEachInlineFixHasItsOwnSwitch() {
