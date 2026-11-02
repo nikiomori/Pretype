@@ -350,9 +350,9 @@ final class PromptContextHostTests: XCTestCase {
             ("opted out", { Settings.screenContextEnabled = false }, 0),
             ("no permission", { Settings.screenContextEnabled = true; self.world.screenRecording = false }, 0),
             ("paused", { self.world.screenRecording = true; Settings.enabled = false }, 0),
-            ("on battery", { Settings.enabled = true; self.world.pausedForBattery = true }, 0),
+            ("unwelcome", { Settings.enabled = true; self.host.completionsWelcome = false }, 0),
             ("a code editor", {
-                self.world.pausedForBattery = false
+                self.host.completionsWelcome = true
                 self.host.typingContext = TypingContext(bundleID: "com.microsoft.VSCode")
             }, 0),
             ("no app", { self.host.typingContext = TypingContext(); self.host.observedPID = 0 }, 0),
@@ -396,6 +396,14 @@ final class PromptContextHostTests: XCTestCase {
         host.completionsWelcome = false
         context.warm("Hi")
         XCTAssertTrue(world.engine.warmed.isEmpty)
+    }
+
+    // …and looks nothing up for one.
+    func testNoLookupWhereCompletionsAreUnwelcome() async {
+        host.completionsWelcome = false
+        context.refreshExamplesIfNeeded(typed: "see you at noon")
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(world.phraseLookups, 0)
     }
 
     // The phrases are looked up for the last 300 characters typed.

@@ -386,6 +386,19 @@ final class RequestPipelineTests: PipelineTestCase {
         XCTAssertEqual(fake.window.currentMode, .correction(original: "12*7=", fix: "12*7=84"))
     }
 
+    // The same app gone quiet is not screenshotted, nor searched for examples:
+    // the warm-up after them no-ops there.
+    func testAnAppGoneQuietIsNotRead() async {
+        set(\.screenContextEnabled, true)
+        await enterApp("com.example.quiet")
+        fake.unproductive = ["com.example.quiet"]
+        fake.before = "Hello there, this is "
+        controller.textDidChange()
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(fake.captures, [])
+        XCTAssertEqual(fake.phraseLookups, 0)
+    }
+
     // A fix pill taking the overlay ends the pass: no completion is asked
     // for over it.
     func testAFixPillEndsThePass() {

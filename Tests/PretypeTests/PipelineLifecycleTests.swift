@@ -108,6 +108,26 @@ final class PipelineLifecycleTests: PipelineTestCase {
         XCTAssertEqual(focusApp?.wakes, 1)
     }
 
+    // Paused, nothing asks the model; resuming warms it, the model a launch
+    // while paused left out.
+    func testResumingWarmsTheModel() {
+        set(\.suggestionMode, .sentences)
+        controller.setEnabled(false)
+        XCTAssertFalse(Settings.completionsAskModel)
+        let before = fake.engine.prewarms
+        controller.setEnabled(false)
+        XCTAssertEqual(fake.engine.prewarms, before)
+        controller.setEnabled(true)
+        XCTAssertTrue(Settings.completionsAskModel)
+        XCTAssertEqual(fake.engine.prewarms, before + 1)
+
+        // Resuming on battery with the pause on warms nothing: the focus path keeps that rule.
+        fake.pausedForBattery = true
+        controller.setEnabled(false)
+        controller.setEnabled(true)
+        XCTAssertEqual(fake.engine.prewarms, before + 1)
+    }
+
     // Following an app wakes its accessibility tree (Electron keeps it up
     // from then on) — not a password manager's.
     func testFollowingAnAppWakesIt() async {

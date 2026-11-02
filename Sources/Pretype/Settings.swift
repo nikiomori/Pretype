@@ -722,10 +722,10 @@ enum Settings {
     /// fixes and replies load theirs on first use.
     static var completionsUseModel: Bool { suggestionsEnabled && suggestionMode == .sentences }
 
-    /// Completions ask the model right now, not Words standing in for memory.
-    /// The only consumer of the OCR block, the retrieved examples and a
-    /// prefill: a reply takes its own capture.
-    static var completionsAskModel: Bool { completionsUseModel && activeSuggestionMode == .sentences }
+    /// Completions ask the model right now: not paused, and not Words standing
+    /// in for memory. The only consumer of the OCR block, the retrieved
+    /// examples and a prefill: a reply takes its own capture.
+    static var completionsAskModel: Bool { enabled && completionsUseModel && activeSuggestionMode == .sentences }
 
     /// Something shows itself while the user types — a suggestion, or a fix's
     /// pill — so every keystroke reads the field. Neither: no read at all.

@@ -99,7 +99,8 @@ final class PromptContext {
     func refreshExamplesIfNeeded(typed: String) {
         guard Settings.completionsAskModel, !examplesRefreshInFlight,
               typed.count >= 12,
-              env.now().timeIntervalSince(examplesRefreshedAt) > 25 else { return }
+              env.now().timeIntervalSince(examplesRefreshedAt) > 25,
+              host.completionsWelcome else { return }
         examplesRefreshInFlight = true
         let generation = host.focusGeneration
         let query = String(typed.suffix(300))
@@ -194,20 +195,21 @@ final class PromptContext {
     }
 
     /// Refreshes the window OCR at most every 25 s, off the typing path.
-    /// Paused on battery, and in Words or with suggestions off: the capture
-    /// only feeds completions that ask the model (a reply takes its own fresh
-    /// one), and its landing would warm a prompt nobody runs.
+    /// Not where completions are unwelcome (on battery, in an app gone quiet),
+    /// nor in Words or with suggestions off: the capture only feeds completions
+    /// that ask the model (a reply takes its own fresh one), and its landing
+    /// would warm a prompt nobody runs.
     /// A chat allows one more at a message's first letter: nothing else tells
     /// that a message went out or came in, or that the chat changed.
     func refreshScreenIfNeeded(typed: String, retrying: Bool = false) {
         let typingContext = host.typingContext
         guard Settings.enabled, Settings.completionsAskModel, Settings.screenContextEnabled,
-              env.screenRecordingAllowed(), !env.pausedForBattery(),
+              env.screenRecordingAllowed(),
               AppPolicy.allowsScreenContext(typingContext), !chatColumnUnknown else { return }
         let holds: TimeInterval = typed.count == 1 && AppPolicy.isChat(typingContext) ? 3 : 25
         guard !screenCaptureInFlight,
               retrying || env.now().timeIntervalSince(screenCapturedAt) > holds,
-              host.observedPID > 0 else { return }
+              host.observedPID > 0, host.completionsWelcome else { return }
         screenCaptureInFlight = true
         let pid = host.observedPID
         let generation = host.focusGeneration

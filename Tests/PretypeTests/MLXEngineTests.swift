@@ -651,6 +651,20 @@ final class MLXEngineTests: MLXTestCase {
         }
     }
 
+    // Launched paused, an engine loads nothing, and so downloads nothing,
+    // until the app resumes.
+    func testAPausedEngineLoadsNothing() async throws {
+        let saved = Settings.enabled
+        defer { Settings.enabled = saved }
+        Settings.enabled = false
+        let loads = LockedValue(0)
+        try await withEngine(loads: loads) { engine in
+            XCTAssertFalse(engine.residency.primaryLoadedOrLoading)
+            XCTAssertFalse(engine.isLoading)
+            XCTAssertEqual(loads.get(), 0)
+        }
+    }
+
     // Without MLX's Metal shaders an engine fails up front, loading
     // nothing, instead of crashing in C++ on its first load.
     func testAnEngineWithoutItsShadersFailsUpFront() throws {

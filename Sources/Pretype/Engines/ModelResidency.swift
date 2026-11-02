@@ -180,7 +180,7 @@ final class ModelResidency {
 
     /// The initial load, and the idle and memory-pressure maintenance.
     /// `loadPrimary` false: no suggestion asks the completion model
-    /// (`Settings.completionsUseModel`), so it rests unloaded — as after an
+    /// (`Settings.completionsAskModel`), so it rests unloaded — as after an
     /// idle unload — until a fix, a reply or a prewarm needs one.
     func start(loadPrimary: Bool = true) {
         if loadPrimary {

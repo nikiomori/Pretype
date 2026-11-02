@@ -157,7 +157,11 @@ final class SuggestionController {
     /// just switched off.
     func setEnabled(_ on: Bool) {
         Settings.enabled = on
-        guard !on else { return focusTracker.wakeAccessibility() }
+        guard !on else {
+            // Paused, nothing asked the model: a launch left it out.
+            if Settings.completionsAskModel, completionsWelcome { engine.prewarmIfNeeded() }
+            return focusTracker.wakeAccessibility()
+        }
         dictationController.invalidate()
         dismiss()
     }
