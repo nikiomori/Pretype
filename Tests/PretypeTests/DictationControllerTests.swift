@@ -93,11 +93,11 @@ private final class MockDictationHost: DictationHost {
     func report(_ event: String) { lastEvent = event }
     var typingContext = TypingContext()
     var focusGeneration = 0
-    var focusIsInLauncher = false
+    var keyboardFocusIsElsewhere = false
     var isOwnUIFrontmost = false
     var isSecureInputActive = false
-    var fallbackCaretRect: CGRect?
-    var fallbackHostStyle = HostTextStyle()
+    var lastCaretRect: CGRect?
+    var lastHostStyle = HostTextStyle()
 
     var focus = DictationFocus.field
     /// Set: what finding the field read — a site the focus tracker missed.
@@ -349,7 +349,7 @@ final class DictationControllerTests: XCTestCase {
     func testListeningPillSurvivesACaretlessField() async {
         let rig = makeRig()
         rig.host.anchor = nil
-        rig.host.fallbackCaretRect = CGRect(x: 40, y: 60, width: 1, height: 18)
+        rig.host.lastCaretRect = CGRect(x: 40, y: 60, width: 1, height: 18)
         await startCapture(rig)
         XCTAssertEqual(rig.controller.phase, .listening(""))
         XCTAssertTrue(rig.host.shownModes.contains { if case .listening = $0 { return true }
@@ -1172,17 +1172,17 @@ final class DictationControllerTests: XCTestCase {
     /// finished inside the launcher, it is typed there.
     func testLauncherClosingMidCaptureRescuesTheTranscript() async {
         let rig = makeRig()
-        rig.host.focusIsInLauncher = true
+        rig.host.keyboardFocusIsElsewhere = true
         await startCapture(rig)
         await hear("weather tomorrow", in: rig)
-        rig.host.focusIsInLauncher = false
+        rig.host.keyboardFocusIsElsewhere = false
         release(rig.controller)
         await pump(until: { !rig.host.rescued.isEmpty })
         XCTAssertEqual(rig.host.rescued, ["hello world"])
         XCTAssertTrue(rig.host.inserted.isEmpty)
 
         let stays = makeRig()
-        stays.host.focusIsInLauncher = true
+        stays.host.keyboardFocusIsElsewhere = true
         await startCapture(stays)
         await hear("weather tomorrow", in: stays)
         release(stays.controller)
@@ -1379,7 +1379,7 @@ final class DictationControllerTests: XCTestCase {
         Settings.dictationCommands = true
         defer { Settings.dictationCommands = false }
         let rig = makeRig()
-        rig.host.focusIsInLauncher = true
+        rig.host.keyboardFocusIsElsewhere = true
         rig.host.anchor?.selectedText = "last query"
         await startCapture(rig)
         await hear("hello world", in: rig)
@@ -1584,10 +1584,10 @@ final class DictationControllerTests: XCTestCase {
         let rig = makeRig()
         await startLatched(rig)
         await hear("a long paragraph", in: rig)
-        rig.host.focusIsInLauncher = true
+        rig.host.keyboardFocusIsElsewhere = true
         XCTAssertFalse(rig.controller.keyPressed(isEscape: true), "Spotlight's ⎋ goes to Spotlight")
         XCTAssertEqual(rig.controller.phase, .listening("a long paragraph"))
-        rig.host.focusIsInLauncher = false
+        rig.host.keyboardFocusIsElsewhere = false
         rig.controller.toggleLatch()
         await pump(until: { !rig.host.inserted.isEmpty })
         XCTAssertEqual(rig.host.inserted, ["hello world"])
@@ -1734,6 +1734,20 @@ final class DictationControllerTests: XCTestCase {
         now.mutate { $0 += 2 }
         try XCTUnwrap(rig.controller.silenceTimer).fire()
         XCTAssertEqual(rig.controller.phase, .working, "...but the long budget runs out too")
+    }
+
+    /// The budget is re-read on every tick, not remembered from the start:
+    /// "Never" chosen mid-capture must mean never.
+    func testSilenceSwitchedToNeverMidCaptureNeverEndsIt() async throws {
+        Settings.dictationSilence = 5
+        let rig = makeRig()
+        let now = stepClock(rig)
+        await startLatched(rig)
+        let tick = try XCTUnwrap(rig.controller.silenceTimer)
+        Settings.dictationSilence = 0
+        now.mutate { $0 += rig.controller.openingSilenceSeconds + 60 }
+        tick.fire()
+        XCTAssertEqual(rig.controller.phase, .listening(""), "\"Never\" must stop the clock, not end the take")
     }
 
     /// A held key already says when the user is done. Cutting one short on a

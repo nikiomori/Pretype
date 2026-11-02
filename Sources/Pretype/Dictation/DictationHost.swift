@@ -9,8 +9,8 @@ struct DictationAnchor {
     /// no pill; the words still land.
     var caretRect: CGRect?
     var host: HostTextStyle
-    /// Text before the caret, so the tidy-up pass can see what the sentence is
-    /// continuing.
+    /// Text before the caret: the names and terms in it become spelling hints
+    /// (`Transcription.biasWords`).
     var textBeforeCaret: String
     /// The field's selection when the capture began — the target of a voice
     /// command (`Settings.dictationCommands`). Empty when nothing is selected.
@@ -74,7 +74,7 @@ protocol DictationHost: AnyObject {
     /// Keyboard focus is in a launcher (Spotlight, Raycast) over the tracked
     /// app. Opening or closing one fires no focus change, so a transcript
     /// started on one side of it is rescued, not typed, on the other.
-    var focusIsInLauncher: Bool { get }
+    var keyboardFocusIsElsewhere: Bool { get }
     /// One of Pretype's own windows is frontmost: its fields are no place
     /// for a transcript, and the tracked field is behind it.
     var isOwnUIFrontmost: Bool { get }
@@ -82,8 +82,8 @@ protocol DictationHost: AnyObject {
     var isSecureInputActive: Bool { get }
     /// The last caret the host drew at — where a refusal notice goes when this
     /// capture never got far enough to read a caret of its own.
-    var fallbackCaretRect: CGRect? { get }
-    var fallbackHostStyle: HostTextStyle { get }
+    var lastCaretRect: CGRect? { get }
+    var lastHostStyle: HostTextStyle { get }
 
     /// Whether an editable text element has keyboard focus — the one hard
     /// requirement: typing into a window with no text focus fires shortcuts,
@@ -103,7 +103,7 @@ protocol DictationHost: AnyObject {
     /// The focused field's caret and context, or nil when it publishes none.
     /// Advisory either way — dictation needs no coordinates to type.
     func dictationAnchor() -> DictationAnchor?
-    /// Remember this caret as the live one (feeds `fallbackCaretRect`).
+    /// Remember this caret as the live one (feeds `lastCaretRect`).
     func noteCaret(rect: CGRect, host: HostTextStyle)
     func showOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle)
     func showTransientOverlay(_ mode: SuggestionDisplayMode, at rect: CGRect, host: HostTextStyle)

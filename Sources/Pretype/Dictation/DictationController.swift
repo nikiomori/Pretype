@@ -89,7 +89,7 @@ final class DictationController {
     /// no focus change, hence the second half.
     var focusHeld: Bool {
         guard let owner else { return false }
-        return owner.focusGeneration == focusGeneration && owner.focusIsInLauncher == startedInLauncher
+        return owner.focusGeneration == focusGeneration && owner.keyboardFocusIsElsewhere == startedInLauncher
     }
 
     /// Something from outside the capture that may end it.
@@ -179,7 +179,7 @@ final class DictationController {
     private func interrupted(by interrupt: Interrupt) -> InterruptAction {
         let action = Self.action(
             for: interrupt, phase: phase, trigger: trigger,
-            // An AX read (`focusIsInLauncher`), so only for the ⎋ that asks.
+            // An AX read (`keyboardFocusIsElsewhere`), so only for the ⎋ that asks.
             atOrigin: interrupt == .escape && isBusy && focusHeld && !caretMoved,
             heard: heardSomething)
         // Every interrupt ends a hold — armed, live, or queued behind the take

@@ -117,11 +117,9 @@ extension SuggestionController {
 // capture state machine testable without an AX tree or a window server, and
 // keeps `DictationController` from growing casual reach into the completion
 // pipeline. `insertDictated` (above), `noteCaret`, `typingContext`,
-// `focusGeneration` and `report` already satisfy their requirements.
+// `focusGeneration`, `report`, `lastCaretRect`, `lastHostStyle` and
+// `keyboardFocusIsElsewhere` already satisfy their requirements.
 extension SuggestionController: DictationHost {
-    var fallbackCaretRect: CGRect? { lastCaretRect }
-    var fallbackHostStyle: HostTextStyle { lastHostStyle }
-
     /// The same reads `dictationElement` makes, with the launcher's verdict
     /// kept: `begin` refuses an off-limits panel silently and a missing field
     /// out loud, and telling them apart must not cost a second AX round trip.
@@ -130,7 +128,6 @@ extension SuggestionController: DictationHost {
         return launcherField(ownedBy: owner).focus
     }
 
-    var focusIsInLauncher: Bool { keyboardFocusIsElsewhere }
     var isSecureInputActive: Bool { env.secureInputActive() }
 
     /// The field a dictation types into. Unlike the pipeline's, a launcher's

@@ -109,8 +109,17 @@ enum AudioDevices {
     /// UID only — `resolve` compares hardware, never the output's name or
     /// transport.
     static func defaultOutput() -> Device? {
-        let id = defaultDeviceID(kAudioHardwarePropertyDefaultOutputDevice)
-        guard id != kAudioObjectUnknown, let uid = string(id, kAudioDevicePropertyDeviceUID) else { return nil }
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var id = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &id)
+        address.mSelector = kAudioDevicePropertyDeviceUID
+        size = UInt32(MemoryLayout<CFString?>.size)
+        var value: Unmanaged<CFString>?
+        guard id != kAudioObjectUnknown, AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr,
+              let uid = value?.takeRetainedValue() as String? else { return nil }
         return Device(uid: uid, name: uid, transport: kAudioDeviceTransportTypeUnknown)
     }
 
@@ -123,28 +132,5 @@ enum AudioDevices {
     private static func device(_ capture: AVCaptureDevice) -> Device {
         Device(uid: capture.uniqueID, name: capture.localizedName,
                transport: UInt32(bitPattern: capture.transportType))
-    }
-
-    private static func property(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
-        AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
-                                   mElement: kAudioObjectPropertyElementMain)
-    }
-
-    private static func defaultDeviceID(_ selector: AudioObjectPropertySelector) -> AudioDeviceID {
-        var address = property(selector)
-        var id = AudioDeviceID(kAudioObjectUnknown)
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
-                                   &address, 0, nil, &size, &id)
-        return id
-    }
-
-    private static func string(_ id: AudioDeviceID, _ selector: AudioObjectPropertySelector) -> String? {
-        var address = property(selector)
-        var size = UInt32(MemoryLayout<CFString?>.size)
-        var value: Unmanaged<CFString>?
-        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr,
-              let value else { return nil }
-        return value.takeRetainedValue() as String
     }
 }

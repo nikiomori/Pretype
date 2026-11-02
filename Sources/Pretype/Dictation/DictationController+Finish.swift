@@ -136,13 +136,11 @@ extension DictationController {
                 // clipboard, not away.
                 let preview = Self.clean(heard)
                 guard !preview.isEmpty else { return self.fail(error) }
-                var timedOut = false
-                if case TranscriptionError.timedOut = error { timedOut = true }
+                let timedOut = error as? TranscriptionError == .timedOut
                 // The error itself goes where `fail` puts it, not into the
                 // unified log: a server's message can quote anything.
                 if !timedOut {
-                    let why = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                    DebugLog.shared.log("ERROR", "dictation: \(why)")
+                    DebugLog.shared.log("ERROR", "dictation: \(error.localizedDescription)")
                 }
                 Self.note("finish \(timedOut ? "timed out" : "failed") — rescued the \(preview.count)-char preview to the clipboard")
                 self.pendingBegin = nil  // as for a rescue above
@@ -163,8 +161,7 @@ extension DictationController {
     /// (Parakeet's first CoreML compile is ~15 s); a tenth of a second per
     /// audio second is several times what either engine needs for the words.
     private func writeDownOnDevice(_ audio: [Float], after error: Error) async throws -> String {
-        var timedOut = false
-        if case TranscriptionError.timedOut = error { timedOut = true }
+        let timedOut = error as? TranscriptionError == .timedOut
         Self.note("upload \(timedOut ? "timed out" : "failed") — writing the take down on this Mac")
         let transcribe = gates.transcribeOnDevice
         let locale = sessionLocale
@@ -290,7 +287,7 @@ extension DictationController {
     }
 
     func fail(_ error: Error) {
-        let why = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        let why = error.localizedDescription
         owner?.report("dictation failed: \(why)")
         DebugLog.shared.log("ERROR", "dictation: \(why)")
         // Whatever failed, the session is gone — take the task with it.

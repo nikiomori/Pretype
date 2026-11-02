@@ -32,7 +32,7 @@ extension TranscriptionSession {
     var unsentAudio: [Float]? { nil }
 }
 
-enum TranscriptionError: LocalizedError {
+enum TranscriptionError: LocalizedError, Equatable {
     /// Neither speech model has this language.
     case unsupportedLanguage(String)
     /// The analyzer's finalization outran its watchdog.
@@ -556,12 +556,10 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
 
     var unsentAudio: [Float]? { uploads ? samples.get() : nil }
 
-    /// `previewEvery`, `retryAfter`: the preview cadence and the retry wait,
-    /// a second each; tests shorten them. `previewTick` replaces the cadence's
-    /// sleep, so a test can step the preview pass by pass.
+    /// `previewTick` replaces the preview's one-second sleep, so a test can
+    /// step it pass by pass. `retryAfter`: tests shorten the retry wait.
     init(preview: Bool, uploads: Bool = false, finishDeadline: TimeInterval, perAudioSecond: TimeInterval,
-         previewEvery: Duration = .seconds(1), retryAfter: Duration = .seconds(1),
-         previewTick: (@Sendable () async -> Void)? = nil,
+         retryAfter: Duration = .seconds(1), previewTick: (@Sendable () async -> Void)? = nil,
          onPartial: @escaping @Sendable (String) -> Void,
          transcribe: @escaping @Sendable (_ audio: [Float], _ final: Bool) async throws -> String) {
         self.deadline = finishDeadline
@@ -570,7 +568,7 @@ final class RecordedTranscription: TranscriptionSession, @unchecked Sendable {
         self.retryAfter = retryAfter
         self.uploads = uploads
         guard preview else { return }
-        let tick = previewTick ?? { try? await Task.sleep(for: previewEvery) }
+        let tick = previewTick ?? { try? await Task.sleep(for: .seconds(1)) }
         previewTask.set(Task { [samples] in
             var previewed = 0
             while !Task.isCancelled {

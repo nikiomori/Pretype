@@ -544,9 +544,9 @@ final class CloudAPITests: XCTestCase {
         StubProtocol.response = (200, Data(#"{"text":"привет"}"#.utf8))
         let partials = LockedValue<[String]>([])
         let session = try CloudTranscription.start(APIConfig(provider: .named("refrain"), kind: .audio),
-                                                   locale: Locale(identifier: "ru"), previewEvery: .milliseconds(20)) { text in
+                                                   locale: Locale(identifier: "ru"), previewTick: { try? await Task.sleep(for: .milliseconds(20)) }, onPartial: { text in
             partials.mutate { $0.append(text) }
-        }
+        })
         session.feed(silence(seconds: 1))
         // The preview runs on its own clock: wait for it, not for a guess at it.
         let deadline = Date().addingTimeInterval(10)
@@ -569,13 +569,13 @@ final class CloudAPITests: XCTestCase {
         XCTAssertFalse(config.isLocal)
         let partials = LockedValue<[String]>([]), localPartials = LockedValue<[String]>([])
         let tick: Duration = .milliseconds(20)
-        let hosted = try CloudTranscription.start(config, locale: Locale(identifier: "en"), previewEvery: tick) { text in
+        let hosted = try CloudTranscription.start(config, locale: Locale(identifier: "en"), previewTick: { try? await Task.sleep(for: tick) }, onPartial: { text in
             partials.mutate { $0.append(text) }
-        }
+        })
         let local = try CloudTranscription.start(APIConfig(provider: .named("refrain"), kind: .audio),
-                                                 locale: Locale(identifier: "en"), previewEvery: tick) { text in
+                                                 locale: Locale(identifier: "en"), previewTick: { try? await Task.sleep(for: tick) }, onPartial: { text in
             localPartials.mutate { $0.append(text) }
-        }
+        })
         hosted.feed(silence(seconds: 1))
         local.feed(silence(seconds: 1))
         let deadline = Date().addingTimeInterval(10)

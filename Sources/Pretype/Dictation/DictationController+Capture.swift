@@ -45,8 +45,8 @@ extension DictationController {
             // hang a pill on. Every silent refusal in this flow has read as
             // "the feature is broken" — including to the person who wrote it —
             // so a notice with nowhere to go goes to where the user is looking.
-            let anchor = rect ?? owner.fallbackCaretRect ?? Self.pointerAnchor()
-            owner.showTransientOverlay(notice, at: anchor, host: owner.fallbackHostStyle)
+            let anchor = rect ?? owner.lastCaretRect ?? Self.pointerAnchor()
+            owner.showTransientOverlay(notice, at: anchor, host: owner.lastHostStyle)
         }
         // The "we should not be here at all" cases draw nothing on purpose — a
         // paused or blacklisted app is one Pretype has been told to keep out
@@ -166,7 +166,7 @@ extension DictationController {
         firstRestartAt = Date()
         focusGeneration = owner.focusGeneration
         caretMoved = false
-        startedInLauncher = owner.focusIsInLauncher
+        startedInLauncher = owner.keyboardFocusIsElsewhere
         caretRect = rect
         hostStyle = anchor?.host ?? HostTextStyle()
         selectionAtBegin = anchor.flatMap { $0.selectedText.isEmpty ? nil : $0.selectedText }

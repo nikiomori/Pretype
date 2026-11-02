@@ -32,7 +32,7 @@ extension DictationController {
     /// Where this capture draws: its own caret, then the last one the field
     /// drew at, then the pointer — the same ladder a refusal notice uses.
     var noticeRect: CGRect {
-        caretRect ?? owner?.fallbackCaretRect ?? Self.pointerAnchor()
+        caretRect ?? owner?.lastCaretRect ?? Self.pointerAnchor()
     }
 
     /// Where to draw a notice that has no caret to belong to: a one-point box
