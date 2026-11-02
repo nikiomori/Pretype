@@ -143,11 +143,14 @@ final class ReplyComposer {
         host.report("composing a reply…")
         host.startReply { queryID in Task { [weak self] in
             // A fresh, wider capture — not the 25 s-cached completion context:
-            // the message being answered may have landed a second ago. No caret
-            // ROI either: that band is ±250 pt of the input box, while a reply
-            // needs the exchange above it — the whole window, capped from the
-            // bottom, which is where the recent messages are.
-            let conversation = if let session { session } else { await capture(pid, ctx.textBeforeCaret, nil, field, 1200) }
+            // the message being answered may have landed a second ago. The
+            // caret only finds the window, when AX can't: its ROI is ±250 pt of
+            // the input box, while a reply needs the exchange above it — the
+            // whole window, capped from the bottom, which is where the recent
+            // messages are.
+            let conversation = if let session { session } else {
+                await capture(pid, ctx.textBeforeCaret, rect, field, 1200, true)
+            }
             if Task.isCancelled { return }
             let outcome: Result<String?, Error>
             if let conversation {

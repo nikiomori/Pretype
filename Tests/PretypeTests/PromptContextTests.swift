@@ -252,6 +252,15 @@ final class PromptContextTests: XCTestCase {
         XCTAssertNil(pick([large, small], nil, caret: CGRect(x: 300, y: 200, width: 1, height: 16)), "both hold it")
         XCTAssertNil(pick([small], nil, caret: caret), "the caret is in no window listed")
         XCTAssertNil(pick([large, small], nil), "nothing to go on")
+
+        // AX's frame is off by more than rounding: the caret settles it, but
+        // only on a window about that size, and only one.
+        let off = Window(frame: large.frame.offsetBy(dx: 12, dy: 8), title: "Inbox")
+        XCTAssertEqual(pick([large, small], off, caret: caret), 0, "a frame miss falls through to the caret")
+        XCTAssertNil(pick([large, small], off), "no caret to fall through to")
+        XCTAssertNil(pick([large, twin], off, caret: caret), "both hold it")
+        let panel = Window(frame: CGRect(x: 1400, y: 850, width: 180, height: 120), title: "Find")
+        XCTAssertNil(pick([large], panel, caret: caret), "a panel too small to list: the parent behind it is not it")
     }
 
     // Base-path RAG: accepted phrases form a separate label-free preamble block

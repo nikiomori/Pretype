@@ -86,11 +86,13 @@ enum ScreenContext {
 
     /// Which of `windows` is the app's focused one: the one AX calls focused,
     /// by frame, by title as well when two sit on the same frame (two
-    /// maximized browser windows). With no answer from AX, the one window
-    /// holding `caret`. nil when that is not exactly one: another window's
-    /// text must never reach the prompt, so a doubt reads nothing.
+    /// maximized browser windows). With no answer from AX, or a frame that
+    /// matches none, the one window holding `caret`: after a miss, only one
+    /// about AX's size, because a panel too small to be listed sits over its
+    /// parent, under the same caret. nil when that is not exactly one: another
+    /// window's text must never reach the prompt, so a doubt reads nothing.
     static func focusedWindow(among windows: [Window], focused: Window?, caret: CGRect?) -> Int? {
-        let hits: [Int]
+        var hits: [Int] = []
         if let focused {
             let framed = windows.indices.filter {
                 let frame = windows[$0].frame
@@ -99,12 +101,22 @@ enum ScreenContext {
             }
             let titled = framed.filter { windows[$0].title == focused.title }
             hits = titled.isEmpty ? framed : titled
-        } else if let caret {
-            hits = windows.indices.filter { windows[$0].frame.contains(CGPoint(x: caret.midX, y: caret.midY)) }
-        } else {
-            hits = []
+        }
+        if hits.isEmpty, let caret {
+            hits = windows.indices.filter { index in
+                let frame = windows[index].frame
+                return frame.contains(CGPoint(x: caret.midX, y: caret.midY))
+                    && focused.map { isAboutTheSame(frame, $0.frame) } ?? true
+            }
         }
         return hits.count == 1 ? hits[0] : nil
+    }
+
+    /// ponytail: 80% shared area, a guess at what a frame off by more than the
+    /// rounding still looks like; measure real misses if OCR stays empty.
+    private static func isAboutTheSame(_ a: CGRect, _ b: CGRect) -> Bool {
+        let shared = a.intersection(b)
+        return shared.width * shared.height >= 0.8 * max(a.width * a.height, b.width * b.height)
     }
 
     /// OCR summary of `pid`'s focused window in reading order, deduplicated
@@ -113,10 +125,12 @@ enum ScreenContext {
     /// `field`: a chat's message box, Cocoa coordinates. Then only its column
     /// counts (`sift`) and the whole height is read: a picture above the box
     /// can fill the ±250 pt band and leave the messages out of it.
+    /// `wholeWindow`: `caretRect` only finds the window (a reply needs the
+    /// exchange above the box, not the band around it).
     static let defaultMaxChars = 600
 
     static func capture(pid: pid_t, excluding typedText: String, caretRect: CGRect?, field: CGRect? = nil,
-                        maxChars: Int = defaultMaxChars) async -> String? {
+                        maxChars: Int = defaultMaxChars, wholeWindow: Bool = false) async -> String? {
         guard hasPermission else { return nil }
         // Text Input Sources answer on the main thread only.
         let languages = recognitionLanguages(keyboard: await MainActor.run { keyboardLanguages })
@@ -153,7 +167,7 @@ enum ScreenContext {
             // flipped into the window frame's top-left-origin space; `top` is
             // clamped into the window so the rect stays inside the unit square.
             var roi: CGRect?
-            if field == nil, let caret = caretRect {
+            if field == nil, !wholeWindow, let caret = caretRect {
                 let height = window.frame.height
                 let top = min(max(0, AXText.flipped(caret).minY - window.frame.minY - 250), height)
                 let cropHeight = min(height - top, 500)

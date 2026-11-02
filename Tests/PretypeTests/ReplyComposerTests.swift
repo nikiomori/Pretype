@@ -121,6 +121,8 @@ final class ReplyComposerTests: XCTestCase {
         XCTAssertEqual(host.lastEvent, "composing a reply…")
         await host.task?.value
         XCTAssertEqual(world.captures, [1200])
+        XCTAssertNotNil(world.captureCarets.last?.caret, "the caret finds the window when AX can't")
+        XCTAssertEqual(world.captureCarets.last?.wholeWindow, true)
         XCTAssertEqual(world.engine.conversations, ["Alice: lunch?"])
         XCTAssertEqual(host.ended, [1])
         XCTAssertEqual(host.offered.map(\.reply), ["sure, noon"])

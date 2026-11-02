@@ -218,7 +218,7 @@ final class PromptContext {
         let field = chatField
         let capture = env.captureScreen
         Task { [weak self] in
-            let summary = await capture(pid, typed, caret, field, ScreenContext.defaultMaxChars)
+            let summary = await capture(pid, typed, caret, field, ScreenContext.defaultMaxChars, false)
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.screenCaptureInFlight = false

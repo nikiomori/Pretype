@@ -294,6 +294,8 @@ final class FakeWorld {
     private(set) var captures: [Int] = []
     /// The chat column each capture was told to keep to.
     private(set) var captureColumns: [CGRect?] = []
+    /// The caret each capture was given, and whether it reads the whole window.
+    private(set) var captureCarets: [(caret: CGRect?, wholeWindow: Bool)] = []
     /// How long a liveness probe takes: an app that answers slowly is one
     /// whose reads are timing out.
     var probeTakes: TimeInterval = 0
@@ -382,9 +384,10 @@ final class FakeWorld {
             screenRecordingAllowed: { [unowned self] in screenRecording },
             // Weak: a reply task cancelled at teardown still captures first.
             networkUnmetered: { [unowned self] in networkUnmetered },
-            captureScreen: { [weak self] _, _, _, field, maxChars in
+            captureScreen: { [weak self] _, _, caret, field, maxChars, wholeWindow in
                 self?.captures.append(maxChars)
                 self?.captureColumns.append(field)
+                self?.captureCarets.append((caret, wholeWindow))
                 return self?.screen
             },
             book: { [weak self] in self?.bookings.append($0) },

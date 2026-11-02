@@ -68,7 +68,7 @@ extension SuggestionController {
         var networkUnmetered: @MainActor () async -> Bool
         /// OCR of an app's window (`ScreenContext.capture`).
         var captureScreen: (_ pid: pid_t, _ excluding: String, _ caret: CGRect?, _ field: CGRect?,
-                            _ maxChars: Int) async -> String?
+                            _ maxChars: Int, _ wholeWindow: Bool) async -> String?
         /// Count something in `Stats`, and journal it while the journal is on.
         var book: (Booking) -> Void
         /// Suggestions in this app have been shown dozens of times and almost
@@ -122,7 +122,9 @@ extension SuggestionController {
                 debounce: { try? await Task.sleep(for: .milliseconds(Settings.debounceMs)) },
                 screenRecordingAllowed: { ScreenContext.hasPermission },
                 networkUnmetered: { await ModelStorage.isNetworkUnmetered() },
-                captureScreen: { await ScreenContext.capture(pid: $0, excluding: $1, caretRect: $2, field: $3, maxChars: $4) },
+                captureScreen: {
+                    await ScreenContext.capture(pid: $0, excluding: $1, caretRect: $2, field: $3, maxChars: $4, wholeWindow: $5)
+                },
                 book: book,
                 isUnproductive: { Stats.isUnproductive($0) },
                 personalNgram: .shared,
