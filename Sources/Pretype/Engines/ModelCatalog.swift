@@ -51,15 +51,15 @@ enum ModelCatalog {
             // E4B-it, not E2B-it: its chords fix 65% of noisy lines against 50%,
             // and the installs that ran it as their Instruct primary before
             // 2026-10-14 already hold it.
-            correctionModelID: "mlx-community/gemma-4-e4b-it-4bit"  // ~5 GB — fits the 11–16 GB tier
+            correctionModelID: "mlx-community/gemma-4-e4b-it-4bit"  // ~4.6 GB — fits the 24 GB tier
         ),
         // E4B-4bit dropped 2026-07-17: strictly dominated by E2B-4bit on every
         // axis (EN/RU 21 vs 29, 17-lang macro 10 vs 20, p50 151 vs 127 ms,
         // 5.0 vs 3.5 GB) — the 4-bit quantization cliff hits E4B hardest.
         ModelOption(
             id: "mlx-community/gemma-4-e2b-4bit",
-            title: String(localized: "Gemma 4 E2B — for 8–16 GB Macs"),
-            correctionModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3.5 GB — the 8 GB tier can't hold more
+            title: String(localized: "Gemma 4 E2B — for 16–18 GB Macs"),
+            correctionModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3 GB — the 16 GB tier can't hold more
         ),
         // The former EN/RU default (2026-07-07 → 07-25): base ties E4B-8bit
         // base on the POOLED EN+RU core at a quarter of the RAM and, with

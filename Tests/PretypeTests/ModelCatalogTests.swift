@@ -166,6 +166,18 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(e4bLong.p50Ms, Int((Double(e4bShort.p50Ms ?? 0) * 3.1).rounded()))
         XCTAssertTrue(e4bLong.latencyIsApprox)
         XCTAssertEqual(cfg(mini, .base, .long).p50Ms, base.p50Ms)
+        // EuroLLM runs long too, on no timed run: its own Short figure, said
+        // so, never E4B's factor.
+        let euro = "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
+        let euroLong = cfg(euro, .base, .long)
+        XCTAssertEqual(euroLong.p50Ms, cfg(euro, .base).p50Ms)
+        XCTAssertFalse(euroLong.latencyIsApprox)
+        XCTAssertNotEqual(euroLong.latencySub, cfg(euro, .base).latencySub)
+        XCTAssertEqual(cfg(euro, .base, .long, logprob: true).latencySub, euroLong.latencySub, "the gated path says so too")
+        XCTAssertTrue(ConfigProjection.lengthIsUntimed(ProjectionConfig(
+            modelID: euro, style: .base, length: .long, logprobGate: false, useRecommended: false)))
+        XCTAssertFalse(ConfigProjection.lengthIsUntimed(ProjectionConfig(
+            modelID: e4b6, style: .base, length: .long, logprobGate: false, useRecommended: false)))
 
         // Instruct on a base-only model is truthfully broken, not hidden.
         let broken = cfg(mini, .instruct)
@@ -220,6 +232,37 @@ final class ModelCatalogTests: XCTestCase {
         // Deltas: switching MiniCPM base → E4B instruct costs memory, buys nothing real.
         let deltas = ConfigProjection.deltas(from: base, to: instruct)
         XCTAssertTrue(deltas.contains { $0.label == "Memory" && !$0.improved })
+    }
+
+    // Every entry reads the same in every table: booked figures for each, and
+    // a title that names Macs names the ones the ladder gives it, no others.
+    // Each tier of the ladder keeps its booked resident size within a quarter
+    // of the smallest Mac on it (`ModelCatalog.isHeavy`).
+    func testEveryCatalogEntryAgreesWithTheLadder() throws {
+        let macs: [Double] = [8, 16, 18, 24, 32, 36, 48, 64, 96, 128]
+        var named = 0
+        for option in ModelCatalog.options {
+            let m = try XCTUnwrap(ModelMetrics.metrics(for: option.id), option.id)
+            XCTAssertGreaterThan(m.ramGB, 0, option.id)
+            XCTAssertEqual(Double(option.approxSizeMB) / 1000, m.ramGB, accuracy: 0.001, option.id)
+            XCTAssertNotNil(ModelMetrics.gated[option.id], option.id)
+            XCTAssertNotNil(ModelMetrics.perLangOfAll[option.id], option.id)
+            XCTAssertNotNil(ModelMetrics.taskMetrics(for: option.id, style: .base), option.id)
+            XCTAssertNotNil(ModelCatalog.recommended(for: option.id).logprobGateTau, option.id)
+            guard let range = option.title.firstMatch(of: #/for (\d+)–(\d+) GB Macs/#) else { continue }
+            named += 1
+            let low = try XCTUnwrap(Double(range.1)), high = try XCTUnwrap(Double(range.2))
+            XCTAssertEqual(macs.filter { ModelCatalog.defaultID(forRamGB: $0) == option.id },
+                           macs.filter { (low...high).contains($0) }, option.title)
+        }
+        XCTAssertEqual(named, 1, "a title that names its Macs no longer reads as one")
+        let tiers = Dictionary(grouping: macs, by: { ModelCatalog.defaultID(forRamGB: $0) })
+        XCTAssertEqual(tiers.count, 4)
+        for (id, sizes) in tiers {
+            XCTAssertNotNil(ModelCatalog.option(for: id), id)
+            let m = try XCTUnwrap(ModelMetrics.metrics(for: id), id)
+            XCTAssertFalse(ModelCatalog.isHeavy(residentGB: m.ramGB, ramGB: try XCTUnwrap(sizes.min())), id)
+        }
     }
 
     /// `revision(for:)` falls back to "main" without a word, which would hand

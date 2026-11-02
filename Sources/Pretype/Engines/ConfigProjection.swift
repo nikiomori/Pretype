@@ -327,14 +327,22 @@ struct ConfigProjection {
     /// Short's budget, so all three lengths decode the same text (E2B 4-bit
     /// and Qwen3.5 2B: identical outputs, 35/35/34 and 33/33/33 ms). Instruct
     /// follows the directive's word hint: 98 / 127 / 163 ms on E4B-it. Base
-    /// Medium/Long on the tiers that write long text run untrimmed
-    /// (`ModelCatalog.writesLongBase`): 130 / 276 / 380 ms on E4B 6-bit and
-    /// 137 / 401 / 440 on 8-bit for the whole suggestion (eval-long, one
-    /// interleaved pass, Eval/runs-2026-10-28-issue4/e2e); the first word
-    /// streams in as fast as Short's.
+    /// Medium/Long on the E4B tiers run untrimmed: 130 / 276 / 380 ms on 6-bit
+    /// and 137 / 401 / 440 on 8-bit for the whole suggestion (eval-long, one
+    /// interleaved pass, Eval/runs-2026-10-28-issue4/e2e), the first word
+    /// streaming in as fast as Short's. These two ratios are all that is
+    /// booked: EuroLLM also runs long (`ModelCatalog.writesLongBase`), but
+    /// nobody timed it, and at 6.5 words to E4B's 10–11 their factors aren't
+    /// its own — so it has none, and the rail says the figure is Short's.
+    /// Medium or Long on a model nobody timed at them: `p50Ms` is Short's.
+    static func lengthIsUntimed(_ c: ProjectionConfig) -> Bool {
+        c.length != .short && ModelCatalog.writesLongBase(c.modelID)
+            && latencyFactor(c.length, style: c.style, modelID: c.modelID) == 1
+    }
+
     static func latencyFactor(_ length: CompletionLength, style: CompletionStyle, modelID: String) -> Double {
         if style == .base {
-            guard ModelCatalog.writesLongBase(modelID) else { return 1.0 }
+            guard modelID.contains("e4b") else { return 1.0 }
             switch length {
             case .short: return 1.0
             case .medium: return 2.5
@@ -411,7 +419,9 @@ struct ConfigProjection {
                 accuracyPct: g.firstWordPct, accuracyText: "\(g.firstWordPct)%",
                 accuracySub: String(localized: "offers \(g.shownPct)% of the time at this model's own threshold · \(ModelMetrics.evalSource)"),
                 coveragePct: g.shownPct,
-                p50Ms: ms, latencyIsApprox: lf > 1, latencySub: String(localized: "no added latency over plain Base"),
+                p50Ms: ms, latencyIsApprox: lf > 1,
+                latencySub: lengthIsUntimed(c) ? String(localized: "Short's median — longer text isn't timed on this model")
+                    : String(localized: "no added latency over plain Base"),
                 gb: m.ramGB, residentGB: resident, lengthFactor: lf)
         }
         return ConfigProjection(
@@ -420,7 +430,10 @@ struct ConfigProjection {
             accuracySub: String(localized: "offers \(m.coveragePct)% of the time · \(ModelMetrics.evalSource)"),
             coveragePct: m.coveragePct,
             p50Ms: ms, latencyIsApprox: lf > 1,
-            latencySub: lf > 1 ? String(localized: "scaled by the measured length factor") : String(localized: "median per suggestion, measured"),
+            latencySub: lf > 1 ? String(localized: "scaled by the measured length factor")
+                : lengthIsUntimed(c)
+                ? String(localized: "Short's median — longer text isn't timed on this model")
+                : String(localized: "median per suggestion, measured"),
             gb: m.ramGB, residentGB: resident, lengthFactor: lf)
     }
 

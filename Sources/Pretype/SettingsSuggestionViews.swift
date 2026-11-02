@@ -218,7 +218,9 @@ struct TuningSection: View {
     /// the rail reads (measured on the EN+RU core, 2026-10-15).
     private var lengthLine: String {
         // One whole sentence per case, with and without the latency.
-        let each = ConfigProjection.project(store.committedConfig).p50Ms.map { latencyLabel(ms: $0) }
+        let config = store.committedConfig
+        let each = ConfigProjection.lengthIsUntimed(config) ? nil
+            : ConfigProjection.project(config).p50Ms.map { latencyLabel(ms: $0) }
         switch store.length {
         case .short:
             return each.map { String(localized: "2–3 words ahead, about \($0) each.") }

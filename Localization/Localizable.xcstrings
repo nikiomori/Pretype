@@ -23761,108 +23761,108 @@
         }
       }
     },
-    "Gemma 4 E2B — for 8–16 GB Macs" : {
+    "Gemma 4 E2B — for 16–18 GB Macs" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — pro Macy s 8–16 GB"
+            "value" : "Gemma 4 E2B — pro Macy s 16–18 GB"
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — til Mac med 8–16 GB"
+            "value" : "Gemma 4 E2B — til Mac med 16–18 GB"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B – für Macs mit 8–16 GB"
+            "value" : "Gemma 4 E2B – für Macs mit 16–18 GB"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — para Mac de 8–16 GB"
+            "value" : "Gemma 4 E2B — para Mac de 16–18 GB"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — pour Mac de 8–16 Go"
+            "value" : "Gemma 4 E2B — pour Mac de 16–18 Go"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — per Mac da 8–16 GB"
+            "value" : "Gemma 4 E2B — per Mac da 16–18 GB"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 8〜16 GBのMac向け"
+            "value" : "Gemma 4 E2B — 16〜18 GBのMac向け"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 8–16 GB Mac용"
+            "value" : "Gemma 4 E2B — 16–18 GB Mac용"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B – voor Macs met 8–16 GB"
+            "value" : "Gemma 4 E2B – voor Macs met 16–18 GB"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — dla Maców z 8–16 GB"
+            "value" : "Gemma 4 E2B — dla Maców z 16–18 GB"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — para Macs de 8–16 GB"
+            "value" : "Gemma 4 E2B — para Macs de 16–18 GB"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — pentru Mac cu 8–16 GB"
+            "value" : "Gemma 4 E2B — pentru Mac cu 16–18 GB"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — для Mac с 8–16 ГБ"
+            "value" : "Gemma 4 E2B — для Mac с 16–18 ГБ"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — för Mac med 8–16 GB"
+            "value" : "Gemma 4 E2B — för Mac med 16–18 GB"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 8–16 GB Mac’ler için"
+            "value" : "Gemma 4 E2B — 16–18 GB Mac’ler için"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — для Mac з 8–16 ГБ"
+            "value" : "Gemma 4 E2B — для Mac з 16–18 ГБ"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 适合 8–16 GB 的 Mac"
+            "value" : "Gemma 4 E2B — 适合 16–18 GB 的 Mac"
           }
         }
       }
@@ -48465,6 +48465,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "短"
+          }
+        }
+      }
+    },
+    "Short's median — longer text isn't timed on this model" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "medián pro délku „Krátké“ — delší text se u tohoto modelu neměří"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "median for “Korte” — længere tekst måles ikke på denne model"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Median für „Kurz“ – längerer Text wird auf diesem Modell nicht gemessen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mediana de “Cortas”: el texto más largo no se mide en este modelo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "médiane pour « Courtes » — les textes plus longs ne sont pas mesurés sur ce modèle"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mediana per “Brevi”: il testo più lungo non viene misurato su questo modello"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「短い」の中央値 — これより長いテキストはこのモデルでは計測されません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘짧게’의 중앙값 — 이 모델에서는 더 긴 텍스트의 시간을 측정하지 않습니다"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mediaan voor “Kort” – langere tekst wordt op dit model niet gemeten"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mediana dla „Krótkie” — dłuższy tekst nie jest mierzony na tym modelu"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mediana de “Curtas”: texto mais longo não é medido neste modelo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mediană pentru „Scurte” — textul mai lung nu este măsurat pe acest model"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "медиана для длины «Короткие» — более длинный текст на этой модели не замеряется"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "median för ”Korta” — längre text tidsmäts inte på den här modellen"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Kısa” için ortanca — bu modelde daha uzun metinlerin süresi ölçülmez"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "медіана для довжини «Короткі» — довший текст на цій моделі не вимірюється"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“短”的中位数 — 此模型未测量更长文本的用时"
           }
         }
       }
