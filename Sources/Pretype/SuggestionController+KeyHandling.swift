@@ -145,6 +145,13 @@ extension SuggestionController {
             field.decline(before: before, after: after)
             return false
         case .type:
+            // Here and not in the pass that follows: a pass can't tell a key
+            // from a terminal repainting (`textDidChange`).
+            if queries.isReply {
+                queries.cancel()
+                indicator.stop()
+                window.hide()
+            }
             // Keep the ghost truthful before this keystroke reaches the app:
             // the re-read below is a 60 ms *throttle*, and an accept landing
             // inside that window would re-inject characters the OS already

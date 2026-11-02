@@ -64,7 +64,11 @@ struct FieldState {
     /// moved by every key the tap passes on and every synthetic edit, nil when
     /// unknown. Lets a streamed partial and the ⌘Z gate tell — without an AX
     /// read, which the key tap can't afford — whether the field moved since.
-    var cache: String?
+    var cache: String? { didSet { cacheVouches = true } }
+    /// False once a pass saw the host move during a reply: `cache` still says
+    /// a field is here (an agent's box keeps its chord), but `anchor` must
+    /// read the field again, or a ghost lands where the caret used to be.
+    var cacheVouches = true
     /// The caret rect of the latest read or side-flow measure — shared by the
     /// completion overlay, the indicator and the correction previews — nil
     /// when unknown (a new field; a scroll moved it).
@@ -224,7 +228,7 @@ struct FieldState {
     /// `read` is the field now, made only then.
     func anchor(cached: TextContext?, read: () -> TextContext?, at now: Date) -> Anchor {
         if isSettling(at: now) { return .settling }
-        if let cached, cached.textBeforeCaret == cache { return .context(cached) }
+        if let cached, cacheVouches, cached.textBeforeCaret == cache { return .context(cached) }
         guard let fresh = read() else { return .unreadable }
         if let cache, cache.count > fresh.textBeforeCaret.count, cache.hasPrefix(fresh.textBeforeCaret) {
             return .trailing

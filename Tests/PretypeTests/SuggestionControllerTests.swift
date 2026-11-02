@@ -157,11 +157,40 @@ final class SuggestionControllerTests: PipelineTestCase {
         XCTAssertTrue(controller.replyComposer.compose())
         let composing = controller.queries.current?.task
         fake.before = "Hi "
+        try type("Hi ")
+        XCTAssertNil(controller.queries.current, "the key ends it, whatever the pass makes of the field")
         controller.textDidChange()
         XCTAssertEqual(controller.queries.current?.kind, .completion(before: "Hi ", after: ""))
         await composing?.value
         XCTAssertTrue(fake.engine.conversations.isEmpty)
         XCTAssertNil(fake.window.ghost)
+    }
+
+    // A pass no key caused (a terminal repainting, a notification in a box that
+    // reads empty) leaves a reply alone, in flight and landed: only a key or a
+    // focus change ends one. It lands on a fresh read.
+    func testAPassNoKeyCausedLeavesAReplyInFlight() async throws {
+        set(\.screenContextEnabled, true)
+        fake.emptyReadsNil = true
+        fake.screen = "Alice: lunch at noon?"
+        fake.engine.reply = "Sure"
+        let gate = HeldCall()
+        fake.engine.replyGate = gate
+        XCTAssertTrue(controller.replyComposer.compose())
+        let composing = try XCTUnwrap(controller.queries.current?.task)
+        var entered = gate.entered.makeAsyncIterator()
+        _ = await entered.next()
+
+        controller.textDidChange()
+        XCTAssertTrue(controller.queries.isReply)
+        XCTAssertFalse(controller.field.cacheVouches)
+        controller.focusTracker.onViewportChange?()
+        XCTAssertTrue(controller.queries.isReply, "a moved window strands the drawing, not the reply")
+        gate.open()
+        await composing.value
+        XCTAssertEqual(fake.window.ghost, "Sure")
+        controller.textDidChange()
+        XCTAssertEqual(fake.window.ghost, "Sure")
     }
 
     // An automatic offer runs only on a reply model already loaded — never the

@@ -108,7 +108,7 @@ final class SuggestionController {
         focusTracker.onFocusChange = { [weak self] in self?.focusDidChange() }
         focusTracker.onTextChange = { [weak self] valueChanged in self?.focusedTextDidChange(valueChanged: valueChanged) }
         focusTracker.onResignActiveApp = { [weak self] in self?.focusedAppDidResign() }
-        focusTracker.onViewportChange = { [weak self] in self?.dropOverlay(why: "the window moved or resized") }
+        focusTracker.onViewportChange = { [weak self] in self?.viewScrolled(why: "the window moved or resized") }
         keyTap.handler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
         }
@@ -293,14 +293,14 @@ final class SuggestionController {
         dismiss()
     }
 
-    /// A scroll strands what is drawn, not what is being written: a reply or
+    /// A scroll or a moved window strands what is drawn, not what is being written: a reply or
     /// fix in flight (seconds of OCR and generation — scrolling the chat to
     /// read it meanwhile is natural) keeps running and lands on a fresh read of
     /// the caret. Forgetting the cache and the caret is what forces that read,
     /// and keeps the thinking dots from painting at the pre-scroll spot.
-    func viewScrolled() {
+    func viewScrolled(why: String = "the view scrolled") {
         guard queries.isReply || correctionController.inFlight else {
-            return dropOverlay(why: "the view scrolled")
+            return dropOverlay(why: why)
         }
         field.forgetCaret()
         window.clearNoticeProtection()
@@ -434,6 +434,15 @@ final class SuggestionController {
             element = found
         }
 
+        // A key ended any reply it found (`handleKeyDown`), so what brought
+        // this pass was no key: a terminal repainting, a notification in an
+        // empty web box. A reply outlives it, and lands on a fresh read in
+        // case the field did move.
+        if queries.isReply {
+            field.cacheVouches = false
+            return
+        }
+
         // A selection just typed over (a selection fix) may still read as
         // selected inside the settle window — and would put its "fix" pill
         // back. Look again once the host has caught up.
@@ -457,8 +466,10 @@ final class SuggestionController {
         // on every key.
         let probe = element == env.trackedElement() && !env.isTerminalField(element)
             ? { [env] in env.relatchIfDead(element) } : nil
+        // A reply's ghost stands in a box that reads empty, as it landed there.
         let ctx: TextContext
-        switch field.admit(env.context(of: element), of: element, probe: probe, clock: env.now) {
+        switch field.admit(env.context(of: element, allowEmpty: field.ghost?.trimToLine == false),
+                           of: element, probe: probe, clock: env.now) {
         case .taken(let read):
             ctx = read
         case .retry:

@@ -220,6 +220,16 @@ final class FieldStateTests: XCTestCase {
         let now = Date()
         let head = TextContext(textBeforeCaret: "Hi the", textAfterCaret: "", caretRect: nil, host: HostTextStyle())
         guard case .trailing = field.anchor(cached: nil, read: { head }, at: now) else { return XCTFail("a head trails") }
+        // A pass during a reply: the same text, but the compare no longer holds.
+        field.cache = "same"
+        field.cacheVouches = false
+        let moved = TextContext(textBeforeCaret: "same", textAfterCaret: "", caretRect: CGRect(x: 9, y: 9, width: 1, height: 1), host: HostTextStyle())
+        guard case .context(let landed) = field.anchor(cached: TextContext(textBeforeCaret: "same", textAfterCaret: "", caretRect: nil, host: HostTextStyle()),
+                                                       read: { moved }, at: now), landed.caretRect == moved.caretRect else {
+            return XCTFail("the read decides")
+        }
+        field.cache = "next"
+        XCTAssertTrue(field.cacheVouches)
         let other = TextContext(textBeforeCaret: "x", textAfterCaret: "", caretRect: nil, host: HostTextStyle())
         guard case .context(let ctx) = field.anchor(cached: nil, read: { other }, at: now) else { return XCTFail("other text is the field") }
         XCTAssertEqual(ctx.textBeforeCaret, "x")
