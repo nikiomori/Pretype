@@ -19,6 +19,11 @@ final class SuggestionController {
         // A model/style/gate rebuild drops the suggestion that belonged to the
         // old engine.
         coordinator.onRebuild = { [weak self] in self?.dismiss() }
+        coordinator.isBusy = { [weak self] in
+            guard let self else { return false }
+            return self.queries.current != nil || self.correctionController.inFlight
+                || self.dictationController.isBusy || self.window.isVisible
+        }
         return coordinator
     }()
     /// The active completion engine, owned by `engineCoordinator`. Read-only here;

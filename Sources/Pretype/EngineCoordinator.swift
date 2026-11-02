@@ -14,6 +14,19 @@ final class EngineCoordinator {
     /// belonged to the previous engine (the controller wires this to `dismiss`).
     var onRebuild: (() -> Void)?
 
+    /// Whether a rebuild now would cut something short: it drops what is on
+    /// screen, a reply or fix in flight, and a capture's pill.
+    var isBusy: () -> Bool = { false }
+
+    /// `body`, once nothing is in the way of the rebuild it may run. For a
+    /// rebuild nobody asked for at this moment: a finished background fetch.
+    func whenIdle(poll: Duration = .seconds(5), _ body: @MainActor () -> Void) async {
+        while isBusy() {
+            guard (try? await Task.sleep(for: poll)) != nil else { return }
+        }
+        body()
+    }
+
     /// How a local engine is built — after the one it replaces, if any;
     /// tests build theirs on a tiny model.
     typealias MakeMLX = (_ modelID: String, _ previous: MLXEngine?) -> MLXEngine

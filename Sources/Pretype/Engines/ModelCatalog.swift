@@ -284,6 +284,13 @@ enum ModelCatalog {
         "nikimori/MiniCPM5-1B-Base-8bit": ["openbmb/MiniCPM5-1B-Base"],
     ]
 
+    /// Repos no entry loads any more that an older install may still hold, by
+    /// the entry that fetched them: listed and deleted with it
+    /// (`ModelStorage.repos`), or nothing in the app could reach them.
+    static let retiredRepos: [String: [String]] = [
+        "nikimori/MiniCPM5-1B-Base-8bit": ["openbmb/MiniCPM5-1B"],
+    ]
+
     /// The Hub repo `id`'s weights come from: its slim re-pack (or its new
     /// build), unless only the original is on disk — an install from before
     /// keeps loading that.

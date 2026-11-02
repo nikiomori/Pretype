@@ -295,6 +295,35 @@ final class ModelLoadingTests: MLXTestCase {
         }
     }
 
+    // A load called off stops waiting for that fetch, which can have minutes
+    // to go: whoever replaces the load waits for it to end.
+    func testACalledOffLoadStopsWaitingForABackgroundFetch() async throws {
+        try await inScratchHub {
+            let repo = "test/fetching-\(UUID().uuidString)"
+            let fetching = LockedValue(true), ended = LockedValue(false)
+            defer { fetching.set(false) }
+            ModelStorage.quietFetches.mutate {
+                $0[repo] = Task {
+                    while fetching.get() { try? await Task.sleep(for: .milliseconds(2)) }
+                    return true
+                }
+            }
+            defer { ModelStorage.quietFetches.mutate { $0[repo] = nil } }
+            let load = Task {
+                defer { ended.set(true) }
+                return try await MLXEngine.loadTarget(repo: repo, drafterID: nil, into: LockedValue(nil), tokenizers: TokenizerCache(),
+                                                      blueprints: LockedValue([:]), progressHandler: { _ in },
+                                                      loadModel: { _ in try tinyContainer() })
+            }
+            load.cancel()
+            await waitUntil { ended.get() }
+            XCTAssertTrue(ended.get(), "still waiting for the fetch")
+            fetching.set(false)
+            let result = await load.result
+            XCTAssertThrowsError(try result.get())
+        }
+    }
+
     // The drafter's fate, decided in `loadTarget` whichever way the target
     // loads: a drafter that fails to load is remembered for the launch and the
     // target serves without it; a VLM build that fails on weights already on

@@ -7,6 +7,23 @@ import XCTest
 /// model the two share reaches the new engine's first load (no MLX build
 /// leak), and the parsed tokenizers carry over (no re-parse).
 final class EngineCoordinatorTests: MLXTestCase {
+    // A finished background fetch waits for a reply or a capture to end: its
+    // rebuild would drop them.
+    @MainActor
+    func testAnUnaskedRebuildWaitsForIdle() async {
+        let coordinator = EngineCoordinator(makeMLX: Self.tiny(chats: LockedValue([])))
+        defer { coordinator.engine.shutdown() }
+        var busy = 3, ran = false
+        coordinator.isBusy = {
+            XCTAssertFalse(ran)
+            busy -= 1
+            return busy >= 0
+        }
+        await coordinator.whenIdle(poll: .milliseconds(1)) { ran = true }
+        XCTAssertTrue(ran)
+        XCTAssertEqual(busy, -1)
+    }
+
     @MainActor
     func testARebuildRetiresTheEngineAndHandsItsCachesOn() async throws {
         let saved = Settings.mlxModelID
@@ -101,6 +118,67 @@ final class EngineCoordinatorTests: MLXTestCase {
             coordinator.apply(.model("test/third"))
             XCTAssertTrue(Settings.logprobGate)
             XCTAssertNotNil((coordinator.engine as? MLXEngine)?.logprobGateThreshold)
+        }
+    }
+
+    /// A complete (if bogus) snapshot of `repo` in the current hub.
+    private static func download(_ repo: String) {
+        guard let root = ModelStorage.cacheDirectory(repo: repo)?.appendingPathComponent("snapshots/rev") else { return }
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        for file in ["config.json", "tokenizer.json", "model.safetensors"] {
+            try? Data("{}".utf8).write(to: root.appendingPathComponent(file))
+        }
+    }
+
+    /// The hourly pass on `model` in `style`, the fetches landing at once:
+    /// what it fetched, and whether it rebuilt the engine.
+    @MainActor
+    private func maintain(_ model: String, _ style: CompletionStyle, holding: [String],
+                          _ body: ([String], Bool) throws -> Void) async throws {
+        let saved = (Settings.mlxModelID, Settings.autoModelID, Settings.completionStyle, Settings.useRecommendedSettings)
+        defer { (Settings.mlxModelID, Settings.autoModelID, Settings.completionStyle, Settings.useRecommendedSettings) = saved }
+        (Settings.mlxModelID, Settings.autoModelID, Settings.completionStyle, Settings.useRecommendedSettings)
+            = (model, ModelCatalog.defaultID, style, true)
+        try await withScratchHub {
+            holding.forEach(Self.download)
+            let coordinator = EngineCoordinator(makeMLX: Self.tiny(chats: LockedValue([])))
+            defer { coordinator.engine.shutdown() }
+            let first = coordinator.engine
+            let fetched = LockedValue<[String]>([])
+            let fetch: ModelResidency.Fetch = { repo, _ in
+                fetched.mutate { $0.append(repo) }
+                Self.download(repo)
+                return true
+            }
+            await AppDelegate.maintainModels(coordinator, fetch: fetch)
+            let rebuilt = coordinator.engine !== first
+            await AppDelegate.maintainModels(coordinator, fetch: fetch)
+            try body(fetched.get(), rebuilt)
+        }
+    }
+
+    // A pick an older build still serves moves on: nothing else fetches the
+    // new one, and the engine leaves the weights it holds. The old build stays.
+    @MainActor
+    func testTheHourlyPassMovesAPickOffAnOldBuild() async throws {
+        let id = "nikimori/Qwen3.5-2B-Base-6bit", old = "nikimori/Qwen3.5-2B-Base-4bit"
+        try await maintain(id, .base, holding: [old]) { fetched, rebuilt in
+            XCTAssertEqual(fetched, [id])
+            XCTAssertTrue(rebuilt)
+            XCTAssertEqual(ModelCatalog.repo(for: id), id)
+            XCTAssertTrue(ModelStorage.isUsable(repo: old))
+        }
+    }
+
+    // Recommended moved under a stored style: the stored one serves until the
+    // recommended weights are here, then the style follows.
+    @MainActor
+    func testTheHourlyPassLandsOnTheRecommendedStyle() async throws {
+        let id = "mlx-community/gemma-4-e2b-4bit"
+        try await maintain(id, .instruct, holding: ["nikimori/gemma-4-e2b-it-4bit-slim"]) { fetched, rebuilt in
+            XCTAssertEqual(fetched, ["nikimori/gemma-4-e2b-4bit-slim"])
+            XCTAssertTrue(rebuilt)
+            XCTAssertEqual(Settings.completionStyle, .base)
         }
     }
 

@@ -200,8 +200,8 @@ enum ModelStorage {
         guard let option = ModelCatalog.option(for: id) else { return [] }
         let models = [option.id, option.correctionModelID]
         let slim = models.compactMap { ModelCatalog.slimRepos[$0] }
-        let previous = ModelCatalog.previousBuilds[option.id] ?? []
-        return Set((models + slim + previous + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
+        let older = (ModelCatalog.previousBuilds[option.id] ?? []) + (ModelCatalog.retiredRepos[option.id] ?? [])
+        return Set((models + slim + older + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
             .filter { cacheDirectory(repo: $0) != nil })
     }
 
@@ -252,12 +252,60 @@ enum ModelStorage {
     }
 
     /// `fetchQuietly` for what `id` completes on in `style`; true once it's here.
-    static func fetchWeights(for id: String, style: CompletionStyle) async -> Bool {
+    static func fetchWeights(for id: String, style: CompletionStyle, fetch: ModelResidency.Fetch = quietFetch) async -> Bool {
         let weights = weights(for: id, style: style)
         if isFetched(weights) { return true }
-        return await fetchQuietly(repo: ModelCatalog.repo(for: weights),
-                                  sizeHint: Int64(ModelCatalog.option(for: id)?.approxSizeMB ?? 0) * 1_000_000)
+        return await fetch(ModelCatalog.repo(for: weights), downloadBytes(of: id))
     }
+
+    /// The new build of what `id` completes on in `style`, when an older one
+    /// still serves it (`ModelCatalog.previousBuilds`). These are other
+    /// weights, not a re-pack of the same ones, so nothing else moves the pick
+    /// on. `repo(for:)` prefers the new build once it is here, and the old one
+    /// stays on disk. True when it landed: the caller's engine still holds the
+    /// old build.
+    static func fetchNewBuild(of id: String, style: CompletionStyle, fetch: ModelResidency.Fetch = quietFetch) async -> Bool {
+        let weights = weights(for: id, style: style)
+        guard ModelCatalog.previousBuilds[weights] != nil, ModelCatalog.repo(for: weights) != weights else { return false }
+        return await fetch(weights, downloadBytes(of: id))
+    }
+
+    /// Auto mode follows `ModelCatalog.recommended(for:)`, and a recommendation
+    /// can move an existing install onto weights it doesn't hold (the Gemma
+    /// tiers' switch to Base). The stored style keeps serving while those are
+    /// fetched quietly; true once the caller can re-apply the recommendation
+    /// without a download wait.
+    static func fetchRecommendedWeights(selected: String, fetch: ModelResidency.Fetch = quietFetch) async -> Bool {
+        guard Settings.useRecommendedSettings, ModelCatalog.option(for: selected) != nil else { return false }
+        let style = ModelCatalog.recommended(for: selected).style
+        guard style != Settings.completionStyle else { return false }
+        return await fetchWeights(for: selected, style: style, fetch: fetch)
+    }
+
+    private static func downloadBytes(of id: String) -> Int64 {
+        Int64(ModelCatalog.option(for: id)?.approxSizeMB ?? 0) * 1_000_000
+    }
+
+    /// `url`, or the nearest folder above it that is there: a model still to
+    /// download has none yet, and `resourceValues` throws on a missing path.
+    static func nearestExisting(_ url: URL) -> URL {
+        var url = url
+        while !FileManager.default.fileExists(atPath: url.path), url.pathComponents.count > 1 {
+            url.deleteLastPathComponent()
+        }
+        return url
+    }
+
+    /// Room at `url` for `bytes` of a quiet download, plus 2 GB to spare.
+    static func hasRoom(for bytes: Int64, at url: URL) -> Bool {
+        let free = (try? nearestExisting(url)
+            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage ?? 0
+        return free > bytes + 2_000_000_000
+    }
+
+    /// `fetchQuietly`, as those who fetch take it; tests record the fetches.
+    static let quietFetch: ModelResidency.Fetch = { await fetchQuietly(repo: $0, sizeHint: $1) }
 
     /// How far the running `fetchQuietly` is, 0…1, for the status line; nil
     /// when none runs.
@@ -271,10 +319,7 @@ enum ModelStorage {
     static func fetchQuietly(repo: String, sizeHint: Int64,
                              unmetered: () async -> Bool = isNetworkUnmetered) async -> Bool {
         guard let directory = cacheDirectory(repo: repo) else { return false }
-        let free = (try? directory.deletingLastPathComponent()
-            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
-            .volumeAvailableCapacityForImportantUsage ?? 0
-        guard free > sizeHint + 2_000_000_000, await unmetered() else { return false }
+        guard hasRoom(for: sizeHint, at: directory), await unmetered() else { return false }
         func fetch() -> Task<Bool, Never> { Task {
             DebugLog.shared.log("MLX", "fetching \(repo) in the background")
             quietFetchProgress.set(0)
@@ -306,8 +351,17 @@ enum ModelStorage {
     /// and a delete leaves the repo alone until it ends.
     static let quietFetches = LockedValue<[String: Task<Bool, Never>]>([:])
 
+    /// Until the fetch of `repo` ends, or the waiter is called off: a fetch
+    /// can have minutes to go, and whoever replaces a called-off load waits
+    /// for that load to end.
     static func waitForQuietFetch(repo: String) async {
-        if let running = quietFetches.get()[repo] { _ = await running.value }
+        guard let running = quietFetches.get()[repo] else { return }
+        let done = LockedValue(false)
+        Task {
+            _ = await running.value
+            done.set(true)
+        }
+        while !done.get(), !Task.isCancelled { try? await Task.sleep(for: .milliseconds(50)) }
     }
 
     /// Whether the network is one a multi-GB background fetch may use: up, not

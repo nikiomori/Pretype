@@ -1,3 +1,4 @@
+import HuggingFace
 import XCTest
 @testable import Pretype
 
@@ -18,6 +19,21 @@ final class ModelStorageTests: XCTestCase {
             XCTAssertFalse(fits)
             XCTAssertEqual(asked.get(), 1, "with room, the network has its say")
         }
+    }
+
+    // A first fetch has no hub folder yet: the room is the nearest folder's.
+    func testAQuietFetchIntoAMissingHubFolderChecksTheDiskAboveIt() async throws {
+        let root = try TinyGemma.scratch("hub")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let asked = LockedValue(0)
+        let hub = HubCache(cacheDirectory: root.appendingPathComponent("not/yet"))
+        await ModelStorage.$hub.withValue(hub) {
+            _ = await ModelStorage.fetchQuietly(repo: "test/first", sizeHint: 0, unmetered: {
+                asked.mutate { $0 += 1 }
+                return false
+            })
+        }
+        XCTAssertEqual(asked.get(), 1, "no folder read as no room")
     }
 
     // An already-downloaded model loads from its snapshot with no network

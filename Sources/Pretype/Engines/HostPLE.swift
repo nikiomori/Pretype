@@ -104,11 +104,7 @@ final class HostPLE: Embedding {
     /// the table stays resident. A `url` not there yet — a model still to
     /// download — is judged by the nearest folder that is.
     static func isOnInternalDisk(_ url: URL, volume: (URL) -> Volume = HostPLE.volume(of:)) -> Bool {
-        var url = url
-        while !FileManager.default.fileExists(atPath: url.path), url.pathComponents.count > 1 {
-            url.deleteLastPathComponent()
-        }
-        let found = volume(url.resolvingSymlinksInPath())
+        let found = volume(ModelStorage.nearestExisting(url).resolvingSymlinksInPath())
         return found.isInternal == true && found.isLocal == true
     }
 

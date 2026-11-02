@@ -282,7 +282,10 @@ final class ModelCatalogTests: XCTestCase {
         try withScratchHub {
             for option in ModelCatalog.options { repos.formUnion(ModelStorage.repos(for: option.id)) }
         }
-        for repo in repos { XCTAssertNotNil(ModelCatalog.pinnedRevisions[repo], repo) }
+        // Retired repos are deleted, never fetched.
+        for repo in repos.subtracting(ModelCatalog.retiredRepos.values.joined()) {
+            XCTAssertNotNil(ModelCatalog.pinnedRevisions[repo], repo)
+        }
     }
 
     /// The "Reduce memory use" toggle moves every memory figure together: the

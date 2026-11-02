@@ -1,8 +1,10 @@
 import XCTest
 @testable import Pretype
 
-/// An app update that changes which build a pick runs on must never turn into
-/// a forced download or a dead engine offline.
+/// An app update that changes which build a pick runs on must not turn into a
+/// forced download or a dead engine offline. One known exception: an install
+/// from v2.6 or before with no stored style and only instruct weights
+/// downloads its Base build at next use.
 final class ModelUpgradeTests: XCTestCase {
     // Qwen3.5's pick moved to its Base build (10-11), then to 6-bit (10-14): an
     // install holding only an older build keeps completing on the newest one
@@ -38,6 +40,15 @@ final class ModelUpgradeTests: XCTestCase {
         XCTAssertNotEqual(ModelCatalog.option(for: id)?.correctionModelID, bf16)
         XCTAssertTrue(try withScratchHub { ModelStorage.repos(for: id) }.contains(bf16))
         XCTAssertNotNil(ModelCatalog.pinnedRevisions[id])
+    }
+
+    // MiniCPM5's own instruct build, its chords until 10-15: nothing loads it
+    // now, and only its entry can still give the space back.
+    func testARetiredRepoCanBeDeleted() throws {
+        let deletable = try withScratchHub {
+            ModelStorage.deletableRepos(for: "nikimori/MiniCPM5-1B-Base-8bit", selected: ModelCatalog.options[0].id)
+        }
+        XCTAssertTrue(deletable.contains("openbmb/MiniCPM5-1B"))
     }
 
     // The memory ladder moving on (a re-tier, or a Mac with more memory) must

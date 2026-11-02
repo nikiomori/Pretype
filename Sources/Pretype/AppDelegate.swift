@@ -108,29 +108,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task.detached(priority: .utility) { _ = try? await Parakeet.prepare() }
         }
         // Hourly, not only at launch: a menu-bar app runs for weeks, and a
-        // fetch declined at launch (cellular, Low Data Mode, a full disk) or
-        // an old build waiting for its replacement to load must not wait for
-        // the next one. Every step is a no-op once done.
+        // fetch declined at launch (cellular, Low Data Mode, a full disk)
+        // must not wait for the next one. Every step is a no-op once done.
+        let engines = controller.engineCoordinator
         Task.detached(priority: .background) {
             while !Task.isCancelled {
-                await Self.maintainModels(controller)
+                await Self.maintainModels(engines)
                 try? await Task.sleep(for: .seconds(3600))
             }
         }
     }
 
-    /// The model upkeep an update can owe this install, in a background fetch
-    /// that leaves the current model serving: a default the memory ladder
-    /// moved (`Settings.pendingDefault`). None while an API model writes the
-    /// text: the local one isn't in use.
-    nonisolated private static func maintainModels(_ controller: SuggestionController) async {
-        guard !Settings.apiText.enabled, let next = Settings.pendingDefault else { return }
-        let style = await MainActor.run { controller.engineCoordinator.current.applying(.model(next)).style }
-        guard await ModelStorage.fetchWeights(for: next, style: style) else { return }
-        await MainActor.run {
+    /// The model upkeep an update can owe this install, in background fetches
+    /// that leave the current model serving: the new build of a pick an older
+    /// one still serves (`ModelStorage.fetchNewBuild`), the weights its
+    /// recommended style runs on, and a default the memory ladder moved
+    /// (`Settings.pendingDefault`). `fetch`: tests record the fetches instead.
+    nonisolated static func maintainModels(_ engines: EngineCoordinator,
+                                           fetch: @escaping ModelResidency.Fetch = ModelStorage.quietFetch) async {
+        // None while an API model writes the text: the local one isn't in use.
+        guard !Settings.apiText.enabled else { return }
+        let selected = Settings.mlxModelID
+        if await ModelStorage.fetchNewBuild(of: selected, style: Settings.completionStyle, fetch: fetch) {
+            await engines.whenIdle {
+                // The pick may have changed while the build downloaded.
+                if Settings.mlxModelID == selected { engines.rebuild() }
+            }
+        }
+        if await ModelStorage.fetchRecommendedWeights(selected: selected, fetch: fetch) {
+            await engines.whenIdle {
+                // The pick may have changed while the weights downloaded.
+                guard Settings.mlxModelID == selected, Settings.useRecommendedSettings,
+                      Settings.completionStyle != ModelCatalog.recommended(for: selected).style else { return }
+                engines.apply(.useRecommended(true))
+            }
+        }
+        guard let next = Settings.pendingDefault else { return }
+        let style = await MainActor.run { engines.current.applying(.model(next)).style }
+        guard await ModelStorage.fetchWeights(for: next, style: style, fetch: fetch) else { return }
+        await engines.whenIdle {
             guard Settings.pendingDefault == next else { return }
             Settings.autoModelID = next
-            controller.engineCoordinator.apply(.model(next))
+            engines.apply(.model(next))
         }
     }
 }
