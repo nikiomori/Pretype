@@ -88,7 +88,7 @@ final class EngineCoordinatorTests: MLXTestCase {
             // The gate and auto mode keep the loaded model: no rebuild, the
             // running engine reads the new gate.
             let second = try XCTUnwrap(coordinator.engine as? MLXEngine)
-            XCTAssertEqual(second.logprobGateThreshold, Settings.logprobGateThreshold)
+            XCTAssertEqual(second.logprobGateThreshold, ModelCatalog.recommended(for: "test/other").logprobGateTau)
             coordinator.apply(.logprobGate(false))
             XCTAssertNil(second.logprobGateThreshold)
             coordinator.apply(.useRecommended(true))

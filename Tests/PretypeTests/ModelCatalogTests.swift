@@ -691,7 +691,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(qwen, [.han: -1.18, .hangul: -0.57])
         XCTAssertEqual(ModelCatalog.alwaysOnGateTau(for: "mlx-community/gemma-4-e2b-4bit"), [.han: -0.75, .hangul: -1.07])
         XCTAssertEqual(ModelCatalog.alwaysOnGateTau(for: ModelCatalog.appleIntelligenceID), [:])
-        // gate off → the floor; hand-tuned looser τ → raised to it; stricter stays.
+        // gate off → the floor; a pinned looser τ → raised to it; stricter stays.
         let floor: [GateScript: Double] = [.han: -0.94]
         XCTAssertEqual(MLXEngine.gateTau(base: nil, script: .han, scriptTau: [:], floor: floor), -0.94)
         XCTAssertNil(MLXEngine.gateTau(base: nil, script: nil, scriptTau: [:], floor: floor))

@@ -605,14 +605,11 @@ enum Settings {
     @Pref("useRecommendedSettings", true) static var useRecommendedSettings: Bool
 
     /// Logprob confidence gate (base only): abstain when the shown suggestion's
-    /// mean first-word logprob is below `logprobGateThreshold`. Trades coverage
+    /// mean first-word logprob is below the model's τ
+    /// (`ModelCatalog.Recommendation.logprobGateTau`). Trades coverage
     /// for precision at **0×** extra decode — the first-word logprob is already captured live by the
     /// decode loop (validated in Eval/BASELINE.md). Off by default.
     @Pref("logprobGate", false) static var logprobGate: Bool
-    /// Mean first-word logprob floor for models without a calibrated τ. Q3
-    /// boundary from the eval-real calibration (~11% Net-KSS at ~49%
-    /// coverage). More negative = laxer, toward 0 = stricter.
-    static let logprobGateThreshold = -1.5
 
     /// Free the resident MLX model after this many minutes idle (0 = never). A
     /// background menu-bar app shouldn't hold several GB while unused; the next

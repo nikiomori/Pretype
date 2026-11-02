@@ -477,8 +477,8 @@ final class MLXEngineTests: MLXTestCase {
         // With the gate on, the decode holds partials back until the first
         // word's verdict, and the stream then ends on the final text.
         try await withEngine(gate: true) { engine in
-            let shown = try await stream(engine, "abcdefghijklmnopqrstuvwxyz0123")
-            let final = try await complete(engine, "abcdefghijklmnopqrstuvwxyz0123")
+            let shown = try await stream(engine, "abcdefghijklmnopqrstuvwxyz0125")
+            let final = try await complete(engine, "abcdefghijklmnopqrstuvwxyz0125")
             XCTAssertEqual(shown.last, try XCTUnwrap(final))
         }
     }
@@ -488,7 +488,7 @@ final class MLXEngineTests: MLXTestCase {
     // The engine's first-word logprob describes the suggestion shown — the
     // last one, or none after an abstain.
     func testTheLogprobGateAndTheFirstWordLogProb() async throws {
-        let (unsure, confident, healed) = ("abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrstuvwxyz0123", "9876543210xyz")
+        let (unsure, confident, healed) = ("abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrstuvwxyz0125", "9876543210xyz")
         var ungated: [String: Double] = [:]
         try await withEngine { engine in
             for text in [unsure, confident, healed] {
@@ -497,12 +497,12 @@ final class MLXEngineTests: MLXTestCase {
                 ungated[text] = try XCTUnwrap(engine.lastFirstWordLogProb)
             }
         }
-        let tau = Settings.logprobGateThreshold
+        let tau = try XCTUnwrap(ModelCatalog.recommended(for: "test/tiny").logprobGateTau)
         XCTAssertLessThan(ungated[unsure] ?? 0, tau)
         XCTAssertGreaterThan(ungated[confident] ?? -.infinity, tau)
         XCTAssertLessThan(ungated[healed] ?? 0, tau)
         try await withEngine(gate: true) { engine in
-            XCTAssertEqual(engine.logprobGateThreshold, tau, "a hand-set gate (no recommended settings) is τ as set")
+            XCTAssertEqual(engine.logprobGateThreshold, tau)
             let sure = try await complete(engine, confident)
             XCTAssertNotNil(sure)
             XCTAssertEqual(try XCTUnwrap(engine.lastFirstWordLogProb), ungated[confident] ?? 0, accuracy: 1e-4)
@@ -515,20 +515,20 @@ final class MLXEngineTests: MLXTestCase {
         }
     }
 
-    // The gate's τ: the model's recommended one under recommended settings,
-    // the hand-set one without them, none with the gate off.
+    // The gate's τ: the model's own, with its script table, whether Recommended
+    // settings are on or not — nothing sets a τ by hand, and the rail books only
+    // that one, so a picked Length must not weaken the gate at the next rebuild.
+    // None with the gate off.
     func testTheGateThresholdFollowsTheSettings() async throws {
-        let id = try XCTUnwrap(ModelCatalog.options.map(\.id).first {
-            ModelCatalog.recommended(for: $0).logprobGateTau.map { $0 != Settings.logprobGateThreshold } ?? false
-        }, "a model with a τ of its own")
+        let id = "mlx-community/gemma-4-e4b-6bit"
         let recommended = ModelCatalog.recommended(for: id)
         try await withEngine(id, gate: true, recommended: true) { engine in
             XCTAssertEqual(engine.logprobGateThreshold, recommended.logprobGateTau)
             XCTAssertEqual(engine.scriptGateTau, recommended.scriptGateTau)
         }
         try await withEngine(id, gate: true) { engine in
-            XCTAssertEqual(engine.logprobGateThreshold, Settings.logprobGateThreshold)
-            XCTAssertEqual(engine.scriptGateTau, [:])
+            XCTAssertEqual(engine.logprobGateThreshold, recommended.logprobGateTau)
+            XCTAssertEqual(engine.scriptGateTau, recommended.scriptGateTau)
         }
         try await withEngine(id, recommended: true) { engine in
             XCTAssertNil(engine.logprobGateThreshold)

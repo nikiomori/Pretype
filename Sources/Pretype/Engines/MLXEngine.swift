@@ -40,9 +40,8 @@ final class MLXEngine: CompletionEngine {
     /// PRETYPE_LOGPROB_GATE, live (`updateGate`). 0× extra decode — the value
     /// is already captured by the live decode loop (firstWordLogProbBox).
     var logprobGateThreshold: Double? { gateBox.get().tau }
-    /// Per-script overrides of `logprobGateThreshold` (`Recommendation.scriptGateTau`),
-    /// recommended settings only: an env pin or a hand-tuned threshold applies
-    /// to every script as-is.
+    /// Per-script overrides of `logprobGateThreshold` (`Recommendation.scriptGateTau`):
+    /// an env pin applies to every script as-is.
     var scriptGateTau: [GateScript: Double] { gateBox.get().scriptTau }
     /// Both of the above, read together so a request never pairs one
     /// setting's τ with the other's script table.
@@ -560,8 +559,8 @@ final class MLXEngine: CompletionEngine {
         instructionsBox.set(instructions)
     }
 
-    /// Re-read the gate from Settings: turning it on or off, or auto mode,
-    /// keeps the loaded model (`EngineCoordinator.apply`).
+    /// Re-read the gate from Settings: turning it on or off keeps the loaded
+    /// model (`EngineCoordinator.apply`).
     func updateGate() { gateBox.set(Self.gate(for: gateModelID)) }
 
     /// The gate's τ and per-script table for `modelID`, from the environment
@@ -570,21 +569,15 @@ final class MLXEngine: CompletionEngine {
     /// set-but-non-numeric value would let eval runs silently inherit the
     /// app's live config. PRETYPE_LOGPROB_GATE=recommended pins the shipped
     /// per-model + per-script τ whatever Settings say (the eval's gate-on arm).
+    /// The gate is one switch with the model's τ, calibrated per model (Q4
+    /// edges −0.94…−1.34) and per script where that still loses: Recommended
+    /// settings govern Style and Length only, and no control sets a τ by hand.
     private static func gate(for modelID: String) -> (tau: Double?, scriptTau: [GateScript: Double]) {
         let gatePin = ProcessInfo.processInfo.environment["PRETYPE_LOGPROB_GATE"]
+        if let gatePin, gatePin != "recommended" { return (Double(gatePin), [:]) }
+        guard gatePin != nil || Settings.logprobGate else { return (nil, [:]) }
         let recommended = ModelCatalog.recommended(for: modelID)
-        if let gatePin, gatePin != "recommended" {
-            return (Double(gatePin), [:])
-        } else if gatePin != nil || (Settings.logprobGate && Settings.useRecommendedSettings) {
-            // Recommended settings follow the model: τ is calibrated per model
-            // (Q4 edges −0.94…−1.34) and per script where that still loses —
-            // see Recommendation.logprobGateTau / scriptGateTau.
-            return (recommended.logprobGateTau ?? Settings.logprobGateThreshold,
-                    recommended.logprobGateTau == nil ? [:] : recommended.scriptGateTau)
-        } else {
-            // Off, or a hand-tuned threshold (useRecommendedSettings off) as-is.
-            return (Settings.logprobGate ? Settings.logprobGateThreshold : nil, [:])
-        }
+        return (recommended.logprobGateTau, recommended.scriptGateTau)
     }
 
     /// True when the recent text is majority-Cyrillic — used to widen the token

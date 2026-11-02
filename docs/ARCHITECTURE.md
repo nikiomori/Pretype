@@ -208,7 +208,8 @@ The eval harness and the datasets are not in the public repo. Refer to
 On real held-out text, an autocomplete without a gate is *net-negative*. The
 cost to read wrong suggestions is more than the keystrokes that it saves.
 Thus Pretype has an **opt-in confidence gate** and an always-on confidence
-trim. This diagram shows the checks in base style:
+trim. The gate uses the threshold of the model. The threshold does not change
+when **Recommended** is off. This diagram shows the checks in base style:
 
 <div align="center">
 <img src="diagram-arch-gates.svg" width="400" alt="Base-style checks after the decode. 1, confidence gate, opt-in: is the first-word log-prob at or above tau? If no, show nothing. The gate does not apply when the caret is inside a word. 2, confidence trim: stop at the first weak token and show the text before it. 3, token healing: with the caret inside a word, does the output start with the typed fragment? If no, show nothing. 4, output gates: if they fail, show nothing; if they pass, show the suggestion." />
