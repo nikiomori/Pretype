@@ -484,11 +484,10 @@ struct ConfigProjection {
     // MARK: Deltas
 
     /// One metric's change between two projections, for delta chips.
-    struct MetricDelta: Identifiable {
+    struct MetricDelta {
         let label: String     // "Accuracy"
         let text: String      // "+25 pp", "3× slower"
         let improved: Bool
-        var id: String { label }
     }
 
     /// Human-readable differences target − base, omitting negligible ones.

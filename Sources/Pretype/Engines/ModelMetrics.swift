@@ -36,8 +36,6 @@ struct ModelMetrics {
     let p50Ms: Int
     /// Resident weights, GB (catalog download size).
     let ramGB: Double
-    /// One honest caveat worth surfacing next to the numbers, if any.
-    let note: String?
 
     /// Umbrella citation for surfaces that describe the whole catalog.
     static let evalSource = String(localized: "eval-real, English+Russian pooled, n=1449, 2026-10-15")
@@ -45,61 +43,50 @@ struct ModelMetrics {
     static let all: [ModelMetrics] = [
         ModelMetrics(id: "mlx-community/gemma-4-e4b-8bit", shortName: "E4B 8-bit",
                      firstWordPct: 31, ci: 29...34, coveragePct: 83,
-                     logProbPerChar: -0.855, p50Ms: 78, ramGB: 5.98,
-                     note: String(localized: "Top of the 17-language set and steady across all of them — but only a trend ahead of E2B 8-bit (p=0.013, n=5649) and tied with E4B 6-bit (p=0.28), for the most memory in the catalog.")),
+                     logProbPerChar: -0.855, p50Ms: 78, ramGB: 5.98),
         ModelMetrics(id: "mlx-community/gemma-4-e4b-6bit", shortName: "E4B 6-bit",
                      firstWordPct: 32, ci: 29...34, coveragePct: 82,
-                     logProbPerChar: -0.865, p50Ms: 81, ramGB: 5.03,
-                     note: String(localized: "Ties E4B 8-bit on the 17-language set (p=0.28) at ~1 GB less — and E2B 8-bit too (p=0.11).")),
+                     logProbPerChar: -0.865, p50Ms: 81, ramGB: 5.03),
         ModelMetrics(id: "mlx-community/gemma-4-e2b-8bit", shortName: "E2B 8-bit",
                      firstWordPct: 31, ci: 28...34, coveragePct: 83,
-                     logProbPerChar: -0.886, p50Ms: 46, ramGB: 3.41,
-                     note: String(localized: "Statistically level with both E4B builds on the 17-language set (p=0.013 vs 8-bit, p=0.11 vs 6-bit) in less memory and ~40% less time per suggestion; robust across all 17 eval languages.")),
+                     logProbPerChar: -0.886, p50Ms: 46, ramGB: 3.41),
         // E4B-4bit and LFM2.5 delisted 2026-07-17: each strictly dominated by a
         // catalog neighbor on every axis (E2B-4bit and MiniCPM5 respectively).
         ModelMetrics(id: "mlx-community/gemma-4-e2b-4bit", shortName: "E2B 4-bit",
                      firstWordPct: 30, ci: 28...33, coveragePct: 84,
-                     logProbPerChar: -0.925, p50Ms: 34, ramGB: 2.51,
-                     note: String(localized: "Mildest 4-bit cost in the field: level with E2B 8-bit on English (28 vs 26) and on Russian (22 vs 25) — neither gap significant — but behind it on 17 languages (p<0.001), and still ahead of every smaller model there (Qwen3.5 2B p<0.001), at 0.9 GB less and a little faster.")),
+                     logProbPerChar: -0.925, p50Ms: 34, ramGB: 2.51),
         // Our 8-bit build since 2026-10-15; it ties the hub's bf16 (paired,
         // Eval/runs-2026-10-14-small), and this row is the 8-bit build's own.
         ModelMetrics(id: "nikimori/MiniCPM5-1B-Base-8bit", shortName: "MiniCPM5 1B",
                      firstWordPct: 29, ci: 26...32, coveragePct: 82,
-                     logProbPerChar: -1.042, p50Ms: 18, ramGB: 1.1,
-                     note: String(localized: "An English specialist and, with Qwen 0.5B, the fastest model in the catalog — on English it ties E2B 8-bit outright (28% vs 26%, p=0.12). Russian is a different story: 17% against E2B 8-bit's 25% (p<0.001). Wider multilingual coverage collapses (uk/ro/tr/cs 56–62% vs the Gemmas' ≥74%), and Hebrew is its floor at 3% — effectively blind.")),
+                     logProbPerChar: -1.042, p50Ms: 18, ramGB: 1.1),
         ModelMetrics(id: "mlx-community/Qwen2.5-0.5B-bf16", shortName: "Qwen2.5 0.5B",
                      firstWordPct: 27, ci: 25...30, coveragePct: 82,
-                     logProbPerChar: -1.051, p50Ms: 17, ramGB: 1.0,
-                     note: String(localized: "Smallest footprint; a trend behind MiniCPM5 on 17 languages (p=0.028), and clearly behind its bigger sibling Qwen3.5 2B (p<0.001).")),
+                     logProbPerChar: -1.051, p50Ms: 17, ramGB: 1.0),
         // The Base build at 6-bit; the 10-15 run reproduces its 10-14 booking
         // output for output (Eval/runs-2026-10-14-small).
         ModelMetrics(id: "nikimori/Qwen3.5-2B-Base-6bit", shortName: "Qwen3.5 2B",
                      firstWordPct: 30, ci: 27...33, coveragePct: 81,
-                     logProbPerChar: -0.942, p50Ms: 32, ramGB: 1.5,
-                     note: String(localized: "Best sub-2 GB pick multilingually — beats MiniCPM5, Bonsai and Qwen 0.5B on the 17-language set (all p<0.001) with the mildest coverage sag; ties MiniCPM5 on English (28 vs 28), leads it on Russian (21 vs 17, a trend: p=0.018), and on Russian is level with the lightest Gemma (21 vs 22, p=0.19). The Base build at 6-bit: ahead of the 4-bit build (p<0.001) and tied with 8-bit, in 1.5 GB. On Arabic and Hebrew its lead over the other small models shrinks — a Gemma tier is still well ahead there.")),
+                     logProbPerChar: -0.942, p50Ms: 32, ramGB: 1.5),
         // The Base↔post-trained merge, booked 2026-10-16 with the 10-15 rules
         // (Eval/runs-2026-10-16-m1/rebook: book.py, calib-live.py); p50 = the
         // Base row's 32 ms × the interleaved same-binary ratio 36/36 ms.
         ModelMetrics(id: "nikimori/Qwen3.5-2B-M40-6bit", shortName: "Qwen3.5 2B M40",
                      firstWordPct: 29, ci: 27...32, coveragePct: 80,
-                     logProbPerChar: -0.937, p50Ms: 32, ramGB: 1.5,
-                     note: String(localized: "Qwen3.5 2B with part of its post-trained build blended in, so one 1.5 GB model both types and fixes — no second download. Completions tie the Base build (18.5 vs 18.9% on 17 languages, p=0.06). The fix chord restores more typos than the Base pick's sibling (41 vs 33%) and changes clean lines far less often (10 vs 28%), both p<0.001.")),
+                     logProbPerChar: -0.937, p50Ms: 32, ramGB: 1.5),
         // Our own model, booked 2026-10-31 with the 10-15 rules
         // (Eval/runs-2026-10-31-catalog: book.py, run.sh); p50 = E2B 4-bit's
         // 34 ms × the interleaved same-binary ratio 31/47 ms.
         ModelMetrics(id: "nikimoriOne/EuroLLM-1.7B-Pretype-5bit", shortName: "EuroLLM 1.7B",
                      firstWordPct: 30, ci: 28...33, coveragePct: 78,
-                     logProbPerChar: -0.887, p50Ms: 22, ramGB: 1.1,
-                     note: String(localized: "Our own model: one 1.1 GB file types and fixes. Completions tie E2B 4-bit on the 17-language set (p=0.44) and it fixes more (64 vs 49%) while it touches far less clean text (5 vs 31%), at a third less energy. It writes no replies or voice rewrites and stays silent in Hebrew; English and Russian are its weak spots.")),
+                     logProbPerChar: -0.887, p50Ms: 22, ramGB: 1.1),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 24...29, coveragePct: 82,
-                     logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1,
-                     note: String(localized: "Ternary 4B in 1.1 GB; measurably behind MiniCPM5 on the 17-language set (p=0.004), with the same coverage sag outside English and Western Europe (uk 62%, cs 63%).")),
+                     logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1),
         // Apple Intelligence exposes no logprobs, so the /char scoring can't run.
         ModelMetrics(id: "system.apple-intelligence", shortName: "Apple Intelligence",
                      firstWordPct: 17, ci: 15...19, coveragePct: 97,
-                     logProbPerChar: nil, p50Ms: 480, ramGB: 0,
-                     note: String(localized: "System model on the Neural Engine — no download, no app memory. The macOS 27 model answers almost every prompt (97% on English and Russian) and now covers Polish, Romanian and Czech too, but it is right less often than any downloadable model: 10% of Russian rows against 22% of English, and next to none in Japanese or Chinese. On Arabic and Hebrew it answers 84–87% and is right 6% of the time.")),
+                     logProbPerChar: nil, p50Ms: 480, ramGB: 0),
     ]
 
     static func metrics(for id: String) -> ModelMetrics? {
@@ -118,7 +105,7 @@ struct ModelMetrics {
     static let instructCompletion = ModelMetrics(
         id: "mlx-community/gemma-4-e4b-it-6bit", shortName: "E4B-it 6-bit",
         firstWordPct: 20, ci: 18...22, coveragePct: 99,
-        logProbPerChar: nil, p50Ms: 91, ramGB: 5.56, note: nil)
+        logProbPerChar: nil, p50Ms: 91, ramGB: 5.56)
 
     /// The precision gate as it ships — the live first-word logprob against
     /// the model's own τ (`ModelCatalog.recommended(for:).logprobGateTau`) —
@@ -187,39 +174,6 @@ struct ModelMetrics {
         "system.apple-intelligence":
             ["ar": 6, "cs": 3, "da": 14, "de": 10, "en": 22, "es": 14, "fr": 16, "he": 6, "it": 9, "ja": 0, "ko": 2, "nl": 13, "pl": 12, "pt": 9, "ro": 7, "ru": 10, "sv": 10, "tr": 3, "uk": 9, "zh": 1],
     ]
-
-    /// Rows behind each language's cell — the denominator `perLangOfAll` is
-    /// computed over (matched registers; EN excludes the 200 Enron rows no
-    /// other language has). A percentage without this is a number
-    /// without a tolerance, which is why the UI now shows both.
-    static let sampleSize: [String: Int] = [
-        "ar": 280, "cs": 280, "da": 280, "de": 280, "en": 560, "es": 280, "fr": 280, "he": 280,
-        "it": 280, "ja": 280, "ko": 280, "nl": 280, "pl": 280, "pt": 280, "ro": 280,
-        "ru": 689, "sv": 280, "tr": 280, "uk": 280, "zh": 280,
-    ]
-
-    /// Rows behind an axis. "core" is the EN+RU booking, which unlike the
-    /// per-language cells keeps every register (Enron included) — a different
-    /// convention, so it is not the sum of the two language cells.
-    static func axisSampleSize(_ axis: String) -> Int {
-        switch axis {
-        case "core": return 1449
-        case "*": return sampleSize.values.reduce(0, +)
-        default: return sampleSize[axis] ?? 0
-        }
-    }
-
-    /// Wilson 95% half-width in percentage points — how much of a figure is
-    /// sampling noise at that sample size. 280 rows buys ±5 pp near 20%; the
-    /// whole set buys ±1. Shown next to the figure so a 2-point difference
-    /// between two models reads as the tie it usually is.
-    static func marginOfError(pct: Int, n: Int) -> Int {
-        guard n > 0 else { return 0 }
-        let p = Double(pct) / 100, z = 1.96, count = Double(n)
-        let denominator = 1 + z * z / count
-        let half = z * (p * (1 - p) / count + z * z / (4 * count * count)).squareRoot() / denominator
-        return Int((100 * half).rounded())
-    }
 
     /// The languages the eval set measures, alphabetical.
     static let evalLanguages: [String] =
