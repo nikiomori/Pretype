@@ -151,6 +151,10 @@ final class ModelResidency {
                                   _ tokenizers: TokenizerCache,
                                   _ progress: @escaping @Sendable (Progress) -> Void) async throws -> ModelContainer
     private let load: Loader
+    /// How a fix model not on disk comes in: `ModelStorage.fetchQuietly`;
+    /// tests record the fetches instead.
+    typealias Fetch = @Sendable (_ repo: String, _ sizeHint: Int64) async -> Bool
+    private let fetch: Fetch
     /// Now, for every use, idle and cooldown time.
     private let clock: @Sendable () -> Date
 
@@ -167,15 +171,16 @@ final class ModelResidency {
     /// shut down — its blueprints and tokenizers carry over for the models
     /// the two share (see `EngineCoordinator.rebuild`). Loads nothing until
     /// `start`.
-    /// `load`, `tokenizers` (the cache a first residency starts from) and
-    /// `clock` are seams for tests.
+    /// `load`, `tokenizers` (the cache a first residency starts from), `clock`
+    /// and `fetch` are seams for tests.
     init(primaryID: String, style: CompletionStyle, promptCache: MLXEngine.PromptCache, after previous: ModelResidency?,
          load: @escaping Loader = ModelResidency.loadFromDisk, tokenizers cache: TokenizerCache = TokenizerCache(),
-         clock: @escaping @Sendable () -> Date = Date.init) {
+         clock: @escaping @Sendable () -> Date = Date.init,
+         fetch: @escaping Fetch = { await ModelStorage.fetchQuietly(repo: $0, sizeHint: $1) }) {
         blueprints = previous?.blueprints ?? LockedValue([:])
         tokenizers = previous?.tokenizers ?? cache
         self.clock = clock
-        (self.style, self.promptCache, self.load) = (style, promptCache, load)
+        (self.style, self.promptCache, self.load, self.fetch) = (style, promptCache, load, fetch)
         let correctionID = ModelCatalog.option(for: primaryID)?.correctionModelID ?? ModelCatalog.options[0].correctionModelID
         primary = Slot(id: primaryID, drafterID: style == .instruct ? ModelCatalog.mtpDrafterID(for: primaryID) : nil,
                        retryCooldown: Self.loadRetryCooldown)
@@ -415,13 +420,27 @@ final class ModelResidency {
     /// a focus change shouldn't retry a model that just failed to load).
     /// Starting a load counts as use; so does any fix prewarm — a dictation
     /// about to tidy up through the fix model, which the idle timer must not
-    /// free meanwhile. A focus change alone is no use.
+    /// free meanwhile. A focus change alone is no use. A fix model not on
+    /// disk isn't loaded but fetched (`fetchFixModel`).
     func prewarm(_ role: Role) {
+        let onDisk = role == .completion || isCorrectionReady
         modelLock.withLock {
             let slot = role == .completion ? primary : fixSlotUnderLock
-            guard didInitLoad, role == .fix || slot.task == nil, loadTask(slot) != nil else { return }
+            guard didInitLoad, role == .fix || slot.task == nil else { return }
+            if !onDisk, slot.task == nil { return fetchFixModel(slot) }
+            guard loadTask(slot) != nil else { return }
             slot.lastUse = clock()
         }
+    }
+
+    /// The fix model for the next fix: gigabytes nobody clicked for, so on the
+    /// terms of every such download (`ModelStorage.fetchQuietly`). `prewarm`
+    /// comes here only where a model can load (not with Metal missing or after
+    /// `shutdown`) and with none on its way: two hub downloaders in one repo
+    /// fail each other. Under `modelLock`.
+    private func fetchFixModel(_ slot: Slot) {
+        let (repo, gb, fetch) = (slot.repo(), ModelMetrics.taskRamGB(for: slot.id) ?? 0, self.fetch)
+        Task(priority: .background) { _ = await fetch(repo, Int64(gb * 1e9)) }
     }
 
     /// Whether a fix would cost at most a LOAD, never a download.

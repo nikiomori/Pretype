@@ -414,9 +414,10 @@ protocol CompletionEngine: AnyObject {
     /// purpose: a copy is not something the user typed to a provider.
     var usesClipboard: Bool { get }
 
-    /// Start loading whatever `correct` needs, in the background. Called by a
-    /// caller that just declined to wait for it, so the next one doesn't have
-    /// to decline too.
+    /// Start loading whatever `correct` needs, in the background — or, not on
+    /// disk, fetching it on the terms of every download nobody clicked for
+    /// (`ModelStorage.fetchQuietly`). Called by a caller that just declined to
+    /// wait for it, so the next one doesn't have to decline too.
     func prewarmCorrection()
 
     /// Returns a typo/grammar-fixed version of the selected text, or nil

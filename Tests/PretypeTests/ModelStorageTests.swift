@@ -2,6 +2,24 @@ import XCTest
 @testable import Pretype
 
 final class ModelStorageTests: XCTestCase {
+    // A download nobody clicked for needs room for itself plus 2 GB: without
+    // it nothing even asks the network, let alone fetches.
+    func testAQuietFetchWithoutRoomFetchesNothing() async throws {
+        let asked = LockedValue(0)
+        let unmetered: () async -> Bool = {
+            asked.mutate { $0 += 1 }
+            return false
+        }
+        try await withScratchHub {
+            let tooBig = await ModelStorage.fetchQuietly(repo: "test/too-big", sizeHint: 1 << 61, unmetered: unmetered)
+            XCTAssertFalse(tooBig)
+            XCTAssertEqual(asked.get(), 0)
+            let fits = await ModelStorage.fetchQuietly(repo: "test/fits", sizeHint: 0, unmetered: unmetered)
+            XCTAssertFalse(fits)
+            XCTAssertEqual(asked.get(), 1, "with room, the network has its say")
+        }
+    }
+
     // An already-downloaded model loads from its snapshot with no network
     // round trip — but only when everything the loader reads is there.
     func testLocalSnapshotNeedsWeightsConfigAndTokenizer() throws {

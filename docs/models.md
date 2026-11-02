@@ -333,7 +333,9 @@ A Gemma model keeps a large table, but each word of a suggestion reads only one 
 
 ### The fix chord can add a download
 
-On some models, the first <kbd>⌥Tab</kbd> downloads an instruct sibling one time:
+On some models, the fix needs an instruct sibling. The first <kbd>⌥Tab</kbd> downloads it one time.
+
+**Tidy up with the model** can also start this download, in the background, when you dictate. The download starts only on an unmetered network, and only if the disk has room for the sibling and 2 GB more. The dictation that starts it goes in as heard. The next dictation uses the sibling.
 
 | Model | Instruct sibling download |
 |---|---|

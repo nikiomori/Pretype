@@ -6,12 +6,14 @@ import XCTest
 
 /// A residency on a tiny Gemma (CPU) with a clock of its own: it records the
 /// blueprints each load is handed and counts the loads, and `held` keeps a
-/// load in flight — cancellably — until the test lets it finish.
+/// load in flight — cancellably, unless `stubborn` — until the test lets it
+/// finish, and `fetches` records what comes in by `ModelStorage.fetchQuietly`.
 private final class TinyResidency {
     let now: LockedValue<Date>
     let blueprintsSeen = LockedValue<[[String]]>([])
     let loads = LockedValue(0)
     let held: LockedValue<Bool>
+    let fetches = LockedValue<[(repo: String, sizeHint: Int64)]>([])
     let tokenizers = TokenizerCache { _ in CharTokenizer() }
     let promptCache = MLXEngine.PromptCache()
     let residency: ModelResidency
@@ -23,7 +25,7 @@ private final class TinyResidency {
          after previous: TinyResidency? = nil) {
         now = previous?.now ?? LockedValue(Date(timeIntervalSince1970: 1_000_000))
         held = LockedValue(hold)
-        let (now, seen, loads, held) = (now, blueprintsSeen, loads, held)
+        let (now, seen, loads, held, fetches) = (now, blueprintsSeen, loads, held, fetches)
         residency = ModelResidency(
             primaryID: primaryID, style: style, promptCache: promptCache, after: previous?.residency,
             load: { _, slot, blueprints, _, _ in
@@ -35,7 +37,11 @@ private final class TinyResidency {
                 if fails || (failsPrimary && slot.id == primaryID) { throw URLError(.cannotConnectToHost) }
                 return try tinyContainer()
             },
-            tokenizers: tokenizers, clock: { now.get() })
+            tokenizers: tokenizers, clock: { now.get() },
+            fetch: { repo, size in
+                fetches.mutate { $0.append((repo, size)) }
+                return false
+            })
         residency.start(loadPrimary: loadPrimary)
     }
 
@@ -451,12 +457,11 @@ final class ModelResidencyTests: MLXTestCase {
             defer { residency.shutdown() }
             let typing = try await tiny.use()
             tiny.held.set(true)
-            residency.prewarm(.fix)
+            let fix = try XCTUnwrap(residency.begin(.fix))
             XCTAssertTrue(residency.isLoading)
             tiny.advance(3_600)
             residency.idleTick(limit: 60)
             tiny.held.set(false)
-            let fix = try XCTUnwrap(residency.begin(.fix))
             _ = try await fix.task.value
             residency.end(fix)
             residency.end(typing)
@@ -513,6 +518,49 @@ final class ModelResidencyTests: MLXTestCase {
             try download("nikimori/Qwen3.5-2B-Base-6bit")
             residency.end(try await tiny.use(.fix))
             XCTAssertEqual(tiny.loads.get(), 1, "a second copy of the weights the primary holds")
+        }
+    }
+
+    // A fix model not on disk comes in by the road every download nobody
+    // clicked for takes, sized for its own weights, not by a load: that is
+    // what checks the network and the disk. Not with a load already bringing
+    // it in, nor where no model can ever load.
+    func testPrewarmingAFixModelNotOnDiskFetchesItQuietly() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(), residency = tiny.residency
+            residency.end(try await tiny.use())
+            residency.prewarm(.fix)
+            while tiny.fetches.get().isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+            let fix = try XCTUnwrap(ModelCatalog.option(for: ModelCatalog.options[0].id)?.correctionModelID)
+            XCTAssertEqual(tiny.fetches.get().first?.repo, ModelCatalog.repo(for: fix))
+            XCTAssertEqual(tiny.fetches.get().first?.sizeHint, 5_560_000_000)
+            XCTAssertEqual(tiny.loads.get(), 1, "a load has no room check")
+
+            tiny.held.set(true)
+            let waiting = try XCTUnwrap(residency.begin(.fix))
+            residency.prewarm(.fix)
+            try await Task.sleep(for: .milliseconds(20))
+            XCTAssertEqual(tiny.fetches.get().count, 1, "two downloaders in one repo fail each other")
+            tiny.held.set(false)
+            _ = try await waiting.task.value
+            residency.end(waiting)
+
+            let retired = TinyResidency(), gone = retired.residency
+            gone.shutdown()
+            gone.prewarm(.fix)
+            try await Task.sleep(for: .milliseconds(20))
+            XCTAssertTrue(retired.fetches.get().isEmpty, "this engine can't use it")
+            residency.shutdown()
+        }
+    }
+
+    // A size for every fix model a catalog entry loads: without one, the room
+    // check would ask for the 2 GB margin alone.
+    func testEveryFixModelHasASize() {
+        for option in ModelCatalog.options where option.id != ModelCatalog.appleIntelligenceID {
+            for id in [option.correctionModelID, option.instructModelID] {
+                XCTAssertNotNil(ModelMetrics.taskRamGB(for: id), id)
+            }
         }
     }
 

@@ -400,13 +400,15 @@ enum ModelStorage {
     /// A download nobody clicked for, on the terms every such fetch keeps: an
     /// unmetered network (`isNetworkUnmetered`) and room for about `sizeHint`
     /// bytes plus 2 GB. Whether `repo` is complete on disk afterwards; a
-    /// declined or failed fetch is retried on the next pass.
-    static func fetchQuietly(repo: String, sizeHint: Int64) async -> Bool {
+    /// declined or failed fetch is retried on the next pass. `unmetered`:
+    /// tests answer it themselves.
+    static func fetchQuietly(repo: String, sizeHint: Int64,
+                             unmetered: () async -> Bool = isNetworkUnmetered) async -> Bool {
         guard let directory = cacheDirectory(repo: repo) else { return false }
         let free = (try? directory.deletingLastPathComponent()
             .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
             .volumeAvailableCapacityForImportantUsage ?? 0
-        guard free > sizeHint + 2_000_000_000, await isNetworkUnmetered() else { return false }
+        guard free > sizeHint + 2_000_000_000, await unmetered() else { return false }
         func fetch() -> Task<Bool, Never> { Task {
             DebugLog.shared.log("MLX", "fetching \(repo) in the background")
             quietFetchProgress.set(0)
