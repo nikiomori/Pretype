@@ -90,13 +90,7 @@ First, open **Settings → Dictation**. That pane shows the name of the blocker.
 If dictation still does not operate:
 
 1. Read the `Dictation:` line in **Diagnostics**. It shows the status of dictation in one line.
-2. If the line says "ready" but the key does nothing, run the built binary with `--dictation-probe`:
-
-   ```bash
-   ./build/Pretype.app/Contents/MacOS/Pretype --dictation-probe
-   ```
-
-   The probe prints each change of a modifier key, with the hold state that the change caused. If your keyboard sends a key that the gesture does not accept, the probe tells you.
+2. If the line says "ready" but the key does nothing, open **Diagnostics → Debug Console…** and hold the key. If your keyboard sends a key that the gesture does not accept, a `DICTATE` line shows the key code.
 
 ### What does it cost in battery and memory?
 

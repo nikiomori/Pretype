@@ -64,23 +64,21 @@ With `--build-system swiftbuild`, the build also compiles the Metal shaders of M
 
 ## Diagnostic flags
 
-The app binary has two diagnostic flags. With a flag, the binary prints to the terminal and does not start the app.
+The app binary has one diagnostic flag. With the flag, the binary prints to the terminal and does not start the app.
 
 | Flag | What it does |
 |---|---|
 | `--ax-probe` | Prints what Accessibility shows for the focused text field: the role, the caret position and the caret rectangle. It prints every 0.8 seconds for 25 seconds. Use it when the suggestion shows at the wrong position in an app, for example in an Electron app. |
-| `--dictation-probe` | Prints each change of a modifier key, with the hold state that the change caused. Use it when the dictation key does nothing. The probe only observes. It does not record and does not type. |
 
-Run a flag on the built app bundle:
+Run the flag on the built app bundle:
 
 ```bash
 ./build/Pretype.app/Contents/MacOS/Pretype --ax-probe
-./build/Pretype.app/Contents/MacOS/Pretype --dictation-probe
 ```
 
-Both probes need the Accessibility permission. If the binary does not have it, `--ax-probe` shows the system prompt and stops. Grant the permission, then run the probe again.
+The probe needs the Accessibility permission. If the binary does not have it, the probe shows the system prompt and stops. Grant the permission, then run the probe again.
 
-> **NOTE:** The dictation settings and the microphone permission are not in the probe. Open the Pretype menu and read **Diagnostics → Dictation**. A binary that you start from a terminal gets the microphone permission of the terminal, not of Pretype.
+> **NOTE:** To examine dictation, open the Pretype menu. Read **Diagnostics → Dictation**, then open **Diagnostics → Debug Console…**. The console shows a `DICTATE` line when your keyboard sends a key that the gesture does not accept.
 
 The quality CLI and the eval harness are not in the repository. See *Quality eval* below.
 

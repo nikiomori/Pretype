@@ -405,8 +405,15 @@ final class DictationController {
         // NEXT sentence should queue behind the transcript exactly as one hold
         // queues behind another.
         guard !isLatchedAndLive else { return }
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        // The refusal nothing else shows: this keyboard raised the gesture's
+        // modifier under a key code the side-specific match rejects.
+        if let keys = Settings.dictationGesture.keys, event.flags.contains(keys.mask), !keys.codes.contains(keyCode) {
+            Self.note("modifier raised by key code \(keyCode) — \(Settings.dictationGesture.label) expects "
+                + keys.codes.map(String.init).joined(separator: "/"))
+        }
         let outcome = hold.modifierChanged(
-            keyCode: event.getIntegerValueField(.keyboardEventKeycode),
+            keyCode: keyCode,
             flags: event.flags,
             gesture: Settings.dictationGesture,
             now: Date())

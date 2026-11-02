@@ -70,7 +70,7 @@ APP=build/Pretype.app
 # cd'd to the repo root): a released copy installed in /Applications may be
 # running alongside the source build, and rebuilding here is no reason to shoot
 # it. The pkill pattern still ends at the bare executable, so a diagnostic run
-# (`--dictation-probe`), whose command line carries the flag, survives the
+# (`--ax-probe`), whose command line carries the flag, survives the
 # rebuild it is being used to debug.
 # Gated on pgrep because `tell application ... to quit` LAUNCHES a non-running
 # app just to deliver the quit event — every clean rebuild would flash the old
