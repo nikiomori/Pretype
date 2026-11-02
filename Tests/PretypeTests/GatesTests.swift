@@ -392,8 +392,23 @@ final class GatesTests: XCTestCase {
         // A pair only, around something: an opening quote alone stays.
         XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("\"a\""), "a")
         XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("\"hello"), "\"hello")
+        // Quotes the selection itself wraps in are the user's.
+        XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("\"hello\"", original: "\"helo\""), "\"hello\"")
+        XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("\"yes\" or \"no\"", original: "\"yse\" or \"no\""),
+                       "\"yes\" or \"no\"")
+        XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("«\"hello\"»", original: "\"helo\""), "\"hello\"")
         XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("\"\""), "\"\"")
         XCTAssertEqual(CorrectionGates.cleanCorrectionOutput("\""), "\"")
+    }
+
+    // ⌥⇥ and a voice command keep the quotes the selection wraps in.
+    func testTheUsersOwnQuotesStay() async throws {
+        let fixed = try await CorrectionGates.fix("\"teh cat\"", redactLog: false, logTag: "TEST") { _, _ in "\"the cat\"" }
+        XCTAssertEqual(fixed, "\"the cat\"")
+        let rewritten = try await CorrectionGates.rewrite("\"yes\" or \"no\"", instruction: "capitals") { _, _ in "\"YES\" or \"NO\"" }
+        XCTAssertEqual(rewritten, "\"YES\" or \"NO\"")
+        let doubled = try await CorrectionGates.fix("\"helo\"", redactLog: false, logTag: "TEST") { _, _ in "\"\"hello\"\"" }
+        XCTAssertEqual(doubled, "\"hello\"", "the original's pair once, the model's goes")
     }
 
     func testTrimRunOn() {

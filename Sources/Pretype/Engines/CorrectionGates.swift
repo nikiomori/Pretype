@@ -19,12 +19,17 @@ enum CorrectionGates {
     """
 
     /// `text` without the wrapping quote pairs a model may add, checked in
-    /// this order: "…", «…», “…”.
-    private static func unquoted(_ text: String) -> String {
+    /// this order: "…", «…», “…”. A pair `original` already wraps in is the
+    /// user's own: it stays, and in "a" or "b" it never was one pair.
+    private static func unquoted(_ text: String, original: String = "") -> String {
         var out = text
         for (open, close) in [("\"", "\""), ("«", "»"), ("“", "”")]
         where out.hasPrefix(open) && out.hasSuffix(close) && out.count > 2 {
-            out = String(out.dropFirst().dropLast())
+            let inner = String(out.dropFirst().dropLast())
+            // The original's own pair stays, once.
+            if !original.hasPrefix(open) || !original.hasSuffix(close) || inner.hasPrefix(open) && inner.hasSuffix(close) {
+                out = inner
+            }
         }
         return out
     }
@@ -49,7 +54,7 @@ enum CorrectionGates {
         // A cancelled request (focus moved on, overlay reset) must not
         // surface its late result.
         try Task.checkCancellation()
-        let fixed = trimRunOn(cleanCorrectionOutput(raw), original: trimmed)
+        let fixed = trimRunOn(cleanCorrectionOutput(raw, original: trimmed), original: trimmed)
         guard !fixed.isEmpty, fixed != trimmed else { return nil }
         guard isMinimalCorrection(original: trimmed, fixed: fixed) else {
             DebugLog.shared.log(
@@ -146,7 +151,7 @@ enum CorrectionGates {
         try Task.checkCancellation()
         // The output keeps its line breaks (a rewritten paragraph is still a
         // paragraph); only surrounding whitespace and a wrapping quote pair go.
-        let result = unquoted(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        let result = unquoted(raw.trimmingCharacters(in: .whitespacesAndNewlines), original: text)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return result.isEmpty || result == text ? nil : result
     }
@@ -167,9 +172,9 @@ enum CorrectionGates {
     /// Normalize a raw correction generation into one clean line: trim, take the
     /// first non-empty line, and strip a wrapping quote pair the model may have
     /// added. Shared by both engines so the post-processing can't drift.
-    static func cleanCorrectionOutput(_ raw: String) -> String {
+    static func cleanCorrectionOutput(_ raw: String, original: String = "") -> String {
         let line = raw.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n").first ?? ""
-        return unquoted(String(line)).trimmingCharacters(in: .whitespaces)
+        return unquoted(String(line), original: original).trimmingCharacters(in: .whitespaces)
     }
 
     /// Cut same-line run-on after the fix. 4-bit instruct models — E4B-it
