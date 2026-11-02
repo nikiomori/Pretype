@@ -71,11 +71,7 @@ final class FocusTracker {
             title: { AXText.attribute($0, kAXTitleAttribute) },
             editableLabel: { AXText.editableTextLabel($0) },
             pageHost: { AXText.pageHost(for: $0) },
-            bundleID: { app in
-                var pid: pid_t = 0
-                guard AXUIElementGetPid(app, &pid) == .success else { return nil }
-                return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-            },
+            bundleID: { AXText.calls.bundleID($0) },
             isDead: { AXText.isDead($0) },
             wake: { AXUIElementSetAttributeValue($0, "AXManualAccessibility" as CFString, kCFBooleanTrue) },
             register: { AXObserverAddNotification($0, $1, $2 as CFString, $3) },

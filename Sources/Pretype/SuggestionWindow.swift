@@ -385,8 +385,7 @@ final class SuggestionWindow: NSPanel {
     /// `protectFor` seconds of immunity from the completion pipeline's own
     /// repaints — for notices raised by the same keystroke that restarts it.
     func showTransient(_ mode: SuggestionDisplayMode, at caretRect: CGRect,
-                       host: HostTextStyle = HostTextStyle(), hideAfter: TimeInterval = 1.8,
-                       protectFor: TimeInterval = 0) {
+                       host: HostTextStyle, hideAfter: TimeInterval, protectFor: TimeInterval) {
         show(mode: mode, at: caretRect, host: host)   // bumps hideGeneration via place()
         if protectFor > 0 { noticeProtectedUntil = Date().addingTimeInterval(protectFor) }
         // Gone in a few seconds and never focused: VoiceOver reads a

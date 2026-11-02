@@ -201,7 +201,7 @@ final class PipelineLifecycleTests: PipelineTestCase {
         controller.focusTracker.onResignActiveApp?()
         XCTAssertEqual(controller.lastEvent, "before")
 
-        fake.window.showTransient(.hint("notice"), at: caret, host: HostTextStyle(), protectFor: 5)
+        fake.window.showTransient(.hint("notice"), at: caret, host: HostTextStyle(), hideAfter: 1.8, protectFor: 5)
         XCTAssertTrue(fake.window.noticeProtected)
         controller.focusTracker.onResignActiveApp?()
         XCTAssertFalse(fake.window.noticeProtected)
@@ -213,7 +213,7 @@ final class PipelineLifecycleTests: PipelineTestCase {
     func testAScrollUnderAReplyClearsTheNotice() {
         set(\.screenContextEnabled, true)
         XCTAssertTrue(controller.replyComposer.compose())
-        fake.window.showTransient(.hint("notice"), at: caret, host: HostTextStyle(), protectFor: 5)
+        fake.window.showTransient(.hint("notice"), at: caret, host: HostTextStyle(), hideAfter: 1.8, protectFor: 5)
         controller.scrolled(momentum: false)
         XCTAssertFalse(fake.window.noticeProtected)
         XCTAssertNil(fake.window.currentMode)

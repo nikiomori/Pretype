@@ -231,13 +231,8 @@ extension SuggestionOverlay {
     }
 
     func showTransient(_ mode: SuggestionDisplayMode, at caretRect: CGRect,
-                       host: HostTextStyle = HostTextStyle(), hideAfter: TimeInterval = 1.8) {
+                       host: HostTextStyle = HostTextStyle(), hideAfter: TimeInterval = CaretIndicator.noticeSeconds) {
         showTransient(mode, at: caretRect, host: host, hideAfter: hideAfter, protectFor: 0)
-    }
-
-    func showTransient(_ mode: SuggestionDisplayMode, at caretRect: CGRect, host: HostTextStyle,
-                       protectFor: TimeInterval) {
-        showTransient(mode, at: caretRect, host: host, hideAfter: 1.8, protectFor: protectFor)
     }
 
     func hide() { hide(force: false) }

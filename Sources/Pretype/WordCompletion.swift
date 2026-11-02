@@ -17,28 +17,22 @@ import Foundation
 /// (it brings its space): +2.4 pp. Counting a word's cases as one and the
 /// dictionary voting in the language the keyboard types made the rest.
 enum WordCompletion {
-    struct Tuning {
-        /// The best word's share of the votes.
-        var threshold = 0.25
-        /// The best word's votes: one sighting with nothing before it is no
-        /// habit yet.
-        var minCount = 2
-        /// A word typed after the same previous word counts this much more.
-        var boost = 80
-        /// Characters the word must still add.
-        var minAdded = 1
-        /// Letters typed before the dictionary votes.
-        var dictionaryMinPrefix = 3
-        /// The dictionary's vote: for its likeliest word — or, when the letters
-        /// already spell a word, for stopping there.
-        var dictionaryVote = 4
-    }
+    /// The best word's share of the votes.
+    private static let threshold = 0.25
+    /// The best word's votes: one sighting with nothing before it is no habit yet.
+    private static let minCount = 2
+    /// A word typed after the same previous word counts this much more.
+    private static let boost = 80
+    /// Letters typed before the dictionary votes.
+    private static let dictionaryMinPrefix = 3
+    /// The dictionary's vote: for its likeliest word — or, when the letters
+    /// already spell a word, for stopping there.
+    private static let dictionaryVote = 4
 
     /// The rest of the word, or nil. `isWord` and `dictionary` are the system
     /// spell-checker's (main thread); tests and the replay pass their own.
     @MainActor
     static func suggestion(text: String, after: String, ngram: PersonalNgram,
-                           tuning: Tuning = Tuning(),
                            isWord: (String) -> Bool = SpellChecker.isTypedWord,
                            dictionary: (String) -> [String] = SpellChecker.completions) -> String? {
         guard text.last?.isLetter == true, !RequestGate.caretSplitsWord(before: after),
@@ -57,14 +51,14 @@ enum WordCompletion {
             let kept = votes[key] ?? (word, 0, 0)
             votes[key] = (count > kept.seen ? word : kept.word, kept.count + count, max(kept.seen, count))
         }
-        for (word, count) in ngram.words(startingWith: prefix, after: previous, boost: tuning.boost) {
+        for (word, count) in ngram.words(startingWith: prefix, after: previous, boost: boost) {
             vote(word, count)
         }
-        if prefix.count >= tuning.dictionaryMinPrefix {
+        if prefix.count >= dictionaryMinPrefix {
             if isWord(prefix) {
-                vote(prefix, tuning.dictionaryVote)
+                vote(prefix, dictionaryVote)
             } else if let likeliest = dictionary(prefix).first {
-                vote(likeliest, tuning.dictionaryVote)
+                vote(likeliest, dictionaryVote)
             }
         }
 
@@ -72,9 +66,10 @@ enum WordCompletion {
         // A tie goes to the word first in the alphabet: the same letters
         // always grow the same ghost.
         guard let best = votes.values.max(by: { $0.count != $1.count ? $0.count < $1.count : $0.word > $1.word }),
-              best.count >= tuning.minCount,
-              Double(best.count) / Double(total) >= tuning.threshold else { return nil }
-        return remainder(of: best.word, after: prefix, minAdded: tuning.minAdded)
+              best.count >= minCount,
+              Double(best.count) / Double(total) >= threshold,
+              best.word.count > prefix.count else { return nil }
+        return String(best.word.dropFirst(prefix.count))
     }
 
     /// No guesses in code: identifiers, paths, addresses, numbers, or a
@@ -88,10 +83,5 @@ enum WordCompletion {
 
     private static func currentLine(of text: String) -> String {
         String(text.reversed().prefix { !$0.isNewline }.reversed())
-    }
-
-    private static func remainder(of word: String, after prefix: String, minAdded: Int) -> String? {
-        guard word.count >= prefix.count + minAdded else { return nil }
-        return String(word.dropFirst(prefix.count))
     }
 }

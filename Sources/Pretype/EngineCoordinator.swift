@@ -21,7 +21,7 @@ final class EngineCoordinator {
 
     init(makeMLX: @escaping MakeMLX = { MLXEngine(modelID: $0, after: $1) }) {
         self.makeMLX = makeMLX
-        engine = Self.makeEngine(modelID: Settings.mlxModelID, mlx: makeMLX)
+        engine = Self.makeEngine(mlx: makeMLX)
     }
 
     /// Tear down the current engine and build a fresh one for the current
@@ -29,7 +29,7 @@ final class EngineCoordinator {
     /// build-time setting change — and the way back from `.failed`.
     func rebuild() {
         engine.shutdown()
-        engine = Self.makeEngine(modelID: Settings.mlxModelID, after: engine, mlx: makeMLX)
+        engine = Self.makeEngine(after: engine, mlx: makeMLX)
         onRebuild?()
     }
 
@@ -85,8 +85,8 @@ final class EngineCoordinator {
         engine.updateCompletion(length: Settings.completionLength, instructions: instructions)
     }
 
-    private static func makeEngine(modelID: String, after previous: CompletionEngine? = nil,
-                                   mlx: MakeMLX) -> CompletionEngine {
+    private static func makeEngine(after previous: CompletionEngine? = nil, mlx: MakeMLX) -> CompletionEngine {
+        let modelID = Settings.mlxModelID
         let engine: CompletionEngine
         if Settings.apiText.enabled {
             engine = CloudEngine(Settings.apiText)

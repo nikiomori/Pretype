@@ -258,7 +258,7 @@ final class HotkeyTests: XCTestCase {
         hold = ModifierHold()
         XCTAssertNil(down(0))
         XCTAssertEqual(hold.tick(now: at(0.5)), .begin)
-        XCTAssertEqual(hold.keyPressed(), .cancel)
+        XCTAssertEqual(hold.interrupt(), .cancel)
         XCTAssertFalse(hold.isActive)
         XCTAssertNil(up(0.7))   // the release has nothing left to end
 
@@ -271,7 +271,7 @@ final class HotkeyTests: XCTestCase {
         hold = ModifierHold()
         XCTAssertNil(down(0))
         XCTAssertTrue(hold.isArmed)
-        XCTAssertNil(hold.keyPressed())
+        XCTAssertNil(hold.interrupt())
         XCTAssertFalse(hold.isArmed)
         XCTAssertNil(hold.tick(now: at(0.5)))   // the timer finds nothing to start
         XCTAssertNil(up(0.9))

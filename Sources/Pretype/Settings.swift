@@ -137,8 +137,8 @@ enum ReplyGesture: String, CaseIterable {
 /// unusable: someone who reaches for the left key gets no pill, no error and no
 /// log line — the gesture simply never fires, which is indistinguishable from
 /// broken software. A chord that pauses mid-reach is handled where it should
-/// be, by `ModifierHold.keyPressed` cancelling the capture the moment any other
-/// key arrives.
+/// be, by `DictationController.keyPressed` cancelling the capture the moment any
+/// other key arrives.
 enum DictationGesture: String, CaseIterable {
     case option
     case command

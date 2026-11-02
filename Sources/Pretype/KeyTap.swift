@@ -74,12 +74,12 @@ final class KeyTap {
     /// the grant was revoked stays disabled after the re-grant — so this keeps
     /// watching, and rebuilds it whenever it's down while trust is there.
     func keepUp() {
-        restart(trusted: Permissions.isTrusted)
+        restart()
         guard watch == nil else { return }
         // A timer with slack, not a chain of exact 3 s wakeups: macOS folds
         // it into wakeups it runs anyway.
         let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
-            self?.restart(trusted: Permissions.isTrusted)
+            self?.restart()
         }
         timer.tolerance = 1.5
         RunLoop.main.add(timer, forMode: .common)
@@ -90,8 +90,8 @@ final class KeyTap {
 
     /// Start the tap — rebuilt first when it is down while trust is there.
     /// A rebuild keeps the scroll monitor that `stop` drops.
-    private func restart(trusted: Bool) {
-        let rebuild = !isActive && trusted
+    private func restart() {
+        let rebuild = !isActive && Permissions.isTrusted
         let scrolls = wantsScroll
         if rebuild { stop() }
         start()
@@ -318,10 +318,8 @@ struct ModifierHold {
         return .begin
     }
 
-    /// A real keystroke while the modifier is down makes it a chord.
-    mutating func keyPressed() -> Event? { interrupt() }
-
-    /// Anything else that invalidates a capture (focus change, app quit).
+    /// Anything that invalidates a capture: a keystroke while the modifier is
+    /// down (a chord), a focus change, the app quitting.
     mutating func interrupt() -> Event? {
         downAt = nil
         guard holding else { return nil }
