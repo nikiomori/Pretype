@@ -44,29 +44,36 @@ enum SpellChecker {
         }
         let range = NSRange(location: 0, length: (word as NSString).length)
 
-        // If the text is still a valid prefix of real words, the user is probably
-        // mid-typing one — don't nag with a correction yet (e.g. "recei" is on
-        // the way to "receive"; only "recieve" with no completions is a typo).
-        if let completions = checker.completions(
-            forPartialWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-        ), !completions.isEmpty {
-            return nil
-        }
-
         // Prefer the conservative autocorrection; fall back to the top guess
         // (autocorrect abstains on many Russian typos that `guesses` still nails,
-        // e.g. "сабака" → correction nil but guesses ["собака", …]).
-        let candidate = checker.correction(
+        // e.g. "сабака" → correction nil but guesses ["собака", …]). Not for a
+        // prefix of real words: the word is finished (`inlineToken`), so that is
+        // no reason to wait ("wher " → "where"), but with autocorrect silent it
+        // is an abbreviation, and a guess only a lookalike ("dept" → "sept").
+        // Autocorrect may only finish such a word: anything else replaces a
+        // shorthand with a lookalike ("wip" → "rip", "завт" → "зав").
+        let startsRealWords = !(checker.completions(
+            forPartialWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
+        ) ?? []).isEmpty
+        let corrected = checker.correction(
             forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-        ) ?? checker.guesses(
-            forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-        )?.first
+        )
+        let candidate = startsRealWords
+            ? corrected.flatMap { finishes(word, with: $0) ? $0 : nil }
+            : corrected ?? checker.guesses(
+                forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
+            )?.first
 
         guard let fix = candidate,
               fix.caseInsensitiveCompare(word) != .orderedSame,
               CorrectionGates.isMinimalCorrection(original: word, fixed: fix)
         else { return nil }
         return fix
+    }
+
+    /// `fix` only adds letters at the end of `word`, whatever the case.
+    static func finishes(_ word: String, with fix: String) -> Bool {
+        fix.count > word.count && fix.lowercased().hasPrefix(word.lowercased())
     }
 
     /// The dictionary's words that start with `partial`, likeliest first, in

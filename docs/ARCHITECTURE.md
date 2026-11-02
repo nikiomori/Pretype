@@ -252,7 +252,7 @@ The thresholds for each model are `Recommendation.logprobGateTau` and
 
 | Feature | How it operates |
 |---|---|
-| Inline typo fix | The macOS system spell-checker. The language is the one that `NLLanguageRecognizer` finds in the text before the caret. |
+| Inline typo fix | The macOS system spell-checker. The language is the one that `NLLanguageRecognizer` finds in the text before the caret. A finished word that is also the start of real words gets a fix only if autocorrect finishes the word: it adds letters at the end. |
 | Fix selection (<kbd>⌥Tab</kbd>) | The local model rewrites the selection in place. A correction must follow instructions. Thus, on most models in base style, the first <kbd>⌥Tab</kbd> downloads an instruct sibling of the completion model one time. The menu bar shows *preparing…* during the download. Bonsai corrects with itself. In Instruct style, Gemma E4B fixes with the model that is already loaded. |
 | Fix the last word (<kbd>⌥Tab</kbd>, no selection) | The model gets the sentence that the word ends, not the word alone. Only the word is replaced (`CorrectionGates.fixLastWord`). With the sentence, the models fix about two times more typos and change fewer correct words. |
 

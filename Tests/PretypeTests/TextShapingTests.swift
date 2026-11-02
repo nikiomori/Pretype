@@ -269,11 +269,37 @@ final class DanishSpellingTests: XCTestCase {
         XCTAssertEqual(SpellChecker.correction(for: "suklle", context: "Jeg synes, vi suklle"), "skulle")
     }
 
+    // A finished word that starts real words is no word still being typed:
+    // a dropped last letter is fixed, by autocorrect. A guess is not taken for
+    // such a word: "dept" is an abbreviation, its top guess only a lookalike.
+    func testAFinishedPrefixOfRealWords() {
+        XCTAssertTrue(waitForDictionary("en", knowing: "where"), "the spell server never loaded English")
+        XCTAssertTrue(waitForDictionary("ru", knowing: "завтра"), "the spell server never loaded Russian")
+        XCTAssertEqual(SpellChecker.correction(for: "wher", context: "I wonder wher"), "where")
+        XCTAssertEqual(SpellChecker.correction(for: "woul", context: "I think we woul"), "would")
+        // AppleSpell's answer for this one varies with its state: "завтра", or
+        // "зав", which `finishes` refuses (below).
+        let tomorrow = SpellChecker.correction(for: "завт", context: "Мы увидимся завт")
+        XCTAssertTrue(tomorrow == nil || tomorrow == "завтра", "\(tomorrow ?? "nil")")
+        XCTAssertNil(SpellChecker.correction(for: "dept", context: "Ask the sales dept"))
+        XCTAssertNil(SpellChecker.correction(for: "wip", context: "The branch is wip"), "a lookalike, not an ending")
+        XCTAssertEqual(SpellChecker.correction(for: "teh", context: "I saw teh"), "the", "no prefix: as before")
+    }
+
     // The spell server loads a dictionary the first time it is asked about a
     // language, and until it has, calls every word misspelled: a moment here,
     // seconds on a fresh CI runner. While the server itself is starting its
     // calls time out, which reads as "spelled", so only a word checked once
     // completions answer counts.
+    func testOnlyAnEndingFinishesAWord() {
+        XCTAssertTrue(SpellChecker.finishes("wher", with: "where"))
+        XCTAssertTrue(SpellChecker.finishes("Завт", with: "завтра"))
+        XCTAssertFalse(SpellChecker.finishes("завт", with: "зав"))
+        XCTAssertFalse(SpellChecker.finishes("wip", with: "rip"))
+        XCTAssertFalse(SpellChecker.finishes("кароч", with: "каро"))
+        XCTAssertFalse(SpellChecker.finishes("same", with: "same"))
+    }
+
     private func waitForDictionary(_ language: String, knowing word: String) -> Bool {
         let checker = NSSpellChecker.shared
         let range = NSRange(location: 0, length: (word as NSString).length)
