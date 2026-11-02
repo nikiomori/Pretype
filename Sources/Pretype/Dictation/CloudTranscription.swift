@@ -22,8 +22,8 @@ enum CloudTranscription {
         let language = Settings.dictationLanguage == "auto" && hearsLanguage(config.provider, locale: locale)
             ? nil : locale.language.languageCode?.identifier
         // Names and terms from the field and an agent's session — the same
-        // spelling hints the on-device analyzer gets, with no key among them
-        // (`Transcription.biasWords`).
+        // spelling hints the on-device analyzer gets, less every word shaped
+        // like a key (`Transcription.looksSecret`, which cannot catch them all).
         let hints = Transcription.contextualWords.get()
         // An upload is not a local finalization: a long take over a slow link
         // legitimately takes longer than the controller's ten seconds. The WAV

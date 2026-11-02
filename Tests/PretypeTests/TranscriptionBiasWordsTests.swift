@@ -77,9 +77,14 @@ final class TranscriptionBiasWordsTests: XCTestCase {
                     "QwErTyUiOpAsDfGhJkLzXcVbNmPlOkIjUh", "postgres://admin:" + tail + "@db.example.com"]
         for key in keys { XCTAssertTrue(Transcription.looksSecret(key), key) }
         XCTAssertTrue(Transcription.looksSecret("TOKEN=ghp_" + tail), "after an assignment")
+        for assignment in ["password=" + "plum7lake", "DB_PASSWD=" + "Plum7", "Secret:" + "plum7", "apiKey:" + "Plum7",
+                           "pwd:" + "plum7", "auth_token:" + "Plum7", "RETRIES=3"] {
+            XCTAssertTrue(Transcription.looksSecret(assignment), assignment)
+        }
+        XCTAssertEqual(Transcription.biasWords(in: "set password=" + "plum7lake for QuillParser"), ["QuillParser"])
         XCTAssertEqual(Transcription.biasWords(in: "use \(keys[1]) with QuillParser and \"token\":\"\(keys[0])\""),
                        ["QuillParser"])
-        for name in ["GPT4", "iPhone", "Qwen3.5-2B-M40-6bit", "sk-learn", "SuggestionControllerKeyHandling",
+        for name in ["GPT4", "iPhone", "Qwen3.5-2B-M40-6bit", "sk-learn", "SuggestionControllerKeyHandling", "Foo::Bar",
                      "applicationDidFinishLaunchingWithOptions", "Sources/Pretype/Dictation/Transcription.swift"] {
             XCTAssertFalse(Transcription.looksSecret(name), name)
         }

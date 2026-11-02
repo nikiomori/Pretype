@@ -292,17 +292,27 @@ enum Transcription {
         return Array(picked.reversed().filter { seen.insert($0.lowercased()).inserted }.prefix(50))
     }
 
-    /// A key rather than a name: a known key prefix, alone or after `=`, `:` or
-    /// a quote, or a long run with a digit in it or with the spread of random
-    /// letters. A hint lost to this is a long identifier nobody says aloud.
+    /// A key rather than a name: any assignment (a word with a `=` is no term
+    /// anyway), a value after a name like `password:`, a known key prefix,
+    /// alone or after `:` or a quote, or a long run with a digit in it or with
+    /// the spread of random letters. A hint lost to this is an identifier
+    /// nobody says aloud. By shape only: a short token with no prefix, or the
+    /// tail of a key wrapped across terminal rows, still passes.
     static func looksSecret(_ word: String) -> Bool {
-        let parts = word.split { "=:\"'`,;".contains($0) }
+        if word.contains("=") { return true }
+        if let colon = word.firstIndex(of: ":") {
+            let name = word[..<colon].lowercased()
+            if secretNames.contains(where: name.contains) { return true }
+        }
+        let parts = word.split { ":\"'`,;".contains($0) }
         if parts.contains(where: { part in part.count >= 12 && keyPrefixes.contains { part.hasPrefix($0) } }) { return true }
         guard word.count >= 24 else { return false }
         if word.contains(where: \.isNumber) { return true }
         let shares = Dictionary(grouping: word) { $0 }.values.map { Double($0.count) / Double(word.count) }
         return shares.reduce(0) { $0 - $1 * log2($1) } >= 4.4  // bits a character; a long identifier stays near 4
     }
+
+    private static let secretNames = ["pass", "pwd", "secret", "token", "key", "auth"]
 
     private static let keyPrefixes = ["sk-", "sk_", "pk_", "rk_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_",
                                       "xox", "glpat-", "hf_", "npm_", "AKIA", "ASIA", "AIza"]
