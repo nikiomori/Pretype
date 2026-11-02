@@ -138,14 +138,14 @@ per-language nudge in the menu. You select all other models manually in
 
 | Model | Memory | Why you select it |
 |---|---|---|
-| Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality. It holds up across all 19 eval languages. It is never the default, because it ties 6-bit. |
+| Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality. It holds up across all 20 eval languages. It is never the default, because it ties 6-bit. |
 | **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB.* It ties E4B 8-bit (p=0.28) and the download is smaller. Its fix sibling is the best in the catalog. |
 | **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB.* Statistically level with E4B on completions, with less memory and ~40% less time per suggestion. |
 | **Gemma 4 E2B 4-bit** | ≈2.5 GB (≈1.2 GB on 16 GB, see [Reduce memory use](models.md#reduce-memory-use-gemma)) | *Default at 16–18 GB.* The smallest 4-bit cost in the field. |
 | MiniCPM5 1B | ≈1.1 GB | One of the two fastest models in the catalog, at 18 ms. Strong on English, weaker in other languages. |
 | Ternary Bonsai 4B | ≈1.1 GB | A 4B model in about one gigabyte. |
-| **Qwen3.5 2B (Base)** | ≈1.5 GB | *Default on 8 GB.* The best model below 2 GB for many languages (p<0.001). |
-| Qwen3.5 2B M40 | ≈1.5 GB | A mix of the Base and post-trained builds. One model completes text and runs the chords. It ties the Base build on completion, and its fix is better than the post-trained sibling (p<0.001). |
+| Qwen3.5 2B (Base) | ≈1.5 GB | The best model below 2 GB for many languages (p<0.001). |
+| **Qwen3.5 2B M40** | ≈1.5 GB | *Default on 8 GB.* A mix of the Base and post-trained builds. One model completes text and runs the chords. It ties the Base build on completion, and its fix is better than the post-trained sibling (p<0.001). |
 | EuroLLM 1.7B | ≈1.1 GB | Our own model. One file completes text and fixes typos. It ties E2B 4-bit outside English, and it fixes better. It writes no replies. |
 | Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
 
@@ -416,7 +416,7 @@ All app code is in `Sources/Pretype/`:
 
 | Area | Files | Job |
 |---|---|---|
-| Startup and menu | `main.swift`, `AppDelegate`, `StatusMenuController`, `MenuHeaderView`, `BrandMark`, `OnboardingWindow`, `Permissions`, `UpdateChecker` | Entry point and `--ax-probe`. Menu bar, menu-bar icon and Diagnostics. Onboarding, permissions, and the daily release check. |
+| Startup and menu | `main.swift`, `AppDelegate`, `StatusMenuController`, `MenuHeaderView`, `BrandMark`, `OnboardingWindow`, `Permissions`, `UpdateChecker` | Entry point, `--ax-probe` and `--dictation-probe`. Menu bar, menu-bar icon and Diagnostics. Onboarding, permissions, and the daily release check. |
 | Read the field | `FocusTracker`, `AXText`, `RereadSchedule`, `AgentPrompt`, `ScreenContext`, `AppPolicy` | Follow the focused element with `AXObserver`. Read text, caret and font. Read again 60 ms after a key press when no AX notification gave a read. Find an agent prompt in a terminal. Opt-in OCR. Rules for each app and site. |
 | Input and output | `KeyTap`, `TextInjector`, `SuggestionWindow` (+`Content`, +`Appearance`, +`Layout`), `CaretIndicator`, `BackgroundProbe` | Event tap, accept keys and modifier gestures. Synthetic key events. The panel, inline ghost text and pills. Light or dark below the overlay. |
 | Pipeline | `SuggestionController` (+`Keys`, +`KeyHandling`, +`Focus`, +`Text`, +`Dictation`, +`Environment`), `FieldState`, `RequestGate`, `QuerySlot`, `OfferRecord`, `PromptContext`, `ReplyComposer`, `EngineCoordinator`, `CorrectionController`, `SpellChecker`, `EmojiShortcodes`, `InlineCalculator` | `SuggestionController` is the hub: text → engine → overlay → accept → inject, and dictation inserts. It orders the steps. The rules are in pure types: `FieldState` keeps the ghost, the text cache, the settle time after an injection, the declined suggestion and the ⌘Z record. `RequestGate` decides when a pass over the field asks for a suggestion, and which part of the answer lands. `QuerySlot` keeps the request that is in flight. `OfferRecord` keeps the journal record of the suggestion on the screen. `keyAction` (+`Keys`) is one table that decides each key press: accept, decline, undo, reply, fix or pass the key to the app. `PromptContext` collects OCR, clipboard and personal examples. `ReplyComposer` writes replies through the `ReplyHost` protocol. `EngineCoordinator` controls the life of the engine. `CorrectionController` runs ⌥⇥, last-word fixes and inline spell fixes. |

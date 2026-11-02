@@ -22,7 +22,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 | You type in another language on an 8 GB Mac | Qwen3.5 2B M40, the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). M40 ties its Base build on completions, and it fixes more (see [Qwen3.5 2B M40](#qwen35-2b-m40-one-model-for-text-and-chords)). |
 | You type in Russian | The default. A Gemma tier from 16 GB. | See [English and Russian are different](#english-and-russian-are-different). |
 | You type in Arabic or Hebrew | The default. Do not use MiniCPM5 for Hebrew. | See [Arabic and Hebrew](#arabic-and-hebrew). |
-| You type in Danish | Any Gemma 4 tier | The four Gemma tiers tie at 27–28%. The small models get 10–23%. See [Danish](#danish). |
+| You type in Danish | Any Gemma 4 tier | The four Gemma tiers tie at 27–28%. The other models get 10–26%. See [Danish](#danish). |
 | You want no download and no app memory | Apple Intelligence (macOS 26+) | It is last on accuracy and on speed: 480 ms, against 17–81 ms. On macOS 27 it shows a suggestion for almost every prompt, also in Polish, Romanian and Czech. But it is correct less often than any downloadable model. |
 | You want few false fixes and low energy use in 1.1 GB | EuroLLM 1.7B | It ties Gemma E2B 4-bit outside English, and it fixes more and touches less clean text. It writes no replies. See [EuroLLM 1.7B](#eurollm-17b-our-own-model). |
 | You want the best quality and have the memory | Gemma 4 E4B 8-bit | It ties E4B 6-bit (p=0.28), and it uses ≈1 GB more. You must select it manually. |
@@ -223,8 +223,8 @@ Your keyboard languages continue to set the persona and the per-language menu su
 </div>
 
 <sub>**Chart method.**
-The chart uses an equal-weight mean over `cs de es fr it ja ko nl pl pt ro ru sv tr uk zh`. It uses only matched register cells.
-We measured Arabic, Hebrew and Danish later, on their own sets. They are not in the chart.
+The chart uses an equal-weight mean over `cs da de es fr it ja ko nl pl pt ro ru sv tr uk zh`. It uses only matched register cells.
+We measured Arabic and Hebrew later, on their own sets. They are not in the chart.
 Do not compare absolute values *between* languages: zh and ja are character-masked. Thus the mean shows the spread across languages, not the skill in one language.
 Each language cell has 280 held-out rows. English has 560 and Russian has 689. This gives ±5 pp near 20%, and ±3 pp at the size of the Russian cell. A smaller gap is not a result.
 The app shows the same tolerance and sample size next to each figure. You can also select one language as the axis, in place of the average.</sub>
@@ -262,7 +262,7 @@ Read these notes before you use the table as a ranking:
   * Four judges from four model families (GPT-6 Luna, DeepSeek V4.1 Flash, Claude Haiku 5.5, Gemma E4B-it) put all siblings in the same order. A judge from the Gemma family gives higher values to Gemma replies, but not a different order.
   * ¹ Qwen3.8 27B rated the M40 row (2026-10-16). It is the judge with the best separation of the two baselines (AUC 0.825). On the same replies, it agrees with GPT-6 Luna within 3 pp on every sibling. In the same run, it rates the post-trained Qwen3.5 sibling at 37% [32–42] (paired p=2.5×10⁻⁸).
 * ² The EuroLLM 1.7B row comes from its own run (2026-10-31). In that run, E2B-it 4-bit restores 49% and touches 31% of clean lines.
-* **"Touches clean text" is the cost of the fix chord.** If you select a line that is already correct, the sibling can still propose a change. This occurs on 12–30% of clean lines across the catalog. The figures include the app's minimal-edit gate. Press <kbd>Esc</kbd> to keep your original text.
+* **"Touches clean text" is the cost of the fix chord.** If you select a line that is already correct, the sibling can still propose a change. This occurs on 5–30% of clean lines across the catalog. The figures include the app's minimal-edit gate. Press <kbd>Esc</kbd> to keep your original text.
 
 <sub>**Method.**</sub>
 

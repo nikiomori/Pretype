@@ -47,6 +47,7 @@ first use. Those weights are licensed by their publishers, not by Pretype's MIT 
 | Gemma 4 (all variants) | Google | Apache-2.0 — see [Google's Gemma 4 license page](https://ai.google.dev/gemma/docs/gemma_4_license) |
 | MiniCPM5 | OpenBMB | Apache-2.0 — see the [model card](https://huggingface.co/openbmb/MiniCPM5-1B) |
 | Qwen 2.5 / 3.5 | Alibaba (Qwen) | Apache-2.0 — see the [model card](https://huggingface.co/Qwen) |
+| EuroLLM 1.7B (Pretype's post-trained build) | EuroLLM project; build by Pretype | Apache-2.0 — see the [model card](https://huggingface.co/nikimoriOne/EuroLLM-1.7B-Pretype-5bit) |
 | Ternary Bonsai | prism-ml | Apache-2.0 — see the [model card](https://huggingface.co/prism-ml/Ternary-Bonsai-4B-mlx-2bit) |
 | Parakeet Ultra — moondream's post-training of NVIDIA Parakeet TDT 0.6B v3 (opt-in dictation, CoreML conversion by FluidInference) | moondream, NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/moondream/parakeet-ultra) |
 | Parakeet TDT 0.6B v3 (installs that opted in before Ultra, until the background swap) | NVIDIA | CC-BY-4.0 — see the [model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |

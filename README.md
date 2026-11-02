@@ -68,7 +68,7 @@ Most autocomplete tools operate in one editor, and they send your text to a serv
 | <kbd>Tab</kbd> | Accept the next word. With no suggestion on the screen, <kbd>Tab</kbd> operates as usual. |
 | <kbd>⇧Tab</kbd> | Accept all of the suggestion. |
 | <kbd>⌥Tab</kbd> | Fix the selected text. With no selection, fix the last word. You see a preview first. |
-| <kbd>⌥⇧Tab</kbd> | Write a draft of your next message from the conversation on the screen. In the prompt of an AI agent, from the agent's session. |
+| <kbd>⌥⇧Tab</kbd>, or press <kbd>⌥</kbd> two times | Write a draft of your next message from the conversation on the screen. In the prompt of an AI agent, from the agent's session. |
 | <kbd>⏎</kbd> / <kbd>Esc</kbd> | Accept or reject a rewrite or a typo fix. |
 | Hold <kbd>⌥</kbd> | Dictate while you hold the key. |
 | <kbd>⌃⌥D</kbd> | Start or stop hands-free dictation. |

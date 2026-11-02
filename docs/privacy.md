@@ -125,7 +125,7 @@ Pretype completes text only in the prompt box of an AI agent, such as Claude Cod
 * To find the prompt box, Pretype reads the terminal text near the cursor.
 * The model gets the text that you typed into the box and the last 600 characters of the agent's session above the box. The session text helps the model continue your reply to the agent.
 * Pretype discards all other text (the shell, the command output) in memory. It never journals or logs this text.
-* In Terminal and iTerm2, these features stay off: the fix and reply chords, dictation and screen OCR.
+* In Terminal and iTerm2, the fix chord, voice commands and screen OCR stay off. The reply chord and dictation operate only in the prompt box of an AI agent.
 
 ## Uninstall
 
@@ -143,13 +143,13 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
 
    In **Settings → Model**, the list of models shows the disk size of each downloaded model, with a trash button that deletes it. The list shows only the models of the Pretype catalog. It has no trash button for the model that you use now. Thus, for a full removal, use the command below.
 
-   > **WARNING:** This command deletes the full `mlx-community`, `openbmb` and `prism-ml` organizations from the shared Hugging Face cache. If a different MLX tool (LM Studio, mlx_lm, …) uses this cache, do not delete those three lines. The `nikimori` organization contains only Pretype's own re-packs (Qwen3.5 2B Base, the default on 8 GB Macs, and the slim Gemma tiers).
+   > **WARNING:** This command deletes the full `mlx-community`, `openbmb` and `prism-ml` organizations from the shared Hugging Face cache. If a different MLX tool (LM Studio, mlx_lm, …) uses this cache, remove those three names from the command. The `nikimori` and `nikimoriOne` organizations contain only Pretype's own builds (Qwen3.5 2B M40, the default on 8 GB Macs, EuroLLM 1.7B and the slim Gemma tiers).
 
    ```bash
-   rm -rf ~/.cache/huggingface/hub/models--nikimori--* \
-          ~/.cache/huggingface/hub/models--openbmb--* \
-          ~/.cache/huggingface/hub/models--mlx-community--* \
-          ~/.cache/huggingface/hub/models--prism-ml--*
+   find ~/.cache/huggingface/hub -maxdepth 1 \( \
+        -name 'models--nikimori--*' -o -name 'models--nikimoriOne--*' -o \
+        -name 'models--openbmb--*' -o -name 'models--mlx-community--*' -o \
+        -name 'models--prism-ml--*' \) -exec rm -rf {} +
    ```
 
 3. Delete the Parakeet dictation model (~610 MB). Do this step only if you opted in to Parakeet.
