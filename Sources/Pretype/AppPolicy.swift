@@ -114,8 +114,8 @@ enum AppPolicy {
         // Self-hosted: the page is on the team's own server, under any name.
         if matches(context.bundleID, ["mattermost", "im.riot"]) { return true }
         if let host = context.site {
-            return ["web.telegram.org", "web.whatsapp.com", "app.slack.com", "discord.com",
-                    "teams.microsoft.com", "teams.live.com", "messenger.com", "chat.google.com"]
+            return ["web.telegram.org", "web.whatsapp.com", "app.slack.com", "discord.com", "teams.microsoft.com",
+                    "teams.live.com", "teams.cloud.microsoft", "messenger.com", "chat.google.com"]
                 .contains { host == $0 || host.hasSuffix("." + $0) }
         }
         return matches(context.bundleID, ["mobilesms", "telegram", "whatsapp", "slack", "discord", "signal",

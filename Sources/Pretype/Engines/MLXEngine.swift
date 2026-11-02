@@ -268,7 +268,7 @@ final class MLXEngine: CompletionEngine {
         let logProbSink = recording ? LockedValue<Double?>(nil) : nil
         // Base Medium/Long show the model's own sentence: the confidence trim
         // would end it near the second word again (see `writesLongBase`).
-        let longForm = runsLongForm
+        let longForm = runsLongForm(for: request)
         let output = try await Self.generate(
             in: container,
             makeTokens: plan.makeTokens,
@@ -545,13 +545,16 @@ final class MLXEngine: CompletionEngine {
     /// name, a term, the project you're writing about) are exactly the ones it
     /// suppresses, and its processor also skews the logprobs the gate reads.
     private func completionParameters(for request: CompletionRequest) -> GenerateParameters {
-        GenerateParameters(maxTokens: Self.tokenBudget(for: request, length: lengthBox.get(), longForm: runsLongForm),
+        GenerateParameters(maxTokens: Self.tokenBudget(for: request, length: lengthBox.get(),
+                                                       longForm: runsLongForm(for: request)),
                            temperature: 0)
     }
 
     /// Base style at Medium or Long on a model that writes long text well.
-    private var runsLongForm: Bool {
-        style == .base && lengthBox.get() != .short && ModelCatalog.writesLongBase(modelID)
+    /// Not in a chat app: its cap (`tokenBudget`) ends the text after a few
+    /// words, so it keeps the short, trimmed suggestion of every other length.
+    func runsLongForm(for request: CompletionRequest) -> Bool {
+        style == .base && !request.isChatApp && lengthBox.get() != .short && ModelCatalog.writesLongBase(modelID)
     }
 
     func updateCompletion(length: CompletionLength, instructions: String) {

@@ -690,6 +690,23 @@ final class MLXEngineTests: MLXTestCase {
         XCTAssertEqual(MLXEngine.tokenBudget(for: long, length: .medium, longForm: true), 12)
     }
 
+    // A chat app's cap ends the text after a few words, so there Base Medium
+    // and Long stay the short, trimmed suggestion; elsewhere they run long.
+    func testLongFormStaysOutOfChatApps() async throws {
+        try await withEngine("mlx-community/gemma-4-e4b-6bit") { engine in
+            var mail = CompletionRequest(textBeforeCaret: "See you at the meeting")
+            mail.appBundleID = "com.apple.mail"
+            var chat = mail
+            chat.appBundleID = "com.tinyspeck.slackmacgap"
+            XCTAssertFalse(engine.runsLongForm(for: mail), "Short never does")
+            for length in [CompletionLength.medium, .long] {
+                engine.updateCompletion(length: length, instructions: "")
+                XCTAssertTrue(engine.runsLongForm(for: mail))
+                XCTAssertFalse(engine.runsLongForm(for: chat))
+            }
+        }
+    }
+
     // A long-form suggestion the token budget stopped never ends on a cut
     // word; one that holds no other word stays whole.
     func testABudgetCutWordIsDropped() {

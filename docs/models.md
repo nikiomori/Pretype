@@ -169,9 +169,9 @@ E4B:
 
 Instruct style stays available on E4B as a manual choice. It is the only tier where Instruct style continues the text and fills in text in the middle of a line.
 
-### Longer suggestions in Base style (E4B)
+### Longer suggestions in Base style (E4B and EuroLLM)
 
-In Base style, a suggestion stops at the first word that the model is not sure of. This is about 2 words. On Gemma E4B 6-bit and 8-bit, you can set **Settings → Model → Advanced → Length** to Medium or Long. The default stays Short.
+In Base style, a suggestion stops at the first word that the model is not sure of. This is about 2 words. On Gemma E4B 6-bit and 8-bit and on EuroLLM 1.7B, you can set **Settings → Model → Advanced → Length** to Medium or Long. The default stays Short. In chat apps, suggestions stay short at all lengths.
 
 | Length | What you see (E4B, 2026-10-28) | Time for the full suggestion |
 |---|---|---|

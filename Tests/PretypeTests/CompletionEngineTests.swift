@@ -134,6 +134,11 @@ final class CompletionEngineTests: XCTestCase {
 
     func testChatApps() {
         XCTAssertFalse(CompletionRequest(textBeforeCaret: "x").isChatApp)
+        XCTAssertTrue(CompletionRequest(textBeforeCaret: "x", appBundleID: "org.whispersystems.signal-desktop").isChatApp)
+        var web = CompletionRequest(textBeforeCaret: "x", appBundleID: "com.apple.Safari")
+        XCTAssertFalse(web.isChatApp)
+        web.site = "web.telegram.org"
+        XCTAssertTrue(web.isChatApp)
         XCTAssertFalse(CompletionRequest(textBeforeCaret: "x", appBundleID: "com.apple.TextEdit").isChatApp)
         XCTAssertTrue(CompletionRequest(textBeforeCaret: "x", appBundleID: "com.tinyspeck.slackmacgap").isChatApp)
     }

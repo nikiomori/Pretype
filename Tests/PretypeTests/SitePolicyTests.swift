@@ -42,6 +42,7 @@ final class SitePolicyTests: XCTestCase {
         XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "ru.keepcoder.Telegram")))
         XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.apple.MobileSMS")))
         XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.google.Chrome", site: "web.whatsapp.com")))
+        XCTAssertTrue(AppPolicy.isChat(TypingContext(bundleID: "com.microsoft.teams2", site: "teams.cloud.microsoft")))
         XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.google.Chrome", site: "chatgpt.com")))
         XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.apple.mail")))
         XCTAssertFalse(AppPolicy.isChat(TypingContext(bundleID: "com.tinyspeck.slackmacgap", site: "github.com")),

@@ -272,9 +272,7 @@ extension CompletionRequest {
 
     /// Chat-style apps want short, informal continuations.
     var isChatApp: Bool {
-        guard let appBundleID = appBundleID?.lowercased() else { return false }
-        let chatMarkers = ["slack", "telegram", "discord", "teams", "whatsapp", "mobilesms", "messages"]
-        return chatMarkers.contains { appBundleID.contains($0) }
+        AppPolicy.isChat(TypingContext(bundleID: appBundleID, site: site))
     }
 }
 
