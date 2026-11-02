@@ -101,6 +101,20 @@ final class ReplyComposerTests: XCTestCase {
         XCTAssertTrue(notice.hasPrefix("click into a text field"), notice)
     }
 
+    // A switched-off site: the notice names it, the log and the menu's "Last:"
+    // line don't — they are exportable, and the host is what the user visits.
+    func testASwitchedOffSiteIsNamedOnlyOnScreen() {
+        let saved = Settings.userBlacklist
+        defer { Settings.userBlacklist = saved }
+        Settings.userBlacklist = [AppPolicy.sitePrefix + "mail.example.com"]
+        host.typingContext = TypingContext(appName: "Safari", bundleID: "com.apple.Safari", site: "mail.example.com")
+        XCTAssertFalse(replies.compose())
+        XCTAssertEqual(host.lastEvent, "reply: off on this site")
+        XCTAssertEqual(world.window.currentMode, .hint("Always off in mail.example.com"))
+        let logged = DebugLog.shared.snapshot().last { $0.category == "REPLY" }?.message
+        XCTAssertEqual(logged, "not composing — off on this site")
+    }
+
     // A field in an app Pretype stays out of is never even read.
     func testAnAppPretypeStaysOutOfIsNeverRead() {
         host.typingContext = TypingContext(appName: "1Password", bundleID: "com.1password.1password")

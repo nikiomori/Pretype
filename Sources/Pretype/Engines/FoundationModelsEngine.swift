@@ -120,7 +120,7 @@ final class FoundationModelsEngine: CompletionEngine {
 
     func correct(selection: String, redactLog: Bool) async throws -> String? {
         try requireReady()
-        return try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "FM") {
+        return try await CorrectionGates.fix(selection, logTag: "FM") {
             try await Self.respond(to: $0, maxTokens: $1, label: "fix")
         }
     }

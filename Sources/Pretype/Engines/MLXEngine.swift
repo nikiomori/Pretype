@@ -607,10 +607,9 @@ final class MLXEngine: CompletionEngine {
     /// repetition penalty: fixing typos means re-emitting most of the original
     /// tokens verbatim, which a penalty actively punishes.
     func correct(selection: String, redactLog: Bool) async throws -> String? {
-        try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "FIX") {
-            // The generation log prints its own raw output — redacting only the
-            // divergence-guard line would leave the same sentence in the
-            // buffer twenty lines earlier, on the SUCCESS path at that.
+        try await CorrectionGates.fix(selection, logTag: "FIX") {
+            // The generation log prints its own raw output, on the SUCCESS
+            // path too: a spoken sentence must stay out of that line as well.
             try await self.chatGenerate($0, maxTokens: $1, copiesInput: true, logRaw: !redactLog)
         }
     }

@@ -100,6 +100,8 @@ private final class MockDictationHost: DictationHost {
     var fallbackHostStyle = HostTextStyle()
 
     var focus = DictationFocus.field
+    /// Set: what finding the field read — a site the focus tracker missed.
+    var contextOnceFocused: TypingContext?
     var composing = false
     var anchor: DictationAnchor? = DictationAnchor(
         caretRect: CGRect(x: 10, y: 10, width: 1, height: 18),
@@ -114,7 +116,10 @@ private final class MockDictationHost: DictationHost {
     /// Set: the tidy-up waits for it — never opened, a model that never answers.
     var tidyGate: Gate?
 
-    func dictationFocus() -> DictationFocus { focus }
+    func dictationFocus() -> DictationFocus {
+        if let contextOnceFocused { typingContext = contextOnceFocused }
+        return focus
+    }
     func isComposingInFocusedField() -> Bool { composing }
     func prepareForDictation() { prepares += 1 }
     private(set) var prewarms = 0
@@ -1221,6 +1226,18 @@ final class DictationControllerTests: XCTestCase {
         }
         Settings.userBlacklist = ["raycast"]
         XCTAssertEqual(DictationFocus.panel(ownedBy: "com.raycast.macos") { true }, .offLimits)
+    }
+
+    /// A site switched off found only with the field: the host stays out of
+    /// the "Last:" line, which the logs repeat.
+    func testASwitchedOffSiteIsNotNamedInTheLog() async {
+        let saved = Settings.userBlacklist
+        defer { Settings.userBlacklist = saved }
+        Settings.userBlacklist = [AppPolicy.sitePrefix + "mail.example.com"]
+        let rig = makeRig()
+        rig.host.contextOnceFocused = TypingContext(site: "mail.example.com")
+        rig.controller.begin(trigger: .hold)
+        XCTAssertEqual(rig.host.lastEvent, "dictation: off on this site")
     }
 
     /// A password manager's panel over an app that is on is refused like the

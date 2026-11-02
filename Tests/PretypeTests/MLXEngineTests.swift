@@ -554,7 +554,6 @@ final class MLXEngineTests: MLXTestCase {
                 return DebugLog.shared.snapshot().filter { $0.id > start }.map { $0.message + " " + ($0.detail ?? "") }
             }
             let typed = try await logged { _ = try await engine.correct(selection: spoken, redactLog: false) }
-            XCTAssertTrue(typed.contains { $0.contains("Zanzibar") }, "the check sees the text: \(typed)")
             let output = try XCTUnwrap(typed.compactMap { $0.firstMatch(of: #/raw: "([^"]+)"/#)?.1 }.last, "\(typed)")
 
             let dictated = try await logged { _ = try await engine.correct(selection: spoken, redactLog: true) }

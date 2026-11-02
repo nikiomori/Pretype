@@ -39,10 +39,9 @@ enum CorrectionGates {
     typealias Generate = (_ prompt: String, _ maxTokens: Int) async throws -> String?
 
     /// The ⌥⇥ fix on any engine: guard the selection, ask, clean the answer
-    /// up, reject an over-rewrite. `redactLog` keeps the text out of the
-    /// rejection line (see `CompletionEngine.correct`).
-    static func fix(_ selection: String, redactLog: Bool, logTag: String,
-                    generate: Generate) async throws -> String? {
+    /// up, reject an over-rewrite. The rejection logs counts: the text may be
+    /// spoken, and the fix log keeps none either way.
+    static func fix(_ selection: String, logTag: String, generate: Generate) async throws -> String? {
         let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
         // A generous output-token budget: the fix is about the length of the
         // input, but tokens run shorter than characters (≈2× denser for
@@ -57,11 +56,7 @@ enum CorrectionGates {
         let fixed = trimRunOn(cleanCorrectionOutput(raw, original: trimmed), original: trimmed)
         guard !fixed.isEmpty, fixed != trimmed else { return nil }
         guard isMinimalCorrection(original: trimmed, fixed: fixed) else {
-            DebugLog.shared.log(
-                logTag, "fix rejected (over-rewrite)",
-                detail: redactLog
-                    ? "\(trimmed.count) → \(fixed.count) chars — redacted from log"
-                    : "\"\(trimmed)\" → \"\(fixed)\"")
+            DebugLog.shared.log(logTag, "fix rejected (over-rewrite)", detail: "\(trimmed.count) → \(fixed.count) chars")
             return nil
         }
         return fixed

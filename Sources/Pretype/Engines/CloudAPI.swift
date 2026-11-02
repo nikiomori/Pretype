@@ -416,7 +416,7 @@ final class CloudEngine: CompletionEngine {
     }
 
     func correct(selection: String, redactLog: Bool) async throws -> String? {
-        try await CorrectionGates.fix(selection, redactLog: redactLog, logTag: "API", generate: try chat())
+        try await CorrectionGates.fix(selection, logTag: "API", generate: try chat())
     }
 
     func reply(to conversation: String, request: CompletionRequest) async throws -> String? {

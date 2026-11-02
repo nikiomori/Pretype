@@ -77,7 +77,7 @@ extension DictationController {
         // Again: finding the field can read the site of one the focus tracker
         // missed, and that site may be switched off.
         guard AppPolicy.allowsCompletions(owner.typingContext) else {
-            return refuse("off on \(owner.typingContext.site ?? "this site")")
+            return refuse("off on this site")  // no host: this line reaches the logs
         }
         // An open IME composition is the one focused-field state synthetic
         // keystrokes must never touch: they land inside the marked text and

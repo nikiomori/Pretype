@@ -264,7 +264,7 @@ final class GatesTests: XCTestCase {
     func testTheFixGuardsWhatItAsksAndWhatComesBack() async throws {
         var asked: [(prompt: String, maxTokens: Int)] = []
         func fix(_ selection: String, _ answer: String?) async throws -> String? {
-            try await CorrectionGates.fix(selection, redactLog: false, logTag: "TEST") { prompt, maxTokens in
+            try await CorrectionGates.fix(selection, logTag: "TEST") { prompt, maxTokens in
                 asked.append((prompt, maxTokens))
                 return answer
             }
@@ -304,7 +304,7 @@ final class GatesTests: XCTestCase {
         }
         let request = CompletionRequest(textBeforeCaret: "")
         let calls: [() async throws -> String?] = [
-            { try await CorrectionGates.fix("teh", redactLog: false, logTag: "TEST", generate: cancelling) },
+            { try await CorrectionGates.fix("teh", logTag: "TEST", generate: cancelling) },
             { try await CorrectionGates.rewrite("hi", instruction: "formal", generate: cancelling) },
             { try await CorrectionGates.reply(to: "A: hi", request: request, instructions: "", generate: cancelling) },
         ]
@@ -361,27 +361,17 @@ final class GatesTests: XCTestCase {
         XCTAssertNil(declined)
     }
 
-    // The dictation tidy-up hands the fix a spoken sentence, which
-    // docs/privacy.md promises never reaches the log: a rejected fix logs
-    // lengths only. A typed selection is logged as the export declares.
-    func testARedactedFixLogsNoText() async throws {
-        func entries(redact: Bool) async throws -> [DebugEntry] {
-            let start = DebugLog.shared.snapshot().last?.id ?? -1
-            let fixed = try await CorrectionGates.fix("I will see you tomorrow", redactLog: redact, logTag: "TEST") { _, _ in
-                "We never met at all"
-            }
-            XCTAssertNil(fixed)
-            return DebugLog.shared.snapshot().filter { $0.id > start }
+    // The fix log keeps counts: a rejected fix, typed or spoken, says how long
+    // it was and not what it said.
+    func testARejectedFixLogsCountsNotText() async throws {
+        let start = DebugLog.shared.snapshot().last?.id ?? -1
+        let fixed = try await CorrectionGates.fix("I will see you tomorrow", logTag: "TEST") { _, _ in
+            "We never met at all"
         }
-        func holdsText(_ entry: DebugEntry) -> Bool {
-            let line = entry.message + (entry.detail ?? "")
-            return line.contains("see you tomorrow") || line.contains("never met")
-        }
-        let typed = try await entries(redact: false)
-        XCTAssertTrue(typed.contains(where: holdsText), "the check sees the text")
-        let redacted = try await entries(redact: true)
-        XCTAssertFalse(redacted.isEmpty, "the rejection is still logged")
-        XCTAssertFalse(redacted.contains(where: holdsText), "\(redacted.map { $0.detail ?? "" })")
+        XCTAssertNil(fixed)
+        let lines = DebugLog.shared.snapshot().filter { $0.id > start }.map { $0.message + ($0.detail ?? "") }
+        XCTAssertTrue(lines.contains { $0.contains("23 → 19 chars") }, "\(lines)")
+        XCTAssertFalse(lines.contains { $0.contains("see you tomorrow") || $0.contains("never met") }, "\(lines)")
     }
 
     func testCleanCorrectionOutput() {
@@ -403,11 +393,11 @@ final class GatesTests: XCTestCase {
 
     // ⌥⇥ and a voice command keep the quotes the selection wraps in.
     func testTheUsersOwnQuotesStay() async throws {
-        let fixed = try await CorrectionGates.fix("\"teh cat\"", redactLog: false, logTag: "TEST") { _, _ in "\"the cat\"" }
+        let fixed = try await CorrectionGates.fix("\"teh cat\"", logTag: "TEST") { _, _ in "\"the cat\"" }
         XCTAssertEqual(fixed, "\"the cat\"")
         let rewritten = try await CorrectionGates.rewrite("\"yes\" or \"no\"", instruction: "capitals") { _, _ in "\"YES\" or \"NO\"" }
         XCTAssertEqual(rewritten, "\"YES\" or \"NO\"")
-        let doubled = try await CorrectionGates.fix("\"helo\"", redactLog: false, logTag: "TEST") { _, _ in "\"\"hello\"\"" }
+        let doubled = try await CorrectionGates.fix("\"helo\"", logTag: "TEST") { _, _ in "\"\"hello\"\"" }
         XCTAssertEqual(doubled, "\"hello\"", "the original's pair once, the model's goes")
     }
 

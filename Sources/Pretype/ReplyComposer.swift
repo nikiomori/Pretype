@@ -94,8 +94,9 @@ final class ReplyComposer {
         // A terminal, off for everything else, answers in an agent's box: the
         // read below finds nothing anywhere else in it.
         guard AppPolicy.allowsCompletions(typingContext) else {
-            let name = typingContext.site ?? typingContext.appName
-            return stop("off in \(name ?? "this app")", notice: name.map { String(localized: "Always off in \($0)") })
+            // The notice may name the host; the log and the "Last:" line may not.
+            let why = typingContext.site != nil ? "off on this site" : "off in \(typingContext.appName ?? "this app")"
+            return stop(why, notice: (typingContext.site ?? typingContext.appName).map { String(localized: "Always off in \($0)") })
         }
         // allowEmpty: an empty chat box is the case this feature exists for —
         // the completion pipeline's "nothing to continue" is not a refusal here.
