@@ -543,9 +543,7 @@ final class ModelResidencyTests: MLXTestCase {
     // check would ask for the 2 GB margin alone.
     func testEveryFixModelHasASize() {
         for option in ModelCatalog.options where option.id != ModelCatalog.appleIntelligenceID {
-            for id in [option.correctionModelID, option.instructModelID] {
-                XCTAssertNotNil(ModelMetrics.taskRamGB(for: id), id)
-            }
+            XCTAssertNotNil(ModelMetrics.taskRamGB(for: option.correctionModelID), option.correctionModelID)
         }
     }
 

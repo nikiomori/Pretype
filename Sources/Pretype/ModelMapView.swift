@@ -478,7 +478,7 @@ struct ModelMapView: View {
 
     /// The sibling the current pick actually loads for the chords.
     private var currentSiblingID: String? {
-        ModelMetrics.taskMetrics(for: store.modelID, style: store.style)?.measuredID
+        ModelMetrics.taskMetrics(for: store.modelID)?.measuredID
     }
 
     private func chordCenter(_ s: ChordStat, _ plot: PlotFrame) -> CGPoint {

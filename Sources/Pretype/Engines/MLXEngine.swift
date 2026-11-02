@@ -137,7 +137,7 @@ final class MLXEngine: CompletionEngine {
             primaryID = modelID
         case .instruct:
             primaryID = ProcessInfo.processInfo.environment["PRETYPE_INSTRUCT_MODEL"]
-                ?? baseOption?.instructModelID ?? modelID
+                ?? baseOption?.correctionModelID ?? modelID
         }
         self.modelID = primaryID
         residency = ModelResidency(primaryID: primaryID, style: config.style, promptCache: promptCache,

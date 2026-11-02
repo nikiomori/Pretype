@@ -59,7 +59,7 @@ final class ModelStorageTests: XCTestCase {
             XCTAssertEqual(ModelStorage.directory(for: id),
                            ModelStorage.cacheDirectory(repo: ModelCatalog.repo(for: id)))
             // Every slim re-pack replaces something the catalog actually downloads.
-            let downloaded = Set(ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] })
+            let downloaded = Set(ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID] })
             XCTAssertTrue(Set(ModelCatalog.slimRepos.keys).isSubset(of: downloaded))
             XCTAssertEqual(ModelCatalog.repo(for: "mlx-community/Qwen2.5-0.5B-bf16"), "mlx-community/Qwen2.5-0.5B-bf16")
             // The re-pack wins whenever it's here; the original only while it's all there is.

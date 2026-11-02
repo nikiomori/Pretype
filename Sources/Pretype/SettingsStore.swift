@@ -584,8 +584,7 @@ final class SettingsStore {
     /// The model the fix and reply chords load for a model + style — the
     /// engine's choice (`ModelResidency.fixesOnPrimary`, `MLXEngine.init`).
     static func chordWeights(modelID: String, style: CompletionStyle) -> String {
-        guard let option = ModelCatalog.option(for: modelID) else { return modelID }
-        return style == .instruct ? option.instructModelID : option.correctionModelID
+        ModelCatalog.option(for: modelID)?.correctionModelID ?? modelID
     }
 
     /// Every switch that changes what the engine loads goes through here.

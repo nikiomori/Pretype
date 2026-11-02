@@ -3,10 +3,8 @@ import XCTest
 
 final class ModelCatalogTests: XCTestCase {
     func testEveryGemmaInstructModelHasAnMTPDrafter() {
-        for option in ModelCatalog.options {
-            for id in [option.correctionModelID, option.instructModelID] where id.contains("gemma-4") {
-                XCTAssertNotNil(ModelCatalog.mtpDrafterID(for: id), id)
-            }
+        for option in ModelCatalog.options where option.correctionModelID.contains("gemma-4") {
+            XCTAssertNotNil(ModelCatalog.mtpDrafterID(for: option.correctionModelID), option.correctionModelID)
         }
         // Drafters are trained against the -it models only.
         XCTAssertNil(ModelCatalog.mtpDrafterID(for: "mlx-community/gemma-4-e2b-4bit"))
@@ -256,7 +254,7 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertEqual(Double(option.approxSizeMB) / 1000, m.ramGB, accuracy: 0.001, option.id)
             XCTAssertNotNil(ModelMetrics.gated[option.id], option.id)
             XCTAssertNotNil(ModelMetrics.perLangOfAll[option.id], option.id)
-            XCTAssertNotNil(ModelMetrics.taskMetrics(for: option.id, style: .base), option.id)
+            XCTAssertNotNil(ModelMetrics.taskMetrics(for: option.id), option.id)
             XCTAssertNotNil(ModelCatalog.recommended(for: option.id).logprobGateTau, option.id)
             guard let range = option.title.firstMatch(of: #/for (\d+)–(\d+) GB Macs/#) else { continue }
             named += 1
@@ -278,7 +276,7 @@ final class ModelCatalogTests: XCTestCase {
     /// that one download whatever was pushed last — so every repo the catalog
     /// can fetch, or still loads from an older install, must be pinned.
     func testEveryDownloadableRepoIsPinned() throws {
-        let models = ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID, $0.instructModelID] }
+        let models = ModelCatalog.options.flatMap { [$0.id, $0.correctionModelID] }
         var repos = Set(models).union(ModelCatalog.slimRepos.values).union(ModelCatalog.previousBuilds.keys)
             .union(models.compactMap(ModelCatalog.mtpDrafterID(for:)))
         try withScratchHub {
@@ -362,10 +360,10 @@ final class ModelCatalogTests: XCTestCase {
     /// lands on the best fixer, on the lighter of the entries that share it.
     func testChordGoalCardsOneFixModelEach() {
         let cards = ModelPriority.shownForChords()
-        let fixers = cards.map { ModelMetrics.taskMetrics(for: $0.pickForChords(), style: .base)?.measuredID }
+        let fixers = cards.map { ModelMetrics.taskMetrics(for: $0.pickForChords())?.measuredID }
         XCTAssertEqual(Set(fixers).count, fixers.count)
         XCTAssertEqual(cards.first, .lightest)
-        let best = ModelMetrics.taskMetrics(for: ModelPriority.accurate.pickForChords(), style: .base)?.m.fixPct
+        let best = ModelMetrics.taskMetrics(for: ModelPriority.accurate.pickForChords())?.m.fixPct
         XCTAssertEqual(best, ModelMetrics.tasks.values.filter { $0.ownRun == nil }.map(\.fixPct).max())
         XCTAssertEqual(ModelPriority.accurate.pickForChords(), "mlx-community/gemma-4-e4b-6bit")   // E4B-it 6-bit, under 8-bit's own weights
     }
@@ -479,7 +477,7 @@ final class ModelCatalogTests: XCTestCase {
             let why = ModelCatalog.rationale(for: id, servesTable: served)
             let resident = HostPLE.residentGB(ModelMetrics.metrics(for: id)?.ramGB ?? 0, of: id, servesTable: served)
             XCTAssertTrue(why.contains("~\(gbLabel(resident))") || why.contains("— \(gbLabel(resident))"), why)
-            let fix = ModelMetrics.taskMetrics(for: id, style: .base)?.m.fixPct ?? -1
+            let fix = ModelMetrics.taskMetrics(for: id)?.m.fixPct ?? -1
             XCTAssertTrue(why.contains("\(fix)%"), why)
         }
         XCTAssertEqual(ModelCatalog.rationale(for: "mlx-community/gemma-4-e4b-8bit", servesTable: served), "", "not a ladder tier")
@@ -575,14 +573,6 @@ final class ModelCatalogTests: XCTestCase {
         for id in table.keys where id != "system.apple-intelligence" {
             XCTAssertNotNil(ModelCatalog.option(for: id), "\(id) has metrics but no catalog entry")
         }
-
-        // A figure with no sample size behind it can't state its own tolerance.
-        for language in ModelMetrics.evalLanguages {
-            XCTAssertNotNil(ModelMetrics.sampleSize[language], "\(language) has no booked n")
-            XCTAssertGreaterThan(ModelMetrics.axisSampleSize(language), 0)
-        }
-        XCTAssertEqual(ModelMetrics.axisSampleSize("*"),
-                       ModelMetrics.sampleSize.values.reduce(0, +))
     }
 
     /// The fix/reply figures are keyed by the sibling the engine loads, so the
@@ -592,9 +582,7 @@ final class ModelCatalogTests: XCTestCase {
         // Every measured sibling id must be resolvable FROM some catalog entry,
         // or the row is dead data no card can ever show.
         for sibling in ModelMetrics.tasks.keys {
-            let reachable = ModelCatalog.options.contains {
-                $0.correctionModelID == sibling || $0.instructModelID == sibling
-            }
+            let reachable = ModelCatalog.options.contains { $0.correctionModelID == sibling }
             XCTAssertTrue(reachable, "\(sibling) has task metrics but no catalog entry routes to it")
             XCTAssertNotNil(ModelMetrics.taskModelNames[sibling], "\(sibling) has no display name")
         }
@@ -617,36 +605,32 @@ final class ModelCatalogTests: XCTestCase {
                        ["nikimori/MiniCPM5-1B-Base-8bit", "nikimori/Qwen3.5-2B-Base-6bit"])
         // Instruct style on E2B 8-bit runs the E4B-it 4-bit primary — the
         // measured 65% fixer — not E2B's own correction sibling.
-        let e2b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e2b-8bit", style: .instruct)
+        let e2b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e2b-8bit")
         XCTAssertEqual(e2b?.m.fixPct, 65)
         XCTAssertEqual(e2b?.measuredID, "mlx-community/gemma-4-e4b-it-4bit")
         // The E4B tiers' instruct primary is the 6-bit build, measured on its
         // own since 2026-10-11 (69%, ahead of the 4-bit's 65%, p<0.001).
-        let e4b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .instruct)
+        let e4b = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit")
         XCTAssertEqual(e4b?.m.fixPct, 69)
         XCTAssertEqual(e4b?.measuredID, "mlx-community/gemma-4-e4b-it-6bit")
-        // Base style routes to the lazy correction sibling instead — on E4B
-        // the same it-6bit (2026-10-15: old Instruct installs already hold it).
-        let e4bBase = ModelMetrics.taskMetrics(for: "mlx-community/gemma-4-e4b-8bit", style: .base)
-        XCTAssertEqual(e4bBase?.measuredID, "mlx-community/gemma-4-e4b-it-6bit")
         // MiniCPM5's own RL build fixed 4% and replied 35%, so its chords
         // borrow Qwen3.5's sibling.
-        let minicpm = ModelMetrics.taskMetrics(for: "nikimori/MiniCPM5-1B-Base-8bit", style: .base)
+        let minicpm = ModelMetrics.taskMetrics(for: "nikimori/MiniCPM5-1B-Base-8bit")
         XCTAssertEqual(minicpm?.measuredID, "mlx-community/Qwen3.5-2B-4bit")
         XCTAssertEqual(minicpm?.m.fixPct, 33)
         // Bonsai corrects with itself, through its own chat template.
-        let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", style: .base)
+        let bonsai = ModelMetrics.taskMetrics(for: "prism-ml/Ternary-Bonsai-4B-mlx-2bit")
         XCTAssertEqual(bonsai?.m.fixPct, 19)
         XCTAssertEqual(bonsai?.m.replyPct, 22)
         // So does the M40 merge: one pinned download serves completion and
         // both chords, with figures measured on the merge itself.
         let m40ID = "nikimori/Qwen3.5-2B-M40-6bit"
-        let m40 = ModelMetrics.taskMetrics(for: m40ID, style: .base)
+        let m40 = ModelMetrics.taskMetrics(for: m40ID)
         XCTAssertEqual(m40?.measuredID, m40ID)
         XCTAssertEqual(m40?.m.fixPct, 41)
         XCTAssertNotNil(ModelCatalog.pinnedRevisions[m40ID])
         // Not measured: only the system model.
-        XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID, style: .instruct))
+        XCTAssertNil(ModelMetrics.taskMetrics(for: ModelCatalog.appleIntelligenceID))
     }
 
     /// The table is one run's, its reply column one judge's (GPT-6 Luna). The
@@ -660,31 +644,7 @@ final class ModelCatalogTests: XCTestCase {
             if let run = t.ownRun { XCTAssertTrue(ModelMetrics.taskSource.contains(run), id) }
         }
         XCTAssertNotNil(ModelMetrics.tasks["nikimori/Qwen3.5-2B-M40-6bit"]?.ownRun)
-        XCTAssertEqual(ModelMetrics.taskMetrics(for: "nikimori/Qwen3.5-2B-M40-6bit", style: .base)?.runsOn, "Qwen3.5 2B M40¹")
-    }
-
-    /// The confidence figure is the whole point of showing n, so it has to be
-    /// arithmetic rather than decoration.
-    func testMarginOfErrorTracksSampleSize() {
-        // A single language cell buys ±5 pp near 20%; Russian's larger cell ±3;
-        // the whole set ±1. These are the numbers the captions now print.
-        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: 280), 5)
-        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: 689), 3)
-        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: ModelMetrics.axisSampleSize("*")), 1)
-        // Tighter at the extremes, and monotone in n — a 1% cell is far better
-        // pinned down than a 25% one at the same sample size.
-        XCTAssertLessThan(ModelMetrics.marginOfError(pct: 1, n: 280),
-                          ModelMetrics.marginOfError(pct: 25, n: 280))
-        XCTAssertLessThan(ModelMetrics.marginOfError(pct: 20, n: 5000),
-                          ModelMetrics.marginOfError(pct: 20, n: 280))
-        XCTAssertEqual(ModelMetrics.marginOfError(pct: 20, n: 0), 0)
-        // The Hebrew cliff must stay a real gap and not a noise artifact:
-        // 1% and 18% at n=280 don't come close to touching.
-        let minicpm = ModelMetrics.axisAccuracy(for: "nikimori/MiniCPM5-1B-Base-8bit", axis: "he")!
-        let gemma = ModelMetrics.axisAccuracy(for: "mlx-community/gemma-4-e2b-8bit", axis: "he")!
-        let n = ModelMetrics.axisSampleSize("he")
-        XCTAssertGreaterThan(gemma - ModelMetrics.marginOfError(pct: gemma, n: n),
-                             minicpm + ModelMetrics.marginOfError(pct: minicpm, n: n))
+        XCTAssertEqual(ModelMetrics.taskMetrics(for: "nikimori/Qwen3.5-2B-M40-6bit")?.runsOn, "Qwen3.5 2B M40¹")
     }
 
     // Per-model gate τ (live-scale split-half Q4 edges, runs-2026-10-15-rebook) — pin the values

@@ -148,7 +148,7 @@ enum ModelPriority: String, CaseIterable {
     /// A row booked on a run of its own stays out, as from every ranking.
     private static var chordPool: [(id: String, fixer: String, fix: Int, ms: Int, gb: Double, ownGB: Double)] {
         ModelCatalog.options.compactMap { option in
-            guard let t = ModelMetrics.taskMetrics(for: option.id, style: .base), t.m.ownRun == nil,
+            guard let t = ModelMetrics.taskMetrics(for: option.id), t.m.ownRun == nil,
                   let gb = ModelMetrics.taskRamGB(for: t.measuredID) else { return nil }
             return (option.id, t.measuredID, t.m.fixPct, t.m.fixP50Ms, gb,
                     ModelMetrics.metrics(for: option.id)?.ramGB ?? .infinity)
@@ -245,7 +245,7 @@ struct ChordProjection: Equatable {
     var ramGB: Double?
 
     static func project(_ c: ProjectionConfig, pleFromDisk: Bool = Settings.pleFromDisk) -> ChordProjection {
-        guard let t = ModelMetrics.taskMetrics(for: c.modelID, style: c.style) else { return ChordProjection() }
+        guard let t = ModelMetrics.taskMetrics(for: c.modelID) else { return ChordProjection() }
         return ChordProjection(
             fixerName: t.runsOn, fixPct: t.m.fixPct, falseFixPct: t.m.falseFixPct, replyPct: t.m.replyPct,
             p50Ms: t.m.fixP50Ms,

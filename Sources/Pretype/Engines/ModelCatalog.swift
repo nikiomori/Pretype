@@ -8,21 +8,9 @@ struct ModelOption {
     /// Instruct sibling used for fix-selection: corrections need instruction
     /// following (the base model paraphrases), while completion needs a base
     /// model (the instruct one echoes the prompt). Loaded lazily on first use.
-    /// Base style runs BOTH chords (fix and reply) on it.
+    /// Base style runs BOTH chords (fix and reply) on it; Instruct style runs
+    /// it as the primary, overridable via PRETYPE_INSTRUCT_MODEL.
     let correctionModelID: String
-    /// Instruct sibling that becomes the *primary* model in instruct
-    /// completion style: the fix sibling unless the entry names another. On
-    /// the Gemma builds it is sized to the entry's RAM
-    /// tier: E4B 6-bit where the tier affords ~5.6 GB (an eval A/B showed
-    /// instruct only matches/beats base at 6–8 bit), 4-bit siblings on the
-    /// tighter tiers — a handicapped instruct still beats swapping a model the
-    /// Mac can't hold. Overridable via PRETYPE_INSTRUCT_MODEL.
-    let instructModelID: String
-
-    init(id: String, title: String, correctionModelID: String, instructModelID: String? = nil) {
-        (self.id, self.title, self.correctionModelID) = (id, title, correctionModelID)
-        self.instructModelID = instructModelID ?? correctionModelID
-    }
 }
 
 enum ModelCatalog {
@@ -85,8 +73,7 @@ enum ModelCatalog {
         ModelOption(
             id: "nikimori/MiniCPM5-1B-Base-8bit",
             title: String(localized: "MiniCPM5 1B — fastest, English & Russian"),
-            correctionModelID: "mlx-community/Qwen3.5-2B-4bit",
-            instructModelID: "openbmb/MiniCPM5-1B"  // manual instruct flip only; completion there is broken (see above)
+            correctionModelID: "mlx-community/Qwen3.5-2B-4bit"
         ),
         // Lowest-RAM pick (eval-real 2026-07-15, base·greedy·short, n=870): at
         // ~1 GB it STATISTICALLY TIES the 2.2 GB MiniCPM5 and the 5.7 GB
@@ -240,7 +227,7 @@ enum ModelCatalog {
             gbLabel(HostPLE.residentGB(ModelMetrics.metrics(for: id)?.ramGB ?? 0, of: id, servesTable: servesTable))
         }
         func chords(_ id: String) -> ModelMetrics.TaskMetrics? {
-            ModelMetrics.taskMetrics(for: id, style: recommended(for: id).style)?.m
+            ModelMetrics.taskMetrics(for: id)?.m
         }
         let (gb, fix, reply) = (resident(id), chords(id)?.fixPct ?? 0, chords(id)?.replyPct ?? 0)
         switch id {
@@ -347,7 +334,6 @@ enum ModelCatalog {
         "nikimori/gemma-4-e4b-8bit-slim": "4448b728fb952a84b5cde35e20cfb46666c988e4",
         "nikimori/gemma-4-e4b-it-4bit-slim": "4a222e14c9a980d5b47ffb24c77b2896c9bd39de",
         "nikimori/gemma-4-e4b-it-6bit-slim": "9e1179844f08bcc78dcf368d804ae1877194f804",
-        "openbmb/MiniCPM5-1B": "87179e5c1f455ef22e6223592d2d61351b525bfc",
         "openbmb/MiniCPM5-1B-Base": "156170697656c48f69915b33a2fb44110242187c",
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": "e1374ad6bf9b1b56afd743936b8faa33c409a75f",
     ]
@@ -514,6 +500,6 @@ enum ModelCatalog {
     /// `ModelMetrics.instructCompletion`), just below Base.
     static func instructCompletes(_ id: String) -> Bool {
         id == appleIntelligenceID
-            || option(for: id)?.instructModelID == ModelMetrics.instructCompletion.id
+            || option(for: id)?.correctionModelID == ModelMetrics.instructCompletion.id
     }
 }

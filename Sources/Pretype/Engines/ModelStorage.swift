@@ -211,7 +211,7 @@ enum ModelStorage {
     /// re-pack, since an install may hold either, or both.
     static func repos(for id: String) -> Set<String> {
         guard let option = ModelCatalog.option(for: id) else { return [] }
-        let models = [option.id, option.correctionModelID, option.instructModelID]
+        let models = [option.id, option.correctionModelID]
         let slim = models.compactMap { ModelCatalog.slimRepos[$0] }
         let previous = ModelCatalog.previousBuilds[option.id] ?? []
         return Set((models + slim + previous + models.compactMap(ModelCatalog.mtpDrafterID(for:)))
@@ -259,9 +259,9 @@ enum ModelStorage {
     }
 
     /// The weights catalog entry `id` completes on in `style`: its instruct
-    /// primary in Instruct style, itself in Base.
+    /// sibling in Instruct style, itself in Base.
     static func weights(for id: String, style: CompletionStyle) -> String {
-        style == .instruct ? ModelCatalog.option(for: id)?.instructModelID ?? id : id
+        style == .instruct ? ModelCatalog.option(for: id)?.correctionModelID ?? id : id
     }
 
     /// `fetchQuietly` for what `id` completes on in `style`; true once it's here.

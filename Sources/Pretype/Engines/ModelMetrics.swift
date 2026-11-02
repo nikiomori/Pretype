@@ -296,14 +296,13 @@ struct ModelMetrics {
         "mlx-community/gemma-4-e2b-it-4bit": 2.97,
         "mlx-community/Qwen3.5-2B-4bit": 1.06,  // Qwen3.5 Base's chord sibling
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": 0.4,
-        "openbmb/MiniCPM5-1B": 2.2,
     ]
 
     /// Resident size of the model Instruct style would actually run for `baseID`.
     static func instructRamGB(for baseID: String) -> Double? {
         guard let option = ModelCatalog.option(for: baseID) else { return nil }
-        return instructSizesGB[option.instructModelID]
-            ?? metrics(for: option.instructModelID)?.ramGB
+        return instructSizesGB[option.correctionModelID]
+            ?? metrics(for: option.correctionModelID)?.ramGB
             ?? metrics(for: baseID)?.ramGB
     }
 
@@ -433,17 +432,16 @@ struct ModelMetrics {
     ]
 
     /// The task figures the current pick would actually produce: resolves the
-    /// sibling the engine loads for fix/reply — the instruct primary in
-    /// Instruct style, the lazy correction sibling in Base style (mirrors
-    /// `MLXEngine.correct`) — and looks it up. `measuredID` is the sibling the
+    /// sibling the engine loads for fix/reply (mirrors `MLXEngine.correct`)
+    /// and looks it up. `measuredID` is the sibling the
     /// figures were measured on, so map/list surfaces can point at the same
     /// bubble. nil for Apple Intelligence (not in the task sweep) and for a
     /// sibling nobody measured.
-    static func taskMetrics(for id: String, style: CompletionStyle)
+    static func taskMetrics(for id: String)
         -> (m: TaskMetrics, runsOn: String, measuredID: String)? {
         guard id != ModelCatalog.appleIntelligenceID,
               let option = ModelCatalog.option(for: id) else { return nil }
-        let sibling = style == .instruct ? option.instructModelID : option.correctionModelID
+        let sibling = option.correctionModelID
         guard let m = tasks[sibling] else { return nil }
         return (m, taskModelNames[sibling] ?? sibling, sibling)
     }
@@ -460,9 +458,7 @@ struct ModelMetrics {
     /// switch; `taskUsers` renders the same list as display names.
     static func taskUserIDs(of siblingID: String) -> [String] {
         ModelCatalog.options.compactMap { option in
-            taskMetrics(for: option.id,
-                        style: ModelCatalog.recommended(for: option.id).style)?
-                .measuredID == siblingID ? option.id : nil
+            taskMetrics(for: option.id)?.measuredID == siblingID ? option.id : nil
         }
     }
 

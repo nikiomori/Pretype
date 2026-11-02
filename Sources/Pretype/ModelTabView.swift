@@ -199,7 +199,7 @@ struct ModelTab: View {
         // Grouped by the model a click would fix with: the entry's own
         // recommended style, as on the completion list.
         let groups = Dictionary(grouping: entries) { entry in
-            ModelMetrics.taskMetrics(for: entry.id, style: ModelCatalog.recommended(for: entry.id).style)?.measuredID ?? entry.id
+            ModelMetrics.taskMetrics(for: entry.id)?.measuredID ?? entry.id
         }
         let rows = groups.map { fixer, members in
             let ids = members.map(\.id)
@@ -525,12 +525,9 @@ struct ModelRow: View {
     }
 
     /// The chord figures beside the bars: fix% · reply%, in the task colors
-    /// the map lenses use. Resolved at the model's RECOMMENDED settings (what
-    /// a click gives you); the selected-model card below re-resolves against
-    /// the live style. "—" = sibling not in the task sweep.
+    /// the map lenses use. "—" = sibling not in the task sweep.
     @ViewBuilder private var chordFigures: some View {
-        let chord = ModelMetrics.taskMetrics(
-            for: id, style: ModelCatalog.recommended(for: id).style)
+        let chord = ModelMetrics.taskMetrics(for: id)
         HStack(spacing: Self.chordSpacing) {
             if let chord {
                 Text("\(chord.m.fixPct)%").foregroundStyle(Color.pink.legible)
