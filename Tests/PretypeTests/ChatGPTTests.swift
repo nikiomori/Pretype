@@ -20,7 +20,7 @@ private final class ChatGPTStub: URLProtocol {
             let reply = try Self.handler.get()?(request) ?? (500, Data(), "application/json")
             let url = try XCTUnwrap(request.url)
             let response = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: reply.0, httpVersion: nil,
-                                                        headerFields: ["Content-Type": reply.2]))
+                                                        headerFields: reply.2.isEmpty ? [:] : ["Content-Type": reply.2]))
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: reply.1)
             client?.urlProtocolDidFinishLoading(self)
@@ -106,6 +106,31 @@ final class ChatGPTTests: XCTestCase {
         do {
             _ = try await ChatGPTResponses.generate(model: "m", system: "", user: "test", token: "fixture", session: session, timeout: 2)
             XCTFail("an interrupted response must not reach insertion")
+        } catch { XCTAssertEqual(error as? ChatGPTError, .interrupted) }
+    }
+
+    func testMissingContentTypeStillRequiresCompletedEventStream() async throws {
+        let good = try stream([["type": "response.output_text.delta", "delta": "answer"], completed])
+        ChatGPTStub.handler.set { _ in (200, good, "") }
+        let session = ChatGPTStub.session()
+        defer { session.invalidateAndCancel() }
+        let answer = try await ChatGPTResponses.generate(model: "m", system: "", user: "test", token: "fixture",
+                                                         session: session, timeout: 2)
+        XCTAssertEqual(answer, "answer")
+        let partial = try stream([["type": "response.output_text.delta", "delta": "partial"]])
+        for body in [partial, Data(#"{"status":"completed","output_text":"not an event stream"}"#.utf8)] {
+            ChatGPTStub.handler.set { _ in (200, body, "") }
+            do {
+                _ = try await ChatGPTResponses.generate(model: "m", system: "", user: "test", token: "fixture",
+                                                        session: session, timeout: 2)
+                XCTFail("a missing content type must not bypass terminal-event validation")
+            } catch { XCTAssertEqual(error as? ChatGPTError, .interrupted) }
+        }
+        ChatGPTStub.handler.set { _ in (200, good, "application/json") }
+        do {
+            _ = try await ChatGPTResponses.generate(model: "m", system: "", user: "test", token: "fixture",
+                                                    session: session, timeout: 2)
+            XCTFail("an explicitly incompatible content type must be rejected")
         } catch { XCTAssertEqual(error as? ChatGPTError, .interrupted) }
     }
 
