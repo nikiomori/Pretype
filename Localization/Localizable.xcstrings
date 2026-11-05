@@ -9662,6 +9662,9 @@
         }
       }
     },
+    "Another Pretype instance is using ChatGPT accounts. Quit that instance and restart Pretype." : {
+
+    },
     "App: %@" : {
       "localizations" : {
         "cs" : {
@@ -12424,6 +12427,36 @@
         }
       }
     },
+    "ChatGPT account" : {
+
+    },
+    "ChatGPT credentials could not be saved or read from Keychain." : {
+
+    },
+    "ChatGPT did not finish its response. Please try again." : {
+
+    },
+    "ChatGPT is temporarily unavailable. Please try again later." : {
+
+    },
+    "ChatGPT plan usage is not enabled for this account. Reconnect to grant permission." : {
+
+    },
+    "ChatGPT plan usage is unavailable for this account, region, or request." : {
+
+    },
+    "ChatGPT request failed (HTTP %lld)." : {
+
+    },
+    "ChatGPT sign-in could not be verified. Please try again." : {
+
+    },
+    "ChatGPT subscription" : {
+
+    },
+    "ChatGPT usage is paused. Check your allowance in ChatGPT Settings → Usage, then retry." : {
+
+    },
     "Check for Updates…" : {
       "localizations" : {
         "cs" : {
@@ -12954,6 +12987,9 @@
           }
         }
       }
+    },
+    "Choose a model" : {
+
     },
     "Choose applications that get their own style instructions." : {
       "localizations" : {
@@ -14226,6 +14262,9 @@
           }
         }
       }
+    },
+    "Continue with ChatGPT" : {
+
     },
     "Continues your sentence as you type." : {
       "localizations" : {
@@ -32215,6 +32254,9 @@
         }
       }
     },
+    "Manage ChatGPT usage" : {
+
+    },
     "Map" : {
       "localizations" : {
         "cs" : {
@@ -44623,6 +44665,12 @@
         }
       }
     },
+    "Reconnect" : {
+
+    },
+    "Reconnect your ChatGPT account in Settings → API." : {
+
+    },
     "Recording from a wireless headset switches it into call mode for the capture, which makes anything playing sound flat and quiet." : {
       "localizations" : {
         "cs" : {
@@ -45046,6 +45094,12 @@
           }
         }
       }
+    },
+    "Refresh ChatGPT models and choose an available model." : {
+
+    },
+    "Refresh models / retry" : {
+
     },
     "Relaunch" : {
       "localizations" : {
@@ -50249,6 +50303,12 @@
           }
         }
       }
+    },
+    "Sign out" : {
+
+    },
+    "Signed out locally. Remote revocation was not confirmed; disconnect Pretype in ChatGPT Settings." : {
+
     },
     "Size" : {
       "localizations" : {
@@ -59392,6 +59452,9 @@
         }
       }
     },
+    "Use a hosted model for text" : {
+
+    },
     "Use an API model for dictation" : {
       "localizations" : {
         "cs" : {
@@ -59499,6 +59562,7 @@
       }
     },
     "Use an API model for text" : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -60027,6 +60091,9 @@
           }
         }
       }
+    },
+    "Uses your ChatGPT plan allowance and any credits you allow in ChatGPT settings. Signing in does not turn on text generation. Speech transcription uses its separate provider." : {
+
     },
     "Using %@, so %@ keeps playing in full quality." : {
       "localizations" : {
@@ -60875,6 +60942,9 @@
           }
         }
       }
+    },
+    "When text generation is enabled, what you type goes to OpenAI with each suggestion, with your persona and an AI agent's session, plus screen context and dictation cleanup when enabled. Password fields and turned-off apps send nothing. Requests use your ChatGPT plan allowance." : {
+
     },
     "Window" : {
       "localizations" : {
