@@ -61,7 +61,10 @@ enum ChatGPTResponses {
             }
             throw ChatGPTError.response(data, status: http.statusCode)
         }
-        guard http.value(forHTTPHeaderField: "Content-Type")?.lowercased().hasPrefix("text/event-stream") == true else {
+        // The plan-usage endpoint can omit Content-Type. Validate any supplied
+        // type, then require valid SSE and response.completed even without it.
+        if let contentType = http.value(forHTTPHeaderField: "Content-Type"),
+           !contentType.lowercased().hasPrefix("text/event-stream") {
             throw ChatGPTError.interrupted
         }
         var parser = ChatGPTEventStream()
