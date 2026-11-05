@@ -4,8 +4,21 @@ struct ChatGPTModel: Identifiable, Decodable, Equatable {
     let slug: String
     let displayName: String
     let visibility: String
+    let supportedReasoningLevels: [ReasoningLevel]?
+    struct ReasoningLevel: Decodable, Equatable { let effort: String }
+
+    /// Short text edits should not inherit an expensive reasoning default.
+    /// Only request an effort advertised by this account's model catalog.
+    var textReasoningEffort: String? {
+        ["none", "minimal", "low"].first { effort in
+            supportedReasoningLevels?.contains { $0.effort == effort } == true
+        }
+    }
     var id: String { slug }
-    enum CodingKeys: String, CodingKey { case slug, displayName = "display_name", visibility }
+    enum CodingKeys: String, CodingKey {
+        case slug, displayName = "display_name", visibility
+        case supportedReasoningLevels = "supported_reasoning_levels"
+    }
 }
 
 enum ChatGPTResponses {
@@ -21,7 +34,7 @@ enum ChatGPTResponses {
         return catalog.models.filter { $0.visibility == "list" && !$0.slug.isEmpty && seen.insert($0.slug).inserted }
     }
 
-    static func request(model: String, system: String, user: String, token: String, timeout: TimeInterval) throws -> URLRequest {
+    static func request(model: String, system: String, user: String, token: String, timeout: TimeInterval, reasoningEffort: String? = nil) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appendingPathComponent("responses"), timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -29,14 +42,16 @@ enum ChatGPTResponses {
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         // This subscription route rejects the chat endpoint's sampling and
         // token-limit fields. Output gates still enforce Pretype's word cap.
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "instructions": system,
-            "input": [["role": "user", "content": user]], "store": false, "stream": true])
+        var body: [String: Any] = ["model": model, "instructions": system,
+            "input": [["role": "user", "content": user]], "store": false, "stream": true]
+        if let reasoningEffort { body["reasoning"] = ["effort": reasoningEffort] }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
 
     static func generate(model: String, system: String, user: String, token: String,
-                         session: URLSession, timeout: TimeInterval) async throws -> String {
-        let request = try request(model: model, system: system, user: user, token: token, timeout: timeout)
+                         session: URLSession, timeout: TimeInterval, reasoningEffort: String? = nil) async throws -> String {
+        let request = try request(model: model, system: system, user: user, token: token, timeout: timeout, reasoningEffort: reasoningEffort)
         return try await withThrowingTaskGroup(of: String.self) { group in
             group.addTask { try await read(request, session: session) }
             group.addTask {

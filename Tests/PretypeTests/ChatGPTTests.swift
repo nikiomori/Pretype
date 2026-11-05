@@ -145,6 +145,51 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertEqual(models.map(\.id), ["b", "a"])
     }
 
+    func testTextReasoningUsesOnlyFastEffortsAdvertisedByTheAccount() throws {
+        let cases: [([String]?, String?)] = [
+            (nil, nil), ([], nil), (["future-effort", "high"], nil),
+            (["medium", "low"], "low"), (["low", "minimal"], "minimal"),
+            (["low", "none"], "none")
+        ]
+        for (levels, expected) in cases {
+            var json: [String: Any] = ["slug": "m", "display_name": "Model", "visibility": "list"]
+            if let levels { json["supported_reasoning_levels"] = levels.map { ["effort": $0] } }
+            let model = try JSONDecoder().decode(ChatGPTModel.self, from: JSONSerialization.data(withJSONObject: json))
+            XCTAssertEqual(model.textReasoningEffort, expected)
+        }
+    }
+
+    @MainActor func testAccountGenerationSendsAdvertisedLowReasoning() async throws {
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
+        try accounts.install(fixture())
+        let answer = try stream([["type": "response.output_text.delta", "delta": "corrected"], completed])
+        ChatGPTStub.handler.set { request in
+            if request.url?.path == "/v1/models" {
+                return (200, Data(#"{"models":[{"slug":"m","display_name":"Model","visibility":"list","supported_reasoning_levels":[{"effort":"medium"},{"effort":"low"}]}]}"#.utf8), "application/json")
+            }
+            var data = request.httpBody ?? Data()
+            if let input = request.httpBodyStream {
+                input.open()
+                defer { input.close() }
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                while input.hasBytesAvailable {
+                    let count = input.read(&buffer, maxLength: buffer.count)
+                    guard count > 0 else { break }
+                    data.append(contentsOf: buffer.prefix(count))
+                }
+            }
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertEqual(body["reasoning"] as? [String: String], ["effort": "low"])
+            XCTAssertEqual(body["store"] as? Bool, false)
+            XCTAssertEqual(body["stream"] as? Bool, true)
+            XCTAssertNil(body["service_tier"], "do not opt into a paid speed tier")
+            return (200, answer, "text/event-stream")
+        }
+        let result = try await accounts.generate(model: "m", system: "", user: "fixture", timeout: 2,
+                                                 generation: ChatGPTAccounts.generation.get())
+        XCTAssertEqual(result, "corrected")
+    }
+
     func testOAuthPKCEAndHostIdentityAreBoundToAttempt() throws {
         let redirect = try XCTUnwrap(URL(string: "http://127.0.0.1:1455/auth/callback"))
         let login = try ChatGPTLogin(redirect: redirect, existing: nil)

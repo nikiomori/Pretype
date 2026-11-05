@@ -266,11 +266,11 @@ final class ChatGPTAccounts {
                 models = list
                 catalogLoaded = true
             }
-            guard !model.isEmpty, selected?.model == model, models.contains(where: { $0.id == model }) else {
+            guard !model.isEmpty, selected?.model == model, let catalogModel = models.first(where: { $0.id == model }) else {
                 throw ChatGPTError.model
             }
             let result = try await ChatGPTResponses.generate(model: model, system: system, user: user,
-                token: token, session: session, timeout: timeout)
+                token: token, session: session, timeout: timeout, reasoningEffort: catalogModel.textReasoningEffort)
             try check(generation)
             return result
         } catch {
