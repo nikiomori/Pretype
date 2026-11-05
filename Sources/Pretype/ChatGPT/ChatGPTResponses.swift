@@ -64,7 +64,7 @@ enum ChatGPTResponses {
         }
     }
 
-    private static func read(_ request: URLRequest, session: URLSession) async throws -> String {
+    static func read(_ request: URLRequest, session: URLSession) async throws -> String {
         let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse else { throw ChatGPTError.unavailable }
         guard (200..<300).contains(http.statusCode) else {
@@ -120,7 +120,18 @@ struct ChatGPTEventStream {
 
     private mutating func consume() throws {
         guard !event.isEmpty else { return }
-        guard let json = try JSONSerialization.jsonObject(with: Data(event.joined(separator: "\n").utf8)) as? [String: Any],
+        try consume(Data(event.joined(separator: "\n").utf8))
+    }
+
+    /// WebSocket messages carry the same Responses events without SSE framing.
+    mutating func append(message: Data) throws {
+        count += message.count
+        guard !completed, count <= 2 * 1024 * 1024, message.count <= 256 * 1024 else { throw ChatGPTError.interrupted }
+        try consume(message)
+    }
+
+    private mutating func consume(_ data: Data) throws {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = json["type"] as? String else { throw ChatGPTError.interrupted }
         switch type {
         case "response.output_text.delta":
