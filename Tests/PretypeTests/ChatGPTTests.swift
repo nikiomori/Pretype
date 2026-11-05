@@ -3,7 +3,7 @@ import Security
 import XCTest
 @testable import Pretype
 
-private final class ChatGPTStub: URLProtocol {
+final class ChatGPTStub: URLProtocol {
     static let handler = LockedValue<((URLRequest) throws -> (Int, Data, String))?>(nil)
     static let calls = LockedValue(0)
     static let holdResponses = LockedValue(false)
@@ -160,7 +160,7 @@ final class ChatGPTTests: XCTestCase {
     }
 
     @MainActor func testAccountGenerationSendsAdvertisedLowReasoning() async throws {
-        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture())
         let answer = try stream([["type": "response.output_text.delta", "delta": "corrected"], completed])
         ChatGPTStub.handler.set { request in
@@ -295,7 +295,7 @@ final class ChatGPTTests: XCTestCase {
             if fail.get() { throw ChatGPTError.storage }
             try memory.write(data)
         })
-        let accounts = ChatGPTAccounts(storage: storage, makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: storage, makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture())
         let saved = try memory.read()
         fail.set(true)
@@ -307,7 +307,7 @@ final class ChatGPTTests: XCTestCase {
 
     @MainActor func testAccountsStaySeparateAndOldGenerationCannotSend() async throws {
         let memory = ChatGPTStorage.memory()
-        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture())
         let old = ChatGPTAccounts.generation.get()
         try accounts.install(fixture(id: "other"))
@@ -316,13 +316,13 @@ final class ChatGPTTests: XCTestCase {
         do { _ = try await accounts.credentials(generation: old); XCTFail("old account used") } catch { XCTAssertTrue(error is CancellationError) }
         let credentials = try await accounts.credentials(generation: ChatGPTAccounts.generation.get())
         XCTAssertEqual(credentials.0, "access-other")
-        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
         XCTAssertEqual(restored.vault.hostID, accounts.vault.hostID)
         XCTAssertEqual(restored.selected?.id, "other")
     }
 
     @MainActor func testMissingPlanPermissionSendsNothing() async throws {
-        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture(scopes: ["openid"]))
         do { _ = try await accounts.credentials(generation: ChatGPTAccounts.generation.get()); XCTFail("missing permission") } catch { XCTAssertEqual(error as? ChatGPTError, .permission) }
         XCTAssertEqual(ChatGPTStub.calls.get(), 0)
@@ -330,7 +330,7 @@ final class ChatGPTTests: XCTestCase {
 
     @MainActor func testConcurrentRefreshRotatesOnceAndPersistsTogether() async throws {
         let memory = ChatGPTStorage.memory()
-        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture(expired: true))
         ChatGPTStub.handler.set { _ in
             (200, Data(#"{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600,"token_type":"Bearer"}"#.utf8), "application/json")
@@ -342,14 +342,14 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertEqual(values.0.0, "new-access")
         XCTAssertEqual(values.1.0, "new-access")
         XCTAssertEqual(ChatGPTStub.calls.get(), 1)
-        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
         XCTAssertEqual(restored.selected?.tokens?.accessToken, "new-access")
         XCTAssertEqual(restored.selected?.tokens?.refreshToken, "new-refresh")
     }
 
     @MainActor func testCancelledRefreshWaiterStillSavesRotatedCredentials() async throws {
         let memory = ChatGPTStorage.memory()
-        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture(expired: true))
         let entered = expectation(description: "refresh started")
         let release = DispatchSemaphore(value: 0)
@@ -364,12 +364,12 @@ final class ChatGPTTests: XCTestCase {
         waiter.cancel()
         release.signal()
         do { _ = try await waiter.value; XCTFail("cancelled waiter") } catch { XCTAssertTrue(error is CancellationError) }
-        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
         XCTAssertEqual(restored.selected?.tokens?.refreshToken, "new-refresh")
     }
 
     @MainActor func testQuotaFailurePausesFurtherRequestsWithoutSwitchingBilling() async throws {
-        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture())
         let errorData = try stream([["type": "response.output_text.delta", "delta": "partial"],
             ["type": "response.failed", "response": ["error": ["code": "subscription_sharing_usage_limit_exceeded"]]]])
@@ -388,7 +388,7 @@ final class ChatGPTTests: XCTestCase {
     }
 
     @MainActor func testCancelledTypingDoesNotPauseTheNextSuggestion() async throws {
-        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture())
         let answer = try stream([["type": "response.output_text.delta", "delta": "next words"], completed])
         ChatGPTStub.handler.set { request in
@@ -413,7 +413,7 @@ final class ChatGPTTests: XCTestCase {
     }
 
     @MainActor func testLogoutClearsTokensButRetainsRegistrationAndHost() async throws {
-        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
         try accounts.install(fixture())
         let host = accounts.vault.hostID
         ChatGPTStub.handler.set { _ in (503, Data(), "application/json") }

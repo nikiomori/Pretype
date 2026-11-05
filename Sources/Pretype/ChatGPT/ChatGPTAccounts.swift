@@ -18,6 +18,8 @@ final class ChatGPTAccounts {
     private(set) var blocked: ChatGPTError?
     @ObservationIgnored private let storage: ChatGPTStorage
     @ObservationIgnored private let makeSession: () -> URLSession
+    @ObservationIgnored private let makeResponses: () -> ChatGPTWebSocket?
+    @ObservationIgnored private var responses: ChatGPTWebSocket?
     @ObservationIgnored private var session: URLSession
     @ObservationIgnored private var loginTask: Task<Void, Never>?
     @ObservationIgnored private var refresh: (id: UUID, task: Task<ChatGPTTokens, Error>)?
@@ -28,9 +30,12 @@ final class ChatGPTAccounts {
     var selected: ChatGPTProfile? { vault.profiles.first { $0.id == vault.selectedID } }
     var canGenerate: Bool { selected?.tokens?.scopes.contains("chatgpt.tokens.use.direct") == true && !storageFailed }
 
-    init(storage: ChatGPTStorage = .keychain, makeSession: @escaping () -> URLSession = ChatGPTHTTP.session) {
+    init(storage: ChatGPTStorage = .keychain, makeSession: @escaping () -> URLSession = ChatGPTHTTP.session,
+         makeResponses: @escaping () -> ChatGPTWebSocket? = { ChatGPTWebSocket() }) {
         self.storage = storage
         self.makeSession = makeSession
+        self.makeResponses = makeResponses
+        responses = makeResponses()
         session = makeSession()
         do {
             if let data = try storage.read() { vault = try JSONDecoder().decode(ChatGPTVault.self, from: data) } else { try storage.write(JSONEncoder().encode(vault)) }
@@ -54,6 +59,7 @@ final class ChatGPTAccounts {
     private func invalidate() {
         session.invalidateAndCancel()
         session = makeSession()
+        responses = makeResponses()
         refresh?.task.cancel()
         refresh = nil
         revision = UUID()
@@ -269,8 +275,15 @@ final class ChatGPTAccounts {
             guard !model.isEmpty, selected?.model == model, let catalogModel = models.first(where: { $0.id == model }) else {
                 throw ChatGPTError.model
             }
-            let result = try await ChatGPTResponses.generate(model: model, system: system, user: user,
-                token: token, session: session, timeout: timeout, reasoningEffort: catalogModel.textReasoningEffort)
+            let result: String
+            if let responses {
+                let request = try ChatGPTResponses.request(model: model, system: system, user: user,
+                    token: token, timeout: timeout, reasoningEffort: catalogModel.textReasoningEffort)
+                result = try await responses.generate(request, session: session, timeout: timeout)
+            } else {
+                result = try await ChatGPTResponses.generate(model: model, system: system, user: user,
+                    token: token, session: session, timeout: timeout, reasoningEffort: catalogModel.textReasoningEffort)
+            }
             try check(generation)
             return result
         } catch {
