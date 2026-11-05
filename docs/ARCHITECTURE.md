@@ -439,7 +439,7 @@ records need no migration. Its endpoint is fixed to the public OpenAI API.
 `ChatGPTAccounts` owns account registrations, Keychain persistence, the selected
 account, model discovery, and one shared refresh job. The refresh job commits
 rotating tokens before releasing its waiters, including cancelled typing
-requests. Account changes invalidate the active HTTP session and advance a
+requests. Account changes invalidate the active URLSession (HTTP and WebSocket tasks) and advance a
 generation checked before sending and before accepting output. A process lease
 prevents concurrent app copies from writing the same token vault.
 
@@ -449,8 +449,16 @@ becomes active. `ChatGPTCallback` listens only on IPv4 loopback and closes on
 completion, cancellation, or timeout. Browser authentication is independent of
 whether cloud text generation is enabled.
 
-`ChatGPTResponses` sends supported Responses fields with `store: false` and
-`stream: true`. Its bounded SSE parser buffers text until `response.completed`.
+`ChatGPTWebSocket` leases connections for Responses requests with `store: false`.
+It reuses one idle connection for up to 15 seconds, only with the same token and
+URLSession. Each request resets `previous_response_id` to null; no conversation
+history crosses requests. Concurrent actions use separate leases, and cancelling
+one cannot close a connection already returned to another caller. Account changes
+replace the pool and cancel all tasks through the URLSession. An explicit
+unsupported upgrade (404/405/426/501) permits HTTP/SSE fallback for that account
+session, within the same total deadline. Other failures never replay a request.
+`ChatGPTResponses` supplies that HTTP fallback with `stream: true`. Both transports
+feed the same bounded event parser, buffering text until `response.completed`.
 Errors, incomplete streams, quota failures, and cancellation never release
 partial text for insertion. Quota and permission failures pause requests;
 temporary unavailability imposes a cooldown without deleting credentials.
