@@ -1,10 +1,11 @@
 import CryptoKit
+import Darwin
 import Foundation
 import Security
 
 /// Deliberately excludes server messages: they can contain prompts or credentials.
 enum ChatGPTError: LocalizedError, Equatable {
-    case signIn, permission, invalidLogin, storage, model, interrupted, limit, unavailable, unsupported, http(Int)
+    case signIn, permission, invalidLogin, storage, inUse, model, interrupted, limit, unavailable, unsupported, http(Int)
 
     var errorDescription: String? {
         switch self {
@@ -12,6 +13,7 @@ enum ChatGPTError: LocalizedError, Equatable {
         case .permission: return String(localized: "ChatGPT plan usage is not enabled for this account. Reconnect to grant permission.")
         case .invalidLogin: return String(localized: "ChatGPT sign-in could not be verified. Please try again.")
         case .storage: return String(localized: "ChatGPT credentials could not be saved or read from Keychain.")
+        case .inUse: return String(localized: "Another Pretype instance is using ChatGPT accounts. Quit that instance and restart Pretype.")
         case .model: return String(localized: "Refresh ChatGPT models and choose an available model.")
         case .interrupted: return String(localized: "ChatGPT did not finish its response. Please try again.")
         case .limit: return String(localized: "ChatGPT usage is paused. Check your allowance in ChatGPT Settings → Usage, then retry.")
@@ -90,10 +92,14 @@ struct ChatGPTStorage {
 
     static var keychain: ChatGPTStorage {
         if Settings.isTestProcess { return memory() }
+        // Hold an exclusive process lease for the vault lifetime. Two app
+        // copies must not race a rotating refresh token or overwrite accounts.
+        let lease = Result { try ChatGPTVaultLease() }
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                    kSecAttrService as String: "app.pretype.chatgpt",
                                    kSecAttrAccount as String: "accounts"]
         return ChatGPTStorage(read: {
+            _ = try lease.get()
             var lookup = query
             lookup[kSecReturnData as String] = true
             lookup[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -103,6 +109,7 @@ struct ChatGPTStorage {
             guard status == errSecSuccess, let data = item as? Data else { throw ChatGPTError.storage }
             return data
         }, write: { data in
+            _ = try lease.get()
             let update = [kSecValueData as String: data]
             let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
             if status == errSecItemNotFound {
@@ -164,4 +171,22 @@ extension Data {
         let base = base64URL.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         self.init(base64Encoded: base + String(repeating: "=", count: (4 - base.count % 4) % 4))
     }
+}
+
+/// The lock contains no credentials and is released by the OS on process exit.
+private final class ChatGPTVaultLease {
+    private let descriptor: Int32
+
+    init() throws {
+        let folder = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                appropriateFor: nil, create: true).appendingPathComponent("Pretype")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let path = folder.appendingPathComponent("chatgpt-vault.lock").path
+        let fd = open(path, O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw ChatGPTError.storage }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { close(fd); throw ChatGPTError.inUse }
+        descriptor = fd
+    }
+
+    deinit { flock(descriptor, LOCK_UN); close(descriptor) }
 }

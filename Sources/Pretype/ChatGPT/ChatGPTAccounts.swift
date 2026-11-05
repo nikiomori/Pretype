@@ -23,6 +23,7 @@ final class ChatGPTAccounts {
     @ObservationIgnored private var refresh: (id: UUID, task: Task<ChatGPTTokens, Error>)?
     @ObservationIgnored private var unavailableUntil: Date?
     @ObservationIgnored private var storageFailed = false
+    @ObservationIgnored private var catalogLoaded = false
 
     var selected: ChatGPTProfile? { vault.profiles.first { $0.id == vault.selectedID } }
     var canGenerate: Bool { selected?.tokens?.scopes.contains("chatgpt.tokens.use.direct") == true && !storageFailed }
@@ -32,11 +33,10 @@ final class ChatGPTAccounts {
         self.makeSession = makeSession
         session = makeSession()
         do {
-            if let data = try storage.read() { vault = try JSONDecoder().decode(ChatGPTVault.self, from: data) }
-            else { try storage.write(JSONEncoder().encode(vault)) }
+            if let data = try storage.read() { vault = try JSONDecoder().decode(ChatGPTVault.self, from: data) } else { try storage.write(JSONEncoder().encode(vault)) }
         } catch {
             storageFailed = true
-            notice = ChatGPTError.storage.localizedDescription
+            notice = (error as? ChatGPTError ?? .storage).localizedDescription
         }
     }
 
@@ -61,6 +61,7 @@ final class ChatGPTAccounts {
         blocked = nil
         unavailableUntil = nil
         models = []
+        catalogLoaded = false
     }
 
     func select(_ id: String) async {
@@ -68,15 +69,18 @@ final class ChatGPTAccounts {
         invalidate()
         var next = vault
         next.selectedID = id
-        do { try save(next); notice = nil; await loadModels() }
-        catch { notice = ChatGPTError.storage.localizedDescription }
+        do { try save(next); notice = nil; await loadModels() } catch { notice = ChatGPTError.storage.localizedDescription }
     }
 
     func chooseModel(_ model: String) {
         guard models.contains(where: { $0.id == model }), let index = vault.profiles.firstIndex(where: { $0.id == vault.selectedID }) else { return }
         var next = vault
         next.profiles[index].model = model
-        do { try save(next) } catch { notice = ChatGPTError.storage.localizedDescription }
+        do {
+            try save(next)
+            if blocked == .model { blocked = nil }
+            notice = nil
+        } catch { notice = ChatGPTError.storage.localizedDescription }
     }
 
     func signIn(reconnect: Bool = false) {
@@ -113,8 +117,7 @@ final class ChatGPTAccounts {
                 try Task.checkCancellation()
                 try self.install(profile)
                 await self.loadModels()
-            } catch is CancellationError { self.notice = nil }
-            catch { self.notice = (error as? ChatGPTError ?? .invalidLogin).localizedDescription }
+            } catch is CancellationError { self.notice = nil } catch { self.notice = (error as? ChatGPTError ?? .invalidLogin).localizedDescription }
         }
     }
 
@@ -189,25 +192,28 @@ final class ChatGPTAccounts {
                 let data = try await ChatGPTHTTP.post(ChatGPTLogin.tokenURL, fields: ["grant_type": "refresh_token",
                     "client_id": profile.clientID, "refresh_token": tokens.refreshToken,
                     "resource": "https://api.openai.com/v1"], session: currentSession)
-                return try ChatGPTTokens.decode(data, previous: tokens)
+                let renewed = try ChatGPTTokens.decode(data, previous: tokens)
+                // Commit inside the refresh job, not its cancellable typing
+                // waiter: rotating tokens must survive a superseding keypress.
+                guard generation == Self.generation.get() else { throw CancellationError() }
+                var next = self.vault
+                guard let index = next.profiles.firstIndex(where: { $0.id == profile.id }) else { throw CancellationError() }
+                next.profiles[index].tokens = renewed
+                try self.save(next)
+                return renewed
             })
             refresh = job
         }
         do {
             let renewed = try await job.task.value
             try check(generation)
-            if refresh?.id == job.id {
-                var next = vault
-                guard let index = next.profiles.firstIndex(where: { $0.id == profile.id }) else { throw CancellationError() }
-                next.profiles[index].tokens = renewed
-                try save(next)
-                refresh = nil
-            }
+            if refresh?.id == job.id { refresh = nil }
             guard renewed.scopes.contains("chatgpt.tokens.use.direct") else { throw ChatGPTError.permission }
             return (renewed.accessToken, session)
         } catch {
             if generation == Self.generation.get(), refresh?.id == job.id {
-                refresh = nil
+                // A cancelled caller does not cancel or discard the shared job.
+                if !(error is CancellationError) { refresh = nil }
                 if error as? ChatGPTError == .signIn {
                     var next = vault
                     if let index = next.profiles.firstIndex(where: { $0.id == profile.id }) { next.profiles[index].tokens = nil }
@@ -224,7 +230,7 @@ final class ChatGPTAccounts {
         let failure = error as? ChatGPTError ?? .unavailable
         notice = failure.localizedDescription
         switch failure {
-        case .limit, .signIn, .permission, .unsupported, .storage, .model: blocked = failure
+        case .limit, .signIn, .permission, .unsupported, .storage, .inUse, .model: blocked = failure
         case .http(401), .http(403): blocked = failure
         case .unavailable: unavailableUntil = Date().addingTimeInterval(30)
         default: break
@@ -242,7 +248,9 @@ final class ChatGPTAccounts {
             let list = try await ChatGPTResponses.models(token: token, session: session)
             try check(generation)
             models = list
+            catalogLoaded = true
             if let model = selected?.model, !model.isEmpty, !list.contains(where: { $0.id == model }) {
+                blocked = .model
                 notice = ChatGPTError.model.localizedDescription
             } else { notice = nil }
         } catch { record(error, generation: generation) }
@@ -251,7 +259,15 @@ final class ChatGPTAccounts {
     func generate(model: String, system: String, user: String, timeout: TimeInterval, generation: UUID) async throws -> String {
         do {
             let (token, session) = try await credentials(generation: generation)
-            guard !model.isEmpty, selected?.model == model else { throw ChatGPTError.model }
+            if !catalogLoaded {
+                let list = try await ChatGPTResponses.models(token: token, session: session)
+                try check(generation)
+                models = list
+                catalogLoaded = true
+            }
+            guard !model.isEmpty, selected?.model == model, models.contains(where: { $0.id == model }) else {
+                throw ChatGPTError.model
+            }
             let result = try await ChatGPTResponses.generate(model: model, system: system, user: user,
                 token: token, session: session, timeout: timeout)
             try check(generation)
