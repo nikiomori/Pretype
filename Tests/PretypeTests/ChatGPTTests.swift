@@ -6,10 +6,16 @@ import XCTest
 private final class ChatGPTStub: URLProtocol {
     static let handler = LockedValue<((URLRequest) throws -> (Int, Data, String))?>(nil)
     static let calls = LockedValue(0)
+    static let holdResponses = LockedValue(false)
+    static let onHeld = LockedValue<(() -> Void)?>(nil)
     override static func canInit(with request: URLRequest) -> Bool { true }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.calls.mutate { $0 += 1 }
+        if Self.holdResponses.get(), request.url?.path == "/v1/responses" {
+            Self.onHeld.get()?()
+            return
+        }
         do {
             let reply = try Self.handler.get()?(request) ?? (500, Data(), "application/json")
             let url = try XCTUnwrap(request.url)
@@ -29,7 +35,12 @@ private final class ChatGPTStub: URLProtocol {
 }
 
 final class ChatGPTTests: XCTestCase {
-    override func setUp() { ChatGPTStub.handler.set(nil); ChatGPTStub.calls.set(0) }
+    override func setUp() {
+        ChatGPTStub.handler.set(nil)
+        ChatGPTStub.calls.set(0)
+        ChatGPTStub.holdResponses.set(false)
+        ChatGPTStub.onHeld.set(nil)
+    }
 
     private func stream(_ events: [[String: Any]]) throws -> Data {
         try events.reduce(into: Data()) { data, event in
@@ -306,6 +317,31 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertNotNil(accounts.selected?.tokens)
     }
 
+    @MainActor func testCancelledTypingDoesNotPauseTheNextSuggestion() async throws {
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
+        try accounts.install(fixture())
+        let answer = try stream([["type": "response.output_text.delta", "delta": "next words"], completed])
+        ChatGPTStub.handler.set { request in
+            if request.url?.path == "/v1/models" {
+                return (200, Data(#"{"models":[{"slug":"m","display_name":"Model","visibility":"list"}]}"#.utf8), "application/json")
+            }
+            return (200, answer, "text/event-stream")
+        }
+        let held = expectation(description: "request in flight")
+        ChatGPTStub.holdResponses.set(true)
+        ChatGPTStub.onHeld.set { held.fulfill() }
+        let generation = ChatGPTAccounts.generation.get()
+        let typing = Task { try await accounts.generate(model: "m", system: "", user: "old", timeout: 2, generation: generation) }
+        await fulfillment(of: [held], timeout: 2)
+        typing.cancel()
+        do { _ = try await typing.value; XCTFail("cancelled typing must not produce text") } catch {}
+        XCTAssertNil(accounts.blocked)
+        XCTAssertNil(accounts.notice)
+        ChatGPTStub.holdResponses.set(false)
+        let next = try await accounts.generate(model: "m", system: "", user: "new", timeout: 2, generation: generation)
+        XCTAssertEqual(next, "next words", "cancellation must not start the outage cooldown")
+    }
+
     @MainActor func testLogoutClearsTokensButRetainsRegistrationAndHost() async throws {
         let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
         try accounts.install(fixture())
@@ -316,6 +352,16 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertEqual(accounts.selected?.clientID, "client")
         XCTAssertEqual(accounts.vault.hostID, host)
         XCTAssertNotNil(accounts.notice)
+    }
+
+    func testSubscriptionCannotUseTheTranscriptionEndpoint() async throws {
+        var config = APIConfig(provider: .named("chatgpt"), kind: .text)
+        config.model = "m"
+        do {
+            _ = try await APIClient.transcribe(config.endpoint(), wav: Data(), language: nil, timeout: 1)
+            XCTFail("subscription audio is unsupported")
+        } catch { XCTAssertEqual(error as? ChatGPTError, .unsupported) }
+        XCTAssertEqual(ChatGPTStub.calls.get(), 0)
     }
 
     func testLegacyConfigurationAndAudioChoicesAreUnchanged() throws {

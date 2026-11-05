@@ -9663,7 +9663,110 @@
       }
     },
     "Another Pretype instance is using ChatGPT accounts. Quit that instance and restart Pretype." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jiná instance Pretype používá účty ChatGPT. Ukončete ji a restartujte Pretype."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En anden forekomst af Pretype bruger ChatGPT-konti. Afslut den, og genstart Pretype."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine andere Pretype-Instanz verwendet ChatGPT-Konten. Beende diese Instanz und starte Pretype neu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otra instancia de Pretype está usando las cuentas de ChatGPT. Ciérrala y reinicia Pretype."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une autre instance de Pretype utilise les comptes ChatGPT. Quittez cette instance et redémarrez Pretype."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un’altra istanza di Pretype sta usando gli account ChatGPT. Chiudila e riavvia Pretype."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のPretypeがChatGPTアカウントを使用しています。そのPretypeを終了してから、Pretypeを再起動してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 Pretype 인스턴스가 ChatGPT 계정을 사용 중입니다. 해당 인스턴스를 종료하고 Pretype을 다시 시작하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een andere instantie van Pretype gebruikt ChatGPT-accounts. Sluit die instantie af en start Pretype opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inna instancja Pretype korzysta z kont ChatGPT. Zamknij ją i uruchom Pretype ponownie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outra instância do Pretype está usando as contas do ChatGPT. Encerre essa instância e reinicie o Pretype."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O altă instanță Pretype folosește conturile ChatGPT. Închideți acea instanță și reporniți Pretype."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другая копия Pretype использует аккаунты ChatGPT. Закройте её и перезапустите Pretype."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En annan instans av Pretype använder ChatGPT-konton. Avsluta den instansen och starta om Pretype."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başka bir Pretype örneği ChatGPT hesaplarını kullanıyor. O örneği kapatıp Pretype’ı yeniden başlatın."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Інший екземпляр Pretype використовує облікові записи ChatGPT. Закрийте його та перезапустіть Pretype."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一个 Pretype 实例正在使用 ChatGPT 账户。请退出该实例并重新启动 Pretype。"
+          }
+        }
+      }
     },
     "App: %@" : {
       "localizations" : {
@@ -12428,34 +12531,1064 @@
       }
     },
     "ChatGPT account" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Účet ChatGPT"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-konto"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-Konto"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta de ChatGPT"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte ChatGPT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account ChatGPT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTアカウント"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 계정"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-account"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto ChatGPT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conta do ChatGPT"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cont ChatGPT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт ChatGPT"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-konto"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT hesabı"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обліковий запис ChatGPT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 账户"
+          }
+        }
+      }
     },
     "ChatGPT credentials could not be saved or read from Keychain." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přihlašovací údaje ChatGPT nelze uložit do Klíčenky nebo z ní načíst."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-loginoplysninger kunne ikke gemmes i eller læses fra Nøglering."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ChatGPT-Zugangsdaten konnten nicht im Schlüsselbund gespeichert oder daraus gelesen werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron guardar ni leer las credenciales de ChatGPT en el Llavero."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d’enregistrer ou de lire les identifiants ChatGPT dans le Trousseau."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile salvare o leggere le credenziali ChatGPT nel Portachiavi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTの認証情報をキーチェーンに保存、またはキーチェーンから読み込めませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 인증 정보를 키체인에 저장하거나 키체인에서 읽을 수 없습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De ChatGPT-inloggegevens konden niet in Sleutelhanger worden opgeslagen of eruit worden gelezen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się zapisać danych uwierzytelniania ChatGPT w Pęku kluczy lub ich z niego odczytać."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível salvar ou ler as credenciais do ChatGPT nas Chaves."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datele de autentificare ChatGPT nu au putut fi salvate sau citite din Portchei."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить учётные данные ChatGPT в Связке ключей или прочитать их оттуда."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-inloggningsuppgifterna kunde inte sparas i eller läsas från Nyckelring."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT kimlik bilgileri Anahtar Zinciri’ne kaydedilemedi veya buradan okunamadı."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося зберегти облікові дані ChatGPT у В’язці ключів або прочитати їх звідти."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法将 ChatGPT 凭据存入钥匙串或从钥匙串读取。"
+          }
+        }
+      }
     },
     "ChatGPT did not finish its response. Please try again." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT nedokončil odpověď. Zkuste to znovu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT færdiggjorde ikke sit svar. Prøv igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT hat seine Antwort nicht abgeschlossen. Versuche es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT no terminó su respuesta. Inténtalo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT n’a pas terminé sa réponse. Réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT non ha completato la risposta. Riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTの応答が完了しませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT가 응답을 완료하지 못했습니다. 다시 시도하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT heeft het antwoord niet voltooid. Probeer het opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT nie dokończył odpowiedzi. Spróbuj ponownie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O ChatGPT não concluiu a resposta. Tente novamente."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT nu și-a terminat răspunsul. Încercați din nou."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT не завершил ответ. Повторите попытку."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT slutförde inte sitt svar. Försök igen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT yanıtını tamamlamadı. Yeniden deneyin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT не завершив відповідь. Спробуйте ще раз."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 未完成回复。请重试。"
+          }
+        }
+      }
     },
     "ChatGPT is temporarily unavailable. Please try again later." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT je dočasně nedostupný. Zkuste to později."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT er midlertidigt utilgængelig. Prøv igen senere."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT ist vorübergehend nicht verfügbar. Versuche es später erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT no está disponible temporalmente. Inténtalo más tarde."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT est temporairement indisponible. Réessayez plus tard."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT è temporaneamente non disponibile. Riprova più tardi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTは一時的に利用できません。しばらくしてからお試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT is tijdelijk niet beschikbaar. Probeer het later opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT jest tymczasowo niedostępny. Spróbuj później."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O ChatGPT está temporariamente indisponível. Tente mais tarde."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT este temporar indisponibil. Încercați din nou mai târziu."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT временно недоступен. Повторите попытку позже."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT är tillfälligt otillgängligt. Försök igen senare."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT geçici olarak kullanılamıyor. Daha sonra yeniden deneyin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT тимчасово недоступний. Спробуйте пізніше."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 暂时不可用。请稍后重试。"
+          }
+        }
+      }
     },
     "ChatGPT plan usage is not enabled for this account. Reconnect to grant permission." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Využití předplatného ChatGPT není pro tento účet povoleno. Znovu se připojte a udělte oprávnění."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brug af ChatGPT-abonnementet er ikke aktiveret for denne konto. Opret forbindelse igen for at give tilladelse."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Nutzung des ChatGPT-Abonnements ist für dieses Konto nicht aktiviert. Verbinde dich erneut, um die Berechtigung zu erteilen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El uso del plan de ChatGPT no está activado para esta cuenta. Vuelve a conectarte para dar permiso."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’utilisation du forfait ChatGPT n’est pas activée pour ce compte. Reconnectez-vous pour donner l’autorisation."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’uso del piano ChatGPT non è abilitato per questo account. Ricollegati per concedere l’autorizzazione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントではChatGPTプランの利用が許可されていません。再接続して権限を付与してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 계정은 ChatGPT 요금제 사용이 활성화되어 있지 않습니다. 다시 연결하여 권한을 부여하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebruik van het ChatGPT-abonnement is niet ingeschakeld voor dit account. Maak opnieuw verbinding om toestemming te geven."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korzystanie z planu ChatGPT nie jest włączone dla tego konta. Połącz się ponownie, aby udzielić uprawnień."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O uso do plano do ChatGPT não está ativado para esta conta. Reconecte para conceder permissão."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilizarea abonamentului ChatGPT nu este activată pentru acest cont. Reconectați-vă pentru a acorda permisiunea."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использование подписки ChatGPT не разрешено для этого аккаунта. Подключитесь заново, чтобы предоставить разрешение."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Användning av ChatGPT-abonnemanget är inte aktiverad för det här kontot. Anslut igen för att ge tillstånd."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu hesap için ChatGPT planı kullanımı etkin değil. İzin vermek için yeniden bağlanın."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використання передплати ChatGPT не дозволено для цього облікового запису. Під’єднайтеся знову, щоб надати дозвіл."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此账户尚未启用 ChatGPT 套餐使用权限。请重新连接以授权。"
+          }
+        }
+      }
     },
     "ChatGPT plan usage is unavailable for this account, region, or request." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Využití předplatného ChatGPT není pro tento účet, oblast nebo požadavek dostupné."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brug af ChatGPT-abonnementet er ikke tilgængelig for denne konto, region eller anmodning."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Nutzung des ChatGPT-Abonnements ist für dieses Konto, diese Region oder diese Anfrage nicht verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El uso del plan de ChatGPT no está disponible para esta cuenta, región o solicitud."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’utilisation du forfait ChatGPT n’est pas disponible pour ce compte, cette région ou cette requête."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’uso del piano ChatGPT non è disponibile per questo account, questa area geografica o questa richiesta."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウント、地域、またはリクエストではChatGPTプランを利用できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 계정, 지역 또는 요청에서는 ChatGPT 요금제를 사용할 수 없습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebruik van het ChatGPT-abonnement is niet beschikbaar voor dit account, deze regio of dit verzoek."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korzystanie z planu ChatGPT jest niedostępne dla tego konta, regionu lub żądania."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O uso do plano do ChatGPT não está disponível para esta conta, região ou solicitação."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilizarea abonamentului ChatGPT nu este disponibilă pentru acest cont, această regiune sau cerere."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использование подписки ChatGPT недоступно для этого аккаунта, региона или запроса."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Användning av ChatGPT-abonnemanget är inte tillgänglig för det här kontot, den här regionen eller förfrågan."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT planı kullanımı bu hesap, bölge veya istek için kullanılamıyor."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використання передплати ChatGPT недоступне для цього облікового запису, регіону або запиту."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此账户、地区或请求无法使用 ChatGPT 套餐。"
+          }
+        }
+      }
     },
     "ChatGPT request failed (HTTP %lld)." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Požadavek ChatGPT selhal (HTTP %lld)."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-anmodningen mislykkedes (HTTP %lld)."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ChatGPT-Anfrage ist fehlgeschlagen (HTTP %lld)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La solicitud a ChatGPT falló (HTTP %lld)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La requête ChatGPT a échoué (HTTP %lld)."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La richiesta a ChatGPT non è riuscita (HTTP %lld)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTへのリクエストに失敗しました（HTTP %lld）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 요청이 실패했습니다(HTTP %lld)."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het ChatGPT-verzoek is mislukt (HTTP %lld)."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Żądanie ChatGPT nie powiodło się (HTTP %lld)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A solicitação ao ChatGPT falhou (HTTP %lld)."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cererea ChatGPT a eșuat (HTTP %lld)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка запроса ChatGPT (HTTP %lld)."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-förfrågan misslyckades (HTTP %lld)."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT isteği başarısız oldu (HTTP %lld)."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Помилка запиту ChatGPT (HTTP %lld)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 请求失败（HTTP %lld）。"
+          }
+        }
+      }
     },
     "ChatGPT sign-in could not be verified. Please try again." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přihlášení k ChatGPT nelze ověřit. Zkuste to znovu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-login kunne ikke bekræftes. Prøv igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ChatGPT-Anmeldung konnte nicht verifiziert werden. Versuche es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo verificar el inicio de sesión en ChatGPT. Inténtalo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion à ChatGPT n’a pas pu être vérifiée. Réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile verificare l’accesso a ChatGPT. Riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTへのサインインを検証できませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 로그인을 확인할 수 없습니다. 다시 시도하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De ChatGPT-aanmelding kon niet worden geverifieerd. Probeer het opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się zweryfikować logowania do ChatGPT. Spróbuj ponownie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível verificar o login no ChatGPT. Tente novamente."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autentificarea ChatGPT nu a putut fi verificată. Încercați din nou."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить вход в ChatGPT. Повторите попытку."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-inloggningen kunde inte verifieras. Försök igen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT oturumu doğrulanamadı. Yeniden deneyin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося перевірити вхід у ChatGPT. Спробуйте ще раз."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法验证 ChatGPT 登录。请重试。"
+          }
+        }
+      }
     },
     "ChatGPT subscription" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Předplatné ChatGPT"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-abonnement"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-Abonnement"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suscripción a ChatGPT"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abonnement ChatGPT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbonamento ChatGPT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTサブスクリプション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 구독"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-abonnement"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subskrypcja ChatGPT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assinatura do ChatGPT"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abonament ChatGPT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подписка ChatGPT"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-abonnemang"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT aboneliği"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Передплата ChatGPT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 订阅"
+          }
+        }
+      }
     },
     "ChatGPT usage is paused. Check your allowance in ChatGPT Settings → Usage, then retry." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Využívání ChatGPT je pozastaveno. Zkontrolujte limit v Nastavení ChatGPT → Využití a zkuste to znovu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brug af ChatGPT er sat på pause. Kontrollér din kvote i ChatGPT-indstillinger → Forbrug, og prøv igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ChatGPT-Nutzung ist pausiert. Prüfe dein Kontingent unter ChatGPT-Einstellungen → Nutzung und versuche es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El uso de ChatGPT está en pausa. Consulta tu límite en Ajustes de ChatGPT → Uso y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’utilisation de ChatGPT est en pause. Vérifiez votre quota dans Paramètres ChatGPT → Utilisation, puis réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’uso di ChatGPT è in pausa. Controlla la quota in Impostazioni ChatGPT → Utilizzo, poi riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTの利用は一時停止中です。ChatGPTの設定 → 使用状況で利用枠を確認してから、もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 사용이 일시 중지되었습니다. ChatGPT 설정 → 사용량에서 한도를 확인한 후 다시 시도하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-gebruik is gepauzeerd. Controleer je tegoed in ChatGPT-instellingen → Gebruik en probeer het opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korzystanie z ChatGPT jest wstrzymane. Sprawdź limit w Ustawienia ChatGPT → Użycie, a następnie spróbuj ponownie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O uso do ChatGPT está pausado. Verifique sua cota em Configurações do ChatGPT → Uso e tente novamente."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilizarea ChatGPT este suspendată. Verificați limita în Setări ChatGPT → Utilizare, apoi încercați din nou."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использование ChatGPT приостановлено. Проверьте лимит в Настройки ChatGPT → Использование и повторите попытку."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-användningen är pausad. Kontrollera din kvot i ChatGPT-inställningar → Användning och försök igen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT kullanımı duraklatıldı. ChatGPT Ayarları → Kullanım bölümünden kotanızı kontrol edip yeniden deneyin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використання ChatGPT призупинено. Перевірте ліміт у Налаштування ChatGPT → Використання та спробуйте ще раз."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 使用已暂停。请在 ChatGPT 设置 → 使用量中检查额度，然后重试。"
+          }
+        }
+      }
     },
     "Check for Updates…" : {
       "localizations" : {
@@ -12989,7 +14122,110 @@
       }
     },
     "Choose a model" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vyberte model"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vælg en model"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modell auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige un modelo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir un modèle"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli un modello"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델 선택"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een model"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybierz model"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha um modelo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alegeți un model"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите модель"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Välj en modell"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir model seçin"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Виберіть модель"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择模型"
+          }
+        }
+      }
     },
     "Choose applications that get their own style instructions." : {
       "localizations" : {
@@ -14264,7 +15500,110 @@
       }
     },
     "Continue with ChatGPT" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokračovat s ChatGPT"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fortsæt med ChatGPT"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit ChatGPT fortfahren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar con ChatGPT"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer avec ChatGPT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continua con ChatGPT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTで続行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT로 계속"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doorgaan met ChatGPT"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kontynuuj z ChatGPT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar com o ChatGPT"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuați cu ChatGPT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить с ChatGPT"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fortsätt med ChatGPT"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT ile devam et"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продовжити з ChatGPT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 ChatGPT 继续"
+          }
+        }
+      }
     },
     "Continues your sentence as you type." : {
       "localizations" : {
@@ -32255,7 +33594,110 @@
       }
     },
     "Manage ChatGPT usage" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spravovat využití ChatGPT"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Administrer ChatGPT-forbrug"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-Nutzung verwalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestionar el uso de ChatGPT"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gérer l’utilisation de ChatGPT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestisci l’utilizzo di ChatGPT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTの使用状況を管理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 사용량 관리"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-gebruik beheren"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zarządzaj użyciem ChatGPT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerenciar uso do ChatGPT"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestionați utilizarea ChatGPT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Управление использованием ChatGPT"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hantera ChatGPT-användning"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT kullanımını yönet"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Керування використанням ChatGPT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理 ChatGPT 使用量"
+          }
+        }
+      }
     },
     "Map" : {
       "localizations" : {
@@ -44666,10 +46108,216 @@
       }
     },
     "Reconnect" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Znovu připojit"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opret forbindelse igen"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut verbinden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volver a conectar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnecter"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ricollega"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再接続"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 연결"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opnieuw verbinden"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połącz ponownie"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconectar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconectare"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключить заново"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anslut igen"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeniden bağlan"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Під’єднати знову"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新连接"
+          }
+        }
+      }
     },
     "Reconnect your ChatGPT account in Settings → API." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Znovu připojte účet ChatGPT v Nastavení → API."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opret forbindelse til din ChatGPT-konto igen i Indstillinger → API."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbinde dein ChatGPT-Konto unter Einstellungen → API erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelve a conectar tu cuenta de ChatGPT en Ajustes → API."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnectez votre compte ChatGPT dans Réglages → API."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ricollega il tuo account ChatGPT in Impostazioni → API."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → APIでChatGPTアカウントを再接続してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 → API에서 ChatGPT 계정을 다시 연결하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbind je ChatGPT-account opnieuw via Instellingen → API."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połącz ponownie konto ChatGPT w Ustawienia → API."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconecte sua conta do ChatGPT em Ajustes → API."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconectați contul ChatGPT în Configurări → API."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключите аккаунт ChatGPT заново в Настройки → API."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anslut ditt ChatGPT-konto igen i Inställningar → API."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ayarlar → API bölümünden ChatGPT hesabınızı yeniden bağlayın."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Під’єднайте обліковий запис ChatGPT знову в Параметри → API."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在设置 → API 中重新连接 ChatGPT 账户。"
+          }
+        }
+      }
     },
     "Recording from a wireless headset switches it into call mode for the capture, which makes anything playing sound flat and quiet." : {
       "localizations" : {
@@ -45096,10 +46744,216 @@
       }
     },
     "Refresh ChatGPT models and choose an available model." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obnovte seznam modelů ChatGPT a vyberte dostupný model."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opdater ChatGPT-modellerne, og vælg en tilgængelig model."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisiere die ChatGPT-Modelle und wähle ein verfügbares Modell."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiza los modelos de ChatGPT y elige uno disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualisez les modèles ChatGPT et choisissez un modèle disponible."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiorna i modelli ChatGPT e scegli un modello disponibile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTのモデル一覧を更新し、利用可能なモデルを選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 모델 목록을 새로 고치고 사용 가능한 모델을 선택하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vernieuw de ChatGPT-modellen en kies een beschikbaar model."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odśwież listę modeli ChatGPT i wybierz dostępny model."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualize os modelos do ChatGPT e escolha um modelo disponível."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reîmprospătați modelele ChatGPT și alegeți un model disponibil."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновите список моделей ChatGPT и выберите доступную модель."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uppdatera ChatGPT-modellerna och välj en tillgänglig modell."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT modellerini yenileyip kullanılabilir bir model seçin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оновіть список моделей ChatGPT і виберіть доступну модель."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请刷新 ChatGPT 模型列表并选择可用模型。"
+          }
+        }
+      }
     },
     "Refresh models / retry" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obnovit modely / zkusit znovu"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opdater modeller / prøv igen"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelle aktualisieren / erneut versuchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar modelos / reintentar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser les modèles / réessayer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiorna modelli / riprova"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルを更新 / 再試行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델 새로 고침 / 다시 시도"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modellen vernieuwen / opnieuw proberen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odśwież modele / ponów próbę"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualizar modelos / tentar novamente"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reîmprospătați modelele / reîncercați"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить модели / повторить"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uppdatera modeller / försök igen"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelleri yenile / yeniden dene"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оновити моделі / повторити"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新模型 / 重试"
+          }
+        }
+      }
     },
     "Relaunch" : {
       "localizations" : {
@@ -50305,10 +52159,216 @@
       }
     },
     "Sign out" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odhlásit se"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log ud"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abmelden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerrar sesión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se déconnecter"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esci"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインアウト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그아웃"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uitloggen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyloguj się"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sair"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deconectare"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выйти"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logga ut"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oturumu kapat"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вийти"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出登录"
+          }
+        }
+      }
     },
     "Signed out locally. Remote revocation was not confirmed; disconnect Pretype in ChatGPT Settings." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Místně jste odhlášeni. Vzdálené odvolání přístupu nebylo potvrzeno; odpojte Pretype v nastavení ChatGPT."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du er logget ud lokalt. Fjernadgangen kunne ikke bekræftes tilbagekaldt; afbryd Pretype i ChatGPT-indstillingerne."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokal abgemeldet. Der serverseitige Widerruf wurde nicht bestätigt; trenne Pretype in den ChatGPT-Einstellungen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión cerrada localmente. No se confirmó la revocación remota; desconecta Pretype en los ajustes de ChatGPT."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déconnexion locale effectuée. La révocation à distance n’a pas été confirmée ; déconnectez Pretype dans les paramètres ChatGPT."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnessione locale effettuata. La revoca remota non è stata confermata; scollega Pretype nelle impostazioni di ChatGPT."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この端末からサインアウトしました。サーバー側のアクセス取り消しは確認できませんでした。ChatGPTの設定でPretypeとの接続を解除してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 기기에서 로그아웃했습니다. 서버 측 접근 권한 취소는 확인되지 않았습니다. ChatGPT 설정에서 Pretype 연결을 해제하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokaal uitgelogd. Intrekking op de server is niet bevestigd; ontkoppel Pretype in de ChatGPT-instellingen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wylogowano lokalnie. Nie potwierdzono zdalnego unieważnienia dostępu; odłącz Pretype w ustawieniach ChatGPT."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessão encerrada localmente. A revogação remota não foi confirmada; desconecte o Pretype nas configurações do ChatGPT."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "V-ați deconectat local. Revocarea de la distanță nu a fost confirmată; deconectați Pretype în setările ChatGPT."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполнен локальный выход. Отзыв доступа на сервере не подтверждён; отключите Pretype в настройках ChatGPT."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utloggad lokalt. Återkallandet på servern kunde inte bekräftas; koppla från Pretype i ChatGPT-inställningarna."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu cihazda oturum kapatıldı. Sunucuda erişimin iptal edildiği doğrulanamadı; ChatGPT ayarlarından Pretype bağlantısını kesin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Виконано локальний вихід. Відкликання доступу на сервері не підтверджено; від’єднайте Pretype в налаштуваннях ChatGPT."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已在本地退出登录。尚未确认服务器端的访问权限撤销；请在 ChatGPT 设置中断开 Pretype。"
+          }
+        }
+      }
     },
     "Size" : {
       "localizations" : {
@@ -59453,7 +61513,110 @@
       }
     },
     "Use a hosted model for text" : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Použít hostovaný model pro text"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brug en hostet model til tekst"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein gehostetes Modell für Text verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar un modelo alojado para texto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser un modèle hébergé pour le texte"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa un modello ospitato per il testo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストにホスト型モデルを使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트에 호스팅 모델 사용"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een gehost model voor tekst gebruiken"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Używaj modelu hostowanego do tekstu"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar um modelo hospedado para texto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosiți un model găzduit pentru text"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать серверную модель для текста"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Använd en värdbaserad modell för text"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metin için barındırılan bir model kullan"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використовувати розміщену на сервері модель для тексту"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用托管模型处理文本"
+          }
+        }
+      }
     },
     "Use an API model for dictation" : {
       "localizations" : {
@@ -60093,7 +62256,110 @@
       }
     },
     "Uses your ChatGPT plan allowance and any credits you allow in ChatGPT settings. Signing in does not turn on text generation. Speech transcription uses its separate provider." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Využívá limit vašeho předplatného ChatGPT a kredity, které povolíte v nastavení ChatGPT. Přihlášení nezapíná generování textu. Přepis řeči používá samostatného poskytovatele."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bruger kvoten i dit ChatGPT-abonnement og eventuelle kreditter, du tillader i ChatGPT-indstillingerne. Login aktiverer ikke tekstgenerering. Taletransskription bruger sin egen udbyder."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzt das Kontingent deines ChatGPT-Abonnements und die in den ChatGPT-Einstellungen erlaubten Guthaben. Die Anmeldung aktiviert keine Textgenerierung. Die Sprachtranskription verwendet einen eigenen Anbieter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa el límite de tu plan de ChatGPT y los créditos que autorices en los ajustes de ChatGPT. Iniciar sesión no activa la generación de texto. La transcripción de voz usa su propio proveedor."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilise le quota de votre forfait ChatGPT et les crédits que vous autorisez dans les paramètres ChatGPT. La connexion n’active pas la génération de texte. La transcription vocale utilise son propre fournisseur."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa la quota del tuo piano ChatGPT e gli eventuali crediti autorizzati nelle impostazioni di ChatGPT. L’accesso non attiva la generazione di testo. La trascrizione vocale usa un fornitore separato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTプランの利用枠と、ChatGPTの設定で許可したクレジットを使用します。サインインしてもテキスト生成は有効になりません。音声の文字起こしには別のプロバイダーを使用します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 요금제의 사용 한도와 ChatGPT 설정에서 허용한 크레딧을 사용합니다. 로그인해도 텍스트 생성이 활성화되지는 않습니다. 음성 전사는 별도의 제공업체를 사용합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebruikt de limiet van je ChatGPT-abonnement en eventuele credits die je toestaat in de ChatGPT-instellingen. Aanmelden schakelt tekstgeneratie niet in. Spraaktranscriptie gebruikt een aparte aanbieder."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korzysta z limitu planu ChatGPT i kredytów dozwolonych w ustawieniach ChatGPT. Logowanie nie włącza generowania tekstu. Transkrypcja mowy korzysta z osobnego dostawcy."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa a cota do seu plano do ChatGPT e os créditos que você autorizar nas configurações do ChatGPT. Fazer login não ativa a geração de texto. A transcrição de voz usa um provedor separado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosește limita abonamentului ChatGPT și creditele pe care le permiteți în setările ChatGPT. Autentificarea nu activează generarea de text. Transcrierea vocală folosește un furnizor separat."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расходует лимит вашей подписки ChatGPT и кредиты, разрешённые в настройках ChatGPT. Вход не включает генерацию текста. Для распознавания речи используется отдельный провайдер."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Använder kvoten i ditt ChatGPT-abonnemang och eventuella krediter du tillåter i ChatGPT-inställningarna. Inloggning aktiverar inte textgenerering. Taltranskribering använder en separat leverantör."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT planı kotanızı ve ChatGPT ayarlarında izin verdiğiniz kredileri kullanır. Oturum açmak metin üretimini etkinleştirmez. Konuşma dökümü ayrı bir sağlayıcı kullanır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використовує ліміт вашої передплати ChatGPT і кредити, дозволені в налаштуваннях ChatGPT. Вхід не вмикає генерування тексту. Для транскрибування мовлення використовується окремий постачальник."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用您的 ChatGPT 套餐额度以及您在 ChatGPT 设置中允许使用的积分。登录不会启用文本生成。语音转写使用单独的服务提供商。"
+          }
+        }
+      }
     },
     "Using %@, so %@ keeps playing in full quality." : {
       "localizations" : {
@@ -60944,7 +63210,110 @@
       }
     },
     "When text generation is enabled, what you type goes to OpenAI with each suggestion, with your persona and an AI agent's session, plus screen context and dictation cleanup when enabled. Password fields and turned-off apps send nothing. Requests use your ChatGPT plan allowance." : {
-
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokud je generování textu zapnuté, s každým návrhem se do OpenAI odesílá psaný text, vaše persona a relace AI agenta; také kontext obrazovky a text k úpravě diktování, pokud jsou zapnuté. Pole pro hesla a vypnuté aplikace nic neodesílají. Požadavky čerpají limit vašeho předplatného ChatGPT."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Når tekstgenerering er aktiveret, sendes det, du skriver, til OpenAI ved hvert forslag sammen med din persona og en AI-agents session samt skærmkontekst og oprydning af diktering, når disse er aktiveret. Adgangskodefelter og deaktiverede apps sender intet. Anmodninger bruger kvoten i dit ChatGPT-abonnement."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei aktivierter Textgenerierung wird dein eingegebener Text bei jedem Vorschlag an OpenAI gesendet, zusammen mit deiner Persona und der Sitzung eines KI-Agenten sowie Bildschirmkontext und Diktatüberarbeitung, falls aktiviert. Passwortfelder und deaktivierte Apps senden nichts. Anfragen verbrauchen das Kontingent deines ChatGPT-Abonnements."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando la generación de texto está activada, lo que escribes se envía a OpenAI con cada sugerencia, junto con tu perfil de escritura y la sesión de un agente de IA, además del contexto de pantalla y la limpieza del dictado si están activados. Los campos de contraseña y las apps desactivadas no envían nada. Las solicitudes consumen el límite de tu plan de ChatGPT."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsque la génération de texte est activée, ce que vous tapez est envoyé à OpenAI avec chaque suggestion, avec votre profil rédactionnel et la session d’un agent IA, ainsi que le contexte de l’écran et le nettoyage de la dictée s’ils sont activés. Les champs de mot de passe et les apps désactivées n’envoient rien. Les requêtes consomment le quota de votre forfait ChatGPT."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando la generazione di testo è attiva, ciò che scrivi viene inviato a OpenAI a ogni suggerimento, insieme al tuo profilo di scrittura e alla sessione di un agente IA, oltre al contesto dello schermo e alla revisione della dettatura, se attivati. I campi password e le app disattivate non inviano nulla. Le richieste consumano la quota del tuo piano ChatGPT."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキスト生成が有効な場合、入力内容は提案のたびに、ペルソナとAIエージェントのセッションとともにOpenAIに送信されます。有効にしている場合は、画面のコンテキストと音声入力の整形用テキストも送信されます。パスワード欄と無効にしたアプリからは何も送信されません。リクエストはChatGPTプランの利用枠を消費します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트 생성이 활성화되면 제안할 때마다 입력한 내용이 페르소나 및 AI 에이전트 세션과 함께 OpenAI로 전송됩니다. 화면 맥락과 받아쓰기 다듬기를 활성화한 경우 해당 내용도 전송됩니다. 비밀번호 필드와 비활성화한 앱은 아무것도 전송하지 않습니다. 요청은 ChatGPT 요금제의 사용 한도를 소비합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Als tekstgeneratie is ingeschakeld, wordt wat je typt bij elke suggestie naar OpenAI verzonden, samen met je persona en de sessie van een AI-agent, plus schermcontext en het opschonen van dictaten als die zijn ingeschakeld. Wachtwoordvelden en uitgeschakelde apps verzenden niets. Verzoeken verbruiken de limiet van je ChatGPT-abonnement."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gdy generowanie tekstu jest włączone, wpisywany tekst jest wysyłany do OpenAI przy każdej sugestii wraz z Twoim profilem pisania i sesją agenta AI, a także kontekstem ekranu i tekstem do korekty dyktowania, jeśli są włączone. Pola haseł i wyłączone aplikacje niczego nie wysyłają. Żądania zużywają limit planu ChatGPT."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando a geração de texto está ativada, o que você digita é enviado à OpenAI a cada sugestão, junto com seu perfil de escrita e a sessão de um agente de IA, além do contexto da tela e da revisão do ditado, se ativados. Campos de senha e apps desativados não enviam nada. As solicitações consomem a cota do seu plano do ChatGPT."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Când generarea de text este activată, ceea ce tastați este trimis la OpenAI cu fiecare sugestie, împreună cu profilul de scriere și sesiunea unui agent AI, plus contextul ecranului și corectarea dictării, dacă sunt activate. Câmpurile de parolă și aplicațiile dezactivate nu trimit nimic. Cererile consumă limita abonamentului ChatGPT."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда генерация текста включена, вводимый текст отправляется в OpenAI при каждом предложении вместе с вашим профилем письма и сессией ИИ-агента, а также контекстом экрана и текстом для обработки диктовки, если они включены. Поля паролей и отключённые приложения ничего не отправляют. Запросы расходуют лимит вашей подписки ChatGPT."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "När textgenerering är aktiverad skickas det du skriver till OpenAI vid varje förslag, tillsammans med din persona och en AI-agents session samt skärmkontext och bearbetning av diktering när dessa är aktiverade. Lösenordsfält och avstängda appar skickar ingenting. Förfrågningar förbrukar kvoten i ditt ChatGPT-abonnemang."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metin üretimi etkin olduğunda, yazdıklarınız her öneride yazım profiliniz ve bir yapay zekâ aracısının oturumuyla birlikte OpenAI’a gönderilir; etkinleştirildiğinde ekran bağlamı ve dikte düzeltme metni de gönderilir. Parola alanları ve devre dışı bırakılmış uygulamalar hiçbir şey göndermez. İstekler ChatGPT planı kotanızı tüketir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коли генерування тексту ввімкнено, введений текст надсилається до OpenAI з кожною пропозицією разом із вашим профілем письма та сеансом ШІ-агента, а також контекстом екрана й текстом для обробки диктування, якщо вони ввімкнені. Поля паролів і вимкнені програми нічого не надсилають. Запити витрачають ліміт вашої передплати ChatGPT."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用文本生成后，每次提供建议都会将您输入的内容、个人写作设定和 AI 智能体会话发送至 OpenAI；如果启用了屏幕上下文和听写整理，也会发送相应内容。密码字段和已停用的应用不会发送任何内容。请求会消耗您的 ChatGPT 套餐额度。"
+          }
+        }
+      }
     },
     "Window" : {
       "localizations" : {

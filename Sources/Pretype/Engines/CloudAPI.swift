@@ -294,6 +294,7 @@ enum APIClient {
     /// for spelling — sent where the model documents a field for them.
     static func transcribe(_ endpoint: APIEndpoint, wav: Data, language: String?, hints: [String] = [],
                            timeout: TimeInterval) async throws -> String {
+        guard endpoint.provider.id != "chatgpt" else { throw ChatGPTError.unsupported }
         let boundary = "pretype-\(UUID().uuidString)"
         var body = Data()
         func field(_ name: String, _ value: String) {
