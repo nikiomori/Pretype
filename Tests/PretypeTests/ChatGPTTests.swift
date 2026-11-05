@@ -6,8 +6,8 @@ import XCTest
 private final class ChatGPTStub: URLProtocol {
     static let handler = LockedValue<((URLRequest) throws -> (Int, Data, String))?>(nil)
     static let calls = LockedValue(0)
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.calls.mutate { $0 += 1 }
         do {
@@ -132,7 +132,7 @@ final class ChatGPTTests: XCTestCase {
         let valid = "\(redirect)?state=\(login.state)&code=one-use&client_id=\(profile.id)"
         XCTAssertEqual(try login.callback(XCTUnwrap(URL(string: valid))).clientID, profile.id)
         for invalid in [valid + "&state=other", valid.replacingOccurrences(of: login.state, with: "wrong"),
-                        valid.replacingOccurrences(of: profile.id, with: "other"),
+                        valid.replacingOccurrences(of: "client_id=client", with: "client_id=other"),
                         valid.replacingOccurrences(of: "127.0.0.1", with: "localhost")] {
             XCTAssertThrowsError(try login.callback(XCTUnwrap(URL(string: invalid))))
         }
@@ -152,8 +152,7 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertEqual(url.host, "127.0.0.1")
         let pending = Task { try await listener.callback() }
         pending.cancel()
-        do { _ = try await pending.value; XCTFail("cancel must stop waiting") }
-        catch { XCTAssertTrue(error is CancellationError) }
+        do { _ = try await pending.value; XCTFail("cancel must stop waiting") } catch { XCTAssertTrue(error is CancellationError) }
     }
 
     func testRS256IdentityRejectsTamperingAndClaimMismatch() throws {
@@ -222,8 +221,7 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertThrowsError(try accounts.install(fixture(id: "other")))
         XCTAssertEqual(try memory.read(), saved)
         XCTAssertFalse(accounts.canGenerate)
-        do { _ = try await accounts.credentials(generation: ChatGPTAccounts.generation.get()); XCTFail("storage failed") }
-        catch { XCTAssertEqual(error as? ChatGPTError, .storage) }
+        do { _ = try await accounts.credentials(generation: ChatGPTAccounts.generation.get()); XCTFail("storage failed") } catch { XCTAssertEqual(error as? ChatGPTError, .storage) }
     }
 
     @MainActor func testAccountsStaySeparateAndOldGenerationCannotSend() async throws {
@@ -234,8 +232,7 @@ final class ChatGPTTests: XCTestCase {
         try accounts.install(fixture(id: "other"))
         XCTAssertEqual(accounts.vault.profiles.count, 2)
         XCTAssertNotEqual(accounts.vault.profiles[0].label, accounts.vault.profiles[1].label)
-        do { _ = try await accounts.credentials(generation: old); XCTFail("old account used") }
-        catch { XCTAssertTrue(error is CancellationError) }
+        do { _ = try await accounts.credentials(generation: old); XCTFail("old account used") } catch { XCTAssertTrue(error is CancellationError) }
         let credentials = try await accounts.credentials(generation: ChatGPTAccounts.generation.get())
         XCTAssertEqual(credentials.0, "access-other")
         let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
@@ -246,8 +243,7 @@ final class ChatGPTTests: XCTestCase {
     @MainActor func testMissingPlanPermissionSendsNothing() async throws {
         let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
         try accounts.install(fixture(scopes: ["openid"]))
-        do { _ = try await accounts.credentials(generation: ChatGPTAccounts.generation.get()); XCTFail("missing permission") }
-        catch { XCTAssertEqual(error as? ChatGPTError, .permission) }
+        do { _ = try await accounts.credentials(generation: ChatGPTAccounts.generation.get()); XCTFail("missing permission") } catch { XCTAssertEqual(error as? ChatGPTError, .permission) }
         XCTAssertEqual(ChatGPTStub.calls.get(), 0)
     }
 
@@ -270,18 +266,43 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertEqual(restored.selected?.tokens?.refreshToken, "new-refresh")
     }
 
+    @MainActor func testCancelledRefreshWaiterStillSavesRotatedCredentials() async throws {
+        let memory = ChatGPTStorage.memory()
+        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        try accounts.install(fixture(expired: true))
+        let entered = expectation(description: "refresh started")
+        let release = DispatchSemaphore(value: 0)
+        ChatGPTStub.handler.set { _ in
+            entered.fulfill()
+            _ = release.wait(timeout: .now() + 5)
+            return (200, Data(#"{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600,"token_type":"Bearer"}"#.utf8), "application/json")
+        }
+        let generation = ChatGPTAccounts.generation.get()
+        let waiter = Task { try await accounts.credentials(generation: generation) }
+        await fulfillment(of: [entered], timeout: 2)
+        waiter.cancel()
+        release.signal()
+        do { _ = try await waiter.value; XCTFail("cancelled waiter") } catch { XCTAssertTrue(error is CancellationError) }
+        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session)
+        XCTAssertEqual(restored.selected?.tokens?.refreshToken, "new-refresh")
+    }
+
     @MainActor func testQuotaFailurePausesFurtherRequestsWithoutSwitchingBilling() async throws {
         let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session)
         try accounts.install(fixture())
         let errorData = try stream([["type": "response.output_text.delta", "delta": "partial"],
             ["type": "response.failed", "response": ["error": ["code": "subscription_sharing_usage_limit_exceeded"]]]])
-        ChatGPTStub.handler.set { _ in (200, errorData, "text/event-stream") }
+        ChatGPTStub.handler.set { request in
+            if request.url?.path == "/v1/models" {
+                return (200, Data(#"{"models":[{"slug":"m","display_name":"Model","visibility":"list"}]}"#.utf8), "application/json")
+            }
+            return (200, errorData, "text/event-stream")
+        }
         let generation = ChatGPTAccounts.generation.get()
         for _ in 0..<2 {
-            do { _ = try await accounts.generate(model: "m", system: "", user: "test", timeout: 2, generation: generation); XCTFail("quota") }
-            catch { XCTAssertEqual(error as? ChatGPTError, .limit) }
+            do { _ = try await accounts.generate(model: "m", system: "", user: "test", timeout: 2, generation: generation); XCTFail("quota") } catch { XCTAssertEqual(error as? ChatGPTError, .limit) }
         }
-        XCTAssertEqual(ChatGPTStub.calls.get(), 1)
+        XCTAssertEqual(ChatGPTStub.calls.get(), 2, "one catalog fetch and one inference; no automatic retry")
         XCTAssertNotNil(accounts.selected?.tokens)
     }
 

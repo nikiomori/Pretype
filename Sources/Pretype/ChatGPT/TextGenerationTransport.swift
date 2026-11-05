@@ -12,9 +12,7 @@ struct TextGenerationTransport {
             do {
                 return try await ChatGPTAccounts.shared.generate(model: endpoint.model, system: system, user: user,
                                                                 timeout: timeout, generation: generation)
-            } catch is CancellationError { throw CancellationError() }
-            catch let error as URLError where error.code == .cancelled { throw CancellationError() }
-            catch { throw error as? ChatGPTError ?? .unavailable }
+            } catch is CancellationError { throw CancellationError() } catch let error as URLError where error.code == .cancelled { throw CancellationError() } catch { throw error as? ChatGPTError ?? .unavailable }
         }
         return try await APIClient.chat(endpoint, system: system, user: user, maxTokens: maxTokens,
                                         timeout: timeout, mustAnswer: mustAnswer)
