@@ -226,7 +226,8 @@ final class ChatGPTAccounts {
     }
 
     func record(_ error: Error, generation: UUID) {
-        guard generation == Self.generation.get(), !(error is CancellationError) else { return }
+        guard generation == Self.generation.get(), !Task.isCancelled,
+              !(error is CancellationError), (error as? URLError)?.code != .cancelled else { return }
         let failure = error as? ChatGPTError ?? .unavailable
         notice = failure.localizedDescription
         switch failure {
