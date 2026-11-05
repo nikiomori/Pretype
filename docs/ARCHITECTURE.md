@@ -427,3 +427,35 @@ All app code is in `Sources/Pretype/`:
 | Dictation (`Dictation/`) | `DictationController` (+`Capture`, +`Finish`, +`Display`), `DictationHost`, `AudioCapture`, `AudioDevices`, `VoiceMeter`, `Transcription`, `Parakeet`, `CloudTranscription` | The state machine and its host protocol. Microphone capture, device selection and the voice level. Apple's `SpeechAnalyzer`. The opt-in Parakeet engine. The opt-in API transcription. |
 | Settings UI | `Settings`, `SettingsWindowController`, `SettingsStore`, `SettingsView`, `SettingsSuggestionViews`, `SettingsDictationTab`, `SettingsPersonalTab`, `SettingsUI`, `ModelTabView`, `ModelMapView`, `ImpactRailView`, `APITabView` | Stored defaults. The observable bridge to the pipeline, and its alerts. Tabs. Presets and sharing. The model list and the model map. The Live Impact meters. The API tab. |
 | Debugging | `DebugLog` | Ring buffer and Debug Console. |
+
+## ChatGPT plan text transport
+
+`TextGenerationTransport` sits below `CloudEngine` and above the existing
+API-key client or the new ChatGPT Responses client. Existing prompt construction,
+context floors, output gates, word caps, and request deadlines remain shared.
+The distinct `chatgpt` provider is text-only; existing persisted APIConfig
+records need no migration. Its endpoint is fixed to the public OpenAI API.
+
+`ChatGPTAccounts` owns account registrations, Keychain persistence, the selected
+account, model discovery, and one shared refresh job. The refresh job commits
+rotating tokens before releasing its waiters, including cancelled typing
+requests. Account changes invalidate the active HTTP session and advance a
+generation checked before sending and before accepting output. A process lease
+prevents concurrent app copies from writing the same token vault.
+
+`ChatGPTLogin` implements dynamic public-client OAuth with PKCE/state/nonce;
+`ChatGPTIdentity` verifies RS256 signatures and identity claims before an account
+becomes active. `ChatGPTCallback` listens only on IPv4 loopback and closes on
+completion, cancellation, or timeout. Browser authentication is independent of
+whether cloud text generation is enabled.
+
+`ChatGPTResponses` sends supported Responses fields with `store: false` and
+`stream: true`. Its bounded SSE parser buffers text until `response.completed`.
+Errors, incomplete streams, quota failures, and cancellation never release
+partial text for insertion. Quota and permission failures pause requests;
+temporary unavailability imposes a cooldown without deleting credentials.
+Settings expose recovery without changing the account or billing path.
+
+See [the subscription PRD](subscription-support.md) for acceptance criteria and
+provider references. Claude subscription support is deferred; the existing
+Anthropic API transport remains unchanged.

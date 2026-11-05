@@ -190,3 +190,34 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
    ```
 
 To report a security problem, use the private procedure in [SECURITY.md](../SECURITY.md).
+
+### ChatGPT subscription (optional)
+
+The **ChatGPT subscription** text provider uses direct Sign in with ChatGPT in
+
+your system browser. Signing in does not enable text generation. When you enable
+this provider, it receives the same typed context, persona, optional agent/screen
+context, and dictation cleanup text as the hosted text engine. The clipboard is
+not added. Password fields and disabled apps keep their existing protections.
+Speech transcription remains separately configured; audio is not sent through
+ChatGPT plan usage.
+
+Pretype connects to `auth.openai.com` for authorization, token exchange, signing
+keys, token renewal, and revocation, and to `api.openai.com/v1/models` and
+`api.openai.com/v1/responses` for the account's model list and text generation.
+The browser returns to a temporary listener bound only to `127.0.0.1`. Requests
+use `store: false`; this flag does not promise zero provider-side retention.
+Your OpenAI account's policies still apply.
+
+A separate login-Keychain item, service `app.pretype.chatgpt`, holds account
+registrations, the installation's opaque host identifier, selected models, and
+OAuth tokens. Tokens are never stored in defaults or logged. A lock file under
+`~/Library/Application Support/Pretype/chatgpt-vault.lock` contains no credentials
+and prevents two running app copies from racing token renewal.
+
+**Sign out** cancels pending requests, attempts to revoke the renewable session,
+and removes that account's tokens locally. The registration and host identifier
+remain for reconnection. If remote revocation cannot be confirmed, Pretype says
+so; disconnect the app in [ChatGPT Settings](https://chatgpt.com/settings/usage).
+The same page controls the app's plan allowance and permitted credits. Pretype
+never switches to API-key billing when a subscription request fails.
