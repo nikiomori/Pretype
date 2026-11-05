@@ -39,6 +39,8 @@ struct APIProvider: Identifiable {
                     textModel: "gpt-6-luna", audioModel: "gpt-transcribe",
                     keyPage: "https://platform.openai.com/api-keys", tokenField: "max_completion_tokens",
                     textExtras: ["reasoning_effort": "none"]),
+        APIProvider(id: "chatgpt", name: String(localized: "ChatGPT subscription"),
+                    baseURL: "https://api.openai.com/v1", textModel: "", needsKey: false),
         // Effort, not disabled thinking: Anthropic's guidance for Haiku 5.5 —
         // at `low` it skips thinking on a request this simple.
         APIProvider(id: "anthropic", name: "Anthropic", baseURL: "https://api.anthropic.com/v1",
@@ -126,6 +128,10 @@ struct APIConfig: Codable, Equatable {
         else { throw APIError.setup(String(localized: "enter the server's base URL")) }
         let model = model.trimmingCharacters(in: .whitespaces)
         guard !model.isEmpty else { throw APIError.setup(String(localized: "enter a model name")) }
+        if provider == "chatgpt" {
+            guard url.absoluteString == ChatGPTResponses.baseURL.absoluteString else { throw ChatGPTError.invalidLogin }
+            return APIEndpoint(provider: preset, baseURL: url, model: model, key: nil)
+        }
         let key = APIKeychain.key(for: provider)
         if preset.needsKey, key == nil { throw APIError.setup(String(localized: "add an API key in Settings → API")) }
         return APIEndpoint(provider: preset, baseURL: url, model: model, key: key)
@@ -219,6 +225,7 @@ enum APIClient {
     static func chat(_ endpoint: APIEndpoint, system: String, user: String,
                      maxTokens: Int, timeout: TimeInterval, mustAnswer: Bool = false) async throws -> String {
         let key = "\(endpoint.baseURL.absoluteString) \(endpoint.model)"
+        guard endpoint.provider.id != "chatgpt" else { throw ChatGPTError.unsupported }
         let extras = plain.get().contains(key) ? [:] : endpoint.provider.textExtras
         do {
             return try await chat(endpoint, system: system, user: user, maxTokens: maxTokens,
@@ -367,6 +374,7 @@ enum APIClient {
 final class CloudEngine: CompletionEngine {
     let name: String
     private let endpoint: APIEndpoint?
+    private let transport: TextGenerationTransport?
     private let stateBox: LockedValue<EngineState>
     private let lengthBox = LockedValue<CompletionLength>(.short)
     private let instructionsBox = LockedValue<String>("")
@@ -374,10 +382,13 @@ final class CloudEngine: CompletionEngine {
     init(_ config: APIConfig) {
         name = "\(config.preset.name) · \(config.model)"
         do {
-            endpoint = try config.endpoint()
+            let resolved = try config.endpoint()
+            endpoint = resolved
+            transport = TextGenerationTransport(endpoint: resolved)
             stateBox = LockedValue(.ready)
         } catch {
             endpoint = nil
+            transport = nil
             stateBox = LockedValue(.failed(error.localizedDescription))
         }
     }
@@ -400,18 +411,21 @@ final class CloudEngine: CompletionEngine {
     var usesClipboard: Bool { false }
 
     func complete(_ request: CompletionRequest) async throws -> String? {
-        guard case .ready = stateBox.get(), let endpoint else { return nil }
+        guard case .ready = stateBox.get(), let transport else { return nil }
         guard let prepared = PreparedPrompt(String(request.textBeforeCaret.suffix(1200)), request: request,
                                             midWordFloor: 5, boundaryFloor: 8) else { return nil }
         let length = lengthBox.get()
         let turn = request.continuationTurn(prepared.text, instructions: instructionsBox.get())
         do {
-            let raw = try await APIClient.chat(
-                endpoint, system: turn.system + "\n\nLength: \(length.wordsHint).", user: turn.user,
+            let raw = try await transport.generate(
+                system: turn.system + "\n\nLength: \(length.wordsHint).", user: turn.user,
                 maxTokens: 128, timeout: 10)
             try Task.checkCancellation()
             let words = min(Self.wordCap(length), request.chatCap?.words ?? .max)
             return prepared.gate(cleanInstruct: true)(Self.clip(raw, words: words))
+        } catch is ChatGPTError {
+            // Account settings own recovery. Never show network failures over typing.
+            return nil
         } catch let error as APIError {
             // Typing must never surface a network hiccup: abstain and log. A
             // rejected key is the one failure that won't heal by itself.
@@ -440,10 +454,10 @@ final class CloudEngine: CompletionEngine {
     /// One system-less turn for fix, reply and rewrite. These are explicit
     /// requests: when the API isn't set up this throws, saying why nothing ran.
     private func chat() throws -> CorrectionGates.Generate {
-        guard case .ready = stateBox.get(), let endpoint else {
+        guard case .ready = stateBox.get(), let transport else {
             throw EngineNotReady(message: String(localized: "API isn't set up — see Settings → API"))
         }
-        return { try await APIClient.chat(endpoint, system: "", user: $0, maxTokens: $1, timeout: 30, mustAnswer: true) }
+        return { try await transport.generate(system: "", user: $0, maxTokens: $1, timeout: 30, mustAnswer: true) }
     }
 
     /// The token budget can't cap a hosted model's length — a thinking model
@@ -468,7 +482,7 @@ final class CloudEngine: CompletionEngine {
     static func test(_ config: APIConfig) async -> String {
         let start = Date()
         do {
-            _ = try await APIClient.chat(try config.endpoint(), system: "Reply with the single word OK.",
+            _ = try await TextGenerationTransport(endpoint: config.endpoint()).generate(system: "Reply with the single word OK.",
                                          user: "ping", maxTokens: 16, timeout: 20, mustAnswer: true)
             return String(localized: "✓ Connected — answered in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
         } catch {

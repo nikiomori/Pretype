@@ -34,7 +34,7 @@ private struct APIEndpointSection: View {
             Toggle(isOn: $config.enabled) {
                 if kind == .text {
                     IconLabel(symbol: "text.bubble.fill", tint: .teal,
-                              title: Text("Use an API model for text"),
+                              title: Text("Use a hosted model for text"),
                               subtitle: Text("Suggestions, fix, reply and voice commands use this model."))
                 } else {
                     IconLabel(symbol: "waveform", tint: .red,
@@ -44,20 +44,24 @@ private struct APIEndpointSection: View {
             }
             // Off, the endpoint is five empty-looking fields nobody needs to
             // read; they come with the switch.
-            if config.enabled {
+            if config.enabled || kind == .text {
                 Picker("Provider", selection: Binding(
                     get: { config.provider },
                     // A new provider brings its own URL and suggested model.
                     set: { config = APIConfig(provider: .named($0), kind: kind, enabled: config.enabled) })) {
                     ForEach(APIProvider.offering(kind)) { Text($0.name).tag($0.id) }
                 }
-                // A preset brings its own URL: the field is for custom servers
-                // and for whoever already changed it.
-                if config.provider == APIProvider.custom.id || config.baseURL != provider.baseURL {
-                    TextField("Base URL", text: $config.baseURL, prompt: Text(verbatim: "https://example.com/v1"))
+                if config.provider == "chatgpt" {
+                    ChatGPTAccountView(config: $config, store: store)
+                } else {
+                    // A preset brings its own URL: the field is for custom servers
+                    // and for whoever already changed it.
+                    if config.provider == APIProvider.custom.id || config.baseURL != provider.baseURL {
+                        TextField("Base URL", text: $config.baseURL, prompt: Text(verbatim: "https://example.com/v1"))
+                    }
+                    TextField("Model", text: $config.model, prompt: Text("model name"))
+                    SecureField("API key", text: $key, prompt: provider.needsKey ? Text("required") : Text("optional"))
                 }
-                TextField("Model", text: $config.model, prompt: Text("model name"))
-                SecureField("API key", text: $key, prompt: provider.needsKey ? Text("required") : Text("optional"))
                 // The answer beside the button that asked for it.
                 HStack {
                     Button("Test connection") { store.testAPI(kind) }
@@ -82,6 +86,7 @@ private struct APIEndpointSection: View {
         .onChange(of: config.provider) { loadKey() }
         .onChange(of: store.apiKeyRevision) { loadKey() }
         .onChange(of: key) {
+            guard config.provider != "chatgpt" else { return }
             guard key != (APIKeychain.key(for: config.provider) ?? "") else { return }
             APIKeychain.set(key, for: config.provider)
             store.apiKeyChanged(provider: config.provider)
@@ -91,6 +96,9 @@ private struct APIEndpointSection: View {
     private func loadKey() { key = APIKeychain.key(for: config.provider) ?? "" }
 
     private var privacyNote: String {
+        if config.provider == "chatgpt" {
+            return String(localized: "When text generation is enabled, what you type goes to OpenAI with each suggestion, with your persona and an AI agent's session, plus screen context and dictation cleanup when enabled. Password fields and turned-off apps send nothing. Requests use your ChatGPT plan allowance.")
+        }
         if config.isLocal {
             return String(localized: "This server runs on your Mac, so nothing leaves it.")
         }
