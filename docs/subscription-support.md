@@ -15,10 +15,11 @@ An expired or revoked session asks for reconnection. Missing plan permission or 
 ## Design
 
 - A distinct `chatgpt` provider reuses the persisted text-provider selection without changing old configuration decoding. It is not an audio provider and cannot use a custom base URL or API key.
-- A shared text transport feeds the existing CloudEngine prompt construction and gates. The new transport uses the public Responses endpoint with `store: false`, `stream: true`, and only supported fields. Results are usable only after `response.completed`; partial or stale output is discarded.
+- A shared text transport feeds the existing CloudEngine prompt construction and gates. The new transport uses the public Responses endpoint with `store: false` and only supported fields. It reuses an authenticated WebSocket connection for independent turns; HTTP/SSE fallback uses `stream: true` when the server explicitly rejects the upgrade. Results are usable only after `response.completed`; partial or stale output is discarded.
 - Native OAuth uses dynamic registration, a persistent opaque host UUID, PKCE, state, nonce, an IPv4 loopback callback, and RS256 ID-token verification against OpenAI's JWKS. Validate identity, issued client ID, and returned plan scope before enabling inference.
 - Keep account registrations separate. Tokens live in a dedicated Keychain item; defaults contain no tokens. Refresh is serialized, rotating tokens are saved atomically, and account changes invalidate in-flight work. Logout attempts revocation and clears local tokens, reporting when remote revocation could not be confirmed.
 - For short text tasks, request the fastest advertised reasoning effort (`none`, `minimal`, or `low`) from the selected account’s model catalog. Omit the parameter if no supported fast effort is advertised. Do not infer support from model names or enable a paid service tier. Keep the full-completion gate: never insert a partial response to appear faster. Measure real corrections separately from the tiny connection test.
+- Reuse at most one idle WebSocket per account session, for up to 15 seconds between requests. Each request resets conversation state; neither document history nor previous response IDs carry across turns. Concurrent actions use separate connections. Cancellation closes its leased connection; account changes cancel all session tasks. Preserve the original total deadline, including a permitted HTTP fallback. Do not replay a partial, failed, or quota-limited response.
 - No prompts, tokens, authorization URLs, or provider error bodies enter diagnostics. Keep existing cloud-engine deadlines, bounded network recovery, and cancellation when typing or focus changes. Retain the account on transient failures.
 
 ## Acceptance and validation
@@ -36,6 +37,7 @@ Verified November 5, 2026; these preview interfaces can change:
 - [OpenAI registration and sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
 - [Accounts, refresh, and revocation](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
 - [Models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
+- [WebSocket transport](https://developers.openai.com/api/docs/guides/websocket-mode)
 - [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
 - [Errors and recovery](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery)
 - [Anthropic authentication restrictions](https://code.claude.com/docs/en/legal-and-compliance)

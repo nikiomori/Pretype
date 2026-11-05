@@ -207,7 +207,11 @@ keys, token renewal, and revocation, and to `api.openai.com/v1/models` and
 `api.openai.com/v1/responses` for the account's model list and text generation.
 The browser returns to a temporary listener bound only to `127.0.0.1`. Requests
 use `store: false`; this flag does not promise zero provider-side retention.
-Your OpenAI account's policies still apply.
+Your OpenAI account's policies still apply. Pretype can reuse an authenticated
+WebSocket connection to reduce waiting between requests. Each request sends its
+own context and resets conversation state; it does not chain earlier documents
+or responses. Cancelling a request closes its connection. Account changes and
+sign-out cancel all connections.
 
 A separate login-Keychain item, service `app.pretype.chatgpt`, holds account
 registrations, the installation's opaque host identifier, selected models, and
