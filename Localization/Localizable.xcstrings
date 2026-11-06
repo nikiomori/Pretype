@@ -20956,6 +20956,112 @@
         }
       }
     },
+    "Each waits about a second and uses your plan. Off, Words completes them on your Mac." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Každý čeká asi sekundu a čerpá váš plán. Vypnuto: Slova je doplní na vašem Macu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hvert forslag tager omkring et sekund og bruger af dit abonnement. Fra: Ord fuldfører dem på din Mac."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeder dauert etwa eine Sekunde und nutzt dein Abonnement. Aus: Wörter ergänzt sie auf deinem Mac."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada una tarda alrededor de un segundo y consume tu plan. Desactivado: Palabras las completa en tu Mac."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chacune prend environ une seconde et consomme votre forfait. Désactivé : Mots les complète sur votre Mac."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ognuno richiede circa un secondo e consuma il tuo piano. Disattivato: Parole li completa sul tuo Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1件ごとに約1秒かかり、プランの利用枠を消費します。オフにすると「単語」がMac上で補完します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안마다 약 1초가 걸리고 요금제 한도를 사용합니다. 끄면 Mac에서 '단어'가 완성합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elke suggestie duurt ongeveer een seconde en gebruikt je abonnement. Uit: Woorden vult ze aan op je Mac."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Każda trwa około sekundy i zużywa limit planu. Wyłączone: Słowa uzupełniają je na Twoim Macu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada uma leva cerca de um segundo e consome seu plano. Desativado: Palavras as completa no seu Mac."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fiecare durează aproximativ o secundă și consumă din abonament. Dezactivat: Cuvinte le completează pe Mac."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждая ждёт около секунды и расходует подписку. Выключено — «Слова» дописывают их на вашем Mac."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varje förslag tar ungefär en sekund och använder ditt abonnemang. Av: Ord fyller i dem på din Mac."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her biri yaklaşık bir saniye sürer ve planınızı kullanır. Kapalıyken Sözcükler bunları Mac'inizde tamamlar."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кожна чекає близько секунди й витрачає передплату. Вимкнено — «Слова» дописують їх на вашому Mac."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每条建议约需一秒，并消耗您的套餐额度。关闭时，“单词”会在您的 Mac 上补全。"
+          }
+        }
+      }
+    },
     "Edit" : {
       "localizations" : {
         "cs" : {
@@ -54279,6 +54385,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建议"
+          }
+        }
+      }
+    },
+    "Suggestions on ChatGPT" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Návrhy přes ChatGPT"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forslag via ChatGPT"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge über ChatGPT"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias con ChatGPT"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggestions via ChatGPT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggerimenti con ChatGPT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTで候補を表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT로 제안"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggesties via ChatGPT"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podpowiedzi z ChatGPT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões pelo ChatGPT"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestii prin ChatGPT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказки через ChatGPT"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Förslag via ChatGPT"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT ile öneriler"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Підказки через ChatGPT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 ChatGPT 提供建议"
           }
         }
       }

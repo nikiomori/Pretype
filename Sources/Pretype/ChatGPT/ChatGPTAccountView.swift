@@ -43,6 +43,10 @@ struct ChatGPTAccountView: View {
                 .disabled(accounts.busy || accounts.signingIn)
                 Button("Refresh models / retry") { Task { await accounts.loadModels(retry: true); syncModel() } }
                     .disabled(accounts.busy || accounts.signingIn)
+                Toggle(isOn: Binding(get: { store.planSuggestions }, set: { store.planSuggestions = $0 })) {
+                    Text("Suggestions on ChatGPT")
+                    Text("Each waits about a second and uses your plan. Off, Words completes them on your Mac.")
+                }
             }
             if let notice = accounts.notice { Caption(notice) }
             Link("Manage ChatGPT usage", destination: URL(string: "https://chatgpt.com/settings/usage")!)

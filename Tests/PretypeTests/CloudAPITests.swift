@@ -681,4 +681,22 @@ final class CloudAPITests: XCTestCase {
         APIKeychain.set(" \n", for: "trim-test")
         XCTAssertNil(APIKeychain.key(for: "trim-test"))
     }
+
+    /// On a ChatGPT plan a sentence suggestion waits about a second and spends
+    /// the plan, so Words stands in until the user opts in. An API key keeps
+    /// the picked mode.
+    func testAChatGPTPlanSuggestsWordsUntilOptedIn() throws {
+        let saved = (Settings.apiText, Settings.planSuggestions, Settings.suggestionMode)
+        defer { (Settings.apiText, Settings.planSuggestions, Settings.suggestionMode) = saved }
+        Settings.suggestionMode = .sentences
+        Settings.planSuggestions = false
+        let plan = try XCTUnwrap(APIProvider.all.first { $0.id == "chatgpt" })
+        Settings.apiText = APIConfig(provider: plan, kind: .text, enabled: true)
+        XCTAssertEqual(Settings.activeSuggestionMode, .words)
+        Settings.planSuggestions = true
+        XCTAssertEqual(Settings.activeSuggestionMode, .sentences)
+        Settings.planSuggestions = false
+        Settings.apiText = APIConfig(provider: .custom, kind: .text, enabled: true)
+        XCTAssertEqual(Settings.activeSuggestionMode, .sentences)
+    }
 }

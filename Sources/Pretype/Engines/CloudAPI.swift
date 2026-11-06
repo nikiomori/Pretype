@@ -103,6 +103,8 @@ struct APIConfig: Codable, Equatable {
     var provider: String
     var baseURL: String
     var model: String
+    /// Text on, on the ChatGPT-plan provider rather than an API key.
+    var usesChatGPTPlan: Bool { enabled && provider == "chatgpt" }
 
     init(provider: APIProvider, kind: APIKind, enabled: Bool = false) {
         self.enabled = enabled

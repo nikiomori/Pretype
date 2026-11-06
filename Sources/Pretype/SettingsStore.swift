@@ -51,6 +51,10 @@ final class SettingsStore {
         didSet { guard !syncing, oldValue != agentPromptSuggestions else { return }
             setFeature { Settings.agentPromptSuggestions = agentPromptSuggestions } }
     }
+    var planSuggestions = false {
+        didSet { guard !syncing, oldValue != planSuggestions else { return }
+            setFeature { Settings.planSuggestions = planSuggestions } }
+    }
     var fixes = true {
         didSet { guard !syncing, oldValue != fixes else { return }
             setFeature { Settings.fixesEnabled = fixes } }
@@ -1071,6 +1075,7 @@ final class SettingsStore {
         suggestions = Settings.suggestionsEnabled
         suggestionMode = Settings.suggestionMode
         agentPromptSuggestions = Settings.agentPromptSuggestions
+        planSuggestions = Settings.planSuggestions
         fixes = Settings.fixesEnabled
         fixTypos = Settings.fixTypos
         emojiShortcodes = Settings.emojiShortcodes
