@@ -15,6 +15,7 @@ struct GeneralTab: View {
     @AppStorage("autoReply") private var autoReply = Settings.autoReply
     @AppStorage("ghostOpacity") private var ghostOpacity = Settings.ghostOpacity
     @AppStorage("automaticUpdateCheck") private var automaticUpdateCheck = Settings.automaticUpdateCheck
+    @AppStorage("screenTextChord") private var screenTextChord = Settings.screenTextChord
     @AppStorage("dictationGesture") private var dictationGesture = Settings.dictationGesture
     @AppStorage("dictationLatch") private var dictationLatch = Settings.dictationLatch
     /// The interface-language override; "" follows the system.
@@ -390,6 +391,16 @@ struct GeneralTab: View {
                           subtitle: Text("Asks GitHub once a day. Sends nothing about you."))
             }
             .help("New versions are announced in the menu bar; nothing is downloaded automatically.")
+            Toggle(isOn: $screenTextChord) {
+                IconLabel(symbol: "text.viewfinder", tint: .blue,
+                          title: Text("Copy text from the screen with ⇧⌘2"),
+                          subtitle: Text("Drag over any text to put it on the clipboard."))
+            }
+            .help("Also in the menu bar menu. Pretype reads the text on this Mac and deletes the picture at once.")
+            if screenTextChord, !ScreenContext.hasPermission {
+                RequirementRow(text: String(localized: "Screen Recording allowed (then relaunch Pretype)"),
+                               fixTitle: String(localized: "Open System Settings…")) { ScreenContext.openScreenRecordingPane() }
+            }
             Picker(selection: $language) {
                 Text("System (\(AppLanguage.nativeName(AppLanguage.systemChoice)))").tag("")
                 Divider()

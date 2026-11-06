@@ -213,6 +213,32 @@ enum ScreenContext {
         return picked
     }
 
+    /// The text in a region the user drags out with macOS's own crosshair
+    /// (`screencapture -i`: Space picks a window, Escape cancels). nil when
+    /// cancelled, "" when nothing was read. The picture is deleted once read.
+    /// ponytail: lines join top to bottom, so two columns side by side
+    /// interleave; group by column if people copy tables.
+    static func readRegion() async -> String? {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pretype-region-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-i", "-x", "-o", url.path]
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            process.terminationHandler = { _ in done.resume() }
+            do { try process.run() } catch {
+                process.terminationHandler = nil
+                done.resume()
+            }
+        }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        let languages = recognitionLanguages(keyboard: await MainActor.run { keyboardLanguages })
+        return (try? recognizeText(in: image, regionOfInterest: nil, languages: languages))?
+            .map(\.text).joined(separator: "\n") ?? ""
+    }
+
     /// Every line Vision read, top of the window first.
     private static func recognizeText(
         in image: CGImage, regionOfInterest: CGRect?, languages: [String]?

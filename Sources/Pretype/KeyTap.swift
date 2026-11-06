@@ -338,6 +338,8 @@ enum KeyCode {
     static let z: Int64 = 6
     static let d: Int64 = 2
     static let v: Int64 = 9
+    /// The number row's 2: the same key on every layout, a digit or not.
+    static let two: Int64 = 19
     static let leftOption: Int64 = 58
     static let rightOption: Int64 = 61
     static let leftShift: Int64 = 56

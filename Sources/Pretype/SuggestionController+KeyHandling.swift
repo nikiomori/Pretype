@@ -40,7 +40,47 @@ extension SuggestionController {
         return !isOwnUIFrontmost
     }
 
+    /// ⇧⌘2, exact modifiers: the chord that copies text from the screen.
+    nonisolated static func isScreenTextChord(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        keyCode == KeyCode.two
+            && flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]) == [.maskCommand, .maskShift]
+    }
+
+    /// True while the crosshair is up: a second chord must not stack another.
+    private static var readingScreen = false
+
+    /// ⇧⌘2 or the menu: the user drags over text anywhere on screen, and it
+    /// goes to the clipboard. An explicit command, so it works while Pretype
+    /// is paused too. Without Screen Recording it opens that pane instead.
+    func copyTextFromScreen() {
+        guard ScreenContext.hasPermission else {
+            ScreenContext.openScreenRecordingPane()
+            return
+        }
+        guard !Self.readingScreen else { return }
+        Self.readingScreen = true
+        Task { @MainActor in
+            defer { Self.readingScreen = false }
+            guard let text = await ScreenContext.readRegion() else { return }
+            DebugLog.shared.log("SCREEN", "text from the screen: \(text.count) chars")
+            guard !text.isEmpty else {
+                indicator.flashTransient(.hint(String(localized: "No text found")), atPointer: true)
+                return
+            }
+            env.pasteboard.clearContents()
+            env.pasteboard.setString(text, forType: .string)
+            indicator.flashTransient(.hint(String(localized: "Text copied")), atPointer: true)
+        }
+    }
+
     func handleKeyDown(_ event: CGEvent) -> Bool {
+        if Settings.screenTextChord,
+           Self.isScreenTextChord(keyCode: event.getIntegerValueField(.keyboardEventKeycode), flags: event.flags) {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                env.hop { [weak self] in self?.copyTextFromScreen() }
+            }
+            return true
+        }
         guard Settings.enabled else { return false }
         if event.getIntegerValueField(.eventSourceUserData) == TextInjector.magicTag { return false }
         // A real keystroke means a held modifier is part of a chord, not a tap.

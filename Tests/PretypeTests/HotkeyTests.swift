@@ -31,6 +31,15 @@ final class HotkeyTests: XCTestCase {
 
     // The tap matches the hands-free latch before the fix chord, so a latch
     // chord equal to a fix chord would silently eat the fix.
+    func testScreenTextChordNeedsExactlyShiftCommand() {
+        let match = SuggestionController.isScreenTextChord
+        XCTAssertTrue(match(KeyCode.two, [.maskCommand, .maskShift]))
+        XCTAssertFalse(match(KeyCode.two, .maskCommand))
+        XCTAssertFalse(match(KeyCode.two, [.maskCommand, .maskShift, .maskControl]))
+        XCTAssertFalse(match(KeyCode.two, [.maskCommand, .maskShift, .maskAlternate]))
+        XCTAssertFalse(match(KeyCode.d, [.maskCommand, .maskShift]))
+    }
+
     func testLatchChordNeverEqualsFixChord() {
         let flags: CGEventFlags = [.maskControl, .maskAlternate]
         for latch in DictationLatch.allCases where latch != .off {

@@ -527,6 +527,11 @@ enum Settings {
     /// user didn't start. The menu's manual check works either way.
     @Pref("automaticUpdateCheck", true) static var automaticUpdateCheck: Bool
 
+    /// ⇧⌘2 copies text from a region of the screen. Off by default: a global
+    /// chord swallowed for everyone would break the apps that bind it (Xcode's
+    /// Organizer). The menu item works either way.
+    @Pref("screenTextChord", false) static var screenTextChord: Bool
+
     /// Opt-in OCR of the focused window for richer model context.
     @Pref("screenContext", false) static var screenContextEnabled: Bool
 

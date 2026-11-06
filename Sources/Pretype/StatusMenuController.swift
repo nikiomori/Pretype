@@ -16,6 +16,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var appBlacklistItem: NSMenuItem!
     private var dictationSendItem: NSMenuItem!
     private var recentDictationsItem: NSMenuItem!
+    private var screenTextItem: NSMenuItem!
     private var languageHintItem: NSMenuItem!
     private var updateItem: NSMenuItem!
     private var refrainItem: NSMenuItem!
@@ -154,6 +155,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // Filled in menuNeedsUpdate; shown once something was dictated.
         recentDictationsItem = item(String(localized: "Copy Recent Dictation"), nil, symbol: "clock.arrow.circlepath")
         recentDictationsItem.submenu = NSMenu()
+        // Key shown in menuNeedsUpdate, only while the chord is on.
+        screenTextItem = item(String(localized: "Copy Text from Screen"), #selector(copyTextFromScreen),
+                              symbol: "text.viewfinder")
 
         // Hidden unless the language being typed is one this model is bad at —
         // see refreshLanguageHintItem.
@@ -269,6 +273,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        screenTextItem.keyEquivalent = Settings.screenTextChord ? "2" : ""
+        screenTextItem.keyEquivalentModifierMask = [.command, .shift]
         updateStatusIcon()
         // A menu-bar app runs for weeks; a check made only at launch went
         // stale (and one made offline at launch never retried). It throttles
@@ -596,6 +602,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             row.representedObject = text
             row.toolTip = text.count > 1_000 ? text.prefix(1_000) + "…" : text
         }
+    }
+
+    @objc private func copyTextFromScreen() {
+        suggestionController?.copyTextFromScreen()
     }
 
     @objc private func copyRecentDictation(_ sender: NSMenuItem) {
