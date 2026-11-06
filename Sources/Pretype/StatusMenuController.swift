@@ -519,6 +519,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // leaves the model serving — news, not a fault, so it stays green.
         let update = ModelStorage.quietFetchProgress.get()
             .map { " · " + String(localized: "updating the model \(Int($0 * 100))%") } ?? ""
+        if engine is CloudEngine, Settings.apiText.usesChatGPTPlan, let why = ChatGPTAccounts.shared.pausedReason {
+            return (.systemOrange, "\(name) — \(why)")
+        }
         switch engine.state {
         case .ready:
             return (.systemGreen, String(localized: "\(name) ready") + update)

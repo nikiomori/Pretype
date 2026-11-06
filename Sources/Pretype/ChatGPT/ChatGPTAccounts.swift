@@ -28,6 +28,14 @@ final class ChatGPTAccounts {
     @ObservationIgnored private var catalogLoaded = false
 
     var selected: ChatGPTProfile? { vault.profiles.first { $0.id == vault.selectedID } }
+    /// Why requests are held, for the status menu: suggestions drop these
+    /// failures silently, and only Settings had said so.
+    var pausedReason: String? {
+        if storageFailed { return ChatGPTError.storage.localizedDescription }
+        if let blocked { return blocked.localizedDescription }
+        if let until = unavailableUntil, until > Date() { return ChatGPTError.unavailable.localizedDescription }
+        return nil
+    }
     var canGenerate: Bool { selected?.tokens?.scopes.contains("chatgpt.tokens.use.direct") == true && !storageFailed }
 
     init(storage: ChatGPTStorage = .keychain, makeSession: @escaping () -> URLSession = ChatGPTHTTP.session,
