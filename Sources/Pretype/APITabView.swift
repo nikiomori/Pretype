@@ -44,7 +44,7 @@ private struct APIEndpointSection: View {
             }
             // Off, the endpoint is five empty-looking fields nobody needs to
             // read; they come with the switch.
-            if config.enabled || kind == .text {
+            if config.enabled {
                 Picker("Provider", selection: Binding(
                     get: { config.provider },
                     // A new provider brings its own URL and suggested model.

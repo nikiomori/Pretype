@@ -63110,6 +63110,7 @@
       }
     },
     "Uses your ChatGPT plan allowance and any credits you allow in ChatGPT settings. Signing in does not turn on text generation. Speech transcription uses its separate provider." : {
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -63211,6 +63212,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用您的 ChatGPT 套餐额度以及您在 ChatGPT 设置中允许使用的积分。登录不会启用文本生成。语音转写使用单独的服务提供商。"
+          }
+        }
+      }
+    },
+    "Uses your ChatGPT plan allowance and any credits you allow in ChatGPT settings. Speech transcription uses its separate provider." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Využívá limit vašeho předplatného ChatGPT a kredity, které povolíte v nastavení ChatGPT. Přepis řeči používá samostatného poskytovatele."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bruger kvoten i dit ChatGPT-abonnement og eventuelle kreditter, du tillader i ChatGPT-indstillingerne. Taletransskription bruger sin egen udbyder."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzt das Kontingent deines ChatGPT-Abonnements und die in den ChatGPT-Einstellungen erlaubten Guthaben. Die Sprachtranskription verwendet einen eigenen Anbieter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa el límite de tu plan de ChatGPT y los créditos que autorices en los ajustes de ChatGPT. La transcripción de voz usa su propio proveedor."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilise le quota de votre forfait ChatGPT et les crédits que vous autorisez dans les paramètres ChatGPT. La transcription vocale utilise son propre fournisseur."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa la quota del tuo piano ChatGPT e gli eventuali crediti autorizzati nelle impostazioni di ChatGPT. La trascrizione vocale usa un fornitore separato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTプランの利用枠と、ChatGPTの設定で許可したクレジットを使用します。音声の文字起こしには別のプロバイダーを使用します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 요금제의 사용 한도와 ChatGPT 설정에서 허용한 크레딧을 사용합니다. 음성 전사는 별도의 제공업체를 사용합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebruikt de limiet van je ChatGPT-abonnement en eventuele credits die je toestaat in de ChatGPT-instellingen. Spraaktranscriptie gebruikt een aparte aanbieder."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korzysta z limitu planu ChatGPT i kredytów dozwolonych w ustawieniach ChatGPT. Transkrypcja mowy korzysta z osobnego dostawcy."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa a cota do seu plano do ChatGPT e os créditos que você autorizar nas configurações do ChatGPT. A transcrição de voz usa um provedor separado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosește limita abonamentului ChatGPT și creditele pe care le permiteți în setările ChatGPT. Transcrierea vocală folosește un furnizor separat."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расходует лимит вашей подписки ChatGPT и кредиты, разрешённые в настройках ChatGPT. Для распознавания речи используется отдельный провайдер."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Använder kvoten i ditt ChatGPT-abonnemang och eventuella krediter du tillåter i ChatGPT-inställningarna. Taltranskribering använder en separat leverantör."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT planı kotanızı ve ChatGPT ayarlarında izin verdiğiniz kredileri kullanır. Konuşma dökümü ayrı bir sağlayıcı kullanır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використовує ліміт вашої передплати ChatGPT і кредити, дозволені в налаштуваннях ChatGPT. Для транскрибування мовлення використовується окремий постачальник."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用您的 ChatGPT 套餐额度以及您在 ChatGPT 设置中允许使用的积分。语音转写使用单独的服务提供商。"
           }
         }
       }
