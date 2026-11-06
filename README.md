@@ -85,6 +85,7 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 | **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes your next message from the conversation on the screen. With the best model, 90% of the replies are on topic. An independent model rates them. In the prompt of an AI agent, the draft answers the agent's session. It reads the terminal text and needs no Screen Recording. With **Offer replies in chats** on, the draft comes when the agent finishes its turn. |
 | **Emoji and symbols** | `:shrug:` gives 🤷, `:rocket:` gives 🚀, `:cmd:` gives ⌘. |
 | **Arithmetic** | `12*7=` gives 84. |
+| **Text from the screen** *(optional, off)* | Drag over text anywhere on the screen, and Pretype puts it on the clipboard. Use **Copy Text from Screen** in the menu, or <kbd>⇧⌘2</kbd> after you turn it on in **Settings → General**. The text is read on the Mac. Needs Screen Recording. |
 | **Speed** | A suggestion takes 17–81 ms on the local models. |
 | **Your style** | A persona, and a style for each app and each website. Pretype also learns from a local journal. You can clear the journal or disable it. |
 | **Shared app styles** | Styles from the community. One click adds the styles for the apps on your Mac. To share your style, add [one text file](AppStyles/README.md). |
