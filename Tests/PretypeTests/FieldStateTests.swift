@@ -29,6 +29,23 @@ final class FieldStateTests: XCTestCase {
         }
     }
 
+    // A terminal's read shows no cell for a space typed before the cursor:
+    // the keys say it is there. Anything else typed, or another field kind,
+    // and the read stands.
+    func testATerminalReadKeepsTheSpacesTyped() {
+        var field = FieldState()
+        XCTAssertEqual(admit(&field, read("I saw teh"), at: 0), .taken("I saw teh"))
+        _ = field.keystroke(" ", chord: false)
+        guard case .taken(let kept) = field.admit(read("I saw teh"), of: first, hidesTypedSpaces: true,
+                                                  probe: nil, clock: { self.t0 }) else { return XCTFail("not taken") }
+        XCTAssertEqual(kept.textBeforeCaret, "I saw teh ")
+        XCTAssertEqual(field.cache, "I saw teh ")
+        XCTAssertEqual(admit(&field, read("I saw teh"), at: 0), .taken("I saw teh"), "no terminal: the read stands")
+        XCTAssertEqual(FieldState.keepingTypedSpaces("I saw teh", cache: "I saw teh c"), "I saw teh")
+        XCTAssertEqual(FieldState.keepingTypedSpaces("I saw", cache: "I saw teh "), "I saw")
+        XCTAssertEqual(FieldState.keepingTypedSpaces("I saw teh", cache: nil), "I saw teh")
+    }
+
     // Inside the window the cache outranks a read that disagrees with it; the
     // first read that agrees, or any read past the deadline, ends it.
     func testSettleWindowTrustsTheCacheOverATrailingRead() {

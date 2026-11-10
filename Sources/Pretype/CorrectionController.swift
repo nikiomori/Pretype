@@ -10,6 +10,8 @@ protocol CorrectionHost: AnyObject {
     /// Bumped on every focus change: a fix for the field just left is stale.
     var focusGeneration: Int { get }
     var lastCaretRect: CGRect? { get }
+    /// The text before the caret as last known, typed keys included.
+    var knownTextBeforeCaret: String? { get }
     /// A fix measured where its text is (a selection, the word at the caret).
     func noteCaret(_ rect: CGRect)
     /// …or found the caret a scroll forgot.
@@ -547,7 +549,11 @@ final class CorrectionController {
         guard let element = host.currentTextElement() else { return nil }
         if fix.deletesOriginal {
             guard let ctx = env.context(of: element), ctx.textAfterCaret.first?.isLetter != true else { return nil }
-            let before = ctx.textBeforeCaret
+            // A terminal's read hides a space typed at its end: one Backspace
+            // short, and a letter of the typo stayed.
+            let before = env.isTerminalField(element)
+                ? FieldState.keepingTypedSpaces(ctx.textBeforeCaret, cache: host.knownTextBeforeCaret)
+                : ctx.textBeforeCaret
             guard Self.lastToken(of: before) == fix.original || Self.inlineToken(of: before) == fix.original
             else { return nil }
             host.recoverCaret(ctx.caretRect)

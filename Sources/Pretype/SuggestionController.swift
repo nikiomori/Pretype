@@ -486,7 +486,8 @@ final class SuggestionController {
         // A reply's ghost stands in a box that reads empty, as it landed there.
         let ctx: TextContext
         switch field.admit(env.context(of: element, allowEmpty: field.ghost?.trimToLine == false),
-                           of: element, probe: probe, clock: env.now) {
+                           of: element, hidesTypedSpaces: env.isTerminalField(element), probe: probe,
+                           clock: env.now) {
         case .taken(let read):
             ctx = read
         case .retry:

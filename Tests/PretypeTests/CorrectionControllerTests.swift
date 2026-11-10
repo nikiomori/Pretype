@@ -9,6 +9,7 @@ private final class FakeCorrectionHost: CorrectionHost, IndicatorHost {
     let engine: CompletionEngine
     var focusGeneration = 0
     var lastCaretRect: CGRect?
+    var knownTextBeforeCaret: String?
     var lastHostStyle = HostTextStyle()
     var hasActiveSuggestion = false
     var isWorking = false
@@ -105,6 +106,20 @@ final class CorrectionControllerTests: XCTestCase {
         XCTAssertEqual(host.typed.map(\.text), ["the ca"])
         XCTAssertEqual(host.typed.first?.deleted, "teh ca")
         XCTAssertEqual(host.typed.first?.before, "I saw teh ca")
+    }
+
+    // In a terminal the live read hides the space that ended the word: the
+    // fix still lands, and deletes the space with the word.
+    func testAFixInATerminalCountsTheSpaceTheReadHides() {
+        world.terminalField = true
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh ")))
+        XCTAssertEqual(fixes.handleKey(keyCode: KeyCode.tab, flags: []), .consumed)
+        world.before = "I saw teh"
+        host.knownTextBeforeCaret = "I saw teh "
+        world.runHops()
+        XCTAssertEqual(host.typed.map(\.text), ["the "])
+        XCTAssertEqual(host.typed.first?.deleted, "teh ")
+        XCTAssertEqual(host.typed.first?.before, "I saw teh ")
     }
 
     func testAnInlineTokenIsClosed() {

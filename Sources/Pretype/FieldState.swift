@@ -128,9 +128,16 @@ struct FieldState {
     /// asks whether the handle died, re-latching it when it did — nil where
     /// that round trip isn't worth it (a terminal; a handle the tracker
     /// doesn't hold). `clock` times it: see `mayProbe`.
-    mutating func admit(_ read: TextContext?, of element: AXUIElement,
+    ///
+    /// `hidesTypedSpaces`: see `keepingTypedSpaces`.
+    mutating func admit(_ read: TextContext?, of element: AXUIElement, hidesTypedSpaces: Bool = false,
                         probe: (() -> Bool)?, clock: () -> Date) -> Admission {
         let now = clock()
+        var read = read
+        if hidesTypedSpaces, let shown = read {
+            read = TextContext(textBeforeCaret: Self.keepingTypedSpaces(shown.textBeforeCaret, cache: cache),
+                               textAfterCaret: shown.textAfterCaret, caretRect: shown.caretRect, host: shown.host)
+        }
         guard let read else {
             guard let probe, mayProbe(element, at: now) else { return .lost }
             let dead = probe()
@@ -149,6 +156,17 @@ struct FieldState {
             self.declined = nil
         }
         return .taken(read)
+    }
+
+    /// `read` with the spaces typed at its end that it does not show. A
+    /// terminal publishes only the cells a program wrote, and an agent's box
+    /// writes none for a space before the cursor: the read said "teh" for
+    /// "teh ", so a fix pressed one Backspace too few and left a letter of
+    /// the typo behind. The cache has the keys.
+    static func keepingTypedSpaces(_ read: String, cache: String?) -> String {
+        guard let cache, cache.count > read.count, cache.hasPrefix(read),
+              cache.dropFirst(read.count).allSatisfy({ $0 == " " }) else { return read }
+        return cache
     }
 
     // MARK: - The caret
