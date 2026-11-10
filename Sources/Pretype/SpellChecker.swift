@@ -62,7 +62,8 @@ enum SpellChecker {
             ),
             guess: checker.guesses(
                 forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-            )?.first
+            )?.first,
+            split: split(word, language: language)
         )
 
         guard let fix = candidate,
@@ -74,12 +75,33 @@ enum SpellChecker {
 
     /// The fix for a misspelled `word`. `completions` nil: the spell server
     /// did not answer (it is starting, or busy), which says nothing about the
-    /// word, so nothing is offered.
+    /// word, so nothing is offered. A prefix of real words takes autocorrect
+    /// only when it finishes the word, or swaps letters in one of 4+ ("доми" →
+    /// "дома"): a shorthand is shorter than its word ("завт"), and 3 letters
+    /// are too few to tell ("wip" → "rip"). `split`: a missed space, last.
     static func candidate(for word: String, completions: [String]?, corrected: String?,
-                          guess: @autoclosure () -> String?) -> String? {
+                          guess: @autoclosure () -> String?,
+                          split: @autoclosure () -> String? = nil) -> String? {
         guard let completions else { return nil }
-        guard completions.isEmpty else { return corrected.flatMap { finishes(word, with: $0) ? $0 : nil } }
-        return corrected ?? guess()
+        guard completions.isEmpty else {
+            return corrected.flatMap { finishes(word, with: $0) || (word.count >= 4 && $0.count == word.count) ? $0 : nil }
+        }
+        return corrected ?? guess() ?? split()
+    }
+
+    /// `word` as two dictionary words with the space it missed ("мыпоехали"
+    /// → "мы поехали"), when exactly one cut makes them; else nil. Cyrillic
+    /// only: the English checker splits by itself, and the Russian one never.
+    /// The second word has 4+ letters, so a suffix ("умывать ся") or a
+    /// syllable is no word.
+    static func split(_ word: String, language: String) -> String? {
+        guard isCyrillic(word), word.count >= 6 else { return nil }
+        let letters = Array(word)
+        let cuts = (2...(letters.count - 4)).filter {
+            spelled(String(letters[..<$0]), language: language) && spelled(String(letters[$0...]), language: language)
+        }
+        guard cuts.count == 1, let cut = cuts.first else { return nil }
+        return String(letters[..<cut]) + " " + String(letters[cut...])
     }
 
     /// `fix` only adds letters at the end of `word`, whatever the case.

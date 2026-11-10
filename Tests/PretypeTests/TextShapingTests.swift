@@ -296,6 +296,27 @@ final class DanishSpellingTests: XCTestCase {
         XCTAssertEqual(SpellChecker.candidate(for: "сабака", completions: [], corrected: nil, guess: "собака"), "собака")
     }
 
+    // A prefix of real words takes autocorrect's swapped letters from 4 up:
+    // a shorthand is shorter than its fix, and 3 letters are a lookalike.
+    // A missed space is the last resort.
+    func testWhatAFinishedPrefixAndAJoinedWordTake() {
+        XCTAssertEqual(SpellChecker.candidate(for: "доми", completions: ["домик"], corrected: "дома", guess: nil), "дома")
+        XCTAssertNil(SpellChecker.candidate(for: "завт", completions: ["завтра"], corrected: "зав", guess: nil))
+        XCTAssertNil(SpellChecker.candidate(for: "гед", completions: ["гедонизм"], corrected: "где", guess: nil))
+        XCTAssertEqual(SpellChecker.candidate(for: "мыпоехали", completions: [], corrected: nil, guess: nil,
+                                              split: "мы поехали"), "мы поехали")
+        XCTAssertEqual(SpellChecker.candidate(for: "сабака", completions: [], corrected: nil, guess: "собака",
+                                              split: "са бака"), "собака")
+    }
+
+    func testAMissedSpaceIsSplitOnlyOneWay() {
+        XCTAssertTrue(waitForDictionary("ru", knowing: "собака"), "the spell server never loaded Russian")
+        XCTAssertEqual(SpellChecker.split("мыпоехали", language: "ru"), "мы поехали")
+        XCTAssertEqual(SpellChecker.split("большаясобака", language: "ru"), "большая собака")
+        XCTAssertNil(SpellChecker.split("helloworld", language: "en"), "the English checker splits by itself")
+        XCTAssertNil(SpellChecker.split("абвгдежз", language: "ru"))
+    }
+
     func testOnlyAnEndingFinishesAWord() {
         XCTAssertTrue(SpellChecker.finishes("wher", with: "where"))
         XCTAssertTrue(SpellChecker.finishes("Завт", with: "завтра"))
