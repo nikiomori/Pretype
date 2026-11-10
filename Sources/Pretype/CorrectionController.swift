@@ -174,7 +174,7 @@ final class CorrectionController {
         // inlineToken, not trailingWord: trailingWord stops at ':', so a dismissed
         // ":shrug:" would read as "" and never un-suppress.
         let tokenAtCaret = Self.inlineToken(of: text)
-        if tokenAtCaret != dismissedCorrectionWord { dismissedCorrectionWord = nil }
+        if Self.typo(of: tokenAtCaret) != dismissedCorrectionWord { dismissedCorrectionWord = nil }
 
         // Inline fix: a closed ":shrug:" previews 🤷, a finished misspelled word
         // its correction, over the token (⇥ applies). Takes priority over a
@@ -186,15 +186,16 @@ final class CorrectionController {
         // elsewhere can't bite here, and the emoji is only ever inserted
         // (TextInjector.insert is surrogate-safe).
         if pendingFix == nil, Settings.fixesEnabled, ctx.textAfterCaret.first?.isLetter != true,
-           tokenAtCaret != dismissedCorrectionWord,
+           Self.typo(of: tokenAtCaret) != dismissedCorrectionWord,
            let caret = ctx.caretRect,
            let fix = Self.inlineFix(for: tokenAtCaret, context: text) {
             host.clearActiveCompletion()
             indicator.stop()
-            // Redrawn on every read while its token stands: journaled once.
-            if activeCorrection?.word != tokenAtCaret || activeCorrection?.fix != fix {
-                open(row(Self.inlineKind(of: tokenAtCaret), original: Self.trimmed(tokenAtCaret),
-                         fix: Self.trimmed(fix), ctx: text))
+            // Redrawn on every read while its typo stands, the next word
+            // growing behind it: journaled once.
+            let pill = Self.pill(token: tokenAtCaret, fix: fix)
+            if activeCorrection.map({ Self.pill(token: $0.word, fix: $0.fix) }) ?? ("", "") != pill {
+                open(row(Self.inlineKind(of: tokenAtCaret), original: pill.original, fix: pill.fix, ctx: text))
             }
             activeCorrection = (word: tokenAtCaret, fix: fix)
             showCorrection(fix, word: tokenAtCaret, caret: caret, style: ctx.host)
@@ -322,7 +323,7 @@ final class CorrectionController {
         case .applyInline:
             applyCorrection()
         case .dismissInline:
-            dismissedCorrectionWord = activeCorrection?.word
+            dismissedCorrectionWord = activeCorrection.map { Self.typo(of: $0.word) }
             activeCorrection = nil
             resolveShown(.dismissed)
             window.hide()
@@ -581,7 +582,7 @@ final class CorrectionController {
         wordRect.origin.x = caret.maxX - wordWidth
         wordRect.size.width = wordWidth
         host.noteCaret(caret)
-        let (original, fixed) = (Self.trimmed(word), Self.trimmed(fix))
+        let (original, fixed) = Self.pill(token: word, fix: fix)
         host.report("typo \"\(original)\" → \"\(fixed)\" (\(Settings.hotkeyStyle.label) to fix)")
         window.show(mode: .correction(original: original, fix: fixed), at: wordRect, host: style)
     }
@@ -647,17 +648,36 @@ final class CorrectionController {
     /// What an inline fix reads: a shortcode or a sum as soon as it closes, a
     /// word only once a space ends it, with what ended it ("teh, "). A word
     /// still being typed is no typo: such pills lived 225 ms at the median,
-    /// and 1 of 694 was taken.
+    /// and 1 of 694 was taken. The finished word stays the token while the
+    /// next one is typed ("teh, wor"): ended by the space alone, its pill
+    /// lived 350 ms, gone at the next letter.
     static func inlineToken(of text: String) -> String {
         let token = lastToken(of: text)
         guard token == SpellChecker.trailingWord(of: text) else { return token }
-        guard text.hasSuffix(" ") else { return "" }
+        guard text.hasSuffix(" ") else {
+            guard !token.isEmpty else { return "" }
+            let finished = inlineToken(of: String(text.dropLast(token.count)))
+            return finished.isEmpty ? "" : finished + token
+        }
         let marks = text.dropLast().reversed().prefix { ".,;:!?)»\"".contains($0) }
         let word = SpellChecker.trailingWord(of: String(text.dropLast(marks.count + 1)))
         return word.isEmpty ? "" : word + String(marks.reversed()) + " "
     }
 
-    private static func trimmed(_ token: String) -> String { token.trimmingCharacters(in: .whitespaces) }
+    /// The finished word an inline token fixes, with what ended it: "teh," of
+    /// "teh, wor". What the pill shows, the journal books and ⎋ suppresses.
+    /// A shortcode or a sum is its whole token ("2 + 3 =").
+    static func typo(of token: String) -> String {
+        pill(token: token, fix: token).original
+    }
+
+    /// The pill's two sides: `token` and its `fix` without the next word they
+    /// share ("teh, wor" → "the, wor" shows "teh," → "the,").
+    static func pill(token: String, fix: String) -> (original: String, fix: String) {
+        let next = inlineKind(of: token) == .typo ? token.drop { $0 != " " }.count : 0
+        return (token.dropLast(next).trimmingCharacters(in: .whitespaces),
+                fix.dropLast(next).trimmingCharacters(in: .whitespaces))
+    }
 }
 
 extension SuggestionController: CorrectionHost {

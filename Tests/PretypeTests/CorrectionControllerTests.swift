@@ -85,26 +85,33 @@ final class CorrectionControllerTests: XCTestCase {
 
     // A typo waits for its word to end: no pill while the word can still
     // grow, so a completion runs. A space ends it, after a comma too; the
-    // next letter takes the pill away, and ⇥ keeps what ended the word.
+    // pill stays while the next word is typed and goes once that one ends
+    // too, and ⇥ keeps what ended the word and what came after.
     func testATypoWaitsForItsWordToEnd() {
         XCTAssertFalse(fixes.handleCaret(read("I saw teh")))
         XCTAssertNil(world.window.currentMode)
         XCTAssertEqual(host.completionsCleared, 0)
         XCTAssertTrue(fixes.handleCaret(read("I saw teh, ")))
         XCTAssertEqual(world.window.currentMode, .correction(original: "teh,", fix: "the,"))
-        XCTAssertFalse(fixes.handleCaret(read("I saw teh, c")))
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh, c")))
+        XCTAssertEqual(world.window.currentMode, .correction(original: "teh,", fix: "the,"))
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh, cat ")))
         XCTAssertNil(world.window.currentMode)
         XCTAssertTrue(fixes.handleCaret(read("I saw teh ")))
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh ca")))
         XCTAssertEqual(fixes.handleKey(keyCode: KeyCode.tab, flags: []), .consumed)
-        world.before = "I saw teh "
+        world.before = "I saw teh ca"
         world.runHops()
-        XCTAssertEqual(host.typed.map(\.text), ["the "])
-        XCTAssertEqual(host.typed.first?.deleted, "teh ")
-        XCTAssertEqual(host.typed.first?.before, "I saw teh ")
+        XCTAssertEqual(host.typed.map(\.text), ["the ca"])
+        XCTAssertEqual(host.typed.first?.deleted, "teh ca")
+        XCTAssertEqual(host.typed.first?.before, "I saw teh ca")
     }
 
     func testAnInlineTokenIsClosed() {
-        XCTAssertEqual(CorrectionController.inlineToken(of: "hey teh"), "")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "teh"), "")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey teh"), "hey teh", "the next word rides along")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey, teh"), "hey, teh")
+        XCTAssertEqual(CorrectionController.inlineToken(of: "hey  teh"), "")
         XCTAssertEqual(CorrectionController.inlineToken(of: "hey teh "), "teh ")
         XCTAssertEqual(CorrectionController.inlineToken(of: "hey (teh.) "), "teh.) ")
         XCTAssertEqual(CorrectionController.inlineToken(of: "hey teh  "), "", "two spaces: the caret moved on")
@@ -132,6 +139,15 @@ final class CorrectionControllerTests: XCTestCase {
         XCTAssertFalse(fixes.handleCaret(read("Hi 12*7=")))
         XCTAssertNil(world.window.currentMode)
         XCTAssertTrue(fixes.handleCaret(read("Hi 2*3=")))
+    }
+
+    // ⎋ on a typo holds while the next word grows behind it.
+    func testEscapeOnATypoHoldsThroughTheNextWord() {
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh ")))
+        XCTAssertEqual(fixes.handleKey(keyCode: KeyCode.escape, flags: []), .passThrough)
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh c")))
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh ca")))
+        XCTAssertNil(world.window.currentMode)
     }
 
     // ⌥⇥ on a selection: the engine's fix is previewed — never applied
@@ -570,6 +586,8 @@ final class CorrectionControllerTests: XCTestCase {
     // A preview whose word went is gone for good: ⌥⇥ asks anew instead of
     // drawing it again.
     func testALastWordPreviewWhoseWordWentIsNotReshown() async {
+        defer { Settings.fixTypos = true }
+        Settings.fixTypos = false  // or "teh" gets its inline pill while "cat" is typed
         await fixLastWord("I saw teh", fixed: "I saw the")
         XCTAssertFalse(fixes.handleCaret(read("I saw teh cat")))
         world.before = "I saw teh cat"
