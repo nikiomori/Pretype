@@ -80,6 +80,12 @@ struct ModelMetrics {
         ModelMetrics(id: "nikimoriOne/EuroLLM-1.7B-Pretype-5bit", shortName: "EuroLLM 1.7B",
                      firstWordPct: 30, ci: 28...33, coveragePct: 78,
                      logProbPerChar: -0.887, p50Ms: 22, ramGB: 1.1),
+        // Our Gemma model, booked 2026-11-12 with the 10-15 rules
+        // (Eval/runs-2026-11-12-catalog: book.py, run.sh); p50 = E2B 4-bit's
+        // 34 ms × the interleaved same-binary ratio 60/72 ms.
+        ModelMetrics(id: "nikimoriOne/Pretype-One", shortName: "Pretype One",
+                     firstWordPct: 33, ci: 30...35, coveragePct: 80,
+                     logProbPerChar: -0.858, p50Ms: 28, ramGB: 1.5),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 24...29, coveragePct: 82,
                      logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1),
@@ -127,6 +133,7 @@ struct ModelMetrics {
         "nikimori/Qwen3.5-2B-Base-6bit": (21, 53),
         "nikimori/Qwen3.5-2B-M40-6bit": (23, 49),
         "nikimoriOne/EuroLLM-1.7B-Pretype-5bit": (18, 53),
+        "nikimoriOne/Pretype-One": (19, 55),
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": (26, 42),
     ]
 
@@ -166,6 +173,9 @@ struct ModelMetrics {
         // Booked 2026-10-31 on the same rules (runs-2026-10-31-catalog/book.py).
         "nikimoriOne/EuroLLM-1.7B-Pretype-5bit":
             ["ar": 10, "cs": 14, "da": 26, "de": 25, "en": 25, "es": 27, "fr": 23, "he": 2, "it": 23, "ja": 9, "ko": 8, "nl": 24, "pl": 24, "pt": 23, "ro": 22, "ru": 23, "sv": 21, "tr": 12, "uk": 19, "zh": 15],
+        // Booked 2026-11-12 on the same rules (runs-2026-11-12-catalog/book.py).
+        "nikimoriOne/Pretype-One":
+            ["ar": 12, "cs": 21, "da": 30, "de": 26, "en": 28, "es": 32, "fr": 25, "he": 19, "it": 25, "ja": 7, "ko": 12, "nl": 26, "pl": 27, "pt": 23, "ro": 28, "ru": 23, "sv": 23, "tr": 15, "uk": 24, "zh": 11],
         // Booked 2026-10-16 on the same rules (runs-2026-10-16-m1/rebook/book.py).
         "nikimori/Qwen3.5-2B-M40-6bit":
             ["ar": 7, "cs": 12, "da": 21, "de": 20, "en": 27, "es": 26, "fr": 24, "he": 13, "it": 21, "ja": 2, "ko": 8, "nl": 21, "pl": 19, "pt": 24, "ro": 22, "ru": 20, "sv": 19, "tr": 9, "uk": 16, "zh": 9],
@@ -359,6 +369,10 @@ struct ModelMetrics {
             fixPct: 64, fixCI: 60...68, falseFixPct: 5, fixP50Ms: 63,
             replyPct: nil, replyCI: 0...0, replyP50Ms: 0,
             ownRun: "booked on its own run (2026-10-31), where E2B-it 4-bit restores 49% and touches 31% of clean lines; it writes no replies"),
+        "nikimoriOne/Pretype-One": TaskMetrics(
+            fixPct: 79, fixCI: 75...82, falseFixPct: 4, fixP50Ms: 65,
+            replyPct: 90, replyCI: 86...92, replyP50Ms: 108,
+            ownRun: "booked on its own run (2026-11-12), replies judged by Qwen3.8 27B, which rates E2B-it 4-bit 85% [81–88] there; on that run E2B-it restores 49% of lines"),
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": TaskMetrics(
             fixPct: 11, fixCI: 9...14, falseFixPct: 19, fixP50Ms: 33,
             replyPct: 3, replyCI: 2...6, replyP50Ms: 78),
@@ -382,6 +396,7 @@ struct ModelMetrics {
         "nikimori/Qwen3.5-2B-M40-6bit": "Qwen3.5 2B M40",
         "nikimoriOne/EuroLLM-1.7B-Pretype-5bit": "EuroLLM 1.7B",
         "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "Qwen2.5 0.5B-it",
+        "nikimoriOne/Pretype-One": "Pretype One",
         "prism-ml/Ternary-Bonsai-4B-mlx-2bit": "Bonsai 4B",
     ]
 

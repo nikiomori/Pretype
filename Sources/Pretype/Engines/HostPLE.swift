@@ -63,9 +63,10 @@ final class HostPLE: Embedding {
     }
 
     /// What serving the table from disk frees on `modelID` — the table's size
-    /// (262144 rows × layers × 256, 4-bit) — or nil for a model without one.
+    /// (262144 rows × layers × 256, 4-bit; 82000 rows on our Gemma model) — or
+    /// nil for a model without one.
     static func savingGB(for modelID: String) -> Double? {
-        modelID.contains("gemma-4-e2b") ? 1.3 : modelID.contains("gemma-4-e4b") ? 1.6 : nil
+        modelID.contains("Pretype-One") ? 0.4 : modelID.contains("gemma-4-e2b") ? 1.3 : modelID.contains("gemma-4-e4b") ? 1.6 : nil
     }
 
     /// What `modelID` keeps resident of its booked `gb` weights: less the

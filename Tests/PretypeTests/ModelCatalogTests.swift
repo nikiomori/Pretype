@@ -374,7 +374,7 @@ final class ModelCatalogTests: XCTestCase {
     func testModelPriorityPicks() {
         XCTAssertEqual(ModelPriority.lightest.pick(axis: "core"), "mlx-community/Qwen2.5-0.5B-bf16")   // 1.0 GB
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-6bit")    // 32% vs E4B 8-bit's 31
-        XCTAssertEqual(ModelPriority.quick.pick(axis: "core"), "nikimori/Qwen3.5-2B-Base-6bit")        // ≥30% at 32 ms
+        XCTAssertEqual(ModelPriority.quick.pick(axis: "core"), "nikimoriOne/Pretype-One")              // 33% at 28 ms
         XCTAssertEqual(ModelPriority.balanced.pick(axis: "core"), ModelCatalog.defaultID)
 
         // Axis-dependence is the feature: on the all-languages average E4B
@@ -382,11 +382,10 @@ final class ModelCatalogTests: XCTestCase {
         // measures BEST outright (25 vs E4B's 23) — the cards must re-resolve
         // per language.
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "*"), "mlx-community/gemma-4-e4b-8bit")
-        XCTAssertEqual(ModelPriority.quick.pick(axis: "*"), "mlx-community/gemma-4-e2b-8bit")
+        XCTAssertEqual(ModelPriority.quick.pick(axis: "*"), "nikimoriOne/Pretype-One")
+        XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-6bit", "a one-point tie is no lead")
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "ru"), "mlx-community/gemma-4-e2b-8bit")
-        // A tie on speed goes to the catalog's earlier entry: on Portuguese
-        // Qwen3.5 2B and its M40 merge are both in reach at 32 ms.
-        XCTAssertEqual(ModelPriority.quick.pick(axis: "pt"), "nikimori/Qwen3.5-2B-Base-6bit")
+        XCTAssertEqual(ModelPriority.quick.pick(axis: "pt"), "nikimoriOne/Pretype-One")
         // Balanced is the fresh-install rule — sized to THIS Mac's memory,
         // not to the axis (language dropped out of the default on 2026-07-25;
         // no per-language gap between the small models survives p<0.01).
@@ -430,7 +429,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(ModelMetrics.axisAccuracy(for: "no-such-model", axis: "*"))
         XCTAssertEqual(ModelMetrics.axisBest("uk"), 25)  // Gemma E4B 6-bit
         // RTL: the small models tie each other, so the axis best is a Gemma.
-        XCTAssertEqual(ModelMetrics.axisBest("he"), 18)  // Gemma E2B 8-bit
+        XCTAssertEqual(ModelMetrics.axisBest("he"), 19)  // Pretype One
         XCTAssertEqual(ModelMetrics.axisAccuracy(for: "nikimori/MiniCPM5-1B-Base-8bit", axis: "he"), 3)
         XCTAssertEqual(ModelMetrics.evalLanguages.count, 20)
 
@@ -484,8 +483,6 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertTrue(why.contains("\(fix)%"), why)
         }
         XCTAssertEqual(ModelCatalog.rationale(for: "mlx-community/gemma-4-e4b-8bit", servesTable: served), "", "not a ladder tier")
-        XCTAssertEqual(ModelMetrics.tasks["mlx-community/gemma-4-e4b-it-6bit"]?.fixPct,
-                       ModelMetrics.tasks.values.map(\.fixPct).max())
         // The small models' range comes from the table's run: M40's 41% is
         // from its own, never tested against E2B-it's 50%.
         XCTAssertTrue(ModelCatalog.rationale(for: "mlx-community/gemma-4-e2b-4bit", servesTable: served).contains("where the small models manage 11–33%."))

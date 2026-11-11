@@ -138,6 +138,19 @@ enum ModelCatalog {
             title: String(localized: "EuroLLM 1.7B — one light model for typing and fixes"),
             correctionModelID: "nikimoriOne/EuroLLM-1.7B-Pretype-5bit"
         ),
+        // Our own Gemma model (2026-11-12, Eval/runs-2026-11-01-slim, -kd,
+        // -11-10-adapters and -11-12-catalog): Gemma 4 E2B 4-bit with the token
+        // tables cut to 82,000 tokens, distilled from E4B, plus a chat adapter
+        // that the engine switches on for fixes, replies and rewrites
+        // (`MLXEngine.applyAdapter`). One 1.5 GB download. Completions are
+        // ahead of E2B 4-bit (22.8 vs 20.8% of all on 17 languages); the fix
+        // beats E2B-it (79 vs 49% restored, 4 vs 31% of clean lines touched).
+        // An alternative, not a default: the ladder was not re-tiered on it.
+        ModelOption(
+            id: "nikimoriOne/Pretype-One",
+            title: String(localized: "Pretype One — one model for typing, fixes and replies"),
+            correctionModelID: "nikimoriOne/Pretype-One"
+        ),
         ModelOption(
             id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
             title: String(localized: "Ternary Bonsai 4B — 1 GB base"),  // ternary QAT of Qwen3-4B; ties MiniCPM5, slower, RU-weak
@@ -232,7 +245,7 @@ enum ModelCatalog {
         let (gb, fix, reply) = (resident(id), chords(id)?.fixPct ?? 0, chords(id)?.replyPct ?? 0)
         switch id {
         case "mlx-community/gemma-4-e4b-6bit":
-            return String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~\(gb) resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores \(fix)% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory.")
+            return String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~\(gb) resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores \(fix)% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory.")
         case "mlx-community/gemma-4-e2b-8bit":
             return String(localized: "Auto-picked for this Mac's memory (~\(gb) resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (\(fix)% exact restores, \(reply)% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less.")
         case "mlx-community/gemma-4-e2b-4bit":
@@ -330,6 +343,7 @@ enum ModelCatalog {
         "mlx-community/gemma-4-e4b-it-6bit": "7b781e6489f260b3a24ff38aebb6313b2db516d7",
         "nikimori/MiniCPM5-1B-Base-8bit": "5ccc5190f40e2a2d23caf12283d949d581f6fb16",
         "nikimoriOne/EuroLLM-1.7B-Pretype-5bit": "706b5fda847227642f32129413cdb7f6b224e4f4",
+        "nikimoriOne/Pretype-One": "0adb81208c018f49986bcf5be0d3878e9a7a233f",
         "nikimori/Qwen3.5-2B-Base-4bit": "9254a84e0f65f6d4cd97e70cd0957bf66d59a663",
         "nikimori/Qwen3.5-2B-Base-6bit": "03abc6421ac277c0a4ea27aa2d594db5143a168b",
         "nikimori/Qwen3.5-2B-4bit-slim": "d440e47342c84460814566d0f026824228acd152",
@@ -442,6 +456,13 @@ enum ModelCatalog {
         if id.contains("EuroLLM") {
             return Recommendation(style: .base, logprobGateTau: -1.05,
                                   scriptGateTau: [.kana: .infinity, .hebrew: .infinity])
+        }
+        // Our Gemma model: its own live-scale Q4 edge; 25% of the odd half pass
+        // at 47% first word right [43–51] (runs-2026-11-12-catalog). The script
+        // τ are E2B 4-bit's, not derived again.
+        if id.contains("Pretype-One") {
+            return Recommendation(style: .base, logprobGateTau: -1.09,
+                                  scriptGateTau: [.han: -0.75, .kana: .infinity])
         }
         // Gemma E-series: base, short. Instruct + persona wins on text you
         // author (~85% first-word, eval-v2) but loses on real text: E2B since

@@ -11153,108 +11153,108 @@
         }
       }
     },
-    "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~%@ resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores %lld%% of noisy lines exactly — the most in the catalog. Smaller tiers are one click below if you'd rather spend less memory." : {
+    "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~%@ resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores %lld%% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vybráno automaticky podle paměti tohoto Macu: nejkvalitnější varianta, která zabere nejvýš asi čtvrtinu paměti (~%@, po nečinnosti se uvolní). Před E2B 4-bit v hodnocených jazycích (p<0.001), na úrovni E2B 8-bit a E4B 8-bit v doplňování a její model oprav přesně obnoví %lld%% chybových řádků — nejvíc v katalogu. Menší varianty jsou o jedno kliknutí níž, pokud chcete šetřit paměť."
+            "value" : "Vybráno automaticky podle paměti tohoto Macu: nejkvalitnější varianta, která zabere nejvýš asi čtvrtinu paměti (~%@, po nečinnosti se uvolní). Před E2B 4-bit v hodnocených jazycích (p<0.001), na úrovni E2B 8-bit a E4B 8-bit v doplňování a její model oprav přesně obnoví %lld%% chybových řádků. Menší varianty jsou o jedno kliknutí níž, pokud chcete šetřit paměť."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valgt automatisk ud fra denne Macs hukommelse: det bedste kvalitetsniveau, der holder sig inden for ca. en fjerdedel af den (~%@ i brug, frigives igen ved inaktivitet). Foran E2B 4-bit på de evaluerede sprog (p<0.001), lige med E2B 8-bit og E4B 8-bit på fuldførelser, og dets rettelsesmodel gendanner %lld %% af de fejlbehæftede linjer præcist — flest i kataloget. Mindre niveauer er et klik væk, hvis du hellere vil bruge mindre hukommelse."
+            "value" : "Valgt automatisk ud fra denne Macs hukommelse: det bedste kvalitetsniveau, der holder sig inden for ca. en fjerdedel af den (~%@ i brug, frigives igen ved inaktivitet). Foran E2B 4-bit på de evaluerede sprog (p<0.001), lige med E2B 8-bit og E4B 8-bit på fuldførelser, og dets rettelsesmodel gendanner %lld %% af de fejlbehæftede linjer præcist. Mindre niveauer er et klik væk, hvis du hellere vil bruge mindre hukommelse."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt: die beste Qualitätsstufe, die unter etwa einem Viertel davon bleibt (~%@ belegt, im Leerlauf wieder freigegeben). Vor E2B 4-bit in den getesteten Sprachen (p<0,001), gleichauf mit E2B 8-bit und E4B 8-bit bei Vervollständigungen, und ihr Korrekturmodell stellt %lld%% fehlerhafter Zeilen exakt wieder her – der Bestwert im Katalog. Kleinere Stufen sind einen Klick entfernt, wenn Sie weniger Speicher verbrauchen möchten."
+            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt: die beste Qualitätsstufe, die unter etwa einem Viertel davon bleibt (~%@ belegt, im Leerlauf wieder freigegeben). Vor E2B 4-bit in den getesteten Sprachen (p<0,001), gleichauf mit E2B 8-bit und E4B 8-bit bei Vervollständigungen, und ihr Korrekturmodell stellt %lld%% fehlerhafter Zeilen exakt wieder her. Kleinere Stufen sind einen Klick entfernt, wenn Sie weniger Speicher verbrauchen möchten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elegido automáticamente según la memoria de este Mac: el nivel de mejor calidad que no pasa de una cuarta parte de ella (~%@ residentes, se liberan en reposo). Por delante de E2B 4-bit en los idiomas evaluados (p<0.001), a la par de E2B 8-bit y E4B 8-bit en autocompletado, y su modelo de corrección restaura exactamente el %lld%% de las líneas con errores, el mejor resultado del catálogo. Los niveles más pequeños están a un clic si prefieres gastar menos memoria."
+            "value" : "Elegido automáticamente según la memoria de este Mac: el nivel de mejor calidad que no pasa de una cuarta parte de ella (~%@ residentes, se liberan en reposo). Por delante de E2B 4-bit en los idiomas evaluados (p<0.001), a la par de E2B 8-bit y E4B 8-bit en autocompletado, y su modelo de corrección restaura exactamente el %lld%% de las líneas con errores. Los niveles más pequeños están a un clic si prefieres gastar menos memoria."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choisi automatiquement selon la mémoire de ce Mac : la meilleure variante qui tient dans environ un quart de celle-ci (~%@ résidents, libérés après inactivité). Devant E2B 4-bit sur les langues évaluées (p<0.001), à égalité avec E2B 8-bit et E4B 8-bit en complétion, et son modèle de correction restaure exactement %lld%% des lignes fautives — le meilleur score du catalogue. Les variantes plus petites sont à un clic si vous préférez économiser la mémoire."
+            "value" : "Choisi automatiquement selon la mémoire de ce Mac : la meilleure variante qui tient dans environ un quart de celle-ci (~%@ résidents, libérés après inactivité). Devant E2B 4-bit sur les langues évaluées (p<0.001), à égalité avec E2B 8-bit et E4B 8-bit en complétion, et son modèle de correction restaure exactement %lld%% des lignes fautives. Les variantes plus petites sont à un clic si vous préférez économiser la mémoire."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scelto automaticamente in base alla memoria di questo Mac: il livello di qualità migliore che resta entro circa un quarto della memoria (~%@ residenti, liberati di nuovo quando inattivo). Davanti a E2B 4-bit sulle lingue valutate (p<0,001), alla pari con E2B 8-bit ed E4B 8-bit nei completamenti, e il suo modello di correzione ripristina esattamente il %lld%% delle righe con errori, il valore più alto del catalogo. I livelli più piccoli sono a un clic se preferisci usare meno memoria."
+            "value" : "Scelto automaticamente in base alla memoria di questo Mac: il livello di qualità migliore che resta entro circa un quarto della memoria (~%@ residenti, liberati di nuovo quando inattivo). Davanti a E2B 4-bit sulle lingue valutate (p<0,001), alla pari con E2B 8-bit ed E4B 8-bit nei completamenti, e il suo modello di correzione ripristina esattamente il %lld%% delle righe con errori. I livelli più piccoli sono a un clic se preferisci usare meno memoria."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacのメモリに合わせて自動選択：メモリの約4分の1以内に収まる最高品質のモデルです（常駐約%@、アイドル時に解放）。評価した言語全体でE2B 4-bitより優れ（p<0.001）、補完ではE2B 8-bitやE4B 8-bitと同等。修正用モデルは誤りのある行の%lld%%を正確に復元し、カタログで最多です。メモリを節約したい場合は、より小さいモデルをワンクリックで選べます。"
+            "value" : "このMacのメモリに合わせて自動選択：メモリの約4分の1以内に収まる最高品質のモデルです（常駐約%@、アイドル時に解放）。評価した言語全体でE2B 4-bitより優れ（p<0.001）、補完ではE2B 8-bitやE4B 8-bitと同等。修正用モデルは誤りのある行の%lld%%を正確に復元します。メモリを節約したい場合は、より小さいモデルをワンクリックで選べます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨: 메모리의 약 4분의 1 이내에 머무는 최고 품질 등급입니다(상주 약 %@, 대기 시 해제). 평가한 언어 전체에서 E2B 4-bit보다 앞서고(p<0.001), 완성에서는 E2B 8-bit 및 E4B 8-bit와 대등하며, 수정용 모델은 오류가 있는 줄의 %lld%%를 정확히 복원해 카탈로그에서 가장 높습니다. 메모리를 덜 쓰려면 한 번의 클릭으로 더 작은 등급을 선택할 수 있습니다."
+            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨: 메모리의 약 4분의 1 이내에 머무는 최고 품질 등급입니다(상주 약 %@, 대기 시 해제). 평가한 언어 전체에서 E2B 4-bit보다 앞서고(p<0.001), 완성에서는 E2B 8-bit 및 E4B 8-bit와 대등하며, 수정용 모델은 오류가 있는 줄의 %lld%%를 정확히 복원합니다. 메모리를 덜 쓰려면 한 번의 클릭으로 더 작은 등급을 선택할 수 있습니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch gekozen voor het geheugen van deze Mac: de beste kwaliteitsvariant die binnen ongeveer een kwart ervan blijft (~%@ in gebruik, weer vrijgegeven bij inactiviteit). Beter dan E2B 4-bit in de geteste talen (p<0,001), gelijk aan E2B 8-bit en E4B 8-bit bij aanvullingen, en het correctiemodel herstelt %lld%% van de foutieve regels exact – het meest in de catalogus. Kleinere varianten liggen één klik lager als je minder geheugen wilt gebruiken."
+            "value" : "Automatisch gekozen voor het geheugen van deze Mac: de beste kwaliteitsvariant die binnen ongeveer een kwart ervan blijft (~%@ in gebruik, weer vrijgegeven bij inactiviteit). Beter dan E2B 4-bit in de geteste talen (p<0,001), gelijk aan E2B 8-bit en E4B 8-bit bij aanvullingen, en het correctiemodel herstelt %lld%% van de foutieve regels exact. Kleinere varianten liggen één klik lager als je minder geheugen wilt gebruiken."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wybrany automatycznie według pamięci tego Maca: najlepszy jakościowo wariant mieszczący się w ok. jednej czwartej pamięci (~%@, zwalniane po bezczynności). Wyprzedza E2B 4-bit w badanych językach (p<0.001), dorównuje E2B 8-bit i E4B 8-bit w uzupełnieniach, a jego model poprawek dokładnie przywraca %lld%% wierszy z błędami — najwięcej w katalogu. Mniejsze warianty są o jedno kliknięcie, jeśli wolisz zużywać mniej pamięci."
+            "value" : "Wybrany automatycznie według pamięci tego Maca: najlepszy jakościowo wariant mieszczący się w ok. jednej czwartej pamięci (~%@, zwalniane po bezczynności). Wyprzedza E2B 4-bit w badanych językach (p<0.001), dorównuje E2B 8-bit i E4B 8-bit w uzupełnieniach, a jego model poprawek dokładnie przywraca %lld%% wierszy z błędami. Mniejsze warianty są o jedno kliknięcie, jeśli wolisz zużywać mniej pamięci."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escolhido automaticamente pela memória deste Mac: o nível de melhor qualidade que não passa de cerca de um quarto dela (~%@ residentes, liberados quando ocioso). À frente do E2B 4-bit nos idiomas avaliados (p<0.001), empatado com o E2B 8-bit e o E4B 8-bit no autocompletar, e seu modelo de correção restaura exatamente %lld%% das linhas com erros, o melhor do catálogo. Níveis menores estão a um clique se você preferir gastar menos memória."
+            "value" : "Escolhido automaticamente pela memória deste Mac: o nível de melhor qualidade que não passa de cerca de um quarto dela (~%@ residentes, liberados quando ocioso). À frente do E2B 4-bit nos idiomas avaliados (p<0.001), empatado com o E2B 8-bit e o E4B 8-bit no autocompletar, e seu modelo de correção restaura exatamente %lld%% das linhas com erros. Níveis menores estão a um clique se você preferir gastar menos memória."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ales automat după memoria acestui Mac: nivelul de cea mai bună calitate care rămâne sub circa un sfert din ea (~%@ rezident, eliberat la inactivitate). Înaintea lui E2B 4-bit pe limbile evaluate (p<0.001), la egalitate cu E2B 8-bit și E4B 8-bit la completări, iar modelul său de corectare restabilește exact %lld%% din rândurile cu greșeli — cel mai mult din catalog. Nivelurile mai mici sunt la un clic distanță dacă preferați să folosiți mai puțină memorie."
+            "value" : "Ales automat după memoria acestui Mac: nivelul de cea mai bună calitate care rămâne sub circa un sfert din ea (~%@ rezident, eliberat la inactivitate). Înaintea lui E2B 4-bit pe limbile evaluate (p<0.001), la egalitate cu E2B 8-bit și E4B 8-bit la completări, iar modelul său de corectare restabilește exact %lld%% din rândurile cu greșeli. Nivelurile mai mici sunt la un clic distanță dacă preferați să folosiți mai puțină memorie."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Выбрана автоматически по памяти этого Mac: лучший по качеству вариант, занимающий не больше примерно четверти памяти (~%@, освобождается в простое). Опережает E2B 4-bit на проверенных языках (p<0.001), наравне с E2B 8-bit и E4B 8-bit в дополнениях, а её модель исправлений точно восстанавливает %lld%% строк с ошибками — больше всех в каталоге. Варианты поменьше — в один щелчок, если хотите тратить меньше памяти."
+            "value" : "Выбрана автоматически по памяти этого Mac: лучший по качеству вариант, занимающий не больше примерно четверти памяти (~%@, освобождается в простое). Опережает E2B 4-bit на проверенных языках (p<0.001), наравне с E2B 8-bit и E4B 8-bit в дополнениях, а её модель исправлений точно восстанавливает %lld%% строк с ошибками. Варианты поменьше — в один щелчок, если хотите тратить меньше памяти."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valdes automatiskt efter den här Macens minne: den bästa kvalitetsnivån som håller sig inom ungefär en fjärdedel av det (~%@ i minnet, frigörs igen vid inaktivitet). Före E2B 4-bit på de utvärderade språken (p<0.001), jämn med E2B 8-bit och E4B 8-bit på kompletteringar, och dess rättningsmodell återställer exakt %lld %% av de felaktiga raderna — flest i katalogen. Mindre nivåer finns ett klick bort om du vill använda mindre minne."
+            "value" : "Valdes automatiskt efter den här Macens minne: den bästa kvalitetsnivån som håller sig inom ungefär en fjärdedel av det (~%@ i minnet, frigörs igen vid inaktivitet). Före E2B 4-bit på de utvärderade språken (p<0.001), jämn med E2B 8-bit och E4B 8-bit på kompletteringar, och dess rättningsmodell återställer exakt %lld %% av de felaktiga raderna. Mindre nivåer finns ett klick bort om du vill använda mindre minne."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu Mac’in belleğine göre otomatik seçildi: belleğin yaklaşık dörtte biri içinde kalan en kaliteli katman (bellekte ~%@, boşta kalınca yeniden boşaltılır). Değerlendirilen dillerde E2B 4-bit’in önünde (p<0.001), tamamlamalarda E2B 8-bit ve E4B 8-bit ile aynı düzeyde; düzeltme modeli hatalı satırları %%%lld oranında birebir onarır — katalogdaki en yüksek oran. Daha az bellek harcamak isterseniz daha küçük katmanlar bir tık uzakta."
+            "value" : "Bu Mac’in belleğine göre otomatik seçildi: belleğin yaklaşık dörtte biri içinde kalan en kaliteli katman (bellekte ~%@, boşta kalınca yeniden boşaltılır). Değerlendirilen dillerde E2B 4-bit’in önünde (p<0.001), tamamlamalarda E2B 8-bit ve E4B 8-bit ile aynı düzeyde; düzeltme modeli hatalı satırları %%%lld oranında birebir onarır. Daha az bellek harcamak isterseniz daha küçük katmanlar bir tık uzakta."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac: найкращий за якістю варіант, що займає не більше приблизно чверті пам’яті (~%@, звільняється під час простою). Випереджає E2B 4-bit на перевірених мовах (p<0.001), нарівні з E2B 8-bit і E4B 8-bit у доповненнях, а її модель виправлень точно відновлює %lld%% рядків з помилками — найбільше в каталозі. Менші варіанти — за одне клацання, якщо хочете витрачати менше пам’яті."
+            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac: найкращий за якістю варіант, що займає не більше приблизно чверті пам’яті (~%@, звільняється під час простою). Випереджає E2B 4-bit на перевірених мовах (p<0.001), нарівні з E2B 8-bit і E4B 8-bit у доповненнях, а її модель виправлень точно відновлює %lld%% рядків з помилками. Менші варіанти — за одне клацання, якщо хочете витрачати менше пам’яті."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "根据这台 Mac 的内存自动选择：在约四分之一内存以内质量最好的档位（常驻约 %@，闲置后释放）。在评测语言上领先 E2B 4-bit（p<0.001），补全方面与 E2B 8-bit 和 E4B 8-bit 持平；其修正模型能精确还原 %lld%% 的带噪文本行，为目录中最高。如果想少占内存，点按一下即可换用更小的档位。"
+            "value" : "根据这台 Mac 的内存自动选择：在约四分之一内存以内质量最好的档位（常驻约 %@，闲置后释放）。在评测语言上领先 E2B 4-bit（p<0.001），补全方面与 E2B 8-bit 和 E4B 8-bit 持平；其修正模型能精确还原 %lld%% 的带噪文本行。如果想少占内存，点按一下即可换用更小的档位。"
           }
         }
       }
@@ -21906,6 +21906,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "EuroLLM 1.7B — 输入与纠错同一个轻量模型"
+          }
+        }
+      }
+    },
+    "Pretype One — one model for typing, fixes and replies" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — jeden model pro psaní, opravy i odpovědi"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — én model til skrivning, rettelser og svar"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One – ein Modell für Tippen, Korrigieren und Antworten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un modelo para escribir, corregir y responder"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un seul modèle pour écrire, corriger et répondre"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un modello per scrivere, correggere e rispondere"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — 入力・修正・返信を1モデルで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — 입력, 교정, 답장을 한 모델로"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One – één model voor typen, corrigeren en antwoorden"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — jeden model do pisania, poprawek i odpowiedzi"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — um modelo para digitar, corrigir e responder"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un singur model pentru scris, corecturi și răspunsuri"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — одна модель для набора, исправлений и ответов"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — en modell för skrivande, rättning och svar"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — yazma, düzeltme ve yanıt için tek model"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — одна модель для набору, виправлень і відповідей"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — 输入、纠错与回复同一个模型"
           }
         }
       }

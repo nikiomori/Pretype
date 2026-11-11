@@ -735,6 +735,19 @@ final class MLXEngineTests: MLXTestCase {
         XCTAssertTrue(ModelCatalog.writesLongBase("nikimoriOne/EuroLLM-1.7B-Pretype-5bit"))
     }
 
+    // Our Gemma model does every chat-path job itself, with its adapter: the
+    // fixes run on the primary, and replies and rewrites are on.
+    func testOurGemmaModelFixesAndRepliesWithItself() {
+        let id = "nikimoriOne/Pretype-One"
+        XCTAssertEqual(ModelCatalog.option(for: id)?.correctionModelID, id)
+        XCTAssertTrue(ModelCatalog.writesNewText(id))
+        XCTAssertNotNil(ModelMetrics.tasks[id]?.replyPct)
+        XCTAssertNotNil(ModelCatalog.pinnedRevisions[id])
+        XCTAssertNil(ModelCatalog.mtpDrafterID(for: id), "the drafter has the full token table")
+        XCTAssertEqual(ModelCatalog.recommended(for: id).logprobGateTau, -1.09)
+        XCTAssertEqual(HostPLE.savingGB(for: id), 0.4)
+    }
+
     // The fix-trained model repeats what it reads: it runs no reply and no
     // voice rewrite, and the catalog books no reply figure for it.
     func testTheFixTrainedModelWritesNothingNew() {
