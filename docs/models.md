@@ -123,6 +123,26 @@ Do not select this model in these cases:
 * **You type mostly in English.** It gets 25%, the lowest of the downloadable models. Three models are measurably better (p<0.01).
 * **You type mostly in Russian.** The first word ties E2B 4-bit, but a blind judge accepts fewer continuations: 83% against 95% (p=0.004).
 
+### Pretype One: our own Gemma model
+
+Since 2026-11-12, the catalog has a second model that we trained: [nikimoriOne/Pretype-One](https://huggingface.co/nikimoriOne/Pretype-One). It is an alternative. It is not a default.
+
+* The model is Gemma 4 E2B 4-bit with smaller token tables (82,000 tokens of 262,144), distilled from Gemma 4 E4B.
+* The download is 1.5 GB. It holds the model and a small chat adapter. Pretype switches the adapter on for fixes, replies and voice commands, and off for suggestions. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
+* Completion: 22.8% of all rows on 17 languages, against 20.8% for Gemma E2B 4-bit (p<0.001).
+* Fix: it restores 79% of the typo rows, against 49% for the E2B-it sibling.
+* Fix on clean text: it proposes a change on 4% of clean lines, against 31%.
+* Reply: a judge model rates 90% [86–92] of the replies on topic, against 85% [81–88] for E2B-it. This difference is a trend only (p=0.04).
+* Memory: 2.1 GB at the peak for all tasks, against 6.0 GB for E2B 4-bit with its E2B-it sibling.
+* Energy: 946 mJ per suggestion, against 1048 mJ for E2B 4-bit in one session. A fix does not cost more than on E2B-it.
+
+Know these limits:
+
+* **A rewrite can come back unchanged.** In the test, 34 of 400 rewrite requests returned the input text. This occurs most where a small edit is correct.
+* **Rewrites are slower.** A rewrite takes 2.5 ms for each output character, against 1.8 ms on E2B-it.
+* **Rewrites are tested for form only.** The test examines the language and the length of the result. No judge read the rewrites.
+* **Rare words cost more tokens.** The smaller token table splits them into more pieces.
+
 ### Suggestions on a Mac with 8 GB
 
 On a Mac with 8 GB, suggestions start in **Words** mode. Words completes only the word that you type. It uses no model. Thus on an 8 GB Mac, the model is in memory only for a fix, a reply or a dictation clean-up. It unloads again after the idle time. To get sentence suggestions, select **Sentences** in **Settings → General → Suggestions**. If the model is not on this Mac, Pretype asks before the download. Your selection always stays.
