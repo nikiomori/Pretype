@@ -219,7 +219,26 @@ extension MLXEngine {
                 from: #hubDownloader(), using: tokenizers,
                 configuration: configuration, progressHandler: progressHandler)
         }
+        if let snapshot { try await container.perform { try applyAdapter(of: snapshot, to: $0.model) } }
         return (container, .factory)
+    }
+
+    /// The chat adapter a model's folder holds (`adapters.safetensors`, a
+    /// LoRA), put on its layers. It stays apart from the weights: fused into
+    /// 4-bit weights, the rounding erases it. One file then completes with
+    /// the adapter off and fixes, replies and rewrites with it on
+    /// (`setAdapter`). A folder that holds none is left as it is.
+    static func applyAdapter(of directory: URL, to model: any LanguageModel) throws {
+        guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("adapters.safetensors").path) else { return }
+        try model.load(adapter: LoRAContainer.from(directory: directory))
+        DebugLog.shared.log("MLX", "chat adapter loaded")
+    }
+
+    /// The layers `applyAdapter` wrapped, for the slot that holds the model.
+    static func adapterLayers(of container: ModelContainer) async -> [any LoRALayer] {
+        await container.perform { (context: ModelContext) in
+            LockedValue(context.model.modules().compactMap { $0 as? any LoRALayer })
+        }.get()
     }
 
     /// Builds a model from `directory` without the factory: a fresh instance
@@ -246,6 +265,7 @@ extension MLXEngine {
             try await loadWeights(modelDirectory: directory, model: model,
                                   perLayerQuantization: base.perLayerQuantization)
         }
+        try applyAdapter(of: directory, to: model)
         let served = husk.flatMap { adopt(model, into: $0) } ?? model
         return ModelContainer(context: ModelContext(
             configuration: configuration, model: served,
@@ -371,9 +391,11 @@ extension MLXEngine {
         typealias Spec = (shape: [Int], dtype: DType)
         func spec(_ array: MLXArray) -> Spec { (array.shape, array.dtype) }
         func zeros(_ spec: Spec) -> MLXArray { MLXArray.zeros(spec.shape, dtype: spec.dtype) }
-        // Exact classes: a subclass (QLoRA, a rotated or sharded layer) is no
-        // plain layer to stand in for.
-        if type(of: module) == QuantizedLinear.self, let layer = module as? QuantizedLinear, layer.globalScale == nil {
+        // Exact classes: a subclass (a rotated or sharded layer) is no plain
+        // layer to stand in for. But a layer under the chat adapter: the
+        // rebuild loads the plain layer, and `applyAdapter` wraps it again.
+        if type(of: module) == QuantizedLinear.self || module is any LoRALayer,
+           let layer = module as? QuantizedLinear, layer.globalScale == nil {
             let (weight, scales) = (spec(layer.weight), spec(layer.scales))
             let (bias, biases) = (layer.bias.map(spec), layer.biases.map(spec))
             let (groupSize, bits, mode) = (layer.groupSize, layer.bits, layer.mode)

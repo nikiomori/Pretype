@@ -283,6 +283,7 @@ final class MLXEngine: CompletionEngine {
             gateLogProb: recording ? plan.gateLogProb : nil,
             healExpected: plan.healExpected,
             prefillOnly: prefillOnly,
+            adapter: (lease.adapter, on: false),
             // No drafter: starting the speculative iterator costs ~25 ms
             // before the first token, and a streamed suggestion is judged by
             // its first word (instruct primary: first-visible p50 +8 ms,
@@ -633,6 +634,7 @@ final class MLXEngine: CompletionEngine {
             promptCache: nil,
             drafter: lease.drafter,
             lookup: copiesInput,
+            adapter: (lease.adapter, on: true),
             logRaw: logRaw
         )
     }

@@ -19,6 +19,8 @@ final class ModelResidency {
         fileprivate let slot: Slot
         /// Its MTP drafter, when the model loaded with one.
         var drafter: (any MTPDrafterModel)? { slot.drafter.get() }
+        /// Its chat adapter's layers; empty for a model with none.
+        var adapter: [any LoRALayer] { slot.adapter.get() }
         /// The loaded model. A release calls a load off under whoever waits
         /// for it: to them that is no model, not a cancellation of their own,
         /// which a fix or a reply reads as "someone else cleaned up after me"
@@ -63,6 +65,9 @@ final class ModelResidency {
         /// released with it; nil = plain decoding.
         let drafterID: String?
         let drafter = LockedValue<(any MTPDrafterModel)?>(nil)
+        /// The layers of its chat adapter (`MLXEngine.applyAdapter`), held
+        /// and released with it; empty = the model has none.
+        let adapter = LockedValue<[any LoRALayer]>([])
         /// How long a failed load holds off the next one — so a genuinely
         /// unavailable model (offline, bad repo id) isn't re-attempted on
         /// every keystroke, each retry re-hitting the Hub. 0 for the fix
@@ -164,6 +169,7 @@ final class ModelResidency {
         let loaded = try await MLXEngine.loadTarget(repo: repo, drafterID: slot.drafterID, into: slot.drafter,
                                                     tokenizers: tokenizers, blueprints: blueprints, progressHandler: progress)
         await HostPLE.install(in: loaded, repo: repo)
+        slot.adapter.set(await MLXEngine.adapterLayers(of: loaded))
         return loaded
     }
 
@@ -315,6 +321,7 @@ final class ModelResidency {
                     // next build leaks (`keepBlueprint`). Awaited: this task's
                     // end is what the next load, and an exit, wait for.
                     slot.drafter.set(nil)
+                    slot.adapter.set([])
                     MLXEngine.keepBlueprint(Task<ModelContainer, Error> { loaded }, repo: repo, in: blueprints)
                     _ = await blueprints.get()[repo]?.value
                     throw CancellationError()
@@ -583,6 +590,7 @@ final class ModelResidency {
         slot.task = nil
         slot.loadedRepo = nil
         slot.drafter.set(nil)
+        slot.adapter.set([])
     }
 
     /// A minute without typing: keep the newest KV snapshot only, and hand the

@@ -540,6 +540,10 @@ extension MLXEngine {
         /// itself (`PromptLookupIterator`) instead of the drafter. The same
         /// path, with the same limits.
         lookup: Bool = false,
+        /// The model's chat adapter (`Lease.adapter`) and whether this
+        /// request runs with it: a chat turn does, a completion does not.
+        /// Set inside the model's `perform`, so no other request sees it.
+        adapter: (layers: [any LoRALayer], on: Bool)? = nil,
         /// False when the generated text is not ours to print: the dictation
         /// tidy-up pass hands this path a SPOKEN sentence, and the debug buffer
         /// is exported into bug reports under a dialog that only warns about
@@ -555,7 +559,9 @@ extension MLXEngine {
         // The drafter (an MLX module, not Sendable) is only touched inside this
         // perform, which serializes it with the target model.
         nonisolated(unsafe) let drafter = drafter
+        nonisolated(unsafe) let adapter = adapter
         return try await container.perform { (context: ModelContext) in
+            if let adapter { for layer in adapter.layers { layer.loraEnabled = adapter.on } }
             let maxTokens = parameters.maxTokens ?? 16
             let fullTokens = try makeTokens(context)
             guard !fullTokens.isEmpty else { return "" }

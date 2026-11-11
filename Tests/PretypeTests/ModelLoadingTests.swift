@@ -202,6 +202,67 @@ final class ModelLoadingTests: MLXTestCase {
         }
     }
 
+    // A chat adapter in the model's folder goes on its layers, unfused: on,
+    // the model computes other logits; off, the ones of the model without
+    // it. A rebuild from the blueprint brings the adapter back.
+    func testAChatAdapterLoadsWithItsModelAndSwitchesOff() async throws {
+        try await inScratchHub {
+            let repo = "test/gemma-4-e2b-tiny"
+            let directory = try snapshot(of: repo)
+            try await TinyGemma.write(to: directory)
+            let tokenizers = TokenizerCache { _ in CharTokenizer() }
+            let blueprints = MLXEngine.Blueprints([:])
+            func load() async throws -> (container: ModelContainer, route: MLXEngine.Route) {
+                try await MLXEngine.loadModel(repo: repo, vlm: false, tokenizers: tokenizers, blueprints: blueprints,
+                                              ple: TinyGemma.serving, progressHandler: { _ in })
+            }
+            func logits(_ container: ModelContainer, adapter on: Bool) async -> [Float] {
+                await container.perform { context in
+                    for case let layer as any LoRALayer in context.model.modules() { layer.loraEnabled = on }
+                    return TinyGemma.logits(context.model).asArray(Float.self)
+                }
+            }
+
+            let plain = try await load().container
+            let none = await MLXEngine.adapterLayers(of: plain)
+            XCTAssertTrue(none.isEmpty)
+            let expected = await logits(plain, adapter: true)
+
+            let keys = ["self_attn.q_proj", "self_attn.v_proj"]
+            let pairs = await plain.perform { context in
+                var arrays: [String: MLXArray] = [:]
+                for (path, module) in context.model.leafModules().flattened() where keys.contains(where: path.hasSuffix) {
+                    guard let linear = module as? QuantizedLinear else { continue }
+                    let (out, input) = linear.shape
+                    arrays[path + ".lora_a"] = MLXRandom.normal([input, 4])
+                    arrays[path + ".lora_b"] = MLXRandom.normal([4, out])
+                }
+                return LockedValue(arrays)
+            }.get()
+            XCTAssertEqual(pairs.count, 8, "two matrices in two layers")
+            try save(arrays: pairs, url: directory.appendingPathComponent("adapters.safetensors"))
+            try Data("""
+            {"fine_tune_type": "lora", "num_layers": 2,
+             "lora_parameters": {"rank": 4, "scale": 20.0, "dropout": 0.0, "keys": ["self_attn.q_proj", "self_attn.v_proj"]}}
+            """.utf8).write(to: directory.appendingPathComponent("adapter_config.json"))
+
+            let adapted = try await load()
+            XCTAssertEqual(adapted.route, .servingTable)
+            let layers = await MLXEngine.adapterLayers(of: adapted.container)
+            XCTAssertEqual(layers.count, 4)
+            let on = await logits(adapted.container, adapter: true)
+            XCTAssertNotEqual(on, expected)
+            let off = await logits(adapted.container, adapter: false)
+            XCTAssertEqual(off, expected)
+
+            MLXEngine.keepBlueprint(Task { adapted.container }, repo: repo, in: blueprints)
+            let rebuilt = try await load()
+            XCTAssertEqual(rebuilt.route, .blueprint)
+            let again = await logits(rebuilt.container, adapter: true)
+            XCTAssertEqual(again, on)
+        }
+    }
+
     // A blueprint stands in only for the plain quantized layers: not for a
     // subclass (a rotated or sharded layer is no plain one), nor for a
     // global-scale (NVFP4) layer. A reference cycle in the model is walked once.
