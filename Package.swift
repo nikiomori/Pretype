@@ -15,10 +15,9 @@ let package = Package(
         // vocab projection) — back to `.upToNextMinor(from: "3.33.0")` once tagged.
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", revision: "7eb77efa4e8fb56183b905904d122e66ebdb422e"),
         .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.32.3")),
-        // Minor-pinned: under 0.x a minor release may break the API.
-        .package(url: "https://github.com/huggingface/swift-huggingface", .upToNextMinor(from: "1.0.0")),
-        // Minor-pinned: main carries untagged decode-spacing changes (#391/#405)
-        // that would shift ghost-text spacing on a plain `swift package update`.
+        .package(url: "https://github.com/huggingface/swift-huggingface", from: "1.0.0"),
+        // Minor-pinned: a minor release may change the decoded text (1.4.0 stopped
+        // the decode clean-up of spaces before punctuation), so each one gets an eval first.
         .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.4.0")),
         // Parakeet (CoreML) for opt-in dictation of the languages Apple's
         // SpeechTranscriber skips — see Dictation/Parakeet.swift.
