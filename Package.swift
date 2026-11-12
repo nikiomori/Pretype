@@ -19,7 +19,7 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-huggingface", .upToNextMinor(from: "1.0.0")),
         // Minor-pinned: main carries untagged decode-spacing changes (#391/#405)
         // that would shift ghost-text spacing on a plain `swift package update`.
-        .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.3.5")),
+        .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.4.0")),
         // Parakeet (CoreML) for opt-in dictation of the languages Apple's
         // SpeechTranscriber skips — see Dictation/Parakeet.swift.
         .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.18.3")),
