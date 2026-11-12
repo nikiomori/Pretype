@@ -392,6 +392,19 @@ final class SuggestionControllerTests: PipelineTestCase {
         XCTAssertEqual(controller.queries.current?.kind, .completion(before: "Hi y", after: ""))
     }
 
+    // A terminal's read hides the space an accepted word brought: ⌘Z still
+    // finds the field as the accept left it, and takes the word back.
+    func testCommandZInATerminalCountsTheSpaceTheReadHides() throws {
+        let landed = try XCTUnwrap(controller.inject("there ", over: "Hi "))
+        controller.field.typed("there ", snapshot: landed, dictated: false)
+        let undo = try XCTUnwrap(controller.field.pendingUndo)
+        fake.terminalField = true
+        fake.before = "Hi there"
+        controller.undoAccept(undo)
+        XCTAssertEqual(fake.keys.last, .delete("there ", perCharacter: true))
+        XCTAssertNil(controller.field.undoable)
+    }
+
     // ⌘Z is the tap's to swallow only while the field still reads as the
     // accept left it, and the delete runs off the tap callback, after a live
     // re-read. Redo, or ⌘Z once the caret moved, is the app's.

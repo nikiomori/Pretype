@@ -326,7 +326,11 @@ extension SuggestionController {
             DebugLog.shared.log("UNDO", "skipped — context unreadable")
             return
         }
-        guard ctx.textBeforeCaret == undo.snapshot else {
+        // A terminal's read hides a space typed at its end, and an accepted
+        // word brings one: without it the snapshot never matches.
+        let before = env.isTerminalField(element)
+            ? FieldState.keepingTypedSpaces(ctx.textBeforeCaret, cache: typedTextBeforeCaret) : ctx.textBeforeCaret
+        guard before == undo.snapshot else {
             // A readable context that doesn't confirm yet usually means AX is
             // trailing the injected text (Electron): restore the state so the
             // next ⌘Z retries once AX catches up — any other keystroke still
@@ -340,7 +344,7 @@ extension SuggestionController {
         // field — a Tab or a streamed partial landing before the 0.09 s AX
         // refresh would re-accept or resurrect the just-undone word.
         let accepted = undo.chunk, wasDictated = undo.dictated
-        inject("", deleting: accepted, over: ctx.textBeforeCaret)
+        inject("", deleting: accepted, over: before)
         dismiss()
         // The strongest "no" there is: the field is back to exactly the text
         // the ghost was offered on, and the next refresh would query the same
