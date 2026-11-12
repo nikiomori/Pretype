@@ -147,6 +147,7 @@ per-language nudge in the menu. You select all other models manually in
 | Qwen3.5 2B (Base) | ≈1.5 GB | The best model below 2 GB for many languages (p<0.001). |
 | **Qwen3.5 2B M40** | ≈1.5 GB | *Default on 8 GB.* A mix of the Base and post-trained builds. One model completes text and runs the chords. It ties the Base build on completion, and its fix is better than the post-trained sibling (p<0.001). |
 | EuroLLM 1.7B | ≈1.1 GB | Our own model. One file completes text and fixes typos. It ties E2B 4-bit outside English, and it fixes better. It writes no replies. |
+| Pretype One | ≈1.6 GB | Our own Gemma model. One download completes text and runs the fix and reply chords. Its completions are better than E2B 4-bit (22.8% against 20.8% on 17 languages, p<0.001). Its fix restores 79% of the typo rows. |
 | Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
 
 The sizes are the measured model memory (`ModelMetrics.ramGB`). A download
@@ -430,40 +431,16 @@ All app code is in `Sources/Pretype/`:
 
 ## ChatGPT plan text transport
 
-`TextGenerationTransport` sits below `CloudEngine` and above the existing
-API-key client or the new ChatGPT Responses client. Existing prompt construction,
-context floors, output gates, word caps, and request deadlines remain shared.
-The distinct `chatgpt` provider is text-only; existing persisted APIConfig
-records need no migration. Its endpoint is fixed to the public OpenAI API.
+`TextGenerationTransport` is below `CloudEngine`. It sends a request through the API-key client or through the ChatGPT Responses client. Both use the same prompts, context limits, output gates, word caps and deadlines. The `chatgpt` provider is for text only. Its endpoint is the public OpenAI API, and the user cannot change it. Stored `APIConfig` records need no migration.
 
-`ChatGPTAccounts` owns account registrations, Keychain persistence, the selected
-account, model discovery, and one shared refresh job. The refresh job commits
-rotating tokens before releasing its waiters, including cancelled typing
-requests. Account changes invalidate the active URLSession (HTTP and WebSocket tasks) and advance a
-generation checked before sending and before accepting output. A process lease
-prevents concurrent app copies from writing the same token vault.
+| Type | What it does |
+|---|---|
+| `ChatGPTAccounts` | Keeps the account registrations in the keychain, the selected account and its model list. It runs one token renewal at a time. It saves the new tokens before it releases the requests that wait, also cancelled ones. An account change replaces the `URLSession`, which cancels all HTTP and WebSocket tasks of the requests. A token renewal uses its own session and continues. It saves the new tokens to the account that it renewed. It also increments a generation. Pretype examines the generation before it sends a request and before it accepts the output. A process lock stops two copies of the app from writing the same vault. |
+| `ChatGPTLogin`, `ChatGPTIdentity` | OAuth with dynamic client registration, PKCE, state and nonce. The ID token must have a valid RS256 signature and the correct claims before the account becomes active. To sign in does not turn on text generation. |
+| `ChatGPTCallback` | Listens on `127.0.0.1` only. It closes when the sign-in is complete, cancelled or timed out. |
+| `ChatGPTWebSocket` | Sends Responses requests with `store: false`. It keeps one idle connection for up to 15 seconds, for the same token and `URLSession`. Each request sets `previous_response_id` to null. Thus no history goes from one request to the next. Two actions at the same time use two connections. A cancel closes only its own connection. If the server refuses the upgrade (HTTP 404, 405, 426 or 501), the account session uses HTTP for the rest of its life. The fallback stays inside the same total deadline. If a reused idle connection fails before the first event, Pretype sends the request one more time on a new connection. Other failures never send a request again. |
+| `ChatGPTResponses` | The HTTP fallback, with `stream: true`. |
 
-`ChatGPTLogin` implements dynamic public-client OAuth with PKCE/state/nonce;
-`ChatGPTIdentity` verifies RS256 signatures and identity claims before an account
-becomes active. `ChatGPTCallback` listens only on IPv4 loopback and closes on
-completion, cancellation, or timeout. Browser authentication is independent of
-whether cloud text generation is enabled.
+Both transports use the same event parser. It keeps the text until `response.completed`. An error, an incomplete stream, a quota failure or a cancel never inserts part of an answer. A quota failure or a missing permission pauses the requests until the user retries. A network failure or a 5xx pauses the requests for 30 seconds, and then Pretype tries again. Other HTTP errors stop only their own request. An expired or revoked session asks the user to reconnect. No failure deletes the credentials, changes the account or changes the billing.
 
-`ChatGPTWebSocket` leases connections for Responses requests with `store: false`.
-It reuses one idle connection for up to 15 seconds, only with the same token and
-URLSession. Each request resets `previous_response_id` to null; no conversation
-history crosses requests. Concurrent actions use separate leases, and cancelling
-one cannot close a connection already returned to another caller. Account changes
-replace the pool and cancel all tasks through the URLSession. An explicit
-unsupported upgrade (404/405/426/501) permits HTTP/SSE fallback for that account
-session, within the same total deadline. Other failures never replay a request.
-`ChatGPTResponses` supplies that HTTP fallback with `stream: true`. Both transports
-feed the same bounded event parser, buffering text until `response.completed`.
-Errors, incomplete streams, quota failures, and cancellation never release
-partial text for insertion. Quota and permission failures pause requests;
-temporary unavailability imposes a cooldown without deleting credentials.
-Settings expose recovery without changing the account or billing path.
-
-See [the subscription PRD](subscription-support.md) for acceptance criteria and
-provider references. Claude subscription support is deferred; the existing
-Anthropic API transport remains unchanged.
+On the plan, sentence suggestions are off by default. `Settings.activeSuggestionMode` then gives Words. Fix, reply, voice commands and the dictation tidy-up use the plan. See [ChatGPT plan support](subscription-support.md).

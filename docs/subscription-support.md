@@ -1,43 +1,66 @@
-# ChatGPT plan usage in Pretype
+# ChatGPT plan support
 
-## Problem and scope
+With a ChatGPT plan, you can use Pretype's text features without an API key. Pretype signs in directly with your system browser. It needs no command-line tool, no proxy service and no extra package. Your API keys and local models stay available.
 
-People who already subscribe to ChatGPT should be able to use their plan for Pretype's text features without creating an API key. Add direct browser sign-in, with no CLI, proxy service, or new package dependency. Existing API keys and local models remain available. The feature is opt-in and uses the same text/context boundaries and output gates as the hosted text engine.
+## Use it
 
-The first contribution covers suggestions, fixes, replies, rewrites, and dictation cleanup. Transcription keeps its independent configuration: ChatGPT plan usage does not support the transcription endpoint. Claude remains an API-key provider. Direct Claude subscription authentication is deferred: Anthropic restricts third-party apps from handling subscription credentials; the supported unmodified Claude Code route would introduce a CLI dependency outside this scope.
+1. Open **Settings → API**.
+2. Turn on **Use a hosted model for text**.
+3. Select **ChatGPT subscription** as the provider.
+4. Click **Continue with ChatGPT**. Sign in and give consent in the browser.
+5. Select a model from the list of your account.
+6. Click **Test connection**.
 
-## Experience
+To sign in does not turn on text generation. The switch in step 2 does that.
 
-Choose **ChatGPT subscription** under Settings → API → Text, then **Continue with ChatGPT**. The system browser handles authentication and consent. Signing in does not enable text generation. Choose a model from the signed-in account's catalog and explicitly enable the text provider. Show saved registrations separately, including registrations with identical emails. Allow switching, reconnecting, signing out, refreshing models, and testing the connection. Link to ChatGPT Settings → Usage, where the user controls plan allowance and credits.
+| Feature | On the plan |
+|---|---|
+| Suggestions | Words completes your words on the Mac. To get sentence suggestions from ChatGPT, turn on **Suggestions on ChatGPT**. Each one takes about one second and uses your plan allowance. |
+| Fix, reply, voice commands, dictation tidy-up | They use the plan. |
+| Dictation | The plan does not transcribe speech. Dictation uses its own provider. |
 
-An expired or revoked session asks for reconnection. Missing plan permission or ineligibility explains why inference is unavailable. Usage exhaustion pauses requests until the user explicitly retries. No failure switches accounts, providers, or billing paths automatically. Existing local and API-key choices are retained by their current settings semantics.
+You can save more than one account, also two accounts with the same email. You can change the account, reconnect, sign out, refresh the model list and test the connection. **Manage ChatGPT usage** opens ChatGPT Settings → Usage. There you control the plan allowance and the credits.
 
-## Design
+## Failures
 
-- A distinct `chatgpt` provider reuses the persisted text-provider selection without changing old configuration decoding. It is not an audio provider and cannot use a custom base URL or API key.
-- A shared text transport feeds the existing CloudEngine prompt construction and gates. The new transport uses the public Responses endpoint with `store: false` and only supported fields. It reuses an authenticated WebSocket connection for independent turns; HTTP/SSE fallback uses `stream: true` when the server explicitly rejects the upgrade. Results are usable only after `response.completed`; partial or stale output is discarded.
-- Native OAuth uses dynamic registration, a persistent opaque host UUID, PKCE, state, nonce, an IPv4 loopback callback, and RS256 ID-token verification against OpenAI's JWKS. Validate identity, issued client ID, and returned plan scope before enabling inference.
-- Keep account registrations separate. Tokens live in a dedicated Keychain item; defaults contain no tokens. Refresh is serialized, rotating tokens are saved atomically, and account changes invalidate in-flight work. Logout attempts revocation and clears local tokens, reporting when remote revocation could not be confirmed.
-- For short text tasks, request the fastest advertised reasoning effort (`none`, `minimal`, or `low`) from the selected account’s model catalog. Omit the parameter if no supported fast effort is advertised. Do not infer support from model names or enable a paid service tier. Keep the full-completion gate: never insert a partial response to appear faster. Measure real corrections separately from the tiny connection test.
-- Reuse at most one idle WebSocket per account session, for up to 15 seconds between requests. Each request resets conversation state; neither document history nor previous response IDs carry across turns. Concurrent actions use separate connections. Cancellation closes its leased connection; account changes cancel all session tasks. Preserve the original total deadline, including a permitted HTTP fallback. Do not replay a partial, failed, or quota-limited response.
-- No prompts, tokens, authorization URLs, or provider error bodies enter diagnostics. Keep existing cloud-engine deadlines, bounded network recovery, and cancellation when typing or focus changes. Retain the account on transient failures.
+| Failure | What Pretype does |
+|---|---|
+| Short network or server failure | It pauses for a short time, and then tries again. It keeps the account. |
+| Expired or revoked session | It asks you to reconnect. |
+| Missing plan permission, or an account that cannot use the plan | It tells you why the requests do not operate. |
+| Plan allowance used up | It pauses the requests until you retry in **Settings → API**. The menu bar status tells you why. |
 
-## Acceptance and validation
+No failure changes the account, the provider or the billing. Pretype never changes to API-key billing.
 
-Automated tests cover hostile OAuth callbacks and ID tokens, declined scopes, account isolation, token rotation, credential-storage failure, SSE terminal states, quota failures, and stale/cancelled results. Regression coverage includes existing API transports, configuration compatibility, all text actions, and privacy gates.
+## How it operates
 
-Run Swift build/tests with `--build-system swiftbuild`, SwiftLint, string synchronization/checks, and app packaging. Manually sign in, switch accounts, reconnect, sign out, and exercise TextEdit/Notes. A maintainer must run the private quality harness and report before/after coverage, first-word accuracy, saved characters, and p50 latency. Inference latency and actual account eligibility must be measured, not inferred from OAuth success.
+* **Provider.** The `chatgpt` provider is for text only. It has no custom base URL and no API key. Stored settings need no migration.
+* **Transport.** Requests go to the public Responses endpoint with `store: false`. Pretype keeps one idle WebSocket connection for each account session, for up to 15 seconds. Each request sends its own context and resets the conversation state. If the server refuses the WebSocket upgrade, Pretype uses HTTP with `stream: true`, inside the same deadline.
+* **Complete answers only.** Pretype uses an answer only after `response.completed`. It never inserts part of an answer. It does not send a failed or quota-limited request again. One exception: if a reused idle connection fails before the first event, Pretype sends the request one time on a new connection.
+* **Reasoning.** For short text tasks, Pretype asks for the fastest reasoning effort that the model list of the account gives (`none`, `minimal` or `low`). If the list gives none of these, Pretype sends no reasoning setting. Pretype never selects a paid service tier.
+* **Sign-in.** OAuth with dynamic client registration, a persistent opaque host identifier, PKCE, state and nonce. The browser returns to a listener on `127.0.0.1` only. Pretype verifies the RS256 signature of the ID token against the OpenAI key set. It also verifies the identity, the client ID and the plan scope.
+* **Credentials.** The tokens are in the login keychain item `app.pretype.chatgpt`. Settings contain no tokens. One renewal runs at a time, and Pretype saves the new tokens in one step. An account change cancels the requests in progress. A token renewal in progress continues and saves the new tokens to its own account. **Sign out** tries to revoke the session and removes the local tokens. If Pretype cannot confirm the revocation, it tells you.
+* **Logs.** Prompts, tokens, authorization URLs and provider error bodies never go to the debug log.
 
-Keep the contribution draft until independent review, CI, localization, live-account validation, and maintainer evaluation are complete. This contribution does not merge or release the app.
+See [Privacy → ChatGPT plan](privacy.md#chatgpt-plan-optional) for what goes to OpenAI.
+
+## Test it
+
+Automated tests cover hostile OAuth callbacks and ID tokens, refused scopes, account isolation, token rotation, keychain failures, the end states of a stream, quota failures, and stale or cancelled results.
+
+Before a release that changes this code, do these steps:
+
+1. Sign in, change the account, reconnect and sign out.
+2. Do a fix, a reply and a suggestion in TextEdit and in Notes.
+3. Measure the real latency of a fix. The connection test is too small to show it.
 
 ## Provider references
 
-Verified November 5, 2026; these preview interfaces can change:
+We checked these pages on 2026-11-05. These preview interfaces can change.
 
-- [OpenAI registration and sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
-- [Accounts, refresh, and revocation](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
+- [Registration and sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+- [Accounts, refresh and revocation](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
 - [Models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
 - [WebSocket transport](https://developers.openai.com/api/docs/guides/websocket-mode)
 - [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
 - [Errors and recovery](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery)
-- [Anthropic authentication restrictions](https://code.claude.com/docs/en/legal-and-compliance)

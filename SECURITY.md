@@ -14,6 +14,8 @@ By default, completions run locally. They use MLX (Gemma 4, Qwen, and the other 
 
 The one exception is opt-in. In **Settings → API**, you can turn on a hosted model for text, for dictation, or for both. Each one is off by default. When it is on, Pretype sends the text or the audio to the provider that you selected. Your persona, the style for the current app or website and the app name go with the text. The clipboard text does not: it stays on the Mac. The key stays in the login keychain. [docs/privacy.md](docs/privacy.md#api-providers) lists exactly what goes to the provider.
 
+You can also sign in with a ChatGPT plan. The OAuth tokens stay in the login keychain, in the item `app.pretype.chatgpt`. They never go to Settings or to the debug log. During the sign-in, Pretype opens a temporary listener on `127.0.0.1`, for the browser to return to. The listener accepts no connection from other computers. It closes when the sign-in is complete, cancelled or timed out. See [docs/privacy.md](docs/privacy.md#chatgpt-plan-optional).
+
 ### Network connections
 
 By default, Pretype connects to the network only for these purposes:
@@ -40,7 +42,7 @@ When the models are on the disk, completions, fixes, and dictation operate fully
 | Permission | Use | When |
 |---|---|---|
 | **Accessibility** | Reads the focused field, runs the event tap, and injects keystrokes | Always |
-| **Screen Recording** | OCR, and the brightness beside the caret | Only if you enable it |
+| **Screen Recording** | OCR, the brightness beside the caret, and **Copy Text from Screen** | Only if you enable it |
 | **Microphone** | Dictation | Only if you enable it, and only while a capture runs |
 
 ## Supported versions

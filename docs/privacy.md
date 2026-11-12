@@ -105,6 +105,21 @@ A capture runs only in these conditions:
 * The provider's own privacy policy applies to the data that it gets. Most providers charge for each request.
 * A local server, such as Ollama or LM Studio, runs on your Mac. With a local server, the data does not leave the Mac.
 
+### ChatGPT plan (optional)
+
+You can use your ChatGPT plan for text in place of an API key. Select **ChatGPT subscription** in **Settings → API → Text**. Then click **Continue with ChatGPT**. You sign in with your system browser.
+
+* **Sign-in.** To sign in does not turn on text generation. You turn it on separately. The browser returns to a temporary listener on `127.0.0.1` only. The listener closes when the sign-in is complete, cancelled or timed out.
+* **What goes to OpenAI.** The same text as for a hosted model: see [API providers](#api-providers). This is the selection for the fix chord and voice commands, the conversation for the reply chord, and a dictated transcript if "Tidy up" is on. Your persona, the app style, the screen context and the session of an AI agent go with it.
+* **Suggestions stay on the Mac by default.** With **Suggestions on ChatGPT** off, Words completes your words on the Mac. Your text then goes to OpenAI only for a fix, a reply, a voice command or a dictation tidy-up.
+* **Never.** The clipboard text. Text in password fields and in turned-off apps. Audio: dictation uses its own provider.
+* **Endpoints.** `auth.openai.com` for sign-in, token renewal and sign-out. `api.openai.com/v1/models` for the model list. `api.openai.com/v1/responses` for text.
+* **Storage of requests.** Each request sends `store: false`. This flag does not promise that OpenAI keeps nothing. The policies of your OpenAI account apply.
+* **Connections.** Pretype can keep one connection open for up to 15 seconds between requests. Each request sends its own context. A request does not continue an earlier request.
+* **Tokens.** The login keychain item `app.pretype.chatgpt` holds the account registrations, the host identifier, the selected models and the sign-in tokens. Tokens are never in Settings or in the debug log. The lock file `~/Library/Application Support/Pretype/chatgpt-vault.lock` contains no credentials. It stops two copies of Pretype from renewing the same token at the same time.
+* **Failures.** After a network failure or a server error (5xx), Pretype pauses the requests for 30 seconds. The menu tells you why. Then Pretype tries again. An expired or revoked session asks you to reconnect in **Settings → API**. When your plan allowance is used up, Pretype pauses the requests until you retry. Pretype never changes to API-key billing.
+* **Sign out.** **Sign out** cancels the requests in progress and tries to revoke the session. It removes the tokens of that account from the Mac. The registration stays, for a later reconnect. If Pretype cannot confirm the revocation, it tells you. Then disconnect Pretype in [ChatGPT Settings](https://chatgpt.com/settings/usage). That page also controls the plan allowance and the credits of the app.
+
 ### Journal
 
 Pretype keeps a journal in `~/Library/Application Support/Pretype` for on-device personalization.
@@ -180,7 +195,13 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
    security delete-generic-password -s app.pretype.api-key -a openai
    ```
 
-7. Delete the settings and reset the permission grants. If you never turned on screen context or dictation, you do not need the last two commands.
+   If you signed in with a ChatGPT plan, also delete its keychain item. Step 4 already deleted its lock file.
+
+   ```bash
+   security delete-generic-password -s app.pretype.chatgpt -a accounts
+   ```
+
+7. Delete the settings and reset the permission grants. You need the `ScreenCapture` command only if you used screen context or **Copy Text from Screen**. You need the `Microphone` command only if you used dictation.
 
    ```bash
    defaults delete app.pretype.Pretype
@@ -190,38 +211,3 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
    ```
 
 To report a security problem, use the private procedure in [SECURITY.md](../SECURITY.md).
-
-### ChatGPT subscription (optional)
-
-The **ChatGPT subscription** text provider uses direct Sign in with ChatGPT in
-
-your system browser. Signing in does not enable text generation. When you enable
-this provider, it receives the same typed context, persona, optional agent/screen
-context, and dictation cleanup text as the hosted text engine. The clipboard is
-not added. Password fields and disabled apps keep their existing protections.
-Speech transcription remains separately configured; audio is not sent through
-ChatGPT plan usage.
-
-Pretype connects to `auth.openai.com` for authorization, token exchange, signing
-keys, token renewal, and revocation, and to `api.openai.com/v1/models` and
-`api.openai.com/v1/responses` for the account's model list and text generation.
-The browser returns to a temporary listener bound only to `127.0.0.1`. Requests
-use `store: false`; this flag does not promise zero provider-side retention.
-Your OpenAI account's policies still apply. Pretype can reuse an authenticated
-WebSocket connection to reduce waiting between requests. Each request sends its
-own context and resets conversation state; it does not chain earlier documents
-or responses. Cancelling a request closes its connection. Account changes and
-sign-out cancel all connections.
-
-A separate login-Keychain item, service `app.pretype.chatgpt`, holds account
-registrations, the installation's opaque host identifier, selected models, and
-OAuth tokens. Tokens are never stored in defaults or logged. A lock file under
-`~/Library/Application Support/Pretype/chatgpt-vault.lock` contains no credentials
-and prevents two running app copies from racing token renewal.
-
-**Sign out** cancels pending requests, attempts to revoke the renewable session,
-and removes that account's tokens locally. The registration and host identifier
-remain for reconnection. If remote revocation cannot be confirmed, Pretype says
-so; disconnect the app in [ChatGPT Settings](https://chatgpt.com/settings/usage).
-The same page controls the app's plan allowance and permitted credits. Pretype
-never switches to API-key billing when a subscription request fails.

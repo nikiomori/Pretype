@@ -16,7 +16,7 @@ For most people, the correct answer is the default. Pretype selects the default 
 
 | Situation | Model | Evidence |
 |---|---|---|
-| You type in English | Any downloadable model except EuroLLM 1.7B. For speed, MiniCPM5 1B. | Nine downloadable models score between 26% and 29%, and no model of the nine is measurably better than another. EuroLLM 1.7B gets 25%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
+| You type in English | Any downloadable model except EuroLLM 1.7B. For speed, MiniCPM5 1B. | Ten downloadable models score between 26% and 29%, and no model of the ten is measurably better than another. EuroLLM 1.7B gets 25%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
 | You type in English and have little free memory | Qwen2.5 0.5B | It runs in ≈1 GB. On English, its accuracy is equal to the other models. |
 | You type in another language | The default | Outside English, the tie stops. The Gemma 4 tiers lose 4–9 points. MiniCPM5, Bonsai and Qwen 0.5B lose more than half of their English score. |
 | You type in another language on an 8 GB Mac | Qwen3.5 2B M40, the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). M40 ties its Base build on completions, and it fixes more (see [Qwen3.5 2B M40](#qwen35-2b-m40-one-model-for-text-and-chords)). |
@@ -128,7 +128,8 @@ Do not select this model in these cases:
 Since 2026-11-12, the catalog has a second model that we trained: [nikimoriOne/Pretype-One](https://huggingface.co/nikimoriOne/Pretype-One). It is an alternative. It is not a default.
 
 * The model is Gemma 4 E2B 4-bit with smaller token tables (82,000 tokens of 262,144), distilled from Gemma 4 E4B.
-* The download is 1.5 GB. It holds the model and a small chat adapter. Pretype switches the adapter on for fixes, replies and voice commands, and off for suggestions. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
+* The download is 1.6 GB. It holds the model and a small chat adapter. Pretype switches the adapter on for fixes, replies and voice commands, and off for suggestions. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
+* If the chat adapter does not load, the model still gives suggestions. Fixes, replies and voice commands then do not run.
 * Completion: 22.8% of all rows on 17 languages, against 20.8% for Gemma E2B 4-bit (p<0.001).
 * Fix: it restores 79% of the typo rows, against 49% for the E2B-it sibling.
 * Fix on clean text: it proposes a change on 4% of clean lines, against 31%.
@@ -368,10 +369,29 @@ On some models, the fix needs an instruct sibling. The first <kbd>⌥Tab</kbd> d
 You can use a hosted model in place of the local model. You can also use a local server, such as Ollama. Text and dictation have separate settings. Both are off by default.
 
 1. Open **Settings → API**.
-2. Turn on **Use an API model for text**, or **Use an API model for dictation**, or both.
+2. Turn on **Use a hosted model for text**, or **Use a hosted model for dictation**, or both.
 3. Select a provider. Pretype fills in the base URL and a model.
 4. Paste your API key. Click **Get a key** if you do not have one.
 5. Click **Test connection**. A ✓ and the round-trip time show that the key, the URL and the model are correct.
+
+### Your ChatGPT plan
+
+For text, you can use your ChatGPT plan in place of an API key.
+
+1. Open **Settings → API**.
+2. Turn on **Use a hosted model for text**.
+3. Select **ChatGPT subscription** as the provider.
+4. Click **Continue with ChatGPT**, and sign in with your browser.
+5. Select a model from the list of your account.
+
+Know these differences:
+
+* **Suggestions stay in Words.** On the plan, Words completes your words on the Mac. A sentence suggestion from ChatGPT takes about one second, and it uses your plan allowance. To get them, turn on **Suggestions on ChatGPT**.
+* **Fix, reply and voice commands use the plan.** They use the allowance that ChatGPT and your other apps share.
+* **No dictation.** The plan does not transcribe speech. Dictation uses its own provider.
+* **Allowance.** When the allowance is used up, Pretype pauses the requests until you retry in **Settings → API**. The menu bar status tells you why. **Manage ChatGPT usage** opens the page where you control the allowance and the credits.
+
+See [Privacy → ChatGPT plan](privacy.md#chatgpt-plan-optional).
 
 > **CAUTION:** With API text on, the text that you type goes to the provider at each suggestion. With API dictation on, each recording goes to the provider. See [Privacy → API providers](privacy.md#api-providers).
 
@@ -395,7 +415,7 @@ We checked these presets against the documentation of each provider on 2026-10-1
 * **Turning API text off.** If the local model is not on this Mac, Pretype asks before the download.
 * **No measured figures.** The eval on this page does not include hosted models. The Live Impact meters do not show figures while API text is on.
 * **Latency.** The network adds to each suggestion. **Test connection** shows the round trip from your Mac.
-* **Cost.** Each suggestion is one request. The provider charges for each request.
+* **Cost.** With an API key, each suggestion is one request, and the provider charges for each request. A ChatGPT plan has no charge for each request. It uses the allowance of the plan.
 * **Local servers.** Ollama and LM Studio run on your Mac and need no key. The data does not leave the Mac. Pretype can connect to `http://localhost`.
 * **Refrain.** [Refrain](https://github.com/nikiomori/Refrain) is the speech engine that other apps on the Mac, such as Reprise, share. With it as the dictation provider, Pretype dictates through Refrain's models instead of loading its own, and sends the names in the field as spelling hints. The audio does not leave the Mac. As with any server on your Mac, Pretype sends the take again about once a second for the live preview, as Parakeet does on device. A hosted provider gets the take when you stop speaking. If that upload fails because of the network, a timeout or a server error (HTTP 429 or 5xx), Pretype sends it one more time. If that fails too, Pretype transcribes the take on this Mac, with a speech model that is already installed.
 

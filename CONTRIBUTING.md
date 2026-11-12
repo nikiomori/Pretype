@@ -56,7 +56,7 @@ With `--build-system swiftbuild`, the build also compiles the Metal shaders of M
 > | Permission | When |
 > |---|---|
 > | Accessibility | Always |
-> | Screen Recording | Only for OCR screen context |
+> | Screen Recording | Only for OCR screen context and **Copy Text from Screen** |
 > | Microphone | Only for dictation |
 >
 > If you have an *Apple Development* certificate, `make-app.sh` signs with it. Then the permissions stay after each rebuild. If you do not have one, the script uses an ad-hoc signature. Then you must grant the permissions again after each rebuild:
