@@ -175,7 +175,7 @@ extension MLXEngine {
     /// The target model alone — the VLM build when `vlm` — by the first of
     /// its `routes` that works, and which one it was.
     static func loadModel(repo: String, vlm: Bool, tokenizers: TokenizerCache, blueprints: Blueprints,
-                          ple: HostPLE.Policy = .live,
+                          ple: HostPLE.Policy = .live, downloader: (any Downloader)? = nil,
                           progressHandler: @escaping @Sendable (Progress) -> Void) async throws
         -> (container: ModelContainer, route: Route) {
         let snapshot = ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:))
@@ -206,20 +206,24 @@ extension MLXEngine {
         // A scoped random state: building a model draws placeholder weights
         // for every layer, and from the global state each draw grew a lazy key
         // chain that state holds for the app's life.
+        let downloader: any Downloader = downloader ?? #hubDownloader()
         let container = try await withRandomState(MLXRandom.RandomState(seed: 0)) {
             if vlm {
                 return try await VLMModelFactory.shared.loadContainer(
-                    from: #hubDownloader(), using: tokenizers,
+                    from: downloader, using: tokenizers,
                     configuration: configuration, progressHandler: progressHandler)
             }
             // LLMModelFactory, not loadModelContainer: with MLXVLM linked the
             // generic loader picks the VLM classes first (Qwen3.5's lacks the
             // raw-token call the decode loop uses).
             return try await LLMModelFactory.shared.loadContainer(
-                from: #hubDownloader(), using: tokenizers,
+                from: downloader, using: tokenizers,
                 configuration: configuration, progressHandler: progressHandler)
         }
-        if let snapshot { try await container.perform { try applyAdapter(of: snapshot, to: $0.model) } }
+        // A first load downloads: the folder is there only now.
+        if let directory = snapshot ?? ModelStorage.cacheDirectory(repo: repo).flatMap(ModelStorage.localSnapshot(at:)) {
+            await container.perform { applyAdapter(of: directory, to: $0.model) }
+        }
         return (container, .factory)
     }
 
@@ -227,11 +231,29 @@ extension MLXEngine {
     /// LoRA), put on its layers. It stays apart from the weights: fused into
     /// 4-bit weights, the rounding erases it. One file then completes with
     /// the adapter off and fixes, replies and rewrites with it on
-    /// (`setAdapter`). A folder that holds none is left as it is.
-    static func applyAdapter(of directory: URL, to model: any LanguageModel) throws {
-        guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("adapters.safetensors").path) else { return }
-        try model.load(adapter: LoRAContainer.from(directory: directory))
-        DebugLog.shared.log("MLX", "chat adapter loaded")
+    /// (`setAdapter`). A folder that holds none is left as it is; one that
+    /// does not load leaves the model as it was, for completions, and its
+    /// chat path abstains (`ModelResidency.Adapter.missing`).
+    static func applyAdapter(of directory: URL, to model: any LanguageModel) {
+        guard hasAdapter(directory) else { return }
+        do {
+            // Read whole here: a truncated file is MLX's fatal error otherwise.
+            let adapter = try withError { try LoRAContainer.from(directory: directory) }
+            do {
+                try model.load(adapter: adapter)
+            } catch {
+                model.unload(adapter: adapter)
+                throw error
+            }
+            DebugLog.shared.log("MLX", "chat adapter loaded")
+        } catch {
+            DebugLog.shared.log("ERROR", "chat adapter failed to load (\(error.localizedDescription)) — no fixes or replies")
+        }
+    }
+
+    /// Whether `directory`, a model's folder, holds a chat adapter.
+    static func hasAdapter(_ directory: URL) -> Bool {
+        FileManager.default.fileExists(atPath: directory.appendingPathComponent("adapters.safetensors").path)
     }
 
     /// The layers `applyAdapter` wrapped, for the slot that holds the model.
@@ -265,7 +287,7 @@ extension MLXEngine {
             try await loadWeights(modelDirectory: directory, model: model,
                                   perLayerQuantization: base.perLayerQuantization)
         }
-        try applyAdapter(of: directory, to: model)
+        applyAdapter(of: directory, to: model)
         let served = husk.flatMap { adopt(model, into: $0) } ?? model
         return ModelContainer(context: ModelContext(
             configuration: configuration, model: served,

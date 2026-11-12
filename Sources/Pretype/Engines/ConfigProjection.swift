@@ -203,6 +203,12 @@ enum ModelPriority: String, CaseIterable {
         let pool = Self.measured
         guard !pool.isEmpty else { return ModelCatalog.defaultID }
         func acc(_ m: ModelMetrics) -> Int { Self.accuracy(m, axis: axis) }
+        // The best accuracy, for both cards that measure against it: not
+        // Pretype One's. It leads E4B 6-bit by one point on the core (33 vs
+        // 32%), a tie that no test separates, and no judge read its long
+        // suggestions. "Quick" may still land on it.
+        let ranked = pool.filter { $0.id != "nikimoriOne/Pretype-One" }
+        let top = ranked.map(acc).max() ?? 0
         switch self {
         case .lightest:
             return pool.min {
@@ -211,16 +217,10 @@ enum ModelPriority: String, CaseIterable {
         case .accurate:
             // Coarse-% ties break on logP/char (the tokenizer-fair quality
             // continuum; booked EN+RU-weighted — per-language logP isn't).
-            // Not Pretype One: it leads E4B 6-bit by one point on the core
-            // (33 vs 32%), a tie that no test separates, and no judge read
-            // its long suggestions. "Fastest" may land on it.
-            let ranked = pool.filter { $0.id != "nikimoriOne/Pretype-One" }
-            let top = ranked.map(acc).max() ?? 0
             return ranked.filter { acc($0) == top }
                 .max { ($0.logProbPerChar ?? -.infinity) < ($1.logProbPerChar ?? -.infinity) }?.id
                 ?? ModelCatalog.defaultID
         case .quick:
-            let top = pool.map(acc).max() ?? 0
             return pool.filter { acc($0) >= top - 2 }.min { $0.p50Ms < $1.p50Ms }?.id
                 ?? ModelCatalog.defaultID
         case .balanced:

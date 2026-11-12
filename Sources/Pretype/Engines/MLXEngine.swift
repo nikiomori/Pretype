@@ -242,6 +242,7 @@ final class MLXEngine: CompletionEngine {
         let container: ModelContainer
         // A release under a suggestion is no error to show: it abstains.
         do { container = try await lease.model() } catch is EngineNotReady { return nil }
+        guard let adapter = lease.adapter(of: container) else { return nil }
         try Task.checkCancellation()
 
         // A base model given only 3-4 tokens lands in random-language territory
@@ -283,7 +284,7 @@ final class MLXEngine: CompletionEngine {
             gateLogProb: recording ? plan.gateLogProb : nil,
             healExpected: plan.healExpected,
             prefillOnly: prefillOnly,
-            adapter: (lease.adapter, on: false),
+            adapter: (adapter.layers, on: false),
             // No drafter: starting the speculative iterator costs ~25 ms
             // before the first token, and a streamed suggestion is judged by
             // its first word (instruct primary: first-visible p50 +8 ms,
@@ -626,6 +627,13 @@ final class MLXEngine: CompletionEngine {
         guard let lease = residency.begin(.fix) else { throw EngineNotReady() }
         defer { residency.end(lease) }
         let container = try await lease.model()
+        // Its folder's adapter did not go on: the bare model through the chat
+        // template is no fix and no reply.
+        guard let adapter = lease.adapter(of: container) else { throw EngineNotReady() }
+        // The menu reads "ready" (completions run): the hint says what is off.
+        guard !adapter.missing else {
+            throw EngineNotReady(message: String(localized: "chat adapter didn't load — fixes and replies are off"))
+        }
         try Task.checkCancellation()
         return try await Self.generate(
             in: container,
@@ -634,7 +642,7 @@ final class MLXEngine: CompletionEngine {
             promptCache: nil,
             drafter: lease.drafter,
             lookup: copiesInput,
-            adapter: (lease.adapter, on: true),
+            adapter: (adapter.layers, on: true),
             logRaw: logRaw
         )
     }

@@ -19,8 +19,11 @@ final class ModelResidency {
         fileprivate let slot: Slot
         /// Its MTP drafter, when the model loaded with one.
         var drafter: (any MTPDrafterModel)? { slot.drafter.get() }
-        /// Its chat adapter's layers; empty for a model with none.
-        var adapter: [any LoRALayer] { slot.adapter.get() }
+        /// The chat adapter of `container`, the model this lease got; nil
+        /// once a release or a reload has put another in the slot.
+        func adapter(of container: ModelContainer) -> Adapter? {
+            slot.adapter.get().flatMap { $0.model == ObjectIdentifier(container) ? $0 : nil }
+        }
         /// The loaded model. A release calls a load off under whoever waits
         /// for it: to them that is no model, not a cancellation of their own,
         /// which a fix or a reply reads as "someone else cleaned up after me"
@@ -28,6 +31,15 @@ final class ModelResidency {
         func model() async throws -> ModelContainer {
             do { return try await task.value } catch where MLXEngine.isCancellation(error) && !Task.isCancelled { throw EngineNotReady() }
         }
+    }
+
+    /// A loaded model's chat adapter (`MLXEngine.applyAdapter`): its layers,
+    /// empty for a model with none, and whether its folder holds one that
+    /// did not go on — its fixes and replies then abstain.
+    struct Adapter {
+        let model: ObjectIdentifier
+        let layers: [any LoRALayer]
+        let missing: Bool
     }
 
     /// The PRIMARY model's state, written only by its own load and unload.
@@ -65,9 +77,8 @@ final class ModelResidency {
         /// released with it; nil = plain decoding.
         let drafterID: String?
         let drafter = LockedValue<(any MTPDrafterModel)?>(nil)
-        /// The layers of its chat adapter (`MLXEngine.applyAdapter`), held
-        /// and released with it; empty = the model has none.
-        let adapter = LockedValue<[any LoRALayer]>([])
+        /// The chat adapter of the model it holds, released with it.
+        let adapter = LockedValue<Adapter?>(nil)
         /// How long a failed load holds off the next one — so a genuinely
         /// unavailable model (offline, bad repo id) isn't re-attempted on
         /// every keystroke, each retry re-hitting the Hub. 0 for the fix
@@ -169,7 +180,6 @@ final class ModelResidency {
         let loaded = try await MLXEngine.loadTarget(repo: repo, drafterID: slot.drafterID, into: slot.drafter,
                                                     tokenizers: tokenizers, blueprints: blueprints, progressHandler: progress)
         await HostPLE.install(in: loaded, repo: repo)
-        slot.adapter.set(await MLXEngine.adapterLayers(of: loaded))
         return loaded
     }
 
@@ -299,6 +309,9 @@ final class ModelResidency {
                 let loaded = try await load(repo, slot, blueprints, tokenizers) { progress in
                     _ = live { status(Self.downloadStatus(progress, fixModel: !isPrimary)) }
                 }
+                let layers = await MLXEngine.adapterLayers(of: loaded)
+                let shipped = ModelStorage.localSnapshot(for: repo).map(MLXEngine.hasAdapter) ?? false
+                slot.adapter.set(Adapter(model: ObjectIdentifier(loaded), layers: layers, missing: shipped && layers.isEmpty))
                 if !isPrimary {
                     // Whatever the disk probe thought, the weights are provably
                     // here now — and after an idle unload nils the task, this is
@@ -321,7 +334,7 @@ final class ModelResidency {
                     // next build leaks (`keepBlueprint`). Awaited: this task's
                     // end is what the next load, and an exit, wait for.
                     slot.drafter.set(nil)
-                    slot.adapter.set([])
+                    slot.adapter.set(nil)
                     MLXEngine.keepBlueprint(Task<ModelContainer, Error> { loaded }, repo: repo, in: blueprints)
                     _ = await blueprints.get()[repo]?.value
                     throw CancellationError()
@@ -590,7 +603,7 @@ final class ModelResidency {
         slot.task = nil
         slot.loadedRepo = nil
         slot.drafter.set(nil)
-        slot.adapter.set([])
+        slot.adapter.set(nil)
     }
 
     /// A minute without typing: keep the newest KV snapshot only, and hand the

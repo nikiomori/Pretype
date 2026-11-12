@@ -130,6 +130,94 @@ final class ModelLoadingTests: MLXTestCase {
         }
     }
 
+    /// A rank-4 chat adapter on the q and v of `container`'s two layers, in
+    /// `directory`.
+    private func writeAdapter(shapedLike container: ModelContainer, to directory: URL) async throws {
+        let keys = ["self_attn.q_proj", "self_attn.v_proj"]
+        let pairs = await container.perform { context in
+            var arrays: [String: MLXArray] = [:]
+            for (path, module) in context.model.leafModules().flattened() where keys.contains(where: path.hasSuffix) {
+                guard let linear = module as? QuantizedLinear else { continue }
+                let (out, input) = linear.shape
+                arrays[path + ".lora_a"] = MLXRandom.normal([input, 4])
+                arrays[path + ".lora_b"] = MLXRandom.normal([4, out])
+            }
+            return LockedValue(arrays)
+        }.get()
+        XCTAssertEqual(pairs.count, 8, "two matrices in two layers")
+        try save(arrays: pairs, url: directory.appendingPathComponent("adapters.safetensors"))
+        try Data("""
+        {"fine_tune_type": "lora", "num_layers": 2,
+         "lora_parameters": {"rank": 4, "scale": 20.0, "dropout": 0.0, "keys": ["self_attn.q_proj", "self_attn.v_proj"]}}
+        """.utf8).write(to: directory.appendingPathComponent("adapter_config.json"))
+    }
+
+    // A first load downloads through the factory: the model's folder, its
+    // chat adapter with it, is there only once the download ran. The
+    // adapter goes on all the same.
+    func testTheDownloadThatBringsAChatAdapterLoadsIt() async throws {
+        try await inScratchHub {
+            let tokenizers = TokenizerCache { _ in CharTokenizer() }
+            let source = try snapshot(of: "test/source")
+            try await TinyGemma.write(to: source)
+            let plain = try await MLXEngine.loadModel(repo: "test/source", vlm: false, tokenizers: tokenizers,
+                                                      blueprints: MLXEngine.Blueprints([:]), ple: TinyGemma.serving,
+                                                      progressHandler: { _ in })
+            try await writeAdapter(shapedLike: plain.container, to: source)
+
+            let repo = "test/fresh"
+            let target = try XCTUnwrap(ModelStorage.cacheDirectory(repo: repo)).appendingPathComponent("snapshots/rev")
+            XCTAssertNil(ModelStorage.localSnapshot(for: repo), "not on disk before the download")
+            let fetched = try await MLXEngine.loadModel(repo: repo, vlm: false, tokenizers: tokenizers,
+                                                        blueprints: MLXEngine.Blueprints([:]), ple: TinyGemma.serving,
+                                                        downloader: CopyDownload(from: source, to: target),
+                                                        progressHandler: { _ in })
+            XCTAssertEqual(fetched.route, .factory)
+            let layers = await MLXEngine.adapterLayers(of: fetched.container)
+            XCTAssertEqual(layers.count, 4)
+        }
+    }
+
+    // An adapter that does not go on, unreadable or for other layers,
+    // leaves the model as it was: it still loads, and completes as before.
+    func testAnAdapterThatDoesNotLoadLeavesTheModel() async throws {
+        try await inScratchHub {
+            let repo = "test/gemma-4-e2b-tiny"
+            let directory = try snapshot(of: repo)
+            try await TinyGemma.write(to: directory)
+            let tokenizers = TokenizerCache { _ in CharTokenizer() }
+            func load() async throws -> ModelContainer {
+                try await MLXEngine.loadModel(repo: repo, vlm: false, tokenizers: tokenizers,
+                                              blueprints: MLXEngine.Blueprints([:]), ple: TinyGemma.serving,
+                                              progressHandler: { _ in }).container
+            }
+            func logits(_ container: ModelContainer) async -> [Float] {
+                await container.perform { context in TinyGemma.logits(context.model).asArray(Float.self) }
+            }
+            let expected = await logits(try await load())
+            try await writeAdapter(shapedLike: try await load(), to: directory)
+            let weights = directory.appendingPathComponent("adapters.safetensors")
+            let other = Dictionary(uniqueKeysWithValues: try loadArrays(url: weights).map {
+                ($0.key.replacingOccurrences(of: "v_proj", with: "o_proj"), $0.value)
+            })
+            eval(Array(other.values))  // read before the file is overwritten
+            func cut() throws {
+                let file = try FileHandle(forWritingTo: weights)
+                try file.truncate(atOffset: try file.seekToEnd() - 100)
+            }
+            let breakages: [() throws -> Void] = [{ try save(arrays: other, url: weights) }, cut,
+                                                  { try Data("not an adapter".utf8).write(to: weights) }]
+            for broken in breakages {
+                try broken()
+                let container = try await load()
+                let layers = await MLXEngine.adapterLayers(of: container)
+                XCTAssertTrue(layers.isEmpty, "the wrapped layers are put back")
+                let got = await logits(container)
+                XCTAssertEqual(got, expected)
+            }
+        }
+    }
+
     private func kept(_ repo: String, in blueprints: MLXEngine.Blueprints) async throws -> MLXEngine.Blueprint {
         let blueprint = await blueprints.get()[repo]?.value
         return try XCTUnwrap(blueprint, "a blueprint for \(repo)")
@@ -228,24 +316,7 @@ final class ModelLoadingTests: MLXTestCase {
             XCTAssertTrue(none.isEmpty)
             let expected = await logits(plain, adapter: true)
 
-            let keys = ["self_attn.q_proj", "self_attn.v_proj"]
-            let pairs = await plain.perform { context in
-                var arrays: [String: MLXArray] = [:]
-                for (path, module) in context.model.leafModules().flattened() where keys.contains(where: path.hasSuffix) {
-                    guard let linear = module as? QuantizedLinear else { continue }
-                    let (out, input) = linear.shape
-                    arrays[path + ".lora_a"] = MLXRandom.normal([input, 4])
-                    arrays[path + ".lora_b"] = MLXRandom.normal([4, out])
-                }
-                return LockedValue(arrays)
-            }.get()
-            XCTAssertEqual(pairs.count, 8, "two matrices in two layers")
-            try save(arrays: pairs, url: directory.appendingPathComponent("adapters.safetensors"))
-            try Data("""
-            {"fine_tune_type": "lora", "num_layers": 2,
-             "lora_parameters": {"rank": 4, "scale": 20.0, "dropout": 0.0, "keys": ["self_attn.q_proj", "self_attn.v_proj"]}}
-            """.utf8).write(to: directory.appendingPathComponent("adapter_config.json"))
-
+            try await writeAdapter(shapedLike: plain, to: directory)
             let adapted = try await load()
             XCTAssertEqual(adapted.route, .servingTable)
             let layers = await MLXEngine.adapterLayers(of: adapted.container)
@@ -671,4 +742,17 @@ private final class ToweredModel: Module, LLMModel {
     func callAsFunction(_ inputs: MLXArray, cache: [KVCache]?) -> MLXArray { inputs }
     func newCache(parameters: GenerateParameters?) throws -> [any KVCache] { [] }
     var loraLayers: [Module] { [] }
+}
+
+/// A download that copies a finished model folder into the snapshot the Hub
+/// would have written.
+private struct CopyDownload: Downloader {
+    let from: URL, to: URL
+
+    func download(id: String, revision: String?, matching patterns: [String], useLatest: Bool,
+                  progressHandler: @Sendable @escaping (Progress) -> Void) async throws -> URL {
+        try FileManager.default.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: from, to: to)
+        return to
+    }
 }

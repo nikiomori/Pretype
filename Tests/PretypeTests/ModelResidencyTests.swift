@@ -149,6 +149,27 @@ final class ModelResidencyTests: MLXTestCase {
         }
     }
 
+    // A lease reads the adapter of the model it got, never of the one a
+    // reload put in the slot since: that model it has no hold on.
+    func testALeaseReadsTheAdapterOfItsOwnModel() async throws {
+        try await inScratchHub {
+            let tiny = TinyResidency(), residency = tiny.residency
+            defer { residency.shutdown() }
+            let first = try await tiny.use()
+            let held = try await first.model()
+            XCTAssertNotNil(first.adapter(of: held))
+            residency.end(first)
+            residency.releaseNow()
+            let second = try await tiny.use()
+            let reloaded = try await second.model()
+            XCTAssertFalse(held === reloaded)
+            XCTAssertNil(first.adapter(of: held), "released: not this model's any more")
+            XCTAssertNil(second.adapter(of: held))
+            XCTAssertNotNil(second.adapter(of: reloaded))
+            residency.end(second)
+        }
+    }
+
     // A dictation prewarms the fix model it will tidy up with; on a model
     // already loaded that is still a use, or the idle timer could free it
     // mid-dictation. A focus change's prewarm of the completion model is no

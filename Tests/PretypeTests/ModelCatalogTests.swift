@@ -384,6 +384,13 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "*"), "mlx-community/gemma-4-e4b-8bit")
         XCTAssertEqual(ModelPriority.quick.pick(axis: "*"), "nikimoriOne/Pretype-One")
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "core"), "mlx-community/gemma-4-e4b-6bit", "a one-point tie is no lead")
+        // "Quick" counts its 2 pp from the same best, not from that tie's lead.
+        for axis in ["core", "*", "pt"] {
+            func figure(_ card: ModelPriority) throws -> Int {
+                ModelPriority.accuracy(try XCTUnwrap(ModelMetrics.metrics(for: card.pick(axis: axis))), axis: axis)
+            }
+            XCTAssertGreaterThanOrEqual(try figure(.quick), try figure(.accurate) - 2, axis)
+        }
         XCTAssertEqual(ModelPriority.accurate.pick(axis: "ru"), "mlx-community/gemma-4-e2b-8bit")
         XCTAssertEqual(ModelPriority.quick.pick(axis: "pt"), "nikimoriOne/Pretype-One")
         // Balanced is the fresh-install rule — sized to THIS Mac's memory,

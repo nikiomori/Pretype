@@ -82,10 +82,11 @@ struct ModelMetrics {
                      logProbPerChar: -0.887, p50Ms: 22, ramGB: 1.1),
         // Our Gemma model, booked 2026-11-12 with the 10-15 rules
         // (Eval/runs-2026-11-12-catalog: book.py, run.sh); p50 = E2B 4-bit's
-        // 34 ms × the interleaved same-binary ratio 60/72 ms.
+        // 34 ms × the interleaved same-binary ratio 60/72 ms; ramGB = the
+        // files: weights, chat adapter and tokenizer.
         ModelMetrics(id: "nikimoriOne/Pretype-One", shortName: "Pretype One",
                      firstWordPct: 33, ci: 30...35, coveragePct: 80,
-                     logProbPerChar: -0.858, p50Ms: 28, ramGB: 1.5),
+                     logProbPerChar: -0.858, p50Ms: 28, ramGB: 1.62),
         ModelMetrics(id: "prism-ml/Ternary-Bonsai-4B-mlx-2bit", shortName: "Bonsai 4B",
                      firstWordPct: 27, ci: 24...29, coveragePct: 82,
                      logProbPerChar: -1.083, p50Ms: 44, ramGB: 1.1),

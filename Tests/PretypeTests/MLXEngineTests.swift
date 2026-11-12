@@ -748,6 +748,27 @@ final class MLXEngineTests: MLXTestCase {
         XCTAssertEqual(HostPLE.savingGB(for: id), 0.4)
     }
 
+    // A model whose folder holds a chat adapter that did not go on: it
+    // still completes, but a fix abstains rather than run the bare model
+    // through the chat template.
+    func testAModelWithoutItsAdapterFixesNothing() async throws {
+        let id = "nikimoriOne/Pretype-One"
+        try await withEngine(id) { engine in
+            _ = try await complete(engine, "abcdefghijklmnopqrstuvwxyz0123")
+            let folder = try XCTUnwrap(ModelStorage.cacheDirectory(repo: id)).appendingPathComponent("snapshots/rev")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for file in ["config.json", "tokenizer.json", "adapters.safetensors"] {
+                try Data("{}".utf8).write(to: folder.appendingPathComponent(file))
+            }
+            engine.releaseModelNow()
+            do {
+                _ = try await engine.correct(selection: "Teh meeting is at noon.", redactLog: false)
+                XCTFail("a fix ran without the adapter")
+            } catch is EngineNotReady {}
+            _ = try await complete(engine, "abcdefghijklmnopqrstuvwxyz0123")
+        }
+    }
+
     // The fix-trained model repeats what it reads: it runs no reply and no
     // voice rewrite, and the catalog books no reply figure for it.
     func testTheFixTrainedModelWritesNothingNew() {

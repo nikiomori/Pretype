@@ -540,7 +540,7 @@ extension MLXEngine {
         /// itself (`PromptLookupIterator`) instead of the drafter. The same
         /// path, with the same limits.
         lookup: Bool = false,
-        /// The model's chat adapter (`Lease.adapter`) and whether this
+        /// The model's chat adapter (`Lease.adapter(of:)`) and whether this
         /// request runs with it: a chat turn does, a completion does not.
         /// Set inside the model's `perform`, so no other request sees it.
         adapter: (layers: [any LoRALayer], on: Bool)? = nil,

@@ -67593,6 +67593,112 @@
         }
       }
     },
+    "chat adapter didn't load — fixes and replies are off" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "chatovací adaptér se nenačetl — opravy a odpovědi nefungují"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "chatadapteren blev ikke indlæst — rettelser og svar er slået fra"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat-Adapter nicht geladen – Korrekturen und Antworten sind aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el adaptador de chat no se cargó — las correcciones y respuestas están desactivadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "adaptateur de chat non chargé — corrections et réponses désactivées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "adattatore chat non caricato — correzioni e risposte disattivate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チャットアダプタが読み込まれていません — 修正と返信は使えません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "채팅 어댑터가 로드되지 않음 — 수정과 답장을 사용할 수 없음"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "chatadapter is niet geladen – correcties en antwoorden staan uit"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "adapter czatu nie został załadowany — poprawki i odpowiedzi są wyłączone"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o adaptador de chat não carregou — correções e respostas estão desativadas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "adaptorul de chat nu s-a încărcat — corecturile și răspunsurile sunt oprite"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "чат-адаптер не загрузился — исправления и ответы отключены"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "chattadaptern lästes inte in — rättningar och svar är avstängda"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sohbet adaptörü yüklenmedi — düzeltmeler ve yanıtlar kapalı"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "чат-адаптер не завантажився — виправлення й відповіді вимкнено"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天适配器未载入，修正和回复不可用"
+          }
+        }
+      }
+    },
     "chip load per keystroke vs default (est.)" : {
       "localizations" : {
         "cs" : {
