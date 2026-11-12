@@ -671,6 +671,17 @@ final class DictationPipelineTests: PipelineTestCase {
         XCTAssertFalse(controller.dictationController.isHoldArmed)
     }
 
+    // Under the screen-text crosshair the drag and ⎋ are the crosshair's: a
+    // hold armed under it is not ended by either.
+    func testTheScreenTextCrosshairLeavesAHoldAlone() throws {
+        try armHold()
+        SuggestionController.readingScreen = true
+        defer { SuggestionController.readingScreen = false }
+        controller.pointerPressed()
+        XCTAssertFalse(try press(KeyCode.escape), "⎋ reaches the crosshair")
+        XCTAssertTrue(controller.dictationController.isHoldArmed)
+    }
+
     // A capture dies with the app it started in — the only signal when the
     // app switched to is Pretype itself, which fires no focus change.
     func testLeavingTheAppEndsAHold() throws {

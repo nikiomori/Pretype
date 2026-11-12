@@ -280,6 +280,8 @@ final class SuggestionController {
     /// overlay while busy, as for a scroll — read before `pointerInterrupted()`,
     /// which may end the capture.
     func pointerPressed() {
+        // The drag over a screen region: no caret moved, and a capture goes on.
+        if Self.readingScreen { return }
         let dictating = dictationController.isBusy
         dictationController.pointerInterrupted()
         dropCompletion(afterUnseenCaretMove: "mouse click", overlay: !dictating)

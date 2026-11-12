@@ -46,14 +46,19 @@ extension SuggestionController {
             && flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]) == [.maskCommand, .maskShift]
     }
 
-    /// True while the crosshair is up: a second chord must not stack another.
-    private static var readingScreen = false
+    /// True while the crosshair is up: a second chord must not stack another,
+    /// and its keys and its drag are the crosshair's (`handleKeyDown`,
+    /// `pointerPressed`).
+    static var readingScreen = false
 
     /// ⇧⌘2 or the menu: the user drags over text anywhere on screen, and it
     /// goes to the clipboard. An explicit command, so it works while Pretype
-    /// is paused too. Without Screen Recording it opens that pane instead.
+    /// is paused too. Without Screen Recording it says so where the user
+    /// looks, and opens that pane.
     func copyTextFromScreen() {
         guard ScreenContext.hasPermission else {
+            indicator.flashTransient(.hint(String(localized: "Allow Screen Recording, then relaunch Pretype")),
+                                     atPointer: true)
             ScreenContext.openScreenRecordingPane()
             return
         }
@@ -61,16 +66,35 @@ extension SuggestionController {
         Self.readingScreen = true
         Task { @MainActor in
             defer { Self.readingScreen = false }
-            guard let text = await ScreenContext.readRegion() else { return }
-            DebugLog.shared.log("SCREEN", "text from the screen: \(text.count) chars")
-            guard !text.isEmpty else {
-                indicator.flashTransient(.hint(String(localized: "No text found")), atPointer: true)
-                return
+            // A whole screen takes a second or two to read: dots at the
+            // pointer from the end of the drag, not over a capture's own pill.
+            let text = await ScreenContext.readRegion { [weak self] in
+                guard let self, !self.hasActiveSuggestion, !self.dictationController.isBusy else { return }
+                self.window.show(mode: .thinking(2), at: DictationController.pointerAnchor(), host: self.lastHostStyle)
             }
-            env.pasteboard.clearContents()
-            env.pasteboard.setString(text, forType: .string)
-            indicator.flashTransient(.hint(String(localized: "Text copied")), atPointer: true)
+            guard let text else { return }
+            DebugLog.shared.log("SCREEN", "text from the screen: \(text.count) chars")
+            if !text.isEmpty {
+                env.pasteboard.clearContents()
+                env.pasteboard.setString(text, forType: .string)
+            }
+            // A notice that could not be drawn must not leave the dots up.
+            if case .thinking = window.currentMode { window.hide() }
+            indicator.flashTransient(.hint(Self.screenTextNotice(characters: text.count)), atPointer: true)
+            // The notice took the window from a capture's pill, the only sign
+            // that the microphone is open: the pill comes back after it.
+            env.after(CaretIndicator.noticeSeconds + 0.1) { [weak self] in
+                guard let self, self.dictationController.isBusy else { return }
+                self.dictationController.render()
+            }
         }
+    }
+
+    /// What a read of the screen answers with: how much went to the
+    /// clipboard, so a region read by half is seen at once.
+    nonisolated static func screenTextNotice(characters: Int) -> String {
+        characters == 0 ? String(localized: "No text found")
+            : String(localized: "Text copied · \(characters) characters")
     }
 
     func handleKeyDown(_ event: CGEvent) -> Bool {
@@ -81,6 +105,9 @@ extension SuggestionController {
             }
             return true
         }
+        // The crosshair is up: ⎋ cancels it and Space picks a window. Neither
+        // is a key for a capture or a suggestion.
+        if Self.readingScreen { return false }
         guard Settings.enabled else { return false }
         if event.getIntegerValueField(.eventSourceUserData) == TextInjector.magicTag { return false }
         // A real keystroke means a held modifier is part of a chord, not a tap.

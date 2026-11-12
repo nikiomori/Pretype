@@ -226,7 +226,8 @@ enum ScreenContext {
     /// cancelled, "" when nothing was read. The picture is deleted once read.
     /// ponytail: lines join top to bottom, so two columns side by side
     /// interleave; group by column if people copy tables.
-    static func readRegion() async -> String? {
+    /// `reading` runs once the drag has ended with a picture, before the read.
+    static func readRegion(reading: @MainActor @Sendable () -> Void = {}) async -> String? {
         try? FileManager.default.createDirectory(at: regionFolder, withIntermediateDirectories: true)
         let url = regionFolder.appendingPathComponent("region-\(UUID().uuidString).png")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -242,6 +243,7 @@ enum ScreenContext {
         }
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        await MainActor.run(body: reading)
         let languages = recognitionLanguages(keyboard: await MainActor.run { keyboardLanguages })
         return (try? recognizeText(in: image, regionOfInterest: nil, languages: languages))?
             .map(\.text).joined(separator: "\n") ?? ""
