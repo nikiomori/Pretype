@@ -5740,6 +5740,112 @@
         }
       }
     },
+    "A word typed on the wrong layout gets its fix, and the layout changes when you take it." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slovo napsané ve špatném rozložení dostane opravu a po jejím přijetí se rozložení přepne."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Et ord skrevet med det forkerte tastaturlayout får en rettelse, og layoutet skifter, når du tager den."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Wort in der falschen Tastaturbelegung erhält seine Korrektur, und die Belegung wechselt, wenn du sie annimmst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una palabra escrita con la distribución equivocada recibe su corrección, y la distribución cambia cuando la aceptas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un mot saisi avec la mauvaise disposition reçoit sa correction, et la disposition change quand vous l’acceptez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una parola scritta con il layout sbagliato riceve la correzione, e il layout cambia quando la accetti."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "間違ったキーボード配列で入力した単語に修正を表示し、採用すると配列も切り替わります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못된 키보드 배열로 입력한 단어에 수정이 표시되고, 적용하면 배열도 바뀝니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een woord in de verkeerde toetsenbordindeling krijgt een correctie, en de indeling wisselt als je die overneemt."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Słowo wpisane w złym układzie klawiatury dostaje poprawkę, a po jej przyjęciu układ się przełącza."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma palavra digitada no layout errado recebe a correção, e o layout muda quando você a aceita."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un cuvânt tastat cu aranjamentul greșit primește corectura, iar aranjamentul se schimbă când o acceptați."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слово, набранное не в той раскладке, получает исправление, а раскладка переключается, когда вы его принимаете."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ett ord skrivet med fel tangentbordslayout får en rättning, och layouten byts när du tar den."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yanlış klavye düzeninde yazılan sözcük için düzeltme gösterilir; kabul ettiğinizde düzen de değişir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слово, набране не в тій розкладці, отримує виправлення, а розкладка перемикається, коли ви його приймаєте."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用错误键盘布局输入的单词会显示修正，采用后键盘布局随之切换。"
+          }
+        }
+      }
+    },
     "ACC" : {
       "localizations" : {
         "cs" : {
@@ -9128,6 +9234,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在此 App 中重新允许 Pretype"
+          }
+        }
+      }
+    },
+    "Allow Screen Recording, then relaunch Pretype" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Povolte Záznam obrazovky a pak znovu spusťte Pretype"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillad Skærmoptagelse, og genstart derefter Pretype"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bildschirmaufnahme erlauben, dann Pretype neu starten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite Grabación de pantalla y luego reabre Pretype"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisez Enregistrement de l’écran, puis relancez Pretype"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti Registrazione schermo, poi riavvia Pretype"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「画面収録」を許可してからPretypeを再起動してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘화면 기록’을 허용한 다음 Pretype을 다시 실행하세요"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sta Schermopname toe en herstart daarna Pretype"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zezwól na „Nagrywanie ekranu”, potem uruchom ponownie Pretype"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permita Gravação de Tela e depois reabra o Pretype"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permiteți Înregistrare ecran, apoi reporniți Pretype"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешите «Запись экрана», затем перезапустите Pretype"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillåt Skärminspelning och starta sedan om Pretype"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ekran Kaydı’na izin verin, sonra Pretype’ı yeniden başlatın"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дозвольте «Запис екрана», потім перезапустіть Pretype"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请允许“屏幕录制”，然后重新启动 Pretype"
           }
         }
       }
@@ -20213,6 +20425,112 @@
         }
       }
     },
+    "Downloading the Parakeet model: %lld%%" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stahování modelu Parakeet: %lld %%"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henter Parakeet-modellen: %lld %%"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet-Modell wird geladen: %lld %%"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargando el modelo Parakeet: %lld %%"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargement du modèle Parakeet : %lld %%"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download del modello Parakeet: %lld%%"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeetモデルをダウンロード中：%lld%%"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet 모델 다운로드 중: %lld%%"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet-model downloaden: %lld%%"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pobieranie modelu Parakeet: %lld%%"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixando o modelo Parakeet: %lld%%"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se descarcă modelul Parakeet: %lld%%"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка модели Parakeet: %lld %%"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hämtar Parakeet-modellen: %lld %%"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet modeli indiriliyor: %%%lld"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завантаження моделі Parakeet: %lld %%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载 Parakeet 模型：%lld%%"
+          }
+        }
+      }
+    },
     "Download…" : {
       "localizations" : {
         "cs" : {
@@ -21906,112 +22224,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "EuroLLM 1.7B — 输入与纠错同一个轻量模型"
-          }
-        }
-      }
-    },
-    "Pretype One — one model for typing, fixes and replies" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — jeden model pro psaní, opravy i odpovědi"
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — én model til skrivning, rettelser og svar"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One – ein Modell für Tippen, Korrigieren und Antworten"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — un modelo para escribir, corregir y responder"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — un seul modèle pour écrire, corriger et répondre"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — un modello per scrivere, correggere e rispondere"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — 入力・修正・返信を1モデルで"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — 입력, 교정, 답장을 한 모델로"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One – één model voor typen, corrigeren en antwoorden"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — jeden model do pisania, poprawek i odpowiedzi"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — um modelo para digitar, corrigir e responder"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — un singur model pentru scris, corecturi și răspunsuri"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — одна модель для набора, исправлений и ответов"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — en modell för skrivande, rättning och svar"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — yazma, düzeltme ve yanıt için tek model"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — одна модель для набору, виправлень і відповідей"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pretype One — 输入、纠错与回复同一个模型"
           }
         }
       }
@@ -23826,6 +24038,112 @@
         }
       }
     },
+    "Fix sure typos without a key" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opravovat jasné překlepy bez klávesy"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ret sikre slåfejl uden en tast"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eindeutige Tippfehler ohne Taste korrigieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corregir erratas claras sin pulsar una tecla"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corriger les fautes évidentes sans touche"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correggi i refusi certi senza un tasto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明らかなタイプミスをキーなしで修正"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확실한 오타를 키 없이 수정"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duidelijke typefouten zonder toets corrigeren"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poprawiaj oczywiste literówki bez klawisza"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigir erros evidentes sem tecla"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corectează greșelile evidente fără tastă"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлять явные опечатки без клавиши"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rätta säkra skrivfel utan tangent"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kesin yazım hatalarını tuşsuz düzelt"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Виправляти явні помилки без клавіші"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无需按键即可修正明确的拼写错误"
+          }
+        }
+      }
+    },
     "Fix the last word or the selection" : {
       "localizations" : {
         "cs" : {
@@ -23928,6 +24246,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修正最后一个词或所选内容"
+          }
+        }
+      }
+    },
+    "Fix, reply and voice commands use this model." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tento model používají opravy, odpovědi a hlasové příkazy."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rettelse, svar og stemmekommandoer bruger denne model."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korrektur, Antwort und Sprachbefehle nutzen dieses Modell."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La corrección, la respuesta y los comandos de voz usan este modelo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La correction, la réponse et les commandes vocales utilisent ce modèle."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correzione, risposta e comandi vocali usano questo modello."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正、返信、音声コマンドでこのモデルを使用します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수정, 답장, 음성 명령이 이 모델을 사용합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correctie, antwoorden en spraakopdrachten gebruiken dit model."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poprawki, odpowiedzi i polecenia głosowe używają tego modelu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correção, resposta e comandos de voz usam este modelo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corectarea, răspunsurile și comenzile vocale folosesc acest model."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эту модель используют исправление, ответы и голосовые команды."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rättning, svar och röstkommandon använder den här modellen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Düzeltme, yanıt ve sesli komutlar bu modeli kullanır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цю модель використовують виправлення, відповіді й голосові команди."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正、回复和语音命令都使用此模型。"
           }
         }
       }
@@ -35929,6 +36353,112 @@
         }
       }
     },
+    "Missed spaces and hyphens" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chybějící mezery a spojovníky"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manglende mellemrum og bindestreger"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fehlende Leerzeichen und Bindestriche"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacios y guiones que faltan"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaces et traits d’union oubliés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spazi e trattini mancanti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "抜けたスペースとハイフン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빠진 공백과 하이픈"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vergeten spaties en streepjes"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brakujące spacje i łączniki"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaços e hifens que faltam"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spații și cratime lipsă"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропущенные пробелы и дефисы"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saknade mellanslag och bindestreck"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eksik boşluklar ve kısa çizgiler"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пропущені пробіли й дефіси"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "漏掉的空格和连字符"
+          }
+        }
+      }
+    },
     "Missing" : {
       "localizations" : {
         "cs" : {
@@ -39534,6 +40064,112 @@
         }
       }
     },
+    "One slip of the hand in a word is fixed when the word ends. ⌘Z brings your word back, and Pretype leaves that word alone from then on." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedno uklouznutí prstu ve slově se opraví, jakmile slovo skončí. ⌘Z vrátí vaše slovo a Pretype ho od té doby nechá být."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En enkelt smutter i et ord rettes, når ordet slutter. ⌘Z giver dig dit ord tilbage, og Pretype lader det ord være fremover."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein einzelner Vertipper in einem Wort wird korrigiert, sobald das Wort endet. ⌘Z holt dein Wort zurück, und Pretype lässt dieses Wort von da an in Ruhe."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un solo desliz en una palabra se corrige cuando la palabra termina. ⌘Z recupera tu palabra, y Pretype no vuelve a tocarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une seule faute de frappe dans un mot est corrigée quand le mot se termine. ⌘Z rétablit votre mot, et Pretype n’y touche plus ensuite."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un solo errore di battitura in una parola viene corretto quando la parola finisce. ⌘Z ripristina la tua parola, e da allora Pretype non la tocca più."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "単語内の打ち間違い1つを、単語の入力が終わった時点で修正します。⌘Zで元の単語に戻り、以後Pretypeはその単語を修正しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "단어 안의 실수 하나는 단어가 끝날 때 수정됩니다. ⌘Z를 누르면 원래 단어로 돌아가고, 이후 Pretype은 그 단어를 건드리지 않습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eén tikfout in een woord wordt hersteld zodra het woord af is. ⌘Z haalt je woord terug, en Pretype laat dat woord daarna met rust."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedna pomyłka w słowie jest poprawiana, gdy słowo się kończy. ⌘Z przywraca twoje słowo, a Pretype odtąd go nie rusza."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um único deslize em uma palavra é corrigido quando a palavra termina. ⌘Z traz sua palavra de volta, e o Pretype não mexe mais nela."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O singură scăpare într-un cuvânt este corectată când cuvântul se termină. ⌘Z vă readuce cuvântul, iar Pretype nu se mai atinge de el."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Одна промашка в слове исправляется, когда слово закончено. ⌘Z вернёт ваше слово, и Pretype больше не будет его трогать."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ett enda felslag i ett ord rättas när ordet är klart. ⌘Z ger dig ditt ord tillbaka, och Pretype låter det ordet vara i fortsättningen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sözcükteki tek bir el kayması, sözcük bittiğinde düzeltilir. ⌘Z sözcüğünüzü geri getirir ve Pretype o sözcüğe artık dokunmaz."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Одна помилка руки в слові виправляється, коли слово закінчено. ⌘Z поверне ваше слово, і Pretype більше його не чіпатиме."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单词中的一处手误会在单词结束时修正。按 ⌘Z 可恢复你的单词，此后 Pretype 不再改动它。"
+          }
+        }
+      }
+    },
     "One-time model download" : {
       "localizations" : {
         "cs" : {
@@ -39954,6 +40590,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 API 设置"
+          }
+        }
+      }
+    },
+    "Open ChatGPT Settings…" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otevřít nastavení ChatGPT…"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åbn ChatGPT-indstillinger…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT-Einstellungen öffnen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir ajustes de ChatGPT…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir les réglages ChatGPT…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri impostazioni di ChatGPT…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT設定を開く…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 설정 열기…"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open ChatGPT-instellingen…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz ustawienia ChatGPT…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Ajustes do ChatGPT…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide configurările ChatGPT…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть настройки ChatGPT…"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öppna ChatGPT-inställningar…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT Ayarlarını Aç…"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Відкрити параметри ChatGPT…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 ChatGPT 设置…"
           }
         }
       }
@@ -43558,6 +44300,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pretype 调试控制台"
+          }
+        }
+      }
+    },
+    "Pretype One — one model for typing, fixes and replies" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — jeden model pro psaní, opravy i odpovědi"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — én model til skrivning, rettelser og svar"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One – ein Modell für Tippen, Korrigieren und Antworten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un modelo para escribir, corregir y responder"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un seul modèle pour écrire, corriger et répondre"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un modello per scrivere, correggere e rispondere"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — 入力・修正・返信を1モデルで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — 입력, 교정, 답장을 한 모델로"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One – één model voor typen, corrigeren en antwoorden"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — jeden model do pisania, poprawek i odpowiedzi"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — um modelo para digitar, corrigir e responder"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — un singur model pentru scris, corecturi și răspunsuri"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — одна модель для набора, исправлений и ответов"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — en modell för skrivande, rättning och svar"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — yazma, düzeltme ve yanıt için tek model"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — одна модель для набору, виправлень і відповідей"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretype One — 输入、纠错与回复同一个模型"
           }
         }
       }
@@ -49508,6 +50356,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重试"
+          }
+        }
+      }
+    },
+    "Retry ChatGPT" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zkusit ChatGPT znovu"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prøv ChatGPT igen"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT erneut versuchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reintentar ChatGPT"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réessayer ChatGPT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riprova ChatGPT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPTを再試行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 다시 시도"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probeer ChatGPT opnieuw"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ponów ChatGPT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tentar o ChatGPT Novamente"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reîncearcă ChatGPT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить запрос к ChatGPT"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Försök med ChatGPT igen"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT’yi Yeniden Dene"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторити запит до ChatGPT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试 ChatGPT"
           }
         }
       }
@@ -57443,109 +58397,366 @@
         }
       }
     },
-    "Text copied" : {
-      "comment" : "Notice near the pointer: the text read from the screen is on the clipboard.",
+    "Text copied · %lld characters" : {
       "localizations" : {
         "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text zkopírován"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text zkopírován · %lld znaky"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text zkopírován · %lld znaku"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text zkopírován · %lld znak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text zkopírován · %lld znaků"
+                }
+              }
+            }
           }
         },
         "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekst kopieret"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tekst kopieret · %lld tegn"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tekst kopieret · %lld tegn"
+                }
+              }
+            }
           }
         },
         "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text kopiert"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text kopiert · %lld Zeichen"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text kopiert · %lld Zeichen"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text copied · %lld character"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text copied · %lld characters"
+                }
+              }
+            }
           }
         },
         "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Texto copiado"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Texto copiado · %lld carácter"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Texto copiado · %lld caracteres"
+                }
+              }
+            }
           }
         },
         "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Texte copié"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Texte copié · %lld caractère"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Texte copié · %lld caractères"
+                }
+              }
+            }
           }
         },
         "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Testo copiato"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Testo copiato · %lld carattere"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Testo copiato · %lld caratteri"
+                }
+              }
+            }
           }
         },
         "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テキストをコピーしました"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "テキストをコピーしました · %lld文字"
+                }
+              }
+            }
           }
         },
         "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "텍스트 복사됨"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "텍스트 복사됨 · %lld자"
+                }
+              }
+            }
           }
         },
         "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekst gekopieerd"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tekst gekopieerd · %lld teken"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tekst gekopieerd · %lld tekens"
+                }
+              }
+            }
           }
         },
         "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skopiowano tekst"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skopiowano tekst · %lld znaki"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skopiowano tekst · %lld znaków"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skopiowano tekst · %lld znak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skopiowano tekst · %lld znaku"
+                }
+              }
+            }
           }
         },
         "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Texto copiado"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Texto copiado · %lld caractere"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Texto copiado · %lld caracteres"
+                }
+              }
+            }
           }
         },
         "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text copiat"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text copiat · %lld caractere"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text copiat · %lld caracter"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text copiat · %lld de caractere"
+                }
+              }
+            }
           }
         },
         "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Текст скопирован"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld символа"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld символов"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld символ"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld символа"
+                }
+              }
+            }
           }
         },
         "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text kopierad"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text kopierad · %lld tecken"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text kopierad · %lld tecken"
+                }
+              }
+            }
           }
         },
         "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metin kopyalandı"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Metin kopyalandı · %lld karakter"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Metin kopyalandı · %lld karakter"
+                }
+              }
+            }
           }
         },
         "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Текст скопійовано"
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопійовано · %lld символи"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопійовано · %lld символів"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопійовано · %lld символ"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопійовано · %lld символу"
+                }
+              }
+            }
           }
         },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已拷贝文本"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "已拷贝文本 · %lld 个字符"
+                }
+              }
+            }
           }
         }
       }
@@ -59246,6 +60457,112 @@
         }
       }
     },
+    "The text of each fix, reply and voice command goes to OpenAI, with your persona. Suggestions come from Words and send nothing. Password fields and turned-off apps send nothing. Requests use your ChatGPT plan allowance." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text každé opravy, odpovědi a hlasového příkazu se odesílá do OpenAI spolu s vaší personou. Návrhy pocházejí z režimu Slova a nic neodesílají. Pole pro hesla a vypnuté aplikace neodesílají nic. Požadavky čerpají limit vašeho předplatného ChatGPT."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teksten i hver rettelse, hvert svar og hver stemmekommando sendes til OpenAI sammen med din persona. Forslag kommer fra Ord og sender intet. Adgangskodefelter og fravalgte apps sender intet. Forespørgsler bruger af dit ChatGPT-abonnement."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Text jeder Korrektur, jeder Antwort und jedes Sprachbefehls geht mit deiner Persona an OpenAI. Vorschläge kommen von „Wörter“ und senden nichts. Passwortfelder und deaktivierte Apps senden nichts. Anfragen verbrauchen das Kontingent deines ChatGPT-Abos."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El texto de cada corrección, respuesta y comando de voz se envía a OpenAI con tu persona. Las sugerencias vienen de Palabras y no envían nada. Los campos de contraseña y las apps desactivadas no envían nada. Las solicitudes usan la cuota de tu plan de ChatGPT."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le texte de chaque correction, réponse et commande vocale est envoyé à OpenAI avec votre persona. Les suggestions viennent de « Mots » et n’envoient rien. Les champs de mot de passe et les apps désactivées n’envoient rien. Les requêtes utilisent le quota de votre abonnement ChatGPT."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il testo di ogni correzione, risposta e comando vocale viene inviato a OpenAI con la tua persona. I suggerimenti arrivano da Parole e non inviano nulla. I campi password e le app disattivate non inviano nulla. Le richieste usano la quota del tuo piano ChatGPT."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正、返信、音声コマンドのたびに、そのテキストがペルソナとともにOpenAIに送信されます。候補は「単語」から出るため、何も送信しません。パスワードフィールドとオフにしたアプリからは何も送信されません。リクエストはChatGPTプランの利用枠を使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수정, 답장, 음성 명령을 할 때마다 해당 텍스트가 페르소나와 함께 OpenAI로 전송됩니다. 제안은 ‘단어’에서 나오며 아무것도 보내지 않습니다. 암호 필드와 꺼 둔 앱은 아무것도 보내지 않습니다. 요청은 ChatGPT 요금제 한도를 사용합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De tekst van elke correctie, elk antwoord en elke spraakopdracht gaat met je persona naar OpenAI. Suggesties komen van Woorden en versturen niets. Wachtwoordvelden en uitgeschakelde apps versturen niets. Verzoeken gebruiken het tegoed van je ChatGPT-abonnement."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekst każdej poprawki, odpowiedzi i polecenia głosowego trafia do OpenAI razem z twoją personą. Podpowiedzi pochodzą z trybu Słowa i niczego nie wysyłają. Pola haseł i wyłączone aplikacje niczego nie wysyłają. Żądania zużywają limit twojego planu ChatGPT."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O texto de cada correção, resposta e comando de voz vai para a OpenAI com sua persona. As sugestões vêm de Palavras e não enviam nada. Campos de senha e apps desativados não enviam nada. As solicitações usam a franquia do seu plano do ChatGPT."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Textul fiecărei corectări, al fiecărui răspuns și al fiecărei comenzi vocale ajunge la OpenAI împreună cu persona dvs. Sugestiile vin din Cuvinte și nu trimit nimic. Câmpurile de parolă și aplicațiile dezactivate nu trimit nimic. Cererile folosesc limita abonamentului ChatGPT."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст каждого исправления, ответа и голосовой команды уходит в OpenAI вместе с вашей персоной. Подсказки даёт режим «Слова», он ничего не отправляет. Поля паролей и отключённые приложения ничего не отправляют. Запросы расходуют лимит вашей подписки ChatGPT."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texten i varje rättning, svar och röstkommando skickas till OpenAI tillsammans med din persona. Förslag kommer från Ord och skickar ingenting. Lösenordsfält och avstängda appar skickar ingenting. Förfrågningar använder kvoten i ditt ChatGPT-abonnemang."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her düzeltmenin, yanıtın ve sesli komutun metni, personanızla birlikte OpenAI’ye gider. Öneriler Sözcükler’den gelir ve hiçbir şey göndermez. Parola alanları ve kapatılan uygulamalar hiçbir şey göndermez. İstekler ChatGPT planınızın kotasını kullanır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст кожного виправлення, відповіді й голосової команди надходить до OpenAI разом із вашою персоною. Підказки дає режим «Слова», він нічого не надсилає. Поля паролів і вимкнені програми нічого не надсилають. Запити використовують ліміт вашої підписки ChatGPT."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次修正、回复和语音命令的文本都会连同你的人设发送给 OpenAI。建议由“单词”提供，不发送任何内容。密码栏和已关闭的 App 不发送任何内容。请求会占用你的 ChatGPT 套餐额度。"
+          }
+        }
+      }
+    },
     "This also forgets the %lld words Pretype learned from you. It can't be undone." : {
       "localizations" : {
         "cs" : {
@@ -60666,6 +61983,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在这些 App 中关闭"
+          }
+        }
+      }
+    },
+    "Two words typed as one get their space, and a word that needs a hyphen gets it." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dvě slova napsaná dohromady dostanou mezeru a slovo, které potřebuje spojovník, ho dostane."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To ord skrevet som ét får deres mellemrum, og et ord, der mangler en bindestreg, får den."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwei zusammengeschriebene Wörter erhalten ihr Leerzeichen, und ein Wort, das einen Bindestrich braucht, bekommt ihn."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dos palabras escritas juntas reciben su espacio, y una palabra que necesita guion lo recibe."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deux mots collés retrouvent leur espace, et un mot qui demande un trait d’union le reçoit."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due parole scritte attaccate ricevono lo spazio, e una parola che richiede il trattino lo riceve."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "つながって入力された2つの単語にスペースを、ハイフンが必要な単語にハイフンを補います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "붙여 쓴 두 단어에는 공백을, 하이픈이 필요한 단어에는 하이픈을 넣어 줍니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twee aan elkaar getypte woorden krijgen hun spatie, en een woord dat een streepje nodig heeft krijgt het."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dwa słowa wpisane razem dostają spację, a słowo, które wymaga łącznika, dostaje go."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duas palavras digitadas juntas recebem o espaço, e uma palavra que precisa de hífen o recebe."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Două cuvinte tastate legat își primesc spațiul, iar un cuvânt care are nevoie de cratimă o primește."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Два слова, набранные слитно, получают пробел, а слово, которому нужен дефис, получает его."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Två ord skrivna som ett får sitt mellanslag, och ett ord som behöver bindestreck får det."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitişik yazılan iki sözcük boşluğunu, kısa çizgi gereken sözcük de çizgisini alır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Два слова, набрані разом, отримують пробіл, а слово, якому потрібен дефіс, отримує його."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连在一起输入的两个单词会补上空格，需要连字符的单词会补上连字符。"
           }
         }
       }
@@ -62684,112 +64107,6 @@
         }
       }
     },
-    "Use a hosted model for text" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Použít hostovaný model pro text"
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Brug en hostet model til tekst"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ein gehostetes Modell für Text verwenden"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usar un modelo alojado para texto"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utiliser un modèle hébergé pour le texte"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usa un modello ospitato per il testo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テキストにホスト型モデルを使用"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "텍스트에 호스팅 모델 사용"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Een gehost model voor tekst gebruiken"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Używaj modelu hostowanego do tekstu"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usar um modelo hospedado para texto"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Folosiți un model găzduit pentru text"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Использовать серверную модель для текста"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Använd en värdbaserad modell för text"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metin için barındırılan bir model kullan"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Використовувати розміщену на сервері модель для тексту"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用托管模型处理文本"
-          }
-        }
-      }
-    },
     "Use a hosted model for dictation" : {
       "localizations" : {
         "cs" : {
@@ -62892,6 +64209,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用托管模型进行听写"
+          }
+        }
+      }
+    },
+    "Use a hosted model for text" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Použít hostovaný model pro text"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brug en hostet model til tekst"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein gehostetes Modell für Text verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar un modelo alojado para texto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser un modèle hébergé pour le texte"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa un modello ospitato per il testo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストにホスト型モデルを使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트에 호스팅 모델 사용"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een gehost model voor tekst gebruiken"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Używaj modelu hostowanego do tekstu"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar um modelo hospedado para texto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosiți un model găzduit pentru text"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать серверную модель для текста"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Använd en värdbaserad modell för text"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metin için barındırılan bir model kullan"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використовувати розміщену на сервері модель для тексту"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用托管模型处理文本"
           }
         }
       }
@@ -64804,6 +66227,112 @@
         }
       }
     },
+    "Words suggests while text runs on a ChatGPT plan" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navrhuje režim Slova, dokud text běží na předplatném ChatGPT"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ord foreslår, mens tekst kører på et ChatGPT-abonnement"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Wörter“ schlägt vor, solange Text über ein ChatGPT-Abo läuft"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palabras sugiere mientras el texto usa un plan de ChatGPT"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« Mots » suggère tant que le texte passe par un abonnement ChatGPT"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parole suggerisce mentre il testo usa un piano ChatGPT"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストがChatGPTプランで動作中は「単語」が候補を出します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트가 ChatGPT 요금제로 실행되는 동안 ‘단어’가 제안합니다"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Woorden doet suggesties zolang tekst via een ChatGPT-abonnement loopt"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podpowiada tryb Słowa, gdy tekst działa na planie ChatGPT"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palavras sugere enquanto o texto usa um plano do ChatGPT"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuvinte sugerează cât timp textul rulează pe un abonament ChatGPT"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подсказывает режим «Слова», пока текст работает по подписке ChatGPT"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ord föreslår medan text körs på ett ChatGPT-abonnemang"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metin bir ChatGPT planında çalışırken Sözcükler önerir"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Підказує режим «Слова», поки текст працює за підпискою ChatGPT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文本使用 ChatGPT 套餐时，由“单词”提供建议"
+          }
+        }
+      }
+    },
     "Write " : {
       "comment" : "Settings overlay preview: the sample sentence “Write a reply to Anna” is drawn in three parts. This is part 1, the text typed before the caret. Keep the trailing space.",
       "localizations" : {
@@ -65013,6 +66542,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "起草回复"
+          }
+        }
+      }
+    },
+    "Wrong keyboard layout" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Špatné rozložení klávesnice"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forkert tastaturlayout"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falsche Tastaturbelegung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribución de teclado equivocada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mauvaise disposition du clavier"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layout di tastiera sbagliato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "間違ったキーボード配列"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못된 키보드 배열"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verkeerde toetsenbordindeling"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zły układ klawiatury"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layout de teclado errado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aranjament de tastatură greșit"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не та раскладка клавиатуры"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fel tangentbordslayout"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yanlış klavye düzeni"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не та розкладка клавіатури"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误的键盘布局"
           }
         }
       }
@@ -65544,6 +67179,113 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "输入法正在组字，听写内容已拷贝，按 ⌘V 粘贴"
+          }
+        }
+      }
+    },
+    "a lot" : {
+      "comment" : "Settings → Fixes: the mistake in “alot”, written right.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "na shledanou"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "i dag"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gar nicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "por favor"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "peut-être"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per favore"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a lot"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a lot"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "op zich"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "na pewno"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "por favor"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de asemenea"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "все-таки"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "i alla fall"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "her şey"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "будь ласка"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a lot"
           }
         }
       }
@@ -66849,6 +68591,113 @@
         }
       }
     },
+    "alot" : {
+      "comment" : "Settings → Fixes: two words typed as one, or a word that lost its hyphen. Use a common such mistake in your language, in lower case.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nashledanou"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "idag"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "garnicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "porfavor"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "peutetre"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "perfavore"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alot"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alot"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "opzich"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "napewno"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "porfavor"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "deasemenea"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "всетаки"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iallafall"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herşey"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "будьласка"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alot"
+          }
+        }
+      }
+    },
     "already typed" : {
       "localizations" : {
         "cs" : {
@@ -67269,6 +69118,113 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "基础模型数据，此处未测量指令版"
+          }
+        }
+      }
+    },
+    "brings your word back" : {
+      "comment" : "Settings → Fixes, after the ⌘Z keycap: what the key does to a typo fixed without a key.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vrátí vaše slovo"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "giver dig dit ord tilbage"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "holt dein Wort zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "recupera tu palabra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rétablit votre mot"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ripristina la tua parola"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "で元の単語に戻します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로 원래 단어를 되돌립니다"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "haalt je woord terug"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "przywraca twoje słowo"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "traz sua palavra de volta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vă readuce cuvântul"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "вернёт ваше слово"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ger dig ditt ord tillbaka"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sözcüğünüzü geri getirir"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "поверне ваше слово"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可恢复你的单词"
           }
         }
       }
@@ -79998,6 +81954,220 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在转录…"
+          }
+        }
+      }
+    },
+    "yellow" : {
+      "comment" : "Settings → Fixes: the word meant in “zellow”, a short common word in your language.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zima"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zwei"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "salut"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "привет"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "привіт"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        }
+      }
+    },
+    "zellow" : {
+      "comment" : "Settings → Fixes: the word in “yellow” as it comes out on the wrong keyboard layout. Use a pair of layouts common for your language: a German keyboard swaps y and z, a French one a and q; for a Cyrillic language, the Latin letters on the same keys.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yima"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ywei"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sqlut"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ghbdtn"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ghbdsn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zellow"
           }
         }
       }
