@@ -16,7 +16,7 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", revision: "7eb77efa4e8fb56183b905904d122e66ebdb422e"),
         .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.32.3")),
         // Minor-pinned: under 0.x a minor release may break the API.
-        .package(url: "https://github.com/huggingface/swift-huggingface", .upToNextMinor(from: "0.13.0")),
+        .package(url: "https://github.com/huggingface/swift-huggingface", .upToNextMinor(from: "1.0.0")),
         // Minor-pinned: main carries untagged decode-spacing changes (#391/#405)
         // that would shift ghost-text spacing on a plain `swift package update`.
         .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.3.5")),
