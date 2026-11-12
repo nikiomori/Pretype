@@ -238,13 +238,15 @@ final class ChatGPTAccounts {
                 renewed = try ChatGPTTokens.decode(data, previous: tokens)
             } catch ChatGPTError.signIn {
                 renewed = nil
-                if self.vault.selectedID == id { self.blocked = .signIn }
             }
             var next = self.vault
             // Sign-out or a reconnect replaced these tokens meanwhile: keep theirs.
             guard let index = next.profiles.firstIndex(where: { $0.id == id }),
                   next.profiles[index].tokens?.refreshToken == tokens.refreshToken else { throw CancellationError() }
             next.profiles[index].tokens = renewed
+            // After the check above: a rejected OLD token must not pause the
+            // account that a reconnect has just given new ones.
+            if renewed == nil, next.selectedID == id { self.blocked = .signIn }
             do { try self.save(next) } catch where renewed == nil { self.vault = next }
             guard let renewed else { throw ChatGPTError.signIn }
             return renewed

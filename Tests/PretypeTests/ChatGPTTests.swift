@@ -431,6 +431,31 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertEqual(restored.selected?.id, "other")
     }
 
+    /// A reconnect lands while the old token's renewal is on the wire, and
+    /// the server then rejects that old token: the new tokens stay in use.
+    @MainActor func testRejectedOldTokenDoesNotPauseAReconnectedAccount() async throws {
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
+        try accounts.install(fixture(expired: true))
+        let entered = expectation(description: "refresh started")
+        let release = DispatchSemaphore(value: 0)
+        ChatGPTStub.handler.set { _ in
+            entered.fulfill()
+            _ = release.wait(timeout: .now() + 5)
+            return (400, Data(#"{"error":"invalid_grant"}"#.utf8), "application/json")
+        }
+        let waiter = Task { try await accounts.credentials(generation: ChatGPTAccounts.generation.get()) }
+        await fulfillment(of: [entered], timeout: 2)
+        var reconnected = fixture()
+        reconnected.tokens = ChatGPTTokens(accessToken: "access-again", refreshToken: "refresh-again", idToken: "id-again",
+                                           expiresAt: Date().addingTimeInterval(3600), scopes: ["chatgpt.tokens.use.direct"])
+        try accounts.install(reconnected)
+        release.signal()
+        _ = try? await waiter.value
+        XCTAssertNil(accounts.blocked)
+        let token = try await accounts.credentials(generation: ChatGPTAccounts.generation.get()).0
+        XCTAssertEqual(token, "access-again")
+    }
+
     /// An engine keeps its transport across sign-ins: the account generation
     /// is read per request, so a later sign-in does not silence the engine.
     @MainActor func testTransportReadsTheAccountGenerationPerRequest() async throws {
