@@ -557,8 +557,8 @@ final class DictationControllerTests: XCTestCase {
         let opening = gatedStart(rig)
         holdDown(rig.controller)
         XCTAssertEqual(rig.controller.phase, .preparing)
-        Transcription.downloading.set(.languagePack)
-        defer { Transcription.downloading.set(nil) }
+        Transcription.downloading.set([.languagePack])
+        defer { Transcription.downloading.set([]) }
         release(rig.controller)
         XCTAssertEqual(rig.controller.phase, .idle)
         guard case .hint(let notice)? = rig.host.transientNotices.last else {
@@ -581,11 +581,11 @@ final class DictationControllerTests: XCTestCase {
         let opening = gatedStart(rig)
         rig.controller.toggleLatch()
         XCTAssertEqual(rig.host.shownModes.last, .status("starting dictation…"))
-        Transcription.downloading.set(.languagePack)
-        defer { Transcription.downloading.set(nil) }
+        Transcription.downloading.set([.languagePack])
+        defer { Transcription.downloading.set([]) }
         try XCTUnwrap(rig.controller.preparingTimer).fire()
         XCTAssertEqual(rig.host.shownModes.last, .status("getting the dictation model ready…"))
-        Transcription.downloading.set(nil)
+        Transcription.downloading.set([])
         opening.open()
         await pump(until: { rig.controller.phase == .listening("") })
         let shown = rig.host.shownModes.count
@@ -603,18 +603,16 @@ final class DictationControllerTests: XCTestCase {
             let session = rig.session
             let opening = makeGate()
             rig.controller.gates.startSession = { _, _ in
-                await opening.wait()
-                return try await Transcription.parakeetFirst({ throw URLError(.notConnectedToInternet) },
-                                                             orElse: fallback ? { session } : nil)
+                try await Transcription.parakeetFirst({
+                    await opening.wait()
+                    throw URLError(.notConnectedToInternet)
+                }, orElse: fallback ? { session } : nil)
             }
             holdDown(rig.controller)
-            Transcription.downloading.set(.parakeet)
-            let saved = Settings.dictationParakeet, language = Settings.dictationLanguage
-            Settings.dictationParakeet = true
-            Settings.dictationLanguage = "ru"
+            Transcription.downloading.set([.parakeet])
+            await pump(until: { rig.controller.startTrace?.get().viaParakeet == true })
             release(rig.controller)
-            Transcription.downloading.set(nil)
-            (Settings.dictationParakeet, Settings.dictationLanguage) = (saved, language)
+            Transcription.downloading.set([])
             opening.open()
             await pump(until: { rig.host.transientNotices.count == 2 })
             guard case .error(let notice)? = rig.host.transientNotices.last else {
@@ -623,6 +621,45 @@ final class DictationControllerTests: XCTestCase {
             XCTAssertTrue(notice.contains("Download failed"), notice)
             XCTAssertEqual(session.cancelCount, fallback ? 1 : 0)
         }
+    }
+
+    /// Parakeet failed for a released start that now waits on Apple's model,
+    /// and the user presses again: that failure is the first start's own, and
+    /// it is still heard. One shared slot was cleared by the second press.
+    func testASecondPressKeepsAnUnheardFailure() async {
+        let rig = makeRig()
+        let session = rig.session
+        let parakeet = makeGate(), apple = makeGate()
+        rig.controller.gates.startSession = { _, _ in
+            try await Transcription.parakeetFirst({
+                await parakeet.wait()
+                throw URLError(.notConnectedToInternet)
+            }, orElse: {
+                await apple.wait()
+                return session
+            })
+        }
+        Transcription.downloading.set([.parakeet])
+        defer { Transcription.downloading.set([]) }
+        holdDown(rig.controller)
+        await pump(until: { rig.controller.startTrace?.get().viaParakeet == true })
+        release(rig.controller)
+        let first = rig.controller.startTrace
+        parakeet.open()
+        await pump(until: { first?.get().parakeetFailure != nil })
+        rig.controller.gates.startSession = { _, _ in throw CancellationError() }
+        holdDown(rig.controller)
+        release(rig.controller)
+        apple.open()
+        func heard() -> Bool {
+            rig.host.transientNotices.contains { mode in
+                if case .error(let text) = mode { return text.contains("Download failed") }
+                return false
+            }
+        }
+        await pump(until: heard)
+        XCTAssertTrue(heard(), "\(rig.host.transientNotices)")
+        XCTAssertEqual(session.cancelCount, 1)
     }
 
     /// The background fetch keeps the terms of a download nobody clicked for:
@@ -673,14 +710,61 @@ final class DictationControllerTests: XCTestCase {
     /// already here loads under no flag, so a press during it still waits it
     /// out instead of being refused.
     func testParakeetDownloadFlagHoldsThroughTheLoad() async throws {
-        func flagDuringLoad(needsFetch: Bool) async throws -> Transcription.Download? {
+        func flagDuringLoad(needsFetch: Bool) async throws -> Set<Transcription.Download> {
             try await Parakeet.fetchThenLoad(needsFetch: needsFetch, fetch: {}, load: { Transcription.downloading.get() })
         }
         let fetched = try await flagDuringLoad(needsFetch: true)
-        XCTAssertEqual(fetched, .parakeet)
-        XCTAssertNil(Transcription.downloading.get())
+        XCTAssertEqual(fetched, [.parakeet])
+        XCTAssertEqual(Transcription.downloading.get(), [])
         let cached = try await flagDuringLoad(needsFetch: false)
-        XCTAssertNil(cached)
+        XCTAssertEqual(cached, [])
+    }
+
+    /// A language pack and Parakeet can download at once. Whichever ends
+    /// first leaves the other marked: one shared slot cleared both.
+    func testTwoDownloadsEndApart() async {
+        defer { Transcription.downloading.set([]) }
+        let pack = makeGate()
+        let packDone = LockedValue(false)
+        let packTask = Task {
+            await Transcription.marking(.languagePack) { await pack.wait() }
+            packDone.set(true)
+        }
+        await pump(until: { Transcription.isFetching(.languagePack) })
+        await Transcription.marking(.parakeet) {
+            pack.open()
+            await pump(until: { packDone.get() })
+            XCTAssertTrue(Transcription.isFetching(.parakeet), "the pack ending leaves Parakeet's mark")
+            XCTAssertFalse(Transcription.isInstallingPack)
+        }
+        await packTask.value
+        XCTAssertEqual(Transcription.downloading.get(), [])
+    }
+
+    /// Parakeet downloads in the background, and this press went to Apple's
+    /// model: the pill does not say "getting the model ready", and a release
+    /// cancels the start like any microphone open.
+    func testAPressOnApplesModelIgnoresParakeetsFetch() async {
+        let rig = makeRig()
+        let opening = makeGate()
+        let cancelled = LockedValue<Bool?>(nil)
+        rig.controller.gates.startSession = { _, _ in
+            await opening.wait()
+            cancelled.set(Task.isCancelled)
+            throw CancellationError()
+        }
+        Transcription.downloading.set([.parakeet])
+        defer { Transcription.downloading.set([]) }
+        holdDown(rig.controller)
+        XCTAssertEqual(rig.host.shownModes.last, .status("starting dictation…"))
+        release(rig.controller)
+        guard case .hint(let notice)? = rig.host.transientNotices.last else {
+            return XCTFail("a release during the mic open should say so")
+        }
+        XCTAssertFalse(notice.contains("getting the dictation model ready"), notice)
+        opening.open()
+        await pump(until: { cancelled.get() != nil })
+        XCTAssertEqual(cancelled.get(), true, "nothing this start waits on is downloading")
     }
 
     /// Parakeet's 610 MB download (the Settings toggle's prefetch, say) holds
@@ -690,9 +774,9 @@ final class DictationControllerTests: XCTestCase {
     func testParakeetsDownloadHoldsUpNoCapture() async {
         let saved = (Settings.dictationParakeet, Settings.dictationLanguage)
         Settings.dictationLanguage = "ru"
-        Transcription.downloading.set(.parakeet)
+        Transcription.downloading.set([.parakeet])
         defer {
-            Transcription.downloading.set(nil)
+            Transcription.downloading.set([])
             (Settings.dictationParakeet, Settings.dictationLanguage) = saved
         }
         Settings.dictationParakeet = false
@@ -1096,8 +1180,8 @@ final class DictationControllerTests: XCTestCase {
         let opening = gatedStart(rig)
         rig.controller.toggleLatch()
         XCTAssertEqual(rig.controller.phase, .preparing)
-        Transcription.downloading.set(.languagePack)
-        defer { Transcription.downloading.set(nil) }
+        Transcription.downloading.set([.languagePack])
+        defer { Transcription.downloading.set([]) }
         try XCTUnwrap(rig.controller.limitTimer).fire()
         XCTAssertEqual(rig.controller.phase, .idle)
         guard case .hint(let notice)? = rig.host.transientNotices.last else {

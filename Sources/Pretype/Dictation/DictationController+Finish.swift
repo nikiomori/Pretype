@@ -313,7 +313,7 @@ extension DictationController {
     /// the news rather than `notice`: the download carries on (see `discard`)
     /// and `begin` answers with the same words until it lands.
     func discardPreparing(otherwise notice: SuggestionDisplayMode) {
-        discard(notice: Transcription.isDownloading(for: Settings.resolvedDictationLocale)
+        discard(notice: waitsOnDownload
             ? .hint(String(localized: "getting the dictation model ready…")) : notice)
     }
 
@@ -332,7 +332,7 @@ extension DictationController {
         capture.stop()
         session?.cancel()
         session = nil
-        if phase != .preparing || !Transcription.isDownloading(for: Settings.resolvedDictationLocale) {
+        if phase != .preparing || !waitsOnDownload {
             sessionTask?.cancel()
             sessionTask = nil
         } else {

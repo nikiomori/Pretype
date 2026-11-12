@@ -146,10 +146,10 @@ enum Parakeet {
                                            load: () async throws -> T) async throws -> T {
         guard needsFetch else { return try await load() }
         DebugLog.shared.log("DICTATE", "downloading the Parakeet speech model…")
-        Transcription.downloading.set(.parakeet)
-        defer { Transcription.downloading.set(nil) }
-        try await fetch()
-        return try await load()
+        return try await Transcription.marking(.parakeet) {
+            try await fetch()
+            return try await load()
+        }
     }
 
     private static func load() async throws -> AsrManager {

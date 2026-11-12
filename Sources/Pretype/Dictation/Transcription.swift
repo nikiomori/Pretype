@@ -214,7 +214,7 @@ enum Transcription {
         }
         // Under "Follow keyboard" Parakeet takes English too: it hears the
         // language, Apple's model takes the layout's word for it.
-        if picksParakeet(offered: offered, fetching: downloading.get() == .parakeet, appleServes: resolved != nil,
+        if picksParakeet(offered: offered, fetching: isFetching(.parakeet), appleServes: resolved != nil,
                          applePreferred: resolved?.preferred == true, automatic: Settings.dictationLanguage == "auto") {
             return try await parakeetFirst({ try await Parakeet.start(locale: locale, onPartial: onPartial) },
                                            orElse: resolved == nil ? nil : apple)
@@ -233,20 +233,27 @@ enum Transcription {
     /// download fails offline, and the language may well be installed.
     static func parakeetFirst(_ parakeet: () async throws -> TranscriptionSession,
                               orElse apple: (() async throws -> TranscriptionSession)?) async throws -> TranscriptionSession {
+        startTrace?.mutate { $0.viaParakeet = true }
         do {
             return try await parakeet()
         } catch {
             guard let apple, !Task.isCancelled else { throw error }
             DebugLog.shared.log("DICTATE", "Parakeet can't start (\(error.localizedDescription)) — using Apple's model")
-            parakeetFailure.set(error)
+            startTrace?.mutate { $0 = StartTrace(viaParakeet: false, parakeetFailure: error) }
             return try await apple()
         }
     }
 
-    /// Why Parakeet handed the last start over to Apple's model. The session
-    /// hides it; a capture released during the download still has to say so
-    /// (`DictationController.startLeftRunningEnded`). Cleared by `begin`.
-    static let parakeetFailure = LockedValue<Error?>(nil)
+    /// What one session start did: whether it waits on Parakeet, and why
+    /// Parakeet handed it to Apple's model (the session hides that, and a
+    /// capture released during the download still has to say so,
+    /// `DictationController.startLeftRunningEnded`). One per start, bound by
+    /// `begin` through `startTrace`, so a second start can't overwrite it.
+    struct StartTrace {
+        var viaParakeet = false
+        var parakeetFailure: Error?
+    }
+    @TaskLocal static var startTrace: LockedValue<StartTrace>?
 
     private static func startApple(_ resolved: (locale: Locale, preferred: Bool), download: Bool,
                                    onPartial: @escaping @Sendable (String) -> Void) async throws -> TranscriptionSession {
@@ -395,31 +402,41 @@ enum Transcription {
     /// wait worth sitting through, and the one a discard must not cancel (the
     /// next press would start it over). A plain microphone open is the other,
     /// short one.
+    /// Each download marks itself (`marking`): the two can run at once, and
+    /// one ending must not clear the other.
     enum Download { case languagePack, parakeet }
-    static let downloading = LockedValue<Download?>(nil)
+    static let downloading = LockedValue<Set<Download>>([])
+
+    static func isFetching(_ download: Download) -> Bool { downloading.get().contains(download) }
+
+    /// `body`, with `download` marked as running.
+    static func marking<T>(_ download: Download, _ body: () async throws -> T) async rethrows -> T {
+        downloading.mutate { _ = $0.insert(download) }
+        defer { downloading.mutate { _ = $0.remove(download) } }
+        return try await body()
+    }
 
     /// A language pack is installing: a second session start would race it
     /// for the same install and reservation. Parakeet's loader is single-flight,
     /// and `picksParakeet` sends a press around it, so its download holds up
     /// nobody.
     static var isInstallingPack: Bool {
-        downloading.get() == .languagePack && !Settings.apiAudio.enabled
+        isFetching(.languagePack) && !Settings.apiAudio.enabled
     }
 
-    /// A download is running that a capture in `locale` may wait on: what a
-    /// pill in `.preparing` tells the user.
-    static func isDownloading(for locale: Locale) -> Bool {
-        guard let download = downloading.get(), !Settings.apiAudio.enabled else { return false }
-        return download == .languagePack || (Settings.dictationParakeet && Parakeet.covers(locale))
+    /// A download is running that this capture waits on: what a pill in
+    /// `.preparing` tells the user. Parakeet's counts only for a start that
+    /// went to Parakeet (`StartTrace.viaParakeet`).
+    static func isDownloading(viaParakeet: Bool) -> Bool {
+        guard !Settings.apiAudio.enabled else { return false }
+        return isFetching(.languagePack) || viaParakeet && isFetching(.parakeet)
     }
 
     private static func install(_ module: any SpeechModule, locale: Locale, download: Bool) async throws {
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             guard download else { throw TranscriptionError.notInstalled }
             DebugLog.shared.log("DICTATE", "downloading the \(name(of: locale)) speech model…")
-            downloading.set(.languagePack)
-            defer { downloading.set(nil) }
-            try await request.downloadAndInstall()
+            try await marking(.languagePack) { try await request.downloadAndInstall() }
         }
         // Installed is not enough: macOS also wants the locale *allocated* to
         // this app before the analyzer will load its model

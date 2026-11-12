@@ -22,7 +22,7 @@ extension DictationController {
         case .preparing:
             // A download is minutes with the microphone shut: "starting" would
             // have a hands-free user talking to nothing.
-            mode = .status(Transcription.isDownloading(for: Settings.resolvedDictationLocale)
+            mode = .status(waitsOnDownload
                 ? String(localized: "getting the dictation model ready…")
                 : String(localized: "starting dictation…"))
         case .listening(let text):

@@ -288,6 +288,12 @@ final class DictationController {
     /// The generation of the start `discard` left running for its download
     /// (`startLeftRunningEnded`).
     var startLeftRunning: Int?
+    /// What the current start did (`Transcription.StartTrace`).
+    var startTrace: LockedValue<Transcription.StartTrace>?
+    /// A download is running that the current start waits on.
+    var waitsOnDownload: Bool {
+        Transcription.isDownloading(viaParakeet: startTrace?.get().viaParakeet ?? false)
+    }
 
     init(capture: any AudioCapturing = AudioCapture()) {
         self.capture = capture

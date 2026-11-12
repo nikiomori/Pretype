@@ -214,7 +214,10 @@ extension DictationController {
         let meter = VoiceMeter(now: clock())
         self.meter = meter
         let startSession = gates.startSession
-        Transcription.parakeetFailure.set(nil)
+        // This start's own record: a later start gets its own, so a failure
+        // not yet heard is not cleared by the next press.
+        let trace = LockedValue(Transcription.StartTrace())
+        startTrace = trace
         sessionTask = Task { @MainActor [weak self] in
             let locale = Settings.resolvedDictationLocale
             // Held OUTSIDE the do-block so the catch can see it: a session that
@@ -227,11 +230,13 @@ extension DictationController {
                 // Can be slow exactly once per language — macOS downloads the
                 // dictation model on first use. The key is usually long
                 // released by then; `finish` says so instead of hanging.
-                let session = try await startSession(locale, onPartial)
+                let session = try await Transcription.$startTrace.withValue(trace) {
+                    try await startSession(locale, onPartial)
+                }
                 started = session
                 guard let self, self.generation == gen else {
                     session.cancel()
-                    self?.startLeftRunningEnded(gen, failure: Transcription.parakeetFailure.exchange(nil))
+                    self?.startLeftRunningEnded(gen, failure: trace.get().parakeetFailure)
                     return
                 }
                 try await self.openMic(for: session, meter: meter, generation: gen, epoch: epoch)
