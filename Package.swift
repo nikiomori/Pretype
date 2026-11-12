@@ -22,7 +22,7 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-transformers", .upToNextMinor(from: "1.3.5")),
         // Parakeet (CoreML) for opt-in dictation of the languages Apple's
         // SpeechTranscriber skips — see Dictation/Parakeet.swift.
-        .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.17.7")),
+        .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.18.3")),
     ],
     targets: [
         .executableTarget(
