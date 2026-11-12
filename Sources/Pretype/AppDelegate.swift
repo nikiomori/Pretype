@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu = StatusMenuController()
         installMainMenu()
         UpdateChecker.checkInBackground()
+        // A screen region a crash left mid-read.
+        ScreenContext.removeRegionLeftovers()
 
         if Permissions.isTrusted {
             start()

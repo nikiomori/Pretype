@@ -310,3 +310,15 @@ final class PromptContextTests: XCTestCase {
         XCTAssertEqual(request.persona(global: "I write concisely."), "I write concisely.")
     }
 }
+
+/// A screen region read for its text leaves no picture behind a crash.
+final class ScreenRegionTests: XCTestCase {
+    func testLaunchRemovesAPictureLeftMidRead() throws {
+        let folder = ScreenContext.regionFolder
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let left = folder.appendingPathComponent("region-left.png")
+        try Data([0]).write(to: left)
+        ScreenContext.removeRegionLeftovers()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: left.path))
+    }
+}

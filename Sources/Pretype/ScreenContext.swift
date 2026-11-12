@@ -213,14 +213,22 @@ enum ScreenContext {
         return picked
     }
 
+    /// Where `readRegion` keeps its picture while it is read: Pretype's own
+    /// folder, emptied at launch (`removeRegionLeftovers`), so a crash in the
+    /// middle of a read leaves no picture of the screen behind.
+    static let regionFolder = FileManager.default.temporaryDirectory
+        .appendingPathComponent("Pretype-region", isDirectory: true)
+
+    static func removeRegionLeftovers() { try? FileManager.default.removeItem(at: regionFolder) }
+
     /// The text in a region the user drags out with macOS's own crosshair
     /// (`screencapture -i`: Space picks a window, Escape cancels). nil when
     /// cancelled, "" when nothing was read. The picture is deleted once read.
     /// ponytail: lines join top to bottom, so two columns side by side
     /// interleave; group by column if people copy tables.
     static func readRegion() async -> String? {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("pretype-region-\(UUID().uuidString).png")
+        try? FileManager.default.createDirectory(at: regionFolder, withIntermediateDirectories: true)
+        let url = regionFolder.appendingPathComponent("region-\(UUID().uuidString).png")
         defer { try? FileManager.default.removeItem(at: url) }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
