@@ -141,4 +141,5 @@ flowchart LR
 - [ ] `swift build --build-system swiftbuild --build-tests` and `swift test --build-system swiftbuild` pass. Without the flag, the six MLX test suites can skip on Xcode 26. Also, `swiftlint --strict` shows no problems. If you changed text that the user sees, you ran `Scripts/sync-strings.py`. CI runs all of these checks. The strings check fails only on translations you could not write: say so in the pull request (see *Translations*).
 - [ ] The app starts, and the change operates in a real text field. TextEdit and Notes have the best Accessibility support.
 - [ ] For prompt, model, or gate changes: you asked for eval numbers. A maintainer runs the harness. See *Quality eval* above.
+- [ ] If the change adds stored data, a Keychain item or a network host: `docs/privacy.md` has a row for it, and the Uninstall section has a step for it.
 - [ ] The diff contains only the change. Comments explain the decisions that are not obvious.

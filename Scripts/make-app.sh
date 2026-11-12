@@ -21,8 +21,19 @@ if [ -n "${PRETYPE_VERSION:-}" ]; then
         exit 1
     fi
     tag="v$PRETYPE_VERSION"
-    if [ "$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)" != "$(git rev-parse HEAD)" ]; then
+    sha=$(git rev-parse HEAD)
+    if [ "$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)" != "$sha" ]; then
         echo "Refusing a release build: HEAD is not at tag $tag. Run: git switch --detach $tag"
+        exit 1
+    fi
+    # The release on GitHub hangs on origin's tag, not on the local one: a tag
+    # moved here and not pushed would ship a build of another commit. An
+    # annotated tag lists its commit on the ^{} line, a plain one on its own.
+    # No answer (offline, tag not pushed) reads as empty, and that refuses.
+    pushed=$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}" 2>/dev/null \
+        | awk -v ref="refs/tags/$tag" '$2 == ref "^{}" { peeled = $1 } $2 == ref { plain = $1 } END { print (peeled != "" ? peeled : plain) }' || true)
+    if [ "$pushed" != "$sha" ]; then
+        echo "Refusing a release build: tag $tag on origin reads \"$pushed\", not HEAD. Run: git push origin $tag"
         exit 1
     fi
     # CI runs on main only after a push, so a tag on a local commit is untested.
@@ -30,10 +41,14 @@ if [ -n "${PRETYPE_VERSION:-}" ]; then
         echo "Refusing a release build: HEAD is not on origin/main. Push main, wait for CI, then run: git fetch origin"
         exit 1
     fi
-    # On main is not green: main takes direct pushes.
-    ci=$(gh api "repos/{owner}/{repo}/commits/$(git rev-parse HEAD)/check-runs" --jq '[.check_runs[].conclusion] | unique | join(",")')
+    # On main is not green: main takes direct pushes. Only the push run on
+    # main counts: a pull request's run tests the merge with main, not this
+    # commit, and skips the packaging step. A commit in the middle of a push
+    # has no run of its own, so it reads as empty; so does a `gh` that fails.
+    ci=$(gh run list --commit "$sha" --event push --branch main --workflow ci.yml \
+        --json conclusion --jq '[.[].conclusion] | unique | join(",")' 2>/dev/null || true)
     if [ "$ci" != "success" ]; then
-        echo "Refusing a release build: CI on HEAD reads \"$ci\", not success."
+        echo "Refusing a release build: the CI run for the push of HEAD to main reads \"$ci\", not success. Tag the commit that a push to main ended on, and wait for its CI."
         exit 1
     fi
 fi

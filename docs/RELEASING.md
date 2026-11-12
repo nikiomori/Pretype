@@ -8,7 +8,7 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
 
 ## Procedure
 
-1. **Push the tag.** Tag a commit on `main` that passed CI.
+1. **Push the tag.** Tag a commit on `main` that passed CI. The commit must be the last commit of a push to `main`. CI runs only on that commit, not on the commits before it in the same push.
 
    ```sh
    git tag vX.Y.Z && git push origin vX.Y.Z
@@ -33,8 +33,9 @@ The repository has no signing secrets. Thus CI cannot make the build that users 
    * `PRETYPE_VERSION` is not set. `dist.sh` signs only an app that it builds from the tag. It never signs an existing `build/Pretype.app`.
    * The working tree has a change or an untracked file.
    * `HEAD` is not at the tag `vX.Y.Z`.
+   * The tag `vX.Y.Z` on `origin` is not at `HEAD`, or you did not push it. This check needs the network.
    * `HEAD` is not on `origin/main`. Push `main` and wait for CI first. Then do `git fetch origin`.
-   * CI on `HEAD` did not pass. This check needs the `gh` CLI.
+   * The CI run for the push of `HEAD` to `main` did not pass, was cancelled, is not complete, or does not exist. A run for a pull request does not count. This check needs the `gh` CLI, signed in. If a later push cancelled the run, start it again on GitHub and wait.
    * The Xcode version is not the version in `ci.yml`. Install it next to your Xcode, as `/Applications/Xcode_X.Y.app`. `dist.sh` then selects it. To build with another Xcode, set `PRETYPE_ANY_XCODE=1`, and do a smoke test of the zip on the oldest macOS that Pretype supports.
    * The "Developer ID Application" certificate is not in the keychain.
 

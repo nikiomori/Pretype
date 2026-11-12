@@ -4,3 +4,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  # Package.swift and Package.resolved, at the root. A dependency pinned to
+  # a revision (mlx-swift-lm, until its next tag) gets no update from this.
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: monthly

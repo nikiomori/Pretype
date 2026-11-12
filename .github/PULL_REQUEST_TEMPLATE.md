@@ -14,6 +14,7 @@
 - [ ] `swiftlint --strict` shows no problems
 - [ ] If you changed text that the user sees: I ran `Scripts/sync-strings.py` (if I could not translate, I say so under Notes; the strings check then fails until the maintainer translates)
 - [ ] Tested in a real text field (TextEdit / Notes)
+- [ ] If the change adds stored data, a Keychain item or a network host: I added a row to `docs/privacy.md` and a step to its Uninstall section
 <!-- For prompt, model, or output-gate changes, write a note here. A maintainer
      runs the eval harness and posts the numbers from before and after the change. -->
 
