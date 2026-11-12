@@ -227,6 +227,12 @@ final class SettingsStore {
 
     func testAPI(_ kind: APIKind) {
         let config = kind == .text ? apiText : apiAudio
+        // A ChatGPT plan has no key and no model field to fill in: what it
+        // lacks is what holds its requests (no sign-in, no model picked).
+        if kind == .text, config.provider == "chatgpt", let why = ChatGPTAccounts.shared.pausedReason {
+            apiTests[kind] = "⚠︎ \(why)"
+            return
+        }
         apiTests[kind] = String(localized: "Testing…")
         Task { @MainActor [weak self] in
             let result = kind == .text ? await CloudEngine.test(config) : await CloudTranscription.test(config)

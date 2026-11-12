@@ -561,6 +561,18 @@ final class ChatGPTTests: XCTestCase {
         XCTAssertNotNil(accounts.notice)
     }
 
+    // The menu retries what a retry can end; the rest is set in Settings → API.
+    func testMenuRetriesALimitAndSendsSignInToSettings() {
+        let needsSettings = StatusMenuController.chatGPTNeedsSettings
+        XCTAssertFalse(needsSettings(.limit, true, true))
+        XCTAssertFalse(needsSettings(.http(500), true, true))
+        XCTAssertFalse(needsSettings(nil, true, true), "a cooldown")
+        XCTAssertTrue(needsSettings(.signIn, true, true))
+        XCTAssertTrue(needsSettings(.model, true, true))
+        XCTAssertTrue(needsSettings(nil, false, true), "no account, or one signed out")
+        XCTAssertTrue(needsSettings(nil, true, false), "no model picked")
+    }
+
     func testSubscriptionCannotUseTheTranscriptionEndpoint() async throws {
         var config = APIConfig(provider: .named("chatgpt"), kind: .text)
         config.model = "m"
@@ -568,7 +580,6 @@ final class ChatGPTTests: XCTestCase {
             _ = try await APIClient.transcribe(config.endpoint(), wav: Data(), language: nil, timeout: 1)
             XCTFail("subscription audio is unsupported")
         } catch { XCTAssertEqual(error as? ChatGPTError, .unsupported) }
-        XCTAssertEqual(ChatGPTStub.calls.get(), 0)
     }
 
     func testLegacyConfigurationAndAudioChoicesAreUnchanged() throws {

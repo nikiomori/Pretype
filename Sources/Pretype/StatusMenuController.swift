@@ -22,6 +22,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var refrainItem: NSMenuItem!
     private var settingsItem: NSMenuItem!
     private var retryItem: NSMenuItem!
+    private var chatGPTItem: NSMenuItem!
     /// While the menu is open the header redraws on every status tick, so a
     /// download percentage moves instead of freezing at the value it had when
     /// the menu opened.
@@ -146,6 +147,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         // Apple Intelligence never re-checks on its own, so without this the
         // way back from a failure was a relaunch.
         retryItem = item(String(localized: "Retry Loading the Model"), #selector(retryEngine), symbol: "arrow.clockwise")
+        // Only while a ChatGPT plan holds its requests: a limit stays until
+        // someone retries, and the one button for that was in Settings → API.
+        // Title set in menuNeedsUpdate.
+        chatGPTItem = item("", #selector(retryChatGPT), symbol: "arrow.clockwise")
 
         // Title filled in menuNeedsUpdate — it names the app the user was last
         // typing in, which isn't known until the menu opens.
@@ -289,6 +294,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         enabledItem.image = symbol(Settings.enabled ? "pause.circle" : "play.circle")
         batteryItem.state = Settings.pauseOnBattery ? .on : .off
         retryItem.isHidden = if case .failed = suggestionController?.engine.state { false } else { true }
+        // Shown with the status line's reason (`status(of:)`), not without it.
+        chatGPTItem.isHidden = !(suggestionController?.engine is CloudEngine && Settings.apiText.usesChatGPTPlan
+            && ChatGPTAccounts.shared.pausedReason != nil)
+        chatGPTItem.title = chatGPTNeedsSettings ? String(localized: "Open ChatGPT Settings…")
+            : String(localized: "Retry ChatGPT")
         // Settings needs the pipeline, which starts once Accessibility is
         // granted — until then the item greys out (nil action) and says why,
         // instead of silently doing nothing when clicked.
@@ -760,6 +770,30 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc private func retryEngine() {
         suggestionController?.engineCoordinator.rebuild()
+    }
+
+    /// Whether a retry cannot end what holds ChatGPT requests: an account to
+    /// sign in or reconnect, or a model to pick, all in Settings → API. A
+    /// limit or a server failure is retried from the menu.
+    nonisolated static func chatGPTNeedsSettings(blocked: ChatGPTError?, canGenerate: Bool, modelPicked: Bool) -> Bool {
+        !canGenerate || !modelPicked || [.signIn, .permission, .model].contains(blocked)
+    }
+
+    private var chatGPTNeedsSettings: Bool {
+        let accounts = ChatGPTAccounts.shared
+        return Self.chatGPTNeedsSettings(blocked: accounts.blocked, canGenerate: accounts.canGenerate,
+                                         modelPicked: accounts.selected?.model.isEmpty == false)
+    }
+
+    /// As "Refresh models / retry" in Settings → API.
+    @objc private func retryChatGPT() {
+        guard chatGPTNeedsSettings else {
+            Task { await ChatGPTAccounts.shared.loadModels(retry: true) }
+            return
+        }
+        openSettings()
+        // After present(), as `showModelsForTypedLanguage`.
+        settingsWindow?.store.activeTab = .api
     }
 
     @objc private func unloadModel() {

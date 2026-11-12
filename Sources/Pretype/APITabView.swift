@@ -35,7 +35,10 @@ private struct APIEndpointSection: View {
                 if kind == .text {
                     IconLabel(symbol: "text.bubble.fill", tint: .teal,
                               title: Text("Use a hosted model for text"),
-                              subtitle: Text("Suggestions, fix, reply and voice commands use this model."))
+                              // On a ChatGPT plan suggestions are a switch of their own.
+                              subtitle: config.provider == "chatgpt" && !store.planSuggestions
+                                  ? Text("Fix, reply and voice commands use this model.")
+                                  : Text("Suggestions, fix, reply and voice commands use this model."))
                 } else {
                     IconLabel(symbol: "waveform", tint: .red,
                               title: Text("Use a hosted model for dictation"),
@@ -97,6 +100,10 @@ private struct APIEndpointSection: View {
 
     private var privacyNote: String {
         if config.provider == "chatgpt" {
+            // Words stands in for suggestions on a plan unless asked otherwise.
+            guard Settings.planSuggestions else {
+                return String(localized: "The text of each fix, reply and voice command goes to OpenAI, with your persona. Suggestions come from Words and send nothing. Password fields and turned-off apps send nothing. Requests use your ChatGPT plan allowance.")
+            }
             return String(localized: "When text generation is enabled, what you type goes to OpenAI with each suggestion, with your persona and an AI agent's session, plus screen context and dictation cleanup when enabled. Password fields and turned-off apps send nothing. Requests use your ChatGPT plan allowance.")
         }
         if config.isLocal {

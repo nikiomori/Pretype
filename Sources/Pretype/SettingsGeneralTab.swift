@@ -236,6 +236,10 @@ struct GeneralTab: View {
     /// What Sentences keeps loaded: the model and its memory — or the
     /// hosted one, which costs this Mac none.
     private var sentencesCost: (symbol: String, text: String, tint: Color) {
+        // Sentences stays the pick, and Words suggests (`Settings.activeSuggestionMode`).
+        if store.apiText.usesChatGPTPlan, !store.planSuggestions {
+            return ("leaf.fill", String(localized: "Words suggests while text runs on a ChatGPT plan"), .orange)
+        }
         if store.apiText.enabled {
             return ("cloud.fill", String(localized: "Runs on \(store.apiText.preset.name)"), .teal)
         }

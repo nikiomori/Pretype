@@ -53,7 +53,12 @@ struct ChatGPTAccountView: View {
             Link("Manage ChatGPT usage", destination: URL(string: "https://chatgpt.com/settings/usage")!)
             Caption(String(localized: "Uses your ChatGPT plan allowance and any credits you allow in ChatGPT settings. Speech transcription uses its separate provider."))
         }
-        .task { await accounts.loadModels(); syncModel() }
+        // Not before a sign-in: the failed load would answer "Reconnect" to
+        // someone who never connected.
+        .task {
+            if accounts.selected?.tokens != nil { await accounts.loadModels() }
+            syncModel()
+        }
         .onChange(of: accounts.revision) {
             syncModel()
             store.apiKeyChanged(provider: "chatgpt")
