@@ -53223,6 +53223,112 @@
         }
       }
     },
+    "Signing in to ChatGPT…" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přihlašování do ChatGPT…"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logger ind på ChatGPT…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmeldung bei ChatGPT…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciando sesión en ChatGPT…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connexion à ChatGPT…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesso a ChatGPT in corso…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT にサインイン中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT에 로그인하는 중…"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inloggen bij ChatGPT…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logowanie do ChatGPT…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrando no ChatGPT…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se conectează la ChatGPT…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вход в ChatGPT…"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loggar in på ChatGPT…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT’ye giriş yapılıyor…"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вхід у ChatGPT…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在登录 ChatGPT…"
+          }
+        }
+      }
+    },
     "Size" : {
       "localizations" : {
         "cs" : {
@@ -62684,215 +62790,108 @@
         }
       }
     },
-    "Use an API model for dictation" : {
+    "Use a hosted model for dictation" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Použít model API pro diktování"
+            "value" : "Použít hostovaný model pro diktování"
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Brug en API-model til diktering"
+            "value" : "Brug en hostet model til diktering"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API-Modell für Diktat verwenden"
+            "value" : "Ein gehostetes Modell für Diktat verwenden"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Usar un modelo de API para dictar"
+            "value" : "Usar un modelo alojado para dictar"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utiliser un modèle API pour la dictée"
+            "value" : "Utiliser un modèle hébergé pour la dictée"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Usa un modello API per la dettatura"
+            "value" : "Usa un modello ospitato per la dettatura"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音声入力にAPIモデルを使用"
+            "value" : "音声入力にホスト型モデルを使用"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "받아쓰기에 API 모델 사용"
+            "value" : "받아쓰기에 호스팅 모델 사용"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gebruik een API-model voor dicteren"
+            "value" : "Een gehost model voor dicteren gebruiken"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Używaj modelu API do dyktowania"
+            "value" : "Używaj modelu hostowanego do dyktowania"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Usar um modelo de API para ditado"
+            "value" : "Usar um modelo hospedado para ditado"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Folosește un model API pentru dictare"
+            "value" : "Folosiți un model găzduit pentru dictare"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Использовать модель API для диктовки"
+            "value" : "Использовать серверную модель для диктовки"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Använd en API-modell för diktering"
+            "value" : "Använd en värdbaserad modell för diktering"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dikte için API modeli kullan"
+            "value" : "Dikte için barındırılan bir model kullan"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Використовувати модель API для диктування"
+            "value" : "Використовувати розміщену на сервері модель для диктування"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用 API 模型进行听写"
-          }
-        }
-      }
-    },
-    "Use an API model for text" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Použít model API pro text"
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Brug en API-model til tekst"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API-Modell für Text verwenden"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usar un modelo de API para el texto"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utiliser un modèle API pour le texte"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usa un modello API per il testo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テキストにAPIモデルを使用"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "텍스트에 API 모델 사용"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gebruik een API-model voor tekst"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Używaj modelu API do tekstu"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usar um modelo de API para texto"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Folosește un model API pentru text"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Использовать модель API для текста"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Använd en API-modell för text"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metin için API modeli kullan"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Використовувати модель API для тексту"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 API 模型处理文本"
+            "value" : "使用托管模型进行听写"
           }
         }
       }
@@ -63317,113 +63316,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用你刚拷贝的文本。"
-          }
-        }
-      }
-    },
-    "Uses your ChatGPT plan allowance and any credits you allow in ChatGPT settings. Signing in does not turn on text generation. Speech transcription uses its separate provider." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Využívá limit vašeho předplatného ChatGPT a kredity, které povolíte v nastavení ChatGPT. Přihlášení nezapíná generování textu. Přepis řeči používá samostatného poskytovatele."
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bruger kvoten i dit ChatGPT-abonnement og eventuelle kreditter, du tillader i ChatGPT-indstillingerne. Login aktiverer ikke tekstgenerering. Taletransskription bruger sin egen udbyder."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nutzt das Kontingent deines ChatGPT-Abonnements und die in den ChatGPT-Einstellungen erlaubten Guthaben. Die Anmeldung aktiviert keine Textgenerierung. Die Sprachtranskription verwendet einen eigenen Anbieter."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usa el límite de tu plan de ChatGPT y los créditos que autorices en los ajustes de ChatGPT. Iniciar sesión no activa la generación de texto. La transcripción de voz usa su propio proveedor."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilise le quota de votre forfait ChatGPT et les crédits que vous autorisez dans les paramètres ChatGPT. La connexion n’active pas la génération de texte. La transcription vocale utilise son propre fournisseur."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usa la quota del tuo piano ChatGPT e gli eventuali crediti autorizzati nelle impostazioni di ChatGPT. L’accesso non attiva la generazione di testo. La trascrizione vocale usa un fornitore separato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPTプランの利用枠と、ChatGPTの設定で許可したクレジットを使用します。サインインしてもテキスト生成は有効になりません。音声の文字起こしには別のプロバイダーを使用します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT 요금제의 사용 한도와 ChatGPT 설정에서 허용한 크레딧을 사용합니다. 로그인해도 텍스트 생성이 활성화되지는 않습니다. 음성 전사는 별도의 제공업체를 사용합니다."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gebruikt de limiet van je ChatGPT-abonnement en eventuele credits die je toestaat in de ChatGPT-instellingen. Aanmelden schakelt tekstgeneratie niet in. Spraaktranscriptie gebruikt een aparte aanbieder."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Korzysta z limitu planu ChatGPT i kredytów dozwolonych w ustawieniach ChatGPT. Logowanie nie włącza generowania tekstu. Transkrypcja mowy korzysta z osobnego dostawcy."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usa a cota do seu plano do ChatGPT e os créditos que você autorizar nas configurações do ChatGPT. Fazer login não ativa a geração de texto. A transcrição de voz usa um provedor separado."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Folosește limita abonamentului ChatGPT și creditele pe care le permiteți în setările ChatGPT. Autentificarea nu activează generarea de text. Transcrierea vocală folosește un furnizor separat."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Расходует лимит вашей подписки ChatGPT и кредиты, разрешённые в настройках ChatGPT. Вход не включает генерацию текста. Для распознавания речи используется отдельный провайдер."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Använder kvoten i ditt ChatGPT-abonnemang och eventuella krediter du tillåter i ChatGPT-inställningarna. Inloggning aktiverar inte textgenerering. Taltranskribering använder en separat leverantör."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT planı kotanızı ve ChatGPT ayarlarında izin verdiğiniz kredileri kullanır. Oturum açmak metin üretimini etkinleştirmez. Konuşma dökümü ayrı bir sağlayıcı kullanır."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Використовує ліміт вашої передплати ChatGPT і кредити, дозволені в налаштуваннях ChatGPT. Вхід не вмикає генерування тексту. Для транскрибування мовлення використовується окремий постачальник."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用您的 ChatGPT 套餐额度以及您在 ChatGPT 设置中允许使用的积分。登录不会启用文本生成。语音转写使用单独的服务提供商。"
           }
         }
       }

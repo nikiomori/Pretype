@@ -38,7 +38,7 @@ private struct APIEndpointSection: View {
                               subtitle: Text("Suggestions, fix, reply and voice commands use this model."))
                 } else {
                     IconLabel(symbol: "waveform", tint: .red,
-                              title: Text("Use an API model for dictation"),
+                              title: Text("Use a hosted model for dictation"),
                               subtitle: Text("Transcribes dictation with this model."))
                 }
             }

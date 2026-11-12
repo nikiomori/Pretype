@@ -26,6 +26,7 @@ struct ChatGPTAccountView: View {
                 }
                 if accounts.signingIn {
                     ProgressView().controlSize(.small)
+                        .accessibilityLabel(Text("Signing in to ChatGPT…"))
                     Button("Cancel") { accounts.cancelSignIn() }
                 }
             }
