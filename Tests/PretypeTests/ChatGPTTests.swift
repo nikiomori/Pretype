@@ -231,9 +231,25 @@ final class ChatGPTTests: XCTestCase {
         let listener = try ChatGPTCallback()
         let url = try await listener.start()
         XCTAssertEqual(url.host, "127.0.0.1")
-        let pending = Task { try await listener.callback() }
+        let pending = Task { try await listener.callback(state: "fixture") }
         pending.cancel()
         do { _ = try await pending.value; XCTFail("cancel must stop waiting") } catch { XCTAssertTrue(error is CancellationError) }
+    }
+
+    /// Probes and a forged state get an answer but neither ends the wait nor
+    /// fills the connection slots; the browser's redirect still gets through.
+    func testLoopbackIgnoresProbesAndForeignState() async throws {
+        let listener = try ChatGPTCallback()
+        defer { listener.cancel() }
+        let url = try await listener.start()
+        let pending = Task { try await listener.callback(state: "right") }
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        for state in Array(repeating: "wrong", count: 12) + ["right"] {
+            _ = try await session.data(from: XCTUnwrap(URL(string: "\(url)?state=\(state)&code=fixture")))
+        }
+        let received = try await pending.value
+        XCTAssertTrue(received.absoluteString.hasSuffix("state=right&code=fixture"))
     }
 
     func testRS256IdentityRejectsTamperingAndClaimMismatch() throws {
@@ -366,6 +382,102 @@ final class ChatGPTTests: XCTestCase {
         do { _ = try await waiter.value; XCTFail("cancelled waiter") } catch { XCTAssertTrue(error is CancellationError) }
         let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
         XCTAssertEqual(restored.selected?.tokens?.refreshToken, "new-refresh")
+    }
+
+    /// A renewal whose only waiter was cancelled must not be served again
+    /// when the renewed token expires: that one is stale by then.
+    @MainActor func testFinishedRefreshIsNeverReusedAfterACancelledWaiter() async throws {
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
+        try accounts.install(fixture(expired: true))
+        let entered = expectation(description: "refresh started")
+        let release = DispatchSemaphore(value: 0)
+        ChatGPTStub.handler.set { _ in
+            let call = ChatGPTStub.calls.get()
+            if call == 1 { entered.fulfill(); _ = release.wait(timeout: .now() + 5) }
+            // expires_in 1: already inside the 60-second renewal margin.
+            return (200, Data(#"{"access_token":"access-\#(call)","refresh_token":"refresh-\#(call)","expires_in":1,"token_type":"Bearer"}"#.utf8), "application/json")
+        }
+        let generation = ChatGPTAccounts.generation.get()
+        let waiter = Task { try await accounts.credentials(generation: generation) }
+        await fulfillment(of: [entered], timeout: 2)
+        waiter.cancel()
+        release.signal()
+        _ = try? await waiter.value
+        let next = try await accounts.credentials(generation: generation)
+        XCTAssertEqual(next.0, "access-2")
+        XCTAssertEqual(ChatGPTStub.calls.get(), 2)
+        XCTAssertEqual(accounts.vault.profiles.first?.tokens?.refreshToken, "refresh-2")
+    }
+
+    @MainActor func testAccountSwitchDuringRefreshKeepsRotatedTokens() async throws {
+        let memory = ChatGPTStorage.memory()
+        let accounts = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
+        try accounts.install(fixture(expired: true))
+        let entered = expectation(description: "refresh started")
+        let release = DispatchSemaphore(value: 0)
+        ChatGPTStub.handler.set { _ in
+            entered.fulfill()
+            _ = release.wait(timeout: .now() + 5)
+            return (200, Data(#"{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600,"token_type":"Bearer"}"#.utf8), "application/json")
+        }
+        let generation = ChatGPTAccounts.generation.get()
+        let waiter = Task { try await accounts.credentials(generation: generation) }
+        await fulfillment(of: [entered], timeout: 2)
+        try accounts.install(fixture(id: "other"))
+        release.signal()
+        do { _ = try await waiter.value; XCTFail("old account used") } catch { XCTAssertTrue(error is CancellationError) }
+        let restored = ChatGPTAccounts(storage: memory, makeSession: ChatGPTStub.session, makeResponses: { nil })
+        XCTAssertEqual(restored.vault.profiles.first { $0.id == "client" }?.tokens?.refreshToken, "new-refresh")
+        XCTAssertEqual(restored.selected?.id, "other")
+    }
+
+    /// An engine keeps its transport across sign-ins: the account generation
+    /// is read per request, so a later sign-in does not silence the engine.
+    @MainActor func testTransportReadsTheAccountGenerationPerRequest() async throws {
+        var config = APIConfig(provider: .named("chatgpt"), kind: .text)
+        config.model = "m"
+        let transport = TextGenerationTransport(endpoint: try config.endpoint())
+        ChatGPTAccounts.generation.set(UUID())
+        do {
+            _ = try await transport.generate(system: "", user: "synthetic", maxTokens: 8, timeout: 1)
+            XCTFail("the shared test vault has no account")
+        } catch { XCTAssertFalse(error is CancellationError, "a stale build-time generation silences every request") }
+    }
+
+    @MainActor func testRepeatingFailureWaitsAndSaysWhy() async throws {
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
+        XCTAssertNotNil(accounts.pausedReason, "no account: nothing can be sent")
+        try accounts.install(fixture())
+        XCTAssertNil(accounts.pausedReason)
+        ChatGPTStub.handler.set { request in
+            if request.url?.path == "/v1/models" {
+                return (200, Data(#"{"models":[{"slug":"m","display_name":"Model","visibility":"list"}]}"#.utf8), "application/json")
+            }
+            return (500, Data(), "application/json")
+        }
+        let generation = ChatGPTAccounts.generation.get()
+        for _ in 0..<2 {
+            do { _ = try await accounts.generate(model: "m", system: "", user: "test", timeout: 2, generation: generation); XCTFail("server error") } catch { XCTAssertEqual(error as? ChatGPTError, .http(500)) }
+        }
+        XCTAssertEqual(ChatGPTStub.calls.get(), 2, "one catalog fetch and one inference; the second waits")
+        XCTAssertEqual(accounts.pausedReason, ChatGPTError.http(500).localizedDescription)
+    }
+
+    @MainActor func testARejectedRequestDoesNotHoldUpTheNext() async throws {
+        let accounts = ChatGPTAccounts(storage: .memory(), makeSession: ChatGPTStub.session, makeResponses: { nil })
+        try accounts.install(fixture())
+        ChatGPTStub.handler.set { request in
+            if request.url?.path == "/v1/models" {
+                return (200, Data(#"{"models":[{"slug":"m","display_name":"Model","visibility":"list"}]}"#.utf8), "application/json")
+            }
+            return (400, Data(), "application/json")
+        }
+        let generation = ChatGPTAccounts.generation.get()
+        for _ in 0..<2 {
+            do { _ = try await accounts.generate(model: "m", system: "", user: "test", timeout: 2, generation: generation); XCTFail("rejected") } catch { XCTAssertEqual(error as? ChatGPTError, .http(400)) }
+        }
+        XCTAssertEqual(ChatGPTStub.calls.get(), 3, "one catalog fetch and two inferences: a 4xx starts no wait")
+        XCTAssertNil(accounts.pausedReason)
     }
 
     @MainActor func testQuotaFailurePausesFurtherRequestsWithoutSwitchingBilling() async throws {

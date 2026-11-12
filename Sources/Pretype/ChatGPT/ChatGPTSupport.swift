@@ -115,6 +115,7 @@ struct ChatGPTStorage {
             if status == errSecItemNotFound {
                 var add = query
                 add[kSecValueData as String] = data
+                // ponytail: login keychain ignores this class; data-protection keychain needs entitlements + migration.
                 add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
                 guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { throw ChatGPTError.storage }
             } else if status != errSecSuccess { throw ChatGPTError.storage }

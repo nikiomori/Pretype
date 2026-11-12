@@ -127,6 +127,20 @@ final class ChatGPTWebSocketTests: XCTestCase {
         XCTAssertEqual(sockets[1].closes.get(), 1)
     }
 
+    func testClosedIdleSocketRetriesOnceOnAFreshOne() async throws {
+        let first = SocketFixture(), second = SocketFixture(), count = LockedValue(0)
+        let transport = ChatGPTWebSocket { _, _ in count.mutate { $0 += 1; return $0 == 1 ? first.socket : second.socket } }
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        try first.answer("first")
+        _ = try await transport.generate(request(), session: session, timeout: 2)
+        first.continuation.finish(throwing: URLError(.cannotConnectToHost)) // the peer closed it while idle
+        try second.answer("second")
+        let answer = try await transport.generate(request(), session: session, timeout: 2)
+        XCTAssertEqual(answer, "second")
+        XCTAssertEqual(count.get(), 2)
+    }
+
     func testExpiredIdleSocketIsReplaced() async throws {
         let clock = LockedValue(Date()), count = LockedValue(0)
         let first = SocketFixture(), second = SocketFixture()

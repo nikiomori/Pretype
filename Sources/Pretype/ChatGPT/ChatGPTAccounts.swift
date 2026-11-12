@@ -22,19 +22,25 @@ final class ChatGPTAccounts {
     @ObservationIgnored private var responses: ChatGPTWebSocket?
     @ObservationIgnored private var session: URLSession
     @ObservationIgnored private var loginTask: Task<Void, Never>?
-    @ObservationIgnored private var refresh: (id: UUID, task: Task<ChatGPTTokens, Error>)?
-    @ObservationIgnored private var unavailableUntil: Date?
-    @ObservationIgnored private var storageFailed = false
+    /// One renewal per account. Kept across account switches: a rotated
+    /// token that the server already issued must still reach the vault.
+    @ObservationIgnored private var refreshes: [String: (id: UUID, task: Task<ChatGPTTokens, Error>)] = [:]
+    @ObservationIgnored private var cooldown: (until: Date, error: ChatGPTError)?
+    @ObservationIgnored private var storageError: ChatGPTError?
+    private var storageFailed: Bool { storageError != nil }
     @ObservationIgnored private var catalogLoaded = false
 
     var selected: ChatGPTProfile? { vault.profiles.first { $0.id == vault.selectedID } }
     /// Why requests are held, for the status menu: suggestions drop these
     /// failures silently, and only Settings had said so.
     var pausedReason: String? {
-        if storageFailed { return ChatGPTError.storage.localizedDescription }
+        if let storageError { return storageError.localizedDescription }
         if let blocked { return blocked.localizedDescription }
-        if let until = unavailableUntil, until > Date() { return ChatGPTError.unavailable.localizedDescription }
-        return nil
+        if let cooldown, cooldown.until > Date() { return cooldown.error.localizedDescription }
+        guard let profile = selected else { return String(localized: "Sign in to ChatGPT in Settings → API.") }
+        guard let tokens = profile.tokens else { return ChatGPTError.signIn.localizedDescription }
+        guard tokens.scopes.contains("chatgpt.tokens.use.direct") else { return ChatGPTError.permission.localizedDescription }
+        return profile.model.isEmpty ? ChatGPTError.model.localizedDescription : nil
     }
     var canGenerate: Bool { selected?.tokens?.scopes.contains("chatgpt.tokens.use.direct") == true && !storageFailed }
 
@@ -48,18 +54,18 @@ final class ChatGPTAccounts {
         do {
             if let data = try storage.read() { vault = try JSONDecoder().decode(ChatGPTVault.self, from: data) } else { try storage.write(JSONEncoder().encode(vault)) }
         } catch {
-            storageFailed = true
-            notice = (error as? ChatGPTError ?? .storage).localizedDescription
+            storageError = error as? ChatGPTError ?? .storage
+            notice = storageError?.localizedDescription
         }
     }
 
     private func save(_ value: ChatGPTVault) throws {
         do { try storage.write(JSONEncoder().encode(value)) } catch {
-            storageFailed = true
+            storageError = error as? ChatGPTError == .inUse ? .inUse : .storage
             throw ChatGPTError.storage
         }
         vault = value
-        storageFailed = false
+        storageError = nil
     }
 
     /// Cancels active URLSession requests before any identity change. The
@@ -68,12 +74,10 @@ final class ChatGPTAccounts {
         session.invalidateAndCancel()
         session = makeSession()
         responses = makeResponses()
-        refresh?.task.cancel()
-        refresh = nil
         revision = UUID()
         Self.generation.set(revision)
         blocked = nil
-        unavailableUntil = nil
+        cooldown = nil
         models = []
         catalogLoaded = false
     }
@@ -93,6 +97,7 @@ final class ChatGPTAccounts {
         do {
             try save(next)
             if blocked == .model { blocked = nil }
+            cooldown = nil
             notice = nil
         } catch { notice = ChatGPTError.storage.localizedDescription }
     }
@@ -115,7 +120,7 @@ final class ChatGPTAccounts {
                         guard NSWorkspace.shared.open(try login.authorize(hostID: self.vault.hostID)) else {
                             throw ChatGPTError.invalidLogin
                         }
-                        let url = try await callback.callback()
+                        let url = try await callback.callback(state: login.state)
                         let authSession = self.makeSession()
                         defer { authSession.invalidateAndCancel() }
                         return try await login.exchange(url, session: authSession)
@@ -129,6 +134,9 @@ final class ChatGPTAccounts {
                     return profile
                 }
                 try Task.checkCancellation()
+                // ponytail: the replaced refresh token is not revoked: under the same
+                // client id a revoke may end the new grant too. Revoke it once a live
+                // check shows the server revokes per token.
                 try self.install(profile)
                 await self.loadModels()
             } catch is CancellationError { self.notice = nil } catch { self.notice = (error as? ChatGPTError ?? .invalidLogin).localizedDescription }
@@ -153,29 +161,20 @@ final class ChatGPTAccounts {
     }
 
     func signOut() async {
-        guard let profile = selected, !busy, !signingIn else { return }
+        guard let id = selected?.id, !busy, !signingIn else { return }
         busy = true
-        invalidate()
         // Stop inference immediately even while remote revocation is pending.
         blocked = .signIn
         defer { busy = false }
-        var revoked = profile.tokens == nil
-        if let token = profile.tokens?.refreshToken {
-            let revocationSession = makeSession()
-            defer { revocationSession.invalidateAndCancel() }
-            do {
-                let discovery = try await ChatGPTHTTP.data(URLRequest(url: ChatGPTLogin.issuer.appendingPathComponent(".well-known/openid-configuration")), session: revocationSession)
-                let json = try JSONSerialization.jsonObject(with: discovery) as? [String: Any]
-                guard let endpoint = json?["revocation_endpoint"] as? String, let url = URL(string: endpoint),
-                      url.scheme == "https", url.host == "auth.openai.com", url.port == nil,
-                      url.user == nil, url.password == nil else { throw ChatGPTError.invalidLogin }
-                _ = try await ChatGPTHTTP.post(url, fields: ["token": token, "token_type_hint": "refresh_token",
-                    "client_id": profile.clientID], session: revocationSession)
-                revoked = true
-            } catch { revoked = false }
-        }
+        // A renewal in flight rotates the token: revoke the one it returns.
+        if let job = refreshes[id] { _ = try? await job.task.value }
+        invalidate()
+        blocked = .signIn
+        let tokens = vault.profiles.first { $0.id == id }?.tokens
+        var revoked = tokens == nil
+        if let tokens, let clientID = selected?.clientID { revoked = await revoke(tokens.refreshToken, clientID: clientID) }
         var next = vault
-        if let index = next.profiles.firstIndex(where: { $0.id == profile.id }) { next.profiles[index].tokens = nil }
+        if let index = next.profiles.firstIndex(where: { $0.id == id }) { next.profiles[index].tokens = nil }
         do {
             try save(next)
             notice = revoked ? nil : String(localized: "Signed out locally. Remote revocation was not confirmed; disconnect Pretype in ChatGPT Settings.")
@@ -186,12 +185,27 @@ final class ChatGPTAccounts {
         }
     }
 
+    private func revoke(_ token: String, clientID: String) async -> Bool {
+        let revocationSession = makeSession()
+        defer { revocationSession.invalidateAndCancel() }
+        do {
+            let discovery = try await ChatGPTHTTP.data(URLRequest(url: ChatGPTLogin.issuer.appendingPathComponent(".well-known/openid-configuration")), session: revocationSession)
+            let json = try JSONSerialization.jsonObject(with: discovery) as? [String: Any]
+            guard let endpoint = json?["revocation_endpoint"] as? String, let url = URL(string: endpoint),
+                  url.scheme == "https", url.host == "auth.openai.com", url.port == nil,
+                  url.user == nil, url.password == nil else { throw ChatGPTError.invalidLogin }
+            _ = try await ChatGPTHTTP.post(url, fields: ["token": token, "token_type_hint": "refresh_token",
+                "client_id": clientID], session: revocationSession)
+            return true
+        } catch { return false }
+    }
+
     func check(_ generation: UUID) throws {
         try Task.checkCancellation()
         guard generation == Self.generation.get() else { throw CancellationError() }
-        guard !storageFailed else { throw ChatGPTError.storage }
+        if let storageError { throw storageError }
         if let blocked { throw blocked }
-        if let until = unavailableUntil, until > Date() { throw ChatGPTError.unavailable }
+        if let cooldown, cooldown.until > Date() { throw cooldown.error }
     }
 
     func credentials(generation: UUID) async throws -> (String, URLSession) {
@@ -199,44 +213,45 @@ final class ChatGPTAccounts {
         guard let profile = selected, let tokens = profile.tokens else { throw ChatGPTError.signIn }
         guard tokens.scopes.contains("chatgpt.tokens.use.direct") else { throw ChatGPTError.permission }
         if tokens.expiresAt > Date().addingTimeInterval(60) { return (tokens.accessToken, session) }
-        let job: (id: UUID, task: Task<ChatGPTTokens, Error>)
-        if let refresh { job = refresh } else {
-            let currentSession = session
-            job = (UUID(), Task {
+        let job = refreshes[profile.id] ?? renew(profile.id, tokens)
+        let renewed = try await job.task.value
+        try check(generation)
+        guard renewed.scopes.contains("chatgpt.tokens.use.direct") else { throw ChatGPTError.permission }
+        return (renewed.accessToken, session)
+    }
+
+    /// The job commits by account, not by generation: neither a superseding
+    /// keypress nor an account switch may drop a token the server rotated.
+    /// It leaves `refreshes` when it ends, so a finished job is never reused.
+    private func renew(_ id: String, _ tokens: ChatGPTTokens) -> (id: UUID, task: Task<ChatGPTTokens, Error>) {
+        let jobID = UUID()
+        let task = Task {
+            defer { if self.refreshes[id]?.id == jobID { self.refreshes[id] = nil } }
+            // Its own session: identity changes cancel the shared one.
+            let refreshSession = self.makeSession()
+            defer { refreshSession.invalidateAndCancel() }
+            var renewed: ChatGPTTokens?
+            do {
                 let data = try await ChatGPTHTTP.post(ChatGPTLogin.tokenURL, fields: ["grant_type": "refresh_token",
-                    "client_id": profile.clientID, "refresh_token": tokens.refreshToken,
-                    "resource": "https://api.openai.com/v1"], session: currentSession)
-                let renewed = try ChatGPTTokens.decode(data, previous: tokens)
-                // Commit inside the refresh job, not its cancellable typing
-                // waiter: rotating tokens must survive a superseding keypress.
-                guard generation == Self.generation.get() else { throw CancellationError() }
-                var next = self.vault
-                guard let index = next.profiles.firstIndex(where: { $0.id == profile.id }) else { throw CancellationError() }
-                next.profiles[index].tokens = renewed
-                try self.save(next)
-                return renewed
-            })
-            refresh = job
-        }
-        do {
-            let renewed = try await job.task.value
-            try check(generation)
-            if refresh?.id == job.id { refresh = nil }
-            guard renewed.scopes.contains("chatgpt.tokens.use.direct") else { throw ChatGPTError.permission }
-            return (renewed.accessToken, session)
-        } catch {
-            if generation == Self.generation.get(), refresh?.id == job.id {
-                // A cancelled caller does not cancel or discard the shared job.
-                if !(error is CancellationError) { refresh = nil }
-                if error as? ChatGPTError == .signIn {
-                    var next = vault
-                    if let index = next.profiles.firstIndex(where: { $0.id == profile.id }) { next.profiles[index].tokens = nil }
-                    do { try save(next) } catch { storageFailed = true }
-                    blocked = .signIn
-                }
+                    "client_id": id, "refresh_token": tokens.refreshToken,
+                    "resource": "https://api.openai.com/v1"], session: refreshSession)
+                renewed = try ChatGPTTokens.decode(data, previous: tokens)
+            } catch ChatGPTError.signIn {
+                renewed = nil
+                if self.vault.selectedID == id { self.blocked = .signIn }
             }
-            throw error
+            var next = self.vault
+            // Sign-out or a reconnect replaced these tokens meanwhile: keep theirs.
+            guard let index = next.profiles.firstIndex(where: { $0.id == id }),
+                  next.profiles[index].tokens?.refreshToken == tokens.refreshToken else { throw CancellationError() }
+            next.profiles[index].tokens = renewed
+            do { try self.save(next) } catch where renewed == nil { self.vault = next }
+            guard let renewed else { throw ChatGPTError.signIn }
+            return renewed
         }
+        let job = (id: jobID, task: task)
+        refreshes[id] = job
+        return job
     }
 
     func record(_ error: Error, generation: UUID) {
@@ -247,7 +262,11 @@ final class ChatGPTAccounts {
         switch failure {
         case .limit, .signIn, .permission, .unsupported, .storage, .inUse, .model: blocked = failure
         case .http(401), .http(403): blocked = failure
-        case .unavailable: unavailableUntil = Date().addingTimeInterval(30)
+        // A server failure waits 30 s rather than repeat per keystroke. A 4xx
+        // belongs to its request (a long conversation, one model): the next
+        // request and the user's own retries go through.
+        case .unavailable, .invalidLogin: cooldown = (Date().addingTimeInterval(30), failure)
+        case .http(let code) where code >= 500: cooldown = (Date().addingTimeInterval(30), failure)
         default: break
         }
     }
@@ -256,7 +275,7 @@ final class ChatGPTAccounts {
         guard !busy else { return }
         busy = true
         defer { busy = false }
-        if retry { blocked = nil; unavailableUntil = nil; notice = nil }
+        if retry { blocked = nil; cooldown = nil; notice = nil }
         let generation = Self.generation.get()
         do {
             let (token, session) = try await credentials(generation: generation)

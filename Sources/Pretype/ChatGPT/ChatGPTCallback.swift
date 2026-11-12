@@ -46,6 +46,15 @@ final class ChatGPTCallback: @unchecked Sendable {
                         return true
                     }
                     guard accepted else { connection.cancel(); return }
+                    // A closed or idle probe frees its slot, so probes cannot lock out the browser.
+                    connection.stateUpdateHandler = { [weak self, weak connection] state in
+                        switch state {
+                        case .failed: connection?.cancel()
+                        case .cancelled: self?.connections.mutate { $0.removeAll { $0 === connection } }
+                        default: break
+                        }
+                    }
+                    self.queue.asyncAfter(deadline: .now() + 10) { [weak connection] in connection?.cancel() }
                     connection.start(queue: self.queue)
                     self.receive(connection, accumulated: Data())
                 }
@@ -56,9 +65,14 @@ final class ChatGPTCallback: @unchecked Sendable {
         return url
     }
 
-    func callback() async throws -> URL {
+    /// Only a redirect carrying this attempt's state ends the wait: another
+    /// local process can reach the port, but cannot cancel the sign-in.
+    func callback(state: String) async throws -> URL {
         try await withTaskCancellationHandler {
-            for try await url in events { return url }
+            for try await url in events {
+                let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                if items.filter({ $0.name == "state" }).map(\.value) == [state] { return url }
+            }
             throw CancellationError()
         } onCancel: { self.cancel() }
     }
@@ -91,7 +105,6 @@ final class ChatGPTCallback: @unchecked Sendable {
             let response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'\r\nConnection: close\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
             connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel() })
             self.continuation.yield(url)
-            self.continuation.finish()
         }
     }
 }

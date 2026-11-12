@@ -79,7 +79,11 @@ actor ChatGPTWebSocket {
 
     func generate(_ request: URLRequest, session: URLSession, timeout: TimeInterval) async throws -> String {
         try await withThrowingTaskGroup(of: String.self) { group in
-            group.addTask { try await self.perform(request, session: session) }
+            group.addTask {
+                do { return try await self.perform(request, session: session) } catch is StaleSocket {
+                    return try await self.perform(request, session: session, fresh: true)
+                }
+            }
             group.addTask {
                 try await Task.sleep(for: .seconds(timeout))
                 throw ChatGPTError.interrupted
@@ -91,15 +95,20 @@ actor ChatGPTWebSocket {
         }
     }
 
-    private func perform(_ request: URLRequest, session: URLSession) async throws -> String {
+    private struct StaleSocket: Error {}
+
+    private func perform(_ request: URLRequest, session: URLSession, fresh: Bool = false) async throws -> String {
         try Task.checkCancellation()
         if httpOnly { return try await ChatGPTResponses.read(request, session: session) }
         let authorization = request.value(forHTTPHeaderField: "Authorization")
         let socket: Socket
-        if let old = idle, old.authorization == authorization, old.session === session,
+        let reused: Bool
+        if !fresh, let old = idle, old.authorization == authorization, old.session === session,
            now().timeIntervalSince(old.at) < 15 {
             socket = old.socket
+            reused = true
         } else {
+            reused = false
             idle?.socket.cancel()
             socket = connect(request, session)
         }
@@ -107,18 +116,23 @@ actor ChatGPTWebSocket {
         let lease = Lease(socket)
         defer { lease.cancel() }
         let result = try await withTaskCancellationHandler {
+            var received = false
             do {
                 try Task.checkCancellation()
                 try await socket.send(Self.message(request))
                 var parser = ChatGPTEventStream()
                 while !parser.completed {
                     let data = try await socket.receive()
+                    received = true
                     try Task.checkCancellation()
                     try parser.append(message: data)
                 }
                 return try parser.result()
             } catch {
                 try Task.checkCancellation()
+                // The peer may have closed an idle socket. Nothing came back, so
+                // nothing is replayed: send once more on a fresh connection.
+                if reused, !received, (error as? ChatGPTError).map({ $0 == .interrupted }) ?? true { throw StaleSocket() }
                 guard socket.rejectedUpgrade() else { throw error }
                 socket.cancel()
                 httpOnly = true
