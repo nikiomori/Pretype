@@ -148,6 +148,39 @@ final class AXTextTests: XCTestCase {
     // reply flow's whole case — an empty chat box — is the one state where that
     // rect spans a run instead of collapsing. Measured off Claude Desktop:
     // field (21,1181 276×63), marker (21,1181 276×21), value = the placeholder.
+    // A field with no caret and one box for all its lines: the words are
+    // wrapped again at the scale the one-line reads gave. Letters are 10
+    // wide by the stand-in font and 12 on the page; the field is 120 wide.
+    func testTheLastLineOfAWrappedFieldIsLaidOutAgain() throws {
+        let measure: (String) -> CGFloat = { CGFloat($0.count) * 10 }
+        var track = AXText.WrapTrack()
+        func width(_ text: String, _ lines: Int, _ box: CGFloat) -> CGFloat? {
+            track.lastLineWidth(of: text, lines: lines, boxWidth: box, fieldWidth: 120, measure: measure)
+        }
+        XCTAssertNil(width("aaaa bbbb cc", 2, 108), "met already wrapped: no scale yet")
+        XCTAssertEqual(width("aaaa bbbb", 1, 108), 108)
+        XCTAssertEqual(try XCTUnwrap(track.scale), 1.2, accuracy: 0.001)
+        // "cc" did not fit: it is line 2, and grows there, past line 1 too.
+        XCTAssertEqual(try XCTUnwrap(width("aaaa bbbb cc", 2, 108)), 24, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(width("aaaa bbbb ccc dd ", 2, 108)), 84, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(width("aaaa bbbb cccc dddd", 2, 108)), 108, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(width("aaaa bbbb cccc dddd ee", 3, 108)), 24, accuracy: 0.01)
+        // Text changed above the last line: laid out again all the same.
+        XCTAssertEqual(try XCTUnwrap(width("xxxx bbbb ccc dd", 2, 108)), 72, accuracy: 0.01)
+        // A no-break space is a space: a web field ends its text with one.
+        XCTAssertEqual(try XCTUnwrap(width("aaaa\u{A0}bbbb cc\u{A0}", 2, 108)), 36, accuracy: 0.01)
+        // A letter typed on one line shows its own width: "w" is 20 on the page.
+        XCTAssertEqual(width("aaaa", 1, 48), 48)
+        XCTAssertEqual(width("aaaaw", 1, 68), 68)
+        XCTAssertEqual(track.glyphs["w"], 20)
+        XCTAssertEqual(width("aaaa bbbb", 1, 108), 108)
+        XCTAssertEqual(try XCTUnwrap(width("aaaa bbbb ww", 2, 108)), 40, accuracy: 0.01)
+        // The lines of a box: the first is 19 tall, each next adds 23.
+        XCTAssertEqual([19, 42, 65, 88, 111, 134].map { track.lineCount(height: $0) }, [1, 2, 3, 4, 5, 6])
+        // Lines the words cannot make: unknown.
+        XCTAssertNil(width("aaaa bb", 3, 60))
+    }
+
     func testElectronMarkerCaretVersusIdleBox() {
         let field = CGRect(x: 21, y: 1181, width: 276, height: 63)
         // A hairline of text height inside the field is the real cursor.
@@ -156,6 +189,11 @@ final class AXTextTests: XCTestCase {
         // nor a full-height "caret" taller than the field.
         XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 21, y: 1181, width: 276, height: 21), in: field))
         XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 0, y: 39, width: 0, height: 0), in: field))
+        // …and no run either: a rect with no size, or away from the field,
+        // refuses nothing. A selection or a placeholder line is a run.
+        XCTAssertFalse(AXText.spansRun(CGRect(x: 0, y: 39, width: 0, height: 0), in: field))
+        XCTAssertFalse(AXText.spansRun(CGRect(x: 6, y: 87, width: 300, height: 20), in: field))
+        XCTAssertTrue(AXText.spansRun(CGRect(x: 21, y: 1181, width: 276, height: 21), in: field))
         XCTAssertFalse(AXText.isCollapsedCaret(CGRect(x: 40, y: 1183, width: 1, height: 200), in: field))
         // The edges: under 4 pt wide, 6 pt tall to the field's height plus 4,
         // its middle within 4 pt of the field (12 to the right).

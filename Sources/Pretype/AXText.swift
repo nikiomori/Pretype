@@ -517,7 +517,17 @@ enum AXText {
             return nil
         }
         if looksMasked(value) { return nil }
-        let marker = webCaretBounds(element)
+        // A marker that is neither the caret nor a run of the field's text is
+        // garbage geometry (a 0×0 rect at one fixed point of the page, in a
+        // chat box of a streaming site): it says nothing, so the caret is
+        // estimated below, unless text is selected.
+        let found = webCaretBounds(element)
+        let marker = found.flatMap { isCollapsedCaret($0, in: frame) || spansRun($0, in: frame) ? $0 : nil }
+        if found != nil, marker == nil {
+            let selected: String? = attribute(element, kAXSelectedTextAttribute)
+            guard selected?.isEmpty ?? true else { return nil }
+            DebugLog.shared.log("AX", "web/Electron: marker outside the field — caret estimated")
+        }
         // A marker that is NOT a collapsed caret spans a whole run, and that has
         // two meanings needing opposite answers: the user has text selected
         // (never suggest into that), or the box is idle and what AX calls its
@@ -577,6 +587,39 @@ enum AXText {
                 + " at x=\(Int(run.minX)), \(Int(size))pt")
             host.font = hostFont ?? .systemFont(ofSize: size)
             return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret, caretRect: anchor, host: host)
+        }
+
+        // No marker, caret at the end: the field's last run of text ends where
+        // the caret is. On one line that is the right edge of its box, exact.
+        // Wrapped, the box covers every line, and no query gives a character's
+        // place here (the range and text-marker calls all answer with the same
+        // garbage as the caret's). The one-line reads give the scale of the
+        // stand-in font; with it the words are wrapped again to the lines the
+        // box has (`WrapTrack`). Without a scale yet (the field was met
+        // already wrapped) the panel goes over the start of the text, where
+        // it stays put, and is a panel whatever the display setting: a ghost
+        // needs the caret itself.
+        if marker == nil, caretLoc == ns.length, let run = lastTextRun(in: element),
+           run.frame.height >= 6, run.frame.height < 200, frame.insetBy(dx: -4, dy: -4).intersects(run.frame) {
+            var track = webWrap.get().flatMap { $0.element == element ? $0.track : nil } ?? WrapTrack()
+            let lines = track.lineCount(height: run.frame.height)
+            let lineHeight = run.frame.height / CGFloat(lines)
+            let font = hostFont ?? .systemFont(ofSize: (track.oneLineHeight ?? lineHeight) / 1.45)
+            let width = track.lastLineWidth(of: (attribute(run.element, kAXValueAttribute) as String?) ?? beforeCaret,
+                                            lines: lines, boxWidth: run.frame.width, fieldWidth: frame.maxX - run.frame.minX) {
+                ($0 as NSString).size(withAttributes: [.font: font]).width
+            }
+            webWrap.set((element, track))
+            let caretBox = CGRect(x: run.frame.minX + (width ?? 0), y: width == nil ? run.frame.minY : run.frame.maxY - lineHeight,
+                                  width: 1, height: lineHeight)
+            if let anchor = onScreen(flipped(caretBox)) {
+                DebugLog.shared.log("AX", "web/Electron: " + (lines == 1 ? "caret at the end of the one-line run"
+                    : width == nil ? "no caret in a wrapped run: anchored to its start"
+                    : "caret laid out on line \(lines) of the run"))
+                host.font = font
+                if width == nil { host.textFollowsCaret = true }
+                return TextContext(textBeforeCaret: window, textAfterCaret: afterCaret, caretRect: anchor, host: host)
+            }
         }
 
         // No marker at all (older Electron / non-Chromium web view): estimate
@@ -717,6 +760,138 @@ enum AXText {
         rect.width < 4 && rect.height >= 6 && rect.height <= frame.height + 4
             && rect.midX >= frame.minX - 4 && rect.midX <= frame.maxX + 12
             && rect.midY >= frame.minY - 4 && rect.midY <= frame.maxY + 4
+    }
+
+    /// The web field whose wrapped text is being followed, and how far.
+    private static let webWrap = LockedValue<(element: AXUIElement, track: WrapTrack)?>(nil)
+
+    /// The last line of a wrapped text, for a field that gives no caret and
+    /// one box for all its lines. On one line the box is the text, which
+    /// gives the scale of the stand-in font, kept for the field. Wrapped, the
+    /// words are laid out again at that scale. Where exactly the field breaks
+    /// a line is not known to a few points, so every width near the field's
+    /// is tried, and the one that makes as many lines as the box has, the
+    /// widest of them nearest to the box's width, is taken; a break once
+    /// found is kept while the text above it stands. No scale yet, or no
+    /// layout with that many lines: unknown.
+    struct WrapTrack {
+        /// Real width over measured width, from the last one-line read; nil before one.
+        var scale: CGFloat?
+        /// How wide each character is on the page: what the box grew by
+        /// when it was typed on one line. The stand-in font is off by a
+        /// different share for every letter, which adds up over lines.
+        var glyphs: [Character: CGFloat] = [:]
+        private var oneLine: (text: String, width: CGFloat)?
+        /// Where each line after the first starts, and the text they were found in.
+        private var starts: [Int] = []
+        private var text = ""
+        /// The box's height on one line, and what a second line added. The
+        /// lines of a box are not its height over one of them: the first
+        /// is shorter than the step between two (19 and 23 points).
+        private(set) var oneLineHeight: CGFloat?
+        private var lineStep: CGFloat?
+
+        /// How many lines a box `height` tall holds.
+        mutating func lineCount(height: CGFloat) -> Int {
+            guard let first = oneLineHeight, height > first * 1.5 else {
+                if height < 30 { oneLineHeight = height }
+                return max(1, Int((height / 20).rounded()))
+            }
+            // Two lines, when one step is not known yet, give it.
+            if lineStep == nil, height < first * 2.6 { lineStep = height - first }
+            return 1 + max(1, Int(((height - first) / (lineStep ?? first * 1.2)).rounded()))
+        }
+
+        mutating func lastLineWidth(of text: String, lines: Int, boxWidth: CGFloat, fieldWidth: CGFloat,
+                                    measure: (String) -> CGFloat) -> CGFloat? {
+            guard lines > 1 else {
+                let measured = measure(text)
+                if measured > 0 { scale = boxWidth / measured }
+                if let oneLine, text.count == oneLine.text.count + 1, text.hasPrefix(oneLine.text), let typed = text.last,
+                   boxWidth - oneLine.width > 0.5, boxWidth - oneLine.width < 40 {
+                    glyphs[typed] = boxWidth - oneLine.width
+                }
+                oneLine = (text, boxWidth)
+                starts = []
+                return boxWidth
+            }
+            guard let scale else { return nil }
+            oneLine = nil
+            defer { self.text = text }
+            let characters = Array(text)
+            func width(_ piece: some Sequence<Character>) -> CGFloat {
+                piece.reduce(0) { $0 + (glyphs[$1] ?? measure(String($1)) * scale) }
+            }
+            // The breaks found before stand while the text up to the last of
+            // them is the same: a word that went down a line does not come
+            // back by a reading of the widths that changed its mind.
+            if starts.count > lines - 1 { starts.removeLast(starts.count - (lines - 1)) }
+            if let last = starts.last, !(last <= characters.count && text.hasPrefix(String(self.text.prefix(last)))) { starts = [] }
+            if starts.count < lines - 1 {
+                // The words, each with where it starts.
+                var words: [(start: Int, width: CGFloat)] = []
+                var index = 0
+                for piece in text.split(omittingEmptySubsequences: false, whereSeparator: \.isWhitespace) {
+                    words.append((index, width(piece)))
+                    index += piece.count + 1
+                }
+                let space = glyphs[" "] ?? glyphs["\u{A0}"] ?? measure(" ") * scale
+                /// The lines' widths, trailing spaces not counted, and where each starts.
+                func wrap(_ limit: CGFloat, _ factor: CGFloat) -> (widths: [CGFloat], starts: [Int]) {
+                    var widths: [CGFloat] = [0]
+                    var begins: [Int] = []
+                    var pending: CGFloat = 0
+                    for (number, word) in words.enumerated() {
+                        if number > 0 { pending += space * factor }
+                        guard word.width > 0 else { continue }
+                        if widths[widths.count - 1] > 0, widths[widths.count - 1] + pending + word.width * factor > limit {
+                            widths.append(word.width * factor)
+                            begins.append(word.start)
+                        } else {
+                            widths[widths.count - 1] += pending + word.width * factor
+                        }
+                        pending = 0
+                    }
+                    return (widths, begins)
+                }
+                func nearest(_ factor: CGFloat) -> (widths: [CGFloat], starts: [Int])? {
+                    stride(from: fieldWidth + 4, through: fieldWidth - 60, by: -1).map { wrap($0, factor) }
+                        .filter { $0.widths.count == lines }
+                        .min { abs(($0.widths.max() ?? 0) - boxWidth) < abs(($1.widths.max() ?? 0) - boxWidth) }
+                }
+                guard var best = nearest(1), let widest = best.widths.max(), widest > 0 else { return nil }
+                // What is measured a little wide or narrow all over moves a
+                // word a line at every wrap. The widest line is known exactly
+                // (the box): everything is set by it, and the lines made again.
+                let correction = boxWidth / widest
+                if abs(correction - 1) < 0.15 { best = nearest(correction) ?? best }
+                // Only the lines not known yet take their start from it.
+                let known = starts
+                starts = known + best.starts.dropFirst(known.count).filter { $0 > (known.last ?? 0) }
+                if starts.count != lines - 1 { starts = best.starts }
+            }
+            guard let start = starts.last, start <= characters.count else { return nil }
+            return min(width(characters[start...]), fieldWidth)
+        }
+    }
+
+    /// The last piece of static text under a web field, and where it is.
+    private static func lastTextRun(in element: AXUIElement, depth: Int = 0) -> (element: AXUIElement, frame: CGRect)? {
+        guard depth < 6, let children: [AXUIElement] = attribute(element, kAXChildrenAttribute) else { return nil }
+        for child in children.reversed() {
+            if let deeper = lastTextRun(in: child, depth: depth + 1) { return deeper }
+            if attribute(child, kAXRoleAttribute) == "AXStaticText", let frame = elementFrame(child), frame.width > 0 {
+                return (child, frame)
+            }
+        }
+        return nil
+    }
+
+    /// A marker rect that covers text of the field: a selection, or the
+    /// placeholder line of an idle box. Not a rect with no size or away from
+    /// the field, which is no answer at all.
+    nonisolated static func spansRun(_ rect: CGRect, in frame: CGRect) -> Bool {
+        rect.width >= 4 && rect.height >= 6 && rect.intersects(frame.insetBy(dx: -4, dy: -4))
     }
 
     /// Given a run-spanning marker, is this an IDLE box (placeholder drawn, no
