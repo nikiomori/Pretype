@@ -308,10 +308,7 @@ final class DanishSpellingTests: XCTestCase {
         XCTAssertEqual(SpellChecker.candidate(for: "frist", completions: ["fristed"], corrected: "first", guess: nil), "first")
         XCTAssertNil(SpellChecker.correction(for: "resp", context: "see the resp"))
         XCTAssertNil(SpellChecker.correction(for: "пожа", context: "ну пожа"))
-        XCTAssertEqual(SpellChecker.candidate(for: "мыпоехали", completions: [], corrected: nil, guess: nil,
-                                              split: "мы поехали"), "мы поехали")
-        XCTAssertEqual(SpellChecker.candidate(for: "сабака", completions: [], corrected: nil, guess: "собака",
-                                              split: "са бака"), "собака")
+        XCTAssertEqual(SpellChecker.candidate(for: "сабака", completions: [], corrected: nil, guess: "собака"), "собака")
     }
 
     func testASlipIsASwapOrAnEnding() {
@@ -328,6 +325,92 @@ final class DanishSpellingTests: XCTestCase {
         XCTAssertEqual(SpellChecker.split("большаясобака", language: "ru"), "большая собака")
         XCTAssertNil(SpellChecker.split("helloworld", language: "en"), "the English checker splits by itself")
         XCTAssertNil(SpellChecker.split("абвгдежз", language: "ru"))
+    }
+
+    // A joined word takes back its space or hyphen with every letter kept:
+    // a known phrase, the checker's own hyphen, a particle's hyphen, a
+    // one-letter word the checker drops. Else the checker's fix stands; a
+    // stem or a prefix is no first word.
+    func testAMissedSpaceOrHyphenKeepsTheLetters() {
+        XCTAssertEqual(SpellChecker.joined("Немогу", language: "ru"), "Не могу")
+        XCTAssertEqual(SpellChecker.joined("porfavor", language: "pt_BR"), "por favor")
+        XCTAssertEqual(SpellChecker.joined("idag", language: "da"), "i dag")
+        XCTAssertNil(SpellChecker.joined("idag", language: "sv"), "one word in Swedish")
+        XCTAssertEqual(SpellChecker.spacing("herşey", corrected: nil, guesses: ["her şey", "hersey"], split: nil), "her şey")
+        XCTAssertEqual(SpellChecker.spacing("aswell", corrected: "swell", guesses: ["swell", "a swell", "as-well", "as well"],
+                                            split: nil), "as well")
+        XCTAssertEqual(SpellChecker.spacing("daccordo", corrected: "d'accordo", guesses: [], split: nil), "d'accordo")
+        XCTAssertNil(SpellChecker.spacing("OpenRouter", corrected: nil, guesses: ["Open Router"], split: nil), "a name")
+        XCTAssertEqual(SpellChecker.spacing("всетаки", corrected: "все-таки", guesses: ["все таки", "все-таки"], split: nil),
+                       "все-таки")
+        XCTAssertEqual(SpellChecker.spacing("какуюто", corrected: nil, guesses: ["какую то", "какую-то"], split: nil), "какую-то")
+        XCTAssertEqual(SpellChecker.spacing("втом", corrected: "том", guesses: ["том"], split: "в том"), "в том")
+        XCTAssertNil(SpellChecker.spacing("сделам", corrected: "сделай", guesses: ["сделай"], split: "с делам"))
+        XCTAssertNil(SpellChecker.spacing("рассход", corrected: "расход", guesses: ["расход"], split: "рас сход"))
+        XCTAssertEqual(SpellChecker.spacing("мыпоехали", corrected: nil, guesses: [], split: "мы поехали"), "мы поехали")
+        XCTAssertNil(SpellChecker.spacing("Pretype", corrected: nil, guesses: ["Pre-type"], split: nil))
+        let words: Set = ["в", "том", "фото", "отчет", "не", "могу", "ним", "до", "шлифовки", "мы", "поехали"]
+        XCTAssertEqual(SpellChecker.split("втом", isWord: words.contains), "в том")
+        XCTAssertEqual(SpellChecker.split("мыпоехали", isWord: words.contains), "мы поехали")
+        XCTAssertNil(SpellChecker.split("фотоотчет", isWord: words.contains))
+        XCTAssertNil(SpellChecker.split("дошлифовки", isWord: words.contains))
+        XCTAssertNil(SpellChecker.split("сним", isWord: words.contains), "only в and я are cut off")
+    }
+
+    // A fix typed without a key is one slip in a word of 5+ letters: not a
+    // changed ending or first letter, a lookalike, or the user's own word.
+    func testASureFixIsOneSlipOfTheHand() {
+        func sure(_ word: String, _ fix: String, seen: [String: Int]? = nil) -> Bool {
+            SpellChecker.isSure(word, fix: fix, adjacent: { "шщ".contains($0) && "шщ".contains($1) },
+                                seen: { (seen ?? [fix: 3])[$0] ?? 0 })
+        }
+        XCTAssertTrue(sure("галвную", "главную"))
+        XCTAssertTrue(sure("коррктности", "корректности"))
+        XCTAssertTrue(sure("исполльзуй", "используй"))
+        XCTAssertTrue(sure("окозалось", "оказалось"))
+        XCTAssertTrue(sure("обший", "общий"))
+        XCTAssertTrue(sure("всетаки", "все-таки"))
+        XCTAssertFalse(sure("мыпоехали", "мы поехали"), "a space is asked about")
+        XCTAssertFalse(sure("Monocode", "Mono-code"))
+        XCTAssertFalse(sure("блокт", "блоки"), "a last letter is an ending")
+        XCTAssertFalse(sure("виджета", "виджет"))
+        XCTAssertFalse(sure("бэтаа", "этаа"))
+        XCTAssertFalse(sure("коммить", "кормить"))
+        XCTAssertFalse(sure("teh", "the"))
+        XCTAssertFalse(sure("промпт", "промыт", seen: ["промпт": 5]))
+        XCTAssertFalse(sure("мержить", "мерить", seen: [:]), "the fix is no word of the user's")
+        XCTAssertTrue(sure("вообше", "вообще", seen: ["вообше": 3, "вообще": 9]))
+    }
+
+    // A word typed on the wrong layout is read key by key on the other one,
+    // marks that are letters there included; a word of its own layout, or
+    // three Latin letters, is left alone.
+    func testAWordOnTheWrongLayoutIsReadOnTheRightOne() {
+        let en = LayoutFix.Layout(language: "en", rows: ["qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./"])
+        let ru = LayoutFix.Layout(language: "ru", rows: ["йцукенгшщзхъ", "фывапролджэ", "ячсмитьбю."])
+        let words: [String: Set<String>] = ["ru": ["привет", "люблю", "при"], "en": ["you", "hello", "have"]]
+        func fix(_ chunk: String) -> String? {
+            LayoutFix.converted(chunk, layouts: [en, ru]) { word, language in
+                language.map { words[$0]?.contains(word.lowercased()) == true }
+                    ?? words.values.contains { $0.contains(word.lowercased()) }
+            }?.text
+        }
+        XCTAssertEqual(fix("ghbdtn"), "привет")
+        XCTAssertEqual(fix("Ghbdtn"), "Привет")
+        XCTAssertEqual(fix("k.,k."), "люблю")
+        XCTAssertNil(fix("нщг"), "three letters are too few")
+        XCTAssertEqual(fix("рфму"), "have")
+        XCTAssertNil(fix("hello"))
+        XCTAssertNil(fix("ghb"), "three Latin letters are an abbreviation")
+        XCTAssertNil(fix("src/main"))
+        let own = LayoutFix.layouts
+        defer { LayoutFix.layouts = own }
+        LayoutFix.layouts = [en, ru]
+        XCTAssertTrue(LayoutFix.hasTwoAlphabets)
+        LayoutFix.layouts = [en, LayoutFix.Layout(language: "de", rows: ["qwertzuiopü+", "asdfghjklöä", "yxcvbnm,.-"])]
+        XCTAssertFalse(LayoutFix.hasTwoAlphabets, "two Latin layouts: off by default")
+        XCTAssertTrue(LayoutFix.adjacent("ш", "щ", layouts: [ru]))
+        XCTAssertFalse(LayoutFix.adjacent("м", "р", layouts: [ru]))
     }
 
     func testOnlyAnEndingFinishesAWord() {

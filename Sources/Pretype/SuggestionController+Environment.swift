@@ -50,6 +50,8 @@ extension SuggestionController {
         var insert: (String) -> Void
         /// Press Return (a dictation into a chat that sends on it).
         var pressReturn: () -> Void
+        /// Select the keyboard layout a wrong-layout fix reads its token on.
+        var selectLayout: (String) -> Void
         /// The clipboard (`NSPasteboard.general`): read for the prompt's
         /// clipboard block, written with a transcript that can't be typed.
         var pasteboard: NSPasteboard
@@ -113,6 +115,7 @@ extension SuggestionController {
                 deleteBackward: { TextInjector.deleteBackward(over: $0, perCharacter: $1) },
                 insert: { TextInjector.insert($0) },
                 pressReturn: { TextInjector.press(KeyCode.returnKey, times: 1) },
+                selectLayout: { LayoutFix.selectLayout(for: $0) },
                 pasteboard: .general,
                 now: { Date() },
                 after: { delay, work in

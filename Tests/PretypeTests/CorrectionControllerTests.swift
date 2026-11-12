@@ -44,9 +44,16 @@ final class CorrectionControllerTests: XCTestCase {
     private lazy var fixes = CorrectionController(host: host, env: world.env, indicator: indicator)
     private let caret = CGRect(x: 100, y: 100, width: 1, height: 16)
 
+    /// The test store outlives a test: a word one test kept is no typo in the next.
+    override func setUp() {
+        super.setUp()
+        Settings.keptWords = [:]
+    }
+
     override func tearDown() {
         fixes.reset()
         indicator.stop()
+        Settings.keptWords = [:]
         super.tearDown()
     }
 
@@ -154,6 +161,103 @@ final class CorrectionControllerTests: XCTestCase {
         _ = fixes.handleKey(keyCode: KeyCode.returnKey, flags: [])
         world.runHops()
         XCTAssertEqual(host.typed.map(\.deleted), ["teh"])
+    }
+
+    // With the switch on a sure typo is typed over at once, with no pill
+    // to take; what it replaced shows until the next key. ⌘Z brings the
+    // word back with what was typed after it, and the word is the user's.
+    func testASureTypoIsFixedWithoutAKeyAndCommandZBringsItBack() {
+        defer {
+            Settings.autoFixTypos = false
+            PersonalNgram.shared.reset()
+        }
+        Settings.autoFixTypos = true
+        PersonalNgram.shared.learn("we receive mail")
+        world.before = "I will recieve "
+        // Read, not typed (a click at the end of an old line): the pill asks.
+        XCTAssertTrue(fixes.handleCaret(read("I will recieve ")))
+        XCTAssertEqual(world.window.currentMode, .correction(original: "recieve", fix: "receive"))
+        fixes.reset()
+        host.typedTextBeforeCaret = "I will recieve "
+        XCTAssertTrue(fixes.handleCaret(read("I will recieve ")))
+        XCTAssertNil(world.window.currentMode)
+        world.runHops()
+        XCTAssertEqual(host.typed.map(\.text), ["receive "])
+        XCTAssertEqual(host.typed.first?.deleted, "recieve ")
+        XCTAssertTrue(fixes.handleCaret(read("I will receive ")))
+        XCTAssertEqual(world.window.currentMode, .fixed(original: "recieve", fix: "receive"))
+        XCTAssertFalse(fixes.handleCaret(read("I will receive it")))
+        XCTAssertNil(world.window.currentMode)
+        XCTAssertEqual(fixes.handleKey(keyCode: 6, flags: .maskCommand, isCommandZ: true), .consumed)
+        world.before = "I will receive it"
+        world.runHops()
+        XCTAssertEqual(host.typed.last?.text, "recieve it")
+        XCTAssertEqual(host.typed.last?.deleted, "receive it")
+        let rows = world.bookings.compactMap { if case .fix(let row) = $0 { row } else { nil } }
+        XCTAssertEqual(rows.map(\.outcome), [.abandoned, .applied, .undone])
+        XCTAssertEqual(rows.map(\.auto), [nil, true, true])
+        XCTAssertFalse(fixes.handleCaret(read("I will recieve ")), "a word taken back is the user's")
+        XCTAssertEqual(fixes.handleKey(keyCode: 6, flags: .maskCommand, isCommandZ: true), .ignored, "one ⌘Z, then the app's")
+    }
+
+    // A pill left on screen twice for a second, or closed with ⎋, is not
+    // drawn again: the word is the user's. A pill that only flashed counts
+    // for nothing.
+    func testAWordLeftTwiceGetsNoPill() {
+        for _ in 0..<2 {
+            XCTAssertTrue(fixes.handleCaret(read("I saw teh ")))
+            XCTAssertFalse(fixes.handleCaret(read("I saw teh cat ")))
+        }
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh ")), "a flash was not read")
+        for _ in 0..<2 {
+            world.now += 1
+            fixes.reset()
+            XCTAssertTrue(fixes.handleCaret(read("I saw teh ")), "a focus change is no answer")
+            world.now += 1
+            XCTAssertFalse(fixes.handleCaret(read("I saw teh cat ")))
+            _ = fixes.handleCaret(read("I saw teh "))
+        }
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh ")))
+        XCTAssertFalse(KeptWords.holds("wrok"))
+        KeptWords.note("wrok", .dismissed, shownForMs: 0)
+        XCTAssertTrue(KeptWords.holds("Wrok,"))
+    }
+
+    // A word typed on the wrong layout gets a pill whole, marks that are
+    // letters there included; taking it types the word as meant and selects
+    // that layout for the next one.
+    func testAWordOnTheWrongLayoutIsFixedAndTheLayoutSelected() {
+        let (enabled, wasOn) = (LayoutFix.layouts, Settings.fixLayout)
+        defer { (LayoutFix.layouts, Settings.fixLayout) = (enabled, wasOn) }
+        Settings.fixLayout = true
+        LayoutFix.layouts = [LayoutFix.Layout(language: "en", rows: ["qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./"]),
+                             LayoutFix.Layout(language: "ru", rows: ["йцукенгшщзхъ", "фывапролджэ", "ячсмитьбю."])]
+        XCTAssertFalse(fixes.handleCaret(read("ghbdtn")), "a word still typed")
+        XCTAssertTrue(fixes.handleCaret(read("ghbdtn ")))
+        XCTAssertEqual(world.window.currentMode, .correction(original: "ghbdtn", fix: "привет"))
+        XCTAssertTrue(world.layoutsSelected.isEmpty, "not before it is taken")
+        XCTAssertEqual(fixes.handleKey(keyCode: KeyCode.tab, flags: []), .consumed)
+        world.before = "ghbdtn "
+        world.runHops()
+        XCTAssertEqual(host.typed.map(\.text), ["привет "])
+        XCTAssertEqual(host.typed.first?.deleted, "ghbdtn ")
+        XCTAssertEqual(world.layoutsSelected, ["ghbdtn "])
+        let rows = world.bookings.compactMap { if case .fix(let row) = $0 { row } else { nil } }
+        XCTAssertEqual(rows.map(\.kind), [.layout])
+        XCTAssertEqual(rows.map(\.outcome), [.applied])
+
+        Settings.fixLayout = false
+        LayoutFix.layouts = LayoutFix.layouts   // forgets the answer it kept
+        XCTAssertFalse(fixes.handleCaret(read("ghbdtn ")), "the switch is off")
+    }
+
+    // A read that ends on the typo itself, its space deleted or not yet
+    // read, has no token: the fix checked for that text is not offered for
+    // nothing.
+    func testNoTokenGetsNoPillFromTheWordCheckedBefore() {
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh ")))
+        XCTAssertFalse(fixes.handleCaret(read("I saw teh")))
+        XCTAssertNil(world.window.currentMode)
     }
 
     func testAnInlineTokenIsClosed() {

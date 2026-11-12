@@ -63,6 +63,18 @@ final class SettingsStore {
         didSet { guard !syncing, oldValue != fixTypos else { return }
             setFeature { Settings.fixTypos = fixTypos } }
     }
+    var autoFixTypos = false {
+        didSet { guard !syncing, oldValue != autoFixTypos else { return }
+            Settings.autoFixTypos = autoFixTypos }
+    }
+    var fixLayout = Settings.fixLayout {
+        didSet { guard !syncing, oldValue != fixLayout else { return }
+            Settings.fixLayout = fixLayout }
+    }
+    var fixSpacing = true {
+        didSet { guard !syncing, oldValue != fixSpacing else { return }
+            Settings.fixSpacing = fixSpacing }
+    }
     var emojiShortcodes = true {
         didSet { guard !syncing, oldValue != emojiShortcodes else { return }
             setFeature { Settings.emojiShortcodes = emojiShortcodes } }
@@ -902,6 +914,7 @@ final class SettingsStore {
     func clearJournal() {
         SuggestionJournal.shared.reset()
         SuggestionJournal.fixes.reset()
+        Settings.keptWords = [:]
         // The n-gram model is derived from the journal — clearing one clears both.
         PersonalNgram.shared.reset()
         journalBytes = 0
@@ -1087,6 +1100,9 @@ final class SettingsStore {
         planSuggestions = Settings.planSuggestions
         fixes = Settings.fixesEnabled
         fixTypos = Settings.fixTypos
+        autoFixTypos = Settings.autoFixTypos
+        fixLayout = Settings.fixLayout
+        fixSpacing = Settings.fixSpacing
         emojiShortcodes = Settings.emojiShortcodes
         inlineMath = Settings.inlineMath
         replies = Settings.repliesEnabled

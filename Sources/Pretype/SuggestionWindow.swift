@@ -23,6 +23,9 @@ enum SuggestionDisplayMode: Equatable {
     /// A spell-fix shown in a pill ABOVE the mistyped word:
     /// the original struck through, an arrow, then the proposed fix. Tab to apply.
     case correction(original: String, fix: String)
+    /// A fix typed without a key, over its word: what it replaced, and ⌘Z
+    /// to bring that back.
+    case fixed(original: String, fix: String)
     /// Dictation is capturing the microphone; the payload is the transcript so
     /// far (empty right after the key goes down).
     case listening(String)
@@ -432,7 +435,7 @@ final class SuggestionWindow: OverlayPanel {
     /// it narrows, by a typed head or by being trimmed to the line.
     nonisolated static func offerToSpeak(_ mode: SuggestionDisplayMode, after spoken: String) -> String? {
         switch mode {
-        case .fixPreview(_, let fix), .correction(_, let fix): return fix == spoken ? nil : fix
+        case .fixPreview(_, let fix), .correction(_, let fix), .fixed(_, let fix): return fix == spoken ? nil : fix
         case .suggestion(let text): return spoken.contains(text) ? nil : text
         default: return nil
         }
@@ -501,7 +504,7 @@ final class SuggestionWindow: OverlayPanel {
     private func isGhostable(_ mode: SuggestionDisplayMode) -> Bool {
         switch mode {
         case .suggestion, .thinking: return true
-        case .status, .error, .hint, .shortcut, .fixPreview, .correction, .listening: return false
+        case .status, .error, .hint, .shortcut, .fixPreview, .correction, .fixed, .listening: return false
         }
     }
 

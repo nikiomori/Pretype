@@ -289,6 +289,44 @@ struct GeneralTab: View {
                 ShortcutLabel(title: Text("Typos as you type")) { ShortcutDemo.typo }
             }
             .help("A misspelled word gets its correction over it: \(store.hotkeyStyle.label) takes it, esc keeps yours. Uses the macOS spell-checker.")
+            Group {
+                Toggle(isOn: $store.autoFixTypos) {
+                    ShortcutLabel(title: Text("Fix sure typos without a key")) {
+                        HStack(spacing: 6) {
+                            MenuHintsView.keycap("⌘Z")
+                            Text("brings your word back", comment: "Settings → Fixes, after the ⌘Z keycap: what the key does to a typo fixed without a key.")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .help("One slip of the hand in a word is fixed when the word ends. ⌘Z brings your word back, and Pretype leaves that word alone from then on.")
+                Toggle(isOn: $store.fixLayout) {
+                    ShortcutLabel(title: Text("Wrong keyboard layout")) {
+                        HStack(spacing: 6) {
+                            Text("zellow", comment: "Settings → Fixes: the word in “yellow” as it comes out on the wrong keyboard layout. Use a pair of layouts common for your language: a German keyboard swaps y and z, a French one a and q; for a Cyrillic language, the Latin letters on the same keys.")
+                                .foregroundStyle(.secondary)
+                            ShortcutDemo.arrow
+                            Text("yellow", comment: "Settings → Fixes: the word meant in “zellow”, a short common word in your language.")
+                                .foregroundStyle(Color.green.legible).bold()
+                        }
+                    }
+                }
+                .help("A word typed on the wrong layout gets its fix, and the layout changes when you take it.")
+                Toggle(isOn: $store.fixSpacing) {
+                    ShortcutLabel(title: Text("Missed spaces and hyphens")) {
+                        HStack(spacing: 6) {
+                            Text("alot", comment: "Settings → Fixes: two words typed as one, or a word that lost its hyphen. Use a common such mistake in your language, in lower case.")
+                                .foregroundStyle(.secondary)
+                            ShortcutDemo.arrow
+                            Text("a lot", comment: "Settings → Fixes: the mistake in “alot”, written right.")
+                                .foregroundStyle(Color.green.legible).bold()
+                        }
+                    }
+                }
+                .help("Two words typed as one get their space, and a word that needs a hyphen gets it.")
+            }
+            .disabled(!store.fixTypos)
+            .padding(.leading, 18)
             Toggle(isOn: $store.emojiShortcodes) {
                 ShortcutLabel(title: Text("Emoji from :codes:")) {
                     HStack(spacing: 6) {

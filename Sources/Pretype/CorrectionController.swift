@@ -34,8 +34,10 @@ protocol CorrectionHost: AnyObject {
 ///   3. inline spell-fix — a misspelled word at the caret shows a system
 ///      spell-check correction over it (⇥ applies).
 ///
-/// A fix is always *previewed* and applied only on an explicit key — never
-/// automatically. It draws into the shared overlay and reaches the pipeline
+/// A fix is *previewed* and applied only on an explicit key. The one
+/// exception is a sure typo with "Fix sure typos automatically" on
+/// (`SpellChecker.isSure`): typed at once, with ⌘Z to bring the word back.
+/// It draws into the shared overlay and reaches the pipeline
 /// only through its `CorrectionHost`, never driving the completion state
 /// beyond clearing it when a fix preempts a suggestion.
 @MainActor
@@ -80,6 +82,14 @@ final class CorrectionController {
     /// A word whose correction the user dismissed with Escape — suppressed until
     /// the word changes, so it doesn't nag.
     private var dismissedCorrectionWord: String?
+    /// A fix typed without a key. ⌘Z brings `original` back while the text
+    /// still reads `after`, alone or with the next word growing behind it.
+    private var autoFixed: (original: String, fixed: String, after: String, row: SuggestionJournal.FixEntry)?
+    /// A fix without a key is on its way to the field: not started twice.
+    private var applyingAuto = false
+    /// The token whose fix without a key the field did not confirm: it gets
+    /// the pill, not a try at every read.
+    private var autoRefused: String?
     /// Read by the caret indicator's `isQueryRunning` — a fix generation must
     /// keep the thinking dots alive just like a completion stream does.
     private(set) var inFlight = false
@@ -103,6 +113,7 @@ final class CorrectionController {
     /// On a focus change, stop suppressing the previously-dismissed word.
     func focusChanged() {
         dismissedCorrectionWord = nil
+        autoFixed = nil
     }
 
     // MARK: - Text-change hooks (called from SuggestionController.textDidChange)
@@ -112,6 +123,7 @@ final class CorrectionController {
     /// When there is no selection it clears the selection state and returns false.
     func handleSelection(_ element: AXUIElement) -> Bool {
         if let info = env.selection(element) {
+            autoFixed = nil
             // A selection switches the panel into fix-selection mode: drop any
             // live completion first.
             host.clearActiveCompletion()
@@ -179,6 +191,20 @@ final class CorrectionController {
         // ":shrug:" would read as "" and never un-suppress.
         let tokenAtCaret = Self.inlineToken(of: text)
         if Self.typo(of: tokenAtCaret) != dismissedCorrectionWord { dismissedCorrectionWord = nil }
+        if tokenAtCaret != autoRefused { autoRefused = nil }
+
+        // A fix typed without a key shows what it replaced until the next
+        // key, and stays ⌘Z's through the next word.
+        if let done = autoFixed {
+            if text == done.after, let caret = ctx.caretRect {
+                host.noteCaret(caret)
+                window.show(mode: .fixed(original: Self.typo(of: done.original), fix: Self.typo(of: done.fixed)),
+                            at: Self.wordRect(of: done.fixed, caret: caret, style: ctx.host), host: ctx.host)
+                return true
+            }
+            if case .fixed = window.currentMode { window.hide() }
+            if !text.hasPrefix(done.after) || text.dropFirst(done.after.count).contains(where: \.isWhitespace) { autoFixed = nil }
+        }
 
         // Inline fix: a closed ":shrug:" previews 🤷, a finished misspelled word
         // its correction, over the token (⇥ applies). Takes priority over a
@@ -198,6 +224,21 @@ final class CorrectionController {
             // Redrawn on every read while its typo stands, the next word
             // growing behind it: journaled once.
             let pill = Self.pill(token: tokenAtCaret, fix: fix)
+            // A sure fix of the word just ended needs no key.
+            // Only a word whose end was typed just now: a click, a paste or
+            // a draft that ends in a typo is text nobody asked to change.
+            if Settings.autoFixTypos, tokenAtCaret.hasSuffix(" "), tokenAtCaret != autoRefused,
+               host.typedTextBeforeCaret?.hasSuffix(tokenAtCaret) == true,
+               Self.isSure(token: tokenAtCaret, fix: fix) {
+                guard !applyingAuto else { return true }
+                var row = row(Self.inlineKind(of: tokenAtCaret), original: pill.original, fix: pill.fix, ctx: text)
+                row.auto = true
+                open(row)
+                activeCorrection = (word: tokenAtCaret, fix: fix)
+                applyingAuto = true
+                applyCorrection(auto: true)
+                return true
+            }
             if activeCorrection.map({ Self.pill(token: $0.word, fix: $0.fix) }) ?? ("", "") != pill {
                 open(row(Self.inlineKind(of: tokenAtCaret), original: pill.original, fix: pill.fix, ctx: text))
             }
@@ -210,7 +251,7 @@ final class CorrectionController {
             // typed past it). Hide NOW — same reason as the pendingFix drop
             // above: no later stage reliably clears the overlay.
             activeCorrection = nil
-            resolveShown(.abandoned)
+            resolveShown(.abandoned, typedPast: true)
             window.hide()
         }
         return false
@@ -224,8 +265,12 @@ final class CorrectionController {
                           correct: ((String) -> String?)? = nil) -> String? {
         if token.hasPrefix(":") { return Settings.emojiShortcodes ? EmojiShortcodes.emoji(for: token) : nil }
         if token.hasSuffix("=") { return Settings.inlineMath ? InlineCalculator.completion(for: token) : nil }
-        guard Settings.fixTypos else { return nil }
+        guard Settings.fixTypos, !KeptWords.holds(typo(of: token)) else { return nil }
+        if let fix = LayoutFix.fix(token: token) { return fix }
         let word = String(token.prefix(while: \.isWordChar))
+        // No token is no typo: with nothing to check, the checked-once cache
+        // would answer for the word the text happens to end on.
+        guard !word.isEmpty else { return nil }
         let fix = correct.map { $0(word) } ?? SpellChecker.correction(for: word, context: context)
         return fix.map { $0 + token.dropFirst(word.count) }
     }
@@ -248,7 +293,19 @@ final class CorrectionController {
 
     /// Which of `inlineFix`'s three a token gets — the journal's `kind`.
     static func inlineKind(of token: String) -> SuggestionJournal.FixEntry.Kind {
-        token.hasPrefix(":") ? .emoji : token.hasSuffix("=") ? .math : .typo
+        token.hasPrefix(":") ? .emoji : token.hasSuffix("=") ? .math : LayoutFix.fix(token: token) != nil ? .layout : .typo
+    }
+
+    /// `fix` of `token` may be typed without a key: a word read on the right
+    /// keyboard layout, or a sure typo (`SpellChecker.isSure`).
+    static func isSure(token: String, fix: String) -> Bool {
+        switch inlineKind(of: token) {
+        case .layout: return token.prefix { $0 != " " }.count >= 5
+        case .typo:
+            let word = String(token.prefix(while: \.isWordChar))
+            return SpellChecker.isSure(word, fix: String(fix.dropLast(token.count - word.count)))
+        default: return false
+        }
     }
 
     // MARK: - Key handling (called from SuggestionController.handleKeyDown)
@@ -270,12 +327,14 @@ final class CorrectionController {
         case applyInline
         /// ⎋ over the inline fix pill: that token isn't offered again until it changes.
         case dismissInline
+        /// ⌘Z after a fix typed without a key: the word comes back.
+        case undoAuto
         case none
 
         /// Whether the app still gets the key.
         var outcome: KeyOutcome {
             switch self {
-            case .propose, .reshow, .apply, .applyInline: return .consumed
+            case .propose, .reshow, .apply, .applyInline, .undoAuto: return .consumed
             case .cancel, .dismissInline: return .passThrough
             case .none: return .ignored
             }
@@ -299,9 +358,12 @@ final class CorrectionController {
         var onScreen = false
         /// A selection is waiting for ⌥⇥ (`selection`).
         var selection = false
+        /// Exact ⌘Z, and a fix typed without a key it can take back (`autoFixed`).
+        var undoesAuto = false
     }
 
     static func fixKey(_ key: FixKeyState) -> FixKey {
+        if key.undoesAuto { return .undoAuto }
         if key.style.matchesCorrection(keyCode: key.keyCode, flags: key.flags) {
             guard key.proposal else { return .propose(selection: key.selection) }
             return key.onScreen ? .apply : .reshow
@@ -321,10 +383,11 @@ final class CorrectionController {
 
     /// `isRepeat`: the key is held. It stays ours, but a fix drawn under a
     /// held chord would be applied barely seen.
-    func handleKey(keyCode: Int64, flags: CGEventFlags, isRepeat: Bool = false) -> KeyOutcome {
+    func handleKey(keyCode: Int64, flags: CGEventFlags, isRepeat: Bool = false, isCommandZ: Bool = false) -> KeyOutcome {
         let action = Self.fixKey(FixKeyState(
             keyCode: keyCode, flags: flags, style: Settings.hotkeyStyle, proposal: pendingFix != nil,
-            inline: activeCorrection != nil, onScreen: window.showsCorrection, selection: selection != nil))
+            inline: activeCorrection != nil, onScreen: window.showsCorrection, selection: selection != nil,
+            undoesAuto: isCommandZ && autoFixed != nil))
         if isRepeat, action.outcome == .consumed { return .consumed }
         switch action {
         case .propose(let fixSelection):
@@ -345,6 +408,9 @@ final class CorrectionController {
             cancelPendingFix()
         case .applyInline:
             applyCorrection()
+        case .undoAuto:
+            // The confirming read must not run inside the event tap.
+            env.hop { [weak self] in self?.undoAutoFix() }
         case .dismissInline:
             dismissedCorrectionWord = activeCorrection.map { Self.typo(of: $0.word) }
             activeCorrection = nil
@@ -540,17 +606,25 @@ final class CorrectionController {
     /// is only re-validated on AX events, which trail typing by tens of ms — a
     /// confirm key landing in that gap (e.g. Enter-to-send right after a burst
     /// of typing) would otherwise delete and replace the wrong characters.
-    private func inject(_ fix: PendingFix, event: String, record: (row: SuggestionJournal.FixEntry, at: Date)?) {
+    private func inject(_ fix: PendingFix, event: String, record: (row: SuggestionJournal.FixEntry, at: Date)?,
+                        auto: Bool = false) {
+        defer { if auto { applyingAuto = false } }
         guard let live = liveRead(confirming: fix) else {
-            if let record { book(record.row, .abandoned, since: record.at) }
+            // Its pill comes next, with a row of its own.
+            if auto { autoRefused = fix.original } else if let record { book(record.row, .abandoned, since: record.at) }
             DebugLog.shared.log("FIX", "dropped stale fix — text changed before apply")
             return
         }
         if let record { book(record.row, .applied, since: record.at) }
+        // A word read on the right keyboard layout: the next one is typed on it.
+        if fix.deletesOriginal, Self.inlineKind(of: fix.original) == .layout { env.selectLayout(fix.original) }
         // Through the shared path, so the settle window covers a fix too: an
         // AX read still showing the typo would re-raise its pill, and a second
         // ⇥ — validated against that same stale read — would apply it twice.
         host.typeFix(fix.replacement, deleting: fix.deletesOriginal ? fix.original : "", over: live.textBeforeCaret)
+        if auto, let record, let before = live.textBeforeCaret {
+            autoFixed = (fix.original, fix.replacement, String(before.dropLast(fix.original.count)) + fix.replacement, record.row)
+        }
         env.book(.correction)
         host.report(event)
         DebugLog.shared.log("FIX", "applied, \(fix.original.count) → \(fix.replacement.count) chars")
@@ -613,6 +687,15 @@ final class CorrectionController {
     /// word ends at the caret, so it starts one word-width to the left; anchoring
     /// the pill there lands it above the word it's correcting, not the caret.
     private func showCorrection(_ fix: String, word: String, caret: CGRect, style: HostTextStyle) {
+        let wordRect = Self.wordRect(of: word, caret: caret, style: style)
+        host.noteCaret(caret)
+        let (original, fixed) = Self.pill(token: word, fix: fix)
+        host.report("typo \"\(original)\" → \"\(fixed)\" (\(Settings.hotkeyStyle.label) to fix)")
+        window.show(mode: .correction(original: original, fix: fixed), at: wordRect, host: style)
+    }
+
+    /// Where `word`, which ends at `caret`, is drawn.
+    private static func wordRect(of word: String, caret: CGRect, style: HostTextStyle) -> CGRect {
         // Measure the word in the HOST's font — a system-font measurement put the
         // pill a word-width off in any field that doesn't use it.
         let font = style.font ?? .systemFont(ofSize: caret.height / 1.30)
@@ -620,15 +703,32 @@ final class CorrectionController {
         var wordRect = caret
         wordRect.origin.x = caret.maxX - wordWidth
         wordRect.size.width = wordWidth
-        host.noteCaret(caret)
-        let (original, fixed) = Self.pill(token: word, fix: fix)
-        host.report("typo \"\(original)\" → \"\(fixed)\" (\(Settings.hotkeyStyle.label) to fix)")
-        window.show(mode: .correction(original: original, fix: fixed), at: wordRect, host: style)
+        return wordRect
+    }
+
+    /// ⌘Z after a fix typed without a key: the word comes back, with what
+    /// was typed after it, and is the user's from now on (`KeptWords`).
+    /// Only while a live read still ends with the fix and that next word.
+    private func undoAutoFix() {
+        // A read that does not confirm yet may trail the fix itself: the
+        // record stays for the next ⌘Z, and `handleCaret` drops it once the
+        // text has moved on.
+        guard let done = autoFixed, let element = host.currentTextElement(), let ctx = env.context(of: element),
+              ctx.textAfterCaret.first?.isLetter != true, let before = fixableText(ctx, of: element),
+              before.hasPrefix(done.after),
+              !before.dropFirst(done.after.count).contains(where: \.isWhitespace) else { return }
+        autoFixed = nil
+        window.hide()
+        let rest = String(before.dropFirst(done.after.count))
+        host.typeFix(done.original + rest, deleting: done.fixed + rest, over: before)
+        book(done.row, .undone)
+        host.report("fix undone")
     }
 
     /// ⇥ on an inline spell-fix: replace the mistyped word with the correction.
     /// Routed through the same validate-then-inject path as the ⌥⇥ fixes.
-    private func applyCorrection() {
+    /// `auto`: no key asked for it (`SpellChecker.isSure`).
+    private func applyCorrection(auto: Bool = false) {
         guard let correction = activeCorrection else { return }
         activeCorrection = nil
         window.hide()
@@ -636,7 +736,7 @@ final class CorrectionController {
                              deletesOriginal: true)
         let event = "fixed typo \"\(correction.word)\" → \"\(correction.fix)\""
         let record = takeShown()
-        env.hop { [weak self] in self?.inject(fix, event: event, record: record) }
+        env.hop { [weak self] in self?.inject(fix, event: event, record: record, auto: auto) }
     }
 
     // MARK: - Fix journal
@@ -662,15 +762,20 @@ final class CorrectionController {
         return shown
     }
 
-    private func resolveShown(_ outcome: SuggestionJournal.FixEntry.Outcome) {
-        if let record = takeShown() { book(record.row, outcome, since: record.at) }
+    /// `typedPast`: the user went on typing with the pill up, which is the
+    /// one way to leave it that says "my word" (`KeptWords`).
+    private func resolveShown(_ outcome: SuggestionJournal.FixEntry.Outcome, typedPast: Bool = false) {
+        if let record = takeShown() { book(record.row, outcome, since: record.at, typedPast: typedPast) }
     }
 
     private func book(_ row: SuggestionJournal.FixEntry, _ outcome: SuggestionJournal.FixEntry.Outcome,
-                      since: Date? = nil) {
+                      since: Date? = nil, typedPast: Bool = false) {
         var row = row
         row.outcome = outcome
         if let since { row.shownForMs = Int(env.now().timeIntervalSince(since) * 1000) }
+        if row.kind == .typo || row.kind == .layout, row.outcome != .abandoned || typedPast {
+            KeptWords.note(row.original, row.outcome, shownForMs: row.shownForMs)
+        }
         env.book(.fix(row))
     }
 
@@ -694,10 +799,16 @@ final class CorrectionController {
         let token = lastToken(of: text)
         guard token == SpellChecker.trailingWord(of: text) else { return token }
         guard text.hasSuffix(" ") else {
-            guard !token.isEmpty else { return "" }
+            // Three letters of the next word: past that the pill only keeps
+            // that word's own suggestion away.
+            guard !token.isEmpty, token.count <= 3 else { return "" }
             let finished = inlineToken(of: String(text.dropLast(token.count)))
             return finished.isEmpty ? "" : finished + token
         }
+        // A chunk typed on the wrong keyboard layout is a token whole: its
+        // marks may be letters there ("k.,k." is "люблю").
+        let chunk = String(text.dropLast().reversed().prefix { $0 != " " && $0 != "\n" }.reversed())
+        if LayoutFix.fix(token: chunk + " ") != nil { return chunk + " " }
         let marks = text.dropLast().reversed().prefix { ".,;:!?)»\"".contains($0) }
         let word = SpellChecker.trailingWord(of: String(text.dropLast(marks.count + 1)))
         return word.isEmpty ? "" : word + String(marks.reversed()) + " "
@@ -713,7 +824,7 @@ final class CorrectionController {
     /// The pill's two sides: `token` and its `fix` without the next word they
     /// share ("teh, wor" → "the, wor" shows "teh," → "the,").
     static func pill(token: String, fix: String) -> (original: String, fix: String) {
-        let next = inlineKind(of: token) == .typo ? token.drop { $0 != " " }.count : 0
+        let next = token.hasPrefix(":") || token.hasSuffix("=") ? 0 : token.drop { $0 != " " }.count
         return (token.dropLast(next).trimmingCharacters(in: .whitespaces),
                 fix.dropLast(next).trimmingCharacters(in: .whitespaces))
     }
@@ -725,5 +836,34 @@ extension SuggestionController: CorrectionHost {
     func typeFix(_ text: String, deleting deleted: String, over before: String?) {
         inject(text, deleting: deleted, over: before)
         scheduleKeystrokeRefresh(after: 0.12)
+    }
+}
+
+/// Words whose fix the user left on screen or took back: after two such
+/// times the word is theirs ("канвасе" is no typo of "канаве"), and the pill
+/// stays away. Left means typed past with the pill up; ⎋ and ⌘Z count as
+/// two, a fix taken forgets the word.
+/// ponytail: one dictionary in the defaults, at most 500 words, then no new
+/// ones; a list in Settings if users ask to edit it.
+enum KeptWords {
+    static func holds(_ word: String) -> Bool { (Settings.keptWords[key(word)] ?? 0) >= 2 }
+
+    /// A pill on screen for under 0.7 s was not read (the quickest one taken
+    /// stood 0.66 s): it counts for nothing.
+    static func note(_ word: String, _ outcome: SuggestionJournal.FixEntry.Outcome, shownForMs: Int) {
+        var words = Settings.keptWords
+        let key = key(word)
+        guard !key.isEmpty else { return }
+        switch outcome {
+        case .applied: guard words.removeValue(forKey: key) != nil else { return }
+        case .dismissed, .undone: words[key] = 2
+        case .abandoned where shownForMs >= 700 && (words[key] != nil || words.count < 500): words[key, default: 0] += 1
+        default: return
+        }
+        Settings.keptWords = words
+    }
+
+    private static func key(_ word: String) -> String {
+        word.lowercased().trimmingCharacters(in: .punctuationCharacters.union(.whitespaces))
     }
 }

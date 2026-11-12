@@ -703,6 +703,16 @@ enum Settings {
     @Pref("fixes", true) static var fixesEnabled: Bool
     /// The system spell-checker's pill over a misspelled word.
     @Pref("fixTypos", true) static var fixTypos: Bool
+    /// A sure typo is fixed without a key; ⌘Z brings the word back (`SpellChecker.isSure`).
+    @Pref("autoFixTypos", false) static var autoFixTypos: Bool
+    /// A word typed on the wrong keyboard layout gets a fix (`LayoutFix`).
+    /// On by default where the keyboards type two alphabets (`LayoutFix.hasTwoAlphabets`).
+    @Pref("fixLayout", LayoutFix.hasTwoAlphabets) static var fixLayout: Bool
+    /// A missed space or hyphen gets a fix (`SpellChecker.spacing`).
+    @Pref("fixSpacing", true) static var fixSpacing: Bool
+    /// Words whose fix the user left or took back, and how often: from two
+    /// on, the word is theirs and gets no fix (`KeptWords`).
+    @Pref("keptWords", [:]) static var keptWords: [String: Int]
     /// ":shrug:" → 🤷 (`EmojiShortcodes`).
     @Pref("emojiShortcodes", true) static var emojiShortcodes: Bool
     /// "12*4=" → 48 (`InlineCalculator`).

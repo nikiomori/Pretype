@@ -49,6 +49,11 @@ extension SuggestionWindow {
             text.append(Self.plain("   "))
             text.append(Self.keycap(Settings.hotkeyStyle.label))
             setPill(text)
+        case .fixed(let original, let fix):
+            let text = NSMutableAttributedString(attributedString: Self.replacement(original, fix))
+            text.append(Self.plain("   "))
+            text.append(Self.keycap("⌘Z"))
+            setPill(text)
         case .listening(let s):
             setPill(listening(s))
         }

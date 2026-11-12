@@ -138,6 +138,7 @@ final class SuggestionJournal: @unchecked Sendable {
             case selection   // ⌥⇥ on a selection
             case lastWord    // ⌥⇥ after a word
             case typo, emoji, math   // the inline pill
+            case layout      // the pill for a word typed on the wrong keyboard layout
         }
         enum Outcome: String, Codable {
             case applied     // typed over the original
@@ -147,6 +148,7 @@ final class SuggestionJournal: @unchecked Sendable {
             case abandoned
             case unchanged   // the engine found nothing to fix ("✓ looks fine")
             case failed      // the engine threw
+            case undone      // typed without a key (`auto`), then taken back with ⌘Z
         }
         var ts: String
         var app: String?
@@ -163,6 +165,8 @@ final class SuggestionJournal: @unchecked Sendable {
         var ctx: String?
         var outcome: Outcome
         var shownForMs: Int
+        /// Typed without a key (`Settings.autoFixTypos`); nil for a fix the user took.
+        var auto: Bool?
     }
 
     func append(fix: FixEntry) {

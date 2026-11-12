@@ -39,6 +39,9 @@ enum SpellChecker {
         guard word.count >= 3, word.count <= 40, word.allSatisfy(\.isWordChar) else { return nil }
 
         let language = self.language(for: word, context: context)
+        // Two words people join, by the text's language: some of them the
+        // dictionary takes as a word ("garnicht", "idag" in Danish).
+        if Settings.fixSpacing, let phrase = joined(word, language: language) { return phrase }
         // Is it actually misspelled?
         guard !spelled(word, language: language) else { return nil }
         // …or only foreign to the dictionary that won: right in another of
@@ -61,21 +64,21 @@ enum SpellChecker {
             forPartialWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
         )
         lastCallHeard = completions != nil
-        let candidate = candidate(
-            for: word,
-            completions: completions,
-            corrected: checker.correction(
-                forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-            ),
-            guess: checker.guesses(
-                forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-            )?.first,
-            split: split(word, language: language)
-        )
+        let corrected = checker.correction(forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0)
+        let guesses = checker.guesses(forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0) ?? []
+        // Its own letters with a space or a hyphen put back come first: the
+        // checker's pick for a joined word drops or swaps letters instead
+        // ("втом" → "том", "небыло" → "небыли").
+        let spaced = completions == nil || !Settings.fixSpacing ? nil
+            : spacing(word, corrected: corrected, guesses: guesses, split: split(word, language: language))
+        let candidate = spaced ?? candidate(for: word, completions: completions, corrected: corrected, guess: guesses.first)
 
+        // The checker's own answer is not always a word ("огромнаое" →
+        // "огкромнаое").
         guard let fix = candidate,
               fix.caseInsensitiveCompare(word) != .orderedSame,
-              CorrectionGates.isMinimalCorrection(original: word, fixed: fix)
+              CorrectionGates.isMinimalCorrection(original: word, fixed: fix),
+              fix.contains(where: " -".contains) || spelled(fix, language: language)
         else { return nil }
         return fix
     }
@@ -85,30 +88,164 @@ enum SpellChecker {
     /// word, so nothing is offered. A prefix of real words takes autocorrect
     /// only when it finishes the word, or is a slip in one of 4+ (`isSlip`):
     /// a shorthand is shorter than its word ("завт"), and 3 letters are too
-    /// few to tell ("wip" → "rip"). `split`: a missed space, last.
+    /// few to tell ("wip" → "rip").
     static func candidate(for word: String, completions: [String]?, corrected: String?,
-                          guess: @autoclosure () -> String?,
-                          split: @autoclosure () -> String? = nil) -> String? {
+                          guess: @autoclosure () -> String?) -> String? {
         guard let completions else { return nil }
         guard completions.isEmpty else {
             return corrected.flatMap { finishes(word, with: $0) || (word.count >= 4 && isSlip(word, to: $0)) ? $0 : nil }
         }
-        return corrected ?? guess() ?? split()
+        return corrected ?? guess()
     }
+
+    /// `word` with the space or hyphen it missed, all its letters kept, or
+    /// nil: then the checker's own fix stands. In turn: the checker's answer
+    /// when it only adds the mark ("всетаки" → "все-таки", "parceque" →
+    /// "parce que"); a guess that does, with a space or an apostrophe
+    /// between parts of 2+ letters ("herşey" → "her şey", not "aswell" →
+    /// "a swell") or, in Cyrillic, with a particle's hyphen ("какнибудь" →
+    /// "как-нибудь"); a one-letter word cut off where the checker drops it
+    /// ("втом" → "том", so "в том"); and the one `split`, when the checker
+    /// has nothing. A word with a capital inside is a name, left alone.
+    static func spacing(_ word: String, corrected: String?, guesses: [String], split: String?) -> String? {
+        guard !word.dropFirst().contains(where: \.isUppercase) else { return nil }
+        let marks = " -'’"
+        func keepsLetters(_ fix: String) -> Bool {
+            fix.contains(where: marks.contains)
+                && fix.filter { !marks.contains($0) }.lowercased() == word.filter { !marks.contains($0) }.lowercased()
+        }
+        if let corrected, keepsLetters(corrected) { return corrected }
+        let cyrillic = isCyrillic(word)
+        if let marked = guesses.first(where: { guess in
+            guard keepsLetters(guess) else { return false }
+            let parts = guess.lowercased().split(whereSeparator: marks.contains).map(String.init)
+            if guess.contains("-") { return cyrillic && parts.contains(where: hyphenParticles.contains) }
+            return !cyrillic && (guess.contains(where: "'’".contains) || parts.allSatisfy { $0.count >= 2 })
+        }) { return marked }
+        guard let split else { return nil }
+        if let corrected {
+            let parts = split.split(separator: " ")
+            return parts.first?.count == 1 && parts.last?.lowercased() == corrected.lowercased() ? split : nil
+        }
+        return guesses.isEmpty ? split : nil
+    }
+
+    /// `word` as the two or three words it joins (`joinedPhrases`), in the
+    /// case it was typed in, for the dictionary `language` ("pt_BR").
+    static func joined(_ word: String, language: String) -> String? {
+        guard let phrase = joinedPhrases[String(language.prefix(2)).lowercased()]?[word.lowercased()] else { return nil }
+        return word.first?.isUppercase == true ? phrase.prefix(1).uppercased() + phrase.dropFirst() : phrase
+    }
+
+    /// Words often typed as one, by language, where the checker's fix is
+    /// another word ("немогу" → "немого", "aswell" → "swell"), nothing
+    /// ("porfavor"), or no fix at all because it takes the joined form.
+    /// ponytail: a hand-made list of the commonest ones; a corpus count per
+    /// language would find the rest.
+    private static let joinedPhrases: [String: [String: String]] = [
+        "ru": ["тоесть": "то есть", "потомучто": "потому что", "такчто": "так что", "какбудто": "как будто",
+               "немогу": "не могу", "незнаю": "не знаю", "небыло": "не было", "ненадо": "не надо", "нехочу": "не хочу",
+               "нехватает": "не хватает", "всеравно": "все равно", "насамом": "на самом", "покрайней": "по крайней"],
+        "uk": ["будьласка": "будь ласка", "томущо": "тому що", "всеодно": "все одно", "такщо": "так що",
+               "нажаль": "на жаль", "незнаю": "не знаю"],
+        "en": ["aswell": "as well", "alot": "a lot", "infact": "in fact", "atleast": "at least", "eachother": "each other",
+               "ofcourse": "of course", "thankyou": "thank you", "incase": "in case"],
+        "es": ["porfavor": "por favor", "aveces": "a veces", "osea": "o sea", "sinembargo": "sin embargo",
+               "talvez": "tal vez", "denada": "de nada", "enserio": "en serio"],
+        "fr": ["peutetre": "peut-être", "parcontre": "par contre", "biensur": "bien sûr", "enfait": "en fait",
+               "toutafait": "tout à fait", "parceque": "parce que", "daccord": "d'accord"],
+        "it": ["perfavore": "per favore", "apposto": "a posto", "daccordo": "d'accordo", "vabene": "va bene",
+               "tuttapposto": "tutto a posto"],
+        "pt": ["porfavor": "por favor", "derepente": "de repente", "concerteza": "com certeza",
+               "comcerteza": "com certeza", "apartir": "a partir", "porisso": "por isso", "denada": "de nada"],
+        "de": ["garnicht": "gar nicht", "garnichts": "gar nichts", "garkein": "gar kein", "vorallem": "vor allem",
+               "aufjedenfall": "auf jeden Fall", "aufkeinenfall": "auf keinen Fall", "zumbeispiel": "zum Beispiel"],
+        "nl": ["inplaats": "in plaats", "tochwel": "toch wel", "opzich": "op zich", "telaat": "te laat", "perse": "per se"],
+        "pl": ["napewno": "na pewno", "narazie": "na razie", "poprostu": "po prostu", "wogóle": "w ogóle",
+               "wogole": "w ogóle", "niewiem": "nie wiem", "conajmniej": "co najmniej"],
+        "cs": ["nashledanou": "na shledanou", "naschledanou": "na shledanou", "vporadku": "v pořádku",
+               "vpořádku": "v pořádku"],
+        "tr": ["herşey": "her şey", "birşey": "bir şey", "hiçbirşey": "hiçbir şey", "herzaman": "her zaman", "yada": "ya da"],
+        "sv": ["iallafall": "i alla fall", "isåfall": "i så fall", "tillexempel": "till exempel",
+               "framförallt": "framför allt"],
+        "da": ["idag": "i dag", "igår": "i går", "imorgen": "i morgen", "iaften": "i aften", "ialt": "i alt",
+               "ihvertfald": "i hvert fald", "istedetfor": "i stedet for"],
+        "ro": ["deasemenea": "de asemenea", "defapt": "de fapt", "deobicei": "de obicei", "dealtfel": "de altfel"],
+    ]
+    /// The parts a hyphen joins to a word: "кто-то", "как-нибудь", "все-таки".
+    private static let hyphenParticles: Set<String> = ["то", "либо", "нибудь", "таки", "кое", "ка"]
+    /// First parts that write together with the next word: a stem
+    /// ("фотоотчет") or a prefix ("дошлифовки", "пересобрал") makes one word
+    /// the dictionary does not have, not two.
+    private static let joiningParts: Set<String> = [
+        "фото", "видео", "аудио", "авто", "кино", "медиа", "онлайн", "бизнес", "теле", "радио", "мото", "аэро",
+        "био", "гео", "гидро", "электро", "микро", "макро", "мини", "макси", "супер", "ультра", "анти", "псевдо",
+        "кибер", "интернет", "веб", "мульти", "поли", "моно", "нейро", "крипто", "эко", "евро", "арт", "арте",
+        "пере", "до", "по", "за", "на", "при", "про", "рас", "раз", "под", "над", "об", "от", "вы", "не", "ни",
+        "без", "бес", "из", "ис", "во", "со", "пре", "недо", "сверх", "меж", "вне",
+    ]
 
     /// `word` as two dictionary words with the space it missed ("мыпоехали"
     /// → "мы поехали"), when exactly one cut makes them; else nil. Cyrillic
     /// only: the English checker splits by itself, and the Russian one never.
     /// The second word has 4+ letters, so a suffix ("умывать ся") or a
-    /// syllable is no word.
+    /// syllable is no word; 3+ after "в" or "я" ("втом" → "в том"), the
+    /// one-letter words that get joined: after another letter the checker
+    /// is right to drop it ("снадо" → "надо").
+    /// Both are everyday words: the dictionary also holds "мил" and "ионы".
     static func split(_ word: String, language: String) -> String? {
-        guard isCyrillic(word), word.count >= 6 else { return nil }
+        split(word) { spelled($0, language: language) && isOrdinaryWord($0.lowercased()) }
+    }
+
+    static func split(_ word: String, isWord: (String) -> Bool) -> String? {
+        guard isCyrillic(word), word.count >= 4 else { return nil }
         let letters = Array(word)
-        let cuts = (2...(letters.count - 4)).filter {
-            spelled(String(letters[..<$0]), language: language) && spelled(String(letters[$0...]), language: language)
+        let cuts = (1...(letters.count - 3)).filter { cut in
+            let (first, second) = (String(letters[..<cut]).lowercased(), String(letters[cut...]))
+            if cut == 1 { return "вя".contains(first) && isWord(second) }
+            return second.count >= 4 && !joiningParts.contains(first) && isWord(first) && isWord(second)
         }
         guard cuts.count == 1, let cut = cuts.first else { return nil }
         return String(letters[..<cut]) + " " + String(letters[cut...])
+    }
+
+    /// A fix sure enough to type without asking (`Settings.autoFixTypos`):
+    /// a Cyrillic word's own letters with its hyphen put back, or one slip
+    /// of the hand in a word of 5+ letters that keeps its first letter — two
+    /// letters swapped, one missing or extra inside the word, a vowel for a
+    /// vowel, or the key next to the right one. Not a changed last letter or ending
+    /// ("виджета" → "виджет" is another form, not a typo). A slip counts
+    /// only toward a word the user has typed before (`seen`), and more often
+    /// than the misspelling: the dictionary lacks jargon and turns it into
+    /// a lookalike ("мержить" → "мерить", "промпт" → "промыт"). So with
+    /// "Learn my words" off only a hyphen is put back.
+    static func isSure(_ word: String, fix: String, adjacent: (Character, Character) -> Bool = LayoutFix.adjacent,
+                       seen: (String) -> Int = PersonalNgram.shared.count(of:)) -> Bool {
+        let (a, b) = (Array(word.lowercased()), Array(fix.lowercased()))
+        guard a.count >= 5, a.first == b.first else { return false }
+        if b.contains(where: " -".contains) {
+            return isCyrillic(word) && !b.contains(" ") && b.filter { $0 != "-" } == a.filter { $0 != "-" }
+        }
+        let (typed, typedFix) = (seen(word), seen(fix))
+        guard typedFix >= 1, typed < 2 || typedFix > typed else { return false }
+        let prefix = zip(a, b).prefix { $0 == $1 }.count
+        let suffix = min(zip(a.reversed(), b.reversed()).prefix { $0 == $1 }.count, min(a.count, b.count) - prefix)
+        let (cutA, cutB) = (Array(a[prefix..<(a.count - suffix)]), Array(b[prefix..<(b.count - suffix)]))
+        switch (cutA.count, cutB.count) {
+        case (2, 2): return cutA == cutB.reversed()
+        case (1, 0), (0, 1): return suffix > 0
+        case (1, 1):
+            let vowels = "aeiouyаеёиоуыэюя"
+            return suffix > 0 && (vowels.contains(cutA[0]) && vowels.contains(cutB[0]) || adjacent(cutA[0], cutB[0]))
+        default: return false
+        }
+    }
+
+    /// `word` is in the dictionary of `languageCode` ("ru"), when one is installed.
+    static func isWord(_ word: String, in languageCode: String) -> Bool {
+        guard let language = availableLanguages.first(where: { $0.lowercased().hasPrefix(languageCode.prefix(2)) })
+        else { return false }
+        return spelled(word, language: language)
     }
 
     /// `fix` is `word` with two letters side by side swapped, or another vowel

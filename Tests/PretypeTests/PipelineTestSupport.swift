@@ -312,6 +312,8 @@ final class FakeWorld {
     var probeTakes: TimeInterval = 0
     var now = Date(timeIntervalSinceReferenceDate: 0)
     private(set) var keys: [Key] = []
+    /// The tokens whose keyboard layout a wrong-layout fix selected.
+    private(set) var layoutsSelected: [String] = []
     /// A clipboard of the test's own — never the user's.
     let pasteboard = NSPasteboard.withUniqueName()
     /// What the clipboard holds: a transcript put there instead of typed.
@@ -387,6 +389,7 @@ final class FakeWorld {
             deleteBackward: { [unowned self] in keys.append(.delete($0, perCharacter: $1)) },
             insert: { [unowned self] in keys.append(.insert($0)) },
             pressReturn: { [unowned self] in keys.append(.returnKey) },
+            selectLayout: { [unowned self] in layoutsSelected.append($0) },
             pasteboard: pasteboard,
             now: { [unowned self] in now },
             after: { [unowned self] delay, work in scheduled.append((now.addingTimeInterval(delay), work)) },

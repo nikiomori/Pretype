@@ -179,7 +179,8 @@ extension SuggestionController {
             ghost: field.ghost, ghostOnScreen: window.showsSuggestion,
             style: Settings.hotkeyStyle, fixes: Settings.fixesEnabled, replies: Settings.repliesEnabled)
         let action = Self.keyAction(for: key,
-                                    fix: { correctionController.handleKey(keyCode: keyCode, flags: flags, isRepeat: isRepeat) },
+                                    fix: { correctionController.handleKey(keyCode: keyCode, flags: flags, isRepeat: isRepeat,
+                                                                           isCommandZ: key.isCommandZ) },
                                     focusElsewhere: { keyboardFocusIsElsewhere })
         switch action {
         case .undo:

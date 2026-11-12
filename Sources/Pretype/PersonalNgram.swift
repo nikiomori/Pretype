@@ -160,6 +160,14 @@ final class PersonalNgram: @unchecked Sendable {
         }
     }
 
+    /// How often the user typed `word`, whatever its case.
+    func count(of word: String) -> Int {
+        let folded = Self.fold(word)
+        return lock.withLock {
+            unigram[Self.prefixKey(folded)]?.reduce(0) { $0 + (Self.fold($1.key) == folded ? $1.value : 0) } ?? 0
+        }
+    }
+
     /// Size of the personal vocabulary — the Settings "learned words" figure.
     var wordCount: Int {
         lock.withLock { unigram.values.reduce(0) { $0 + $1.count } }
