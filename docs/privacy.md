@@ -109,7 +109,7 @@ A capture runs only in these conditions:
 
 You can use your ChatGPT plan for text in place of an API key. Select **ChatGPT subscription** in **Settings → API → Text**. Then click **Continue with ChatGPT**. You sign in with your system browser.
 
-* **Sign-in.** To sign in does not turn on text generation. You turn it on separately. The browser returns to a temporary listener on `127.0.0.1` only. The listener closes when the sign-in is complete, cancelled or timed out.
+* **Sign-in.** To sign in does not turn on text generation. You turn it on separately. The browser returns to a temporary listener on `127.0.0.1` only. The listener closes when the sign-in is complete, cancelled or timed out. The sign-in address that your browser opens contains the host identifier of this installation. When you reconnect an account, the address also contains the email and the stored ID token of that account. Thus OpenAI gets them, and your browser history keeps them.
 * **What goes to OpenAI.** The same text as for a hosted model: see [API providers](#api-providers). This is the selection for the fix chord and voice commands, the conversation for the reply chord, and a dictated transcript if "Tidy up" is on. Your persona, the app style, the screen context and the session of an AI agent go with it.
 * **Suggestions stay on the Mac by default.** With **Suggestions on ChatGPT** off, Words completes your words on the Mac. Your text then goes to OpenAI only for a fix, a reply, a voice command or a dictation tidy-up.
 * **Never.** The clipboard text. Text in password fields and in turned-off apps. Audio: dictation uses its own provider.
@@ -127,7 +127,7 @@ Pretype keeps a journal in `~/Library/Application Support/Pretype` for on-device
 | | |
 |---|---|
 | **Contents** | Every suggestion that Pretype showed you, and its result. Each entry has the text around the caret at that time: up to 1,000 characters before it and 192 after it. Plus any text that you import with **Settings → Personalization → Advanced → Import Text…**. |
-| **Fixes** | A second file, `fix-journal.jsonl`, keeps every fix that Pretype showed or that you asked for: the original text, the fix and its result (applied, dismissed, not used, nothing to fix, failed). A fix of the last word or of a typo also keeps up to 200 characters before the caret. Voice commands are not in it. |
+| **Fixes** | A second file, `fix-journal.jsonl`, keeps every fix that Pretype showed or that you asked for: the original text, the fix and its result (applied, dismissed, not used, nothing to fix, failed). A fix of the last word or of a typo also keeps up to 200 characters before the caret. Voice commands are not in it. The words whose typo fix you did not take are in the preferences of Pretype (`keptWords`), so that the fix does not show again. Pretype keeps them also when the journal is off. **Clear** removes them. |
 | **Format** | Plain text. |
 | **Maximum size** | 50 MB (years of typing), and 5 MB for the fixes. |
 | **Default** | On. |
@@ -159,7 +159,7 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
 
    In **Settings → Model**, the list of models shows the disk size of each downloaded model, with a trash button that deletes it. The list shows only the models of the Pretype catalog. The model that you use now has no trash button. To remove it, select a different model, and then use the trash button on its row. For a full removal, use the command below. The command also removes the lock files and the download records of these models, in `.locks` and `.metadata`.
 
-   > **WARNING:** This command deletes the full `mlx-community`, `openbmb` and `prism-ml` organizations from the shared Hugging Face cache. If a different MLX tool (LM Studio, mlx_lm, …) uses this cache, remove those three names from the command. The `nikimori` and `nikimoriOne` organizations contain only Pretype's own builds (Qwen3.5 2B M40, the default on 8 GB Macs, EuroLLM 1.7B and the slim Gemma tiers).
+   > **WARNING:** This command deletes the full `mlx-community`, `openbmb` and `prism-ml` organizations from the shared Hugging Face cache. If a different MLX tool (LM Studio, mlx_lm, …) uses this cache, remove those three names from the command. The `nikimori` and `nikimoriOne` organizations contain only Pretype's own builds (Qwen3.5 2B M40, the default on 8 GB Macs, EuroLLM 1.7B, Pretype One and the slim Gemma tiers).
 
    ```bash
    hub=~/.cache/huggingface/hub
@@ -195,7 +195,7 @@ Pretype keeps its data in the locations below. Remove all of them, and nothing t
    security delete-generic-password -s app.pretype.api-key -a openai
    ```
 
-   If you signed in with a ChatGPT plan, also delete its keychain item. Step 4 already deleted its lock file.
+   If you selected the **ChatGPT subscription** provider at any time, also delete its keychain item. Pretype makes this item when you select the provider, before you sign in. Sign out first, so that OpenAI revokes the session. Step 4 already deleted its lock file.
 
    ```bash
    security delete-generic-password -s app.pretype.chatgpt -a accounts

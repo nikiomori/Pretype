@@ -80,8 +80,8 @@ To reject a suggestion, continue to type. You can change the accept key to <kbd>
 | Feature | What it does |
 |---|---|
 | **All text fields** | Native apps, Electron apps (VS Code, Slack, Claude Desktop), and web pages. In Terminal, iTerm2, and the VS Code terminal, only the prompts that you type to an AI agent, for example Claude Code. There, the file names and the symbols that the agent shows complete at once. |
-| **Typo fixes** | A pill shows above a misspelled word. The macOS spell checker finds the error in the language of the text. |
-| **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing. It keeps your tone. The best model fixes 69% of noisy lines exactly. |
+| **Typo fixes** | A pill shows above a misspelled word. The macOS spell checker finds the error in the language of the text. A word typed on the wrong keyboard layout gets a fix, and so does a missed space or hyphen. As an option, Pretype types a sure fix without a key, and <kbd>⌘Z</kbd> brings your word back. A word that you keep two times gets no more pills. |
+| **Rewrites** (<kbd>⌥Tab</kbd>) | The local model fixes grammar, typos, and phrasing. It keeps your tone. The best model fixes 79% of noisy lines exactly. |
 | **Reply drafts** (<kbd>⌥⇧Tab</kbd>) | The local model writes your next message from the conversation on the screen. With the best model, 90% of the replies are on topic. An independent model rates them. In the prompt of an AI agent, the draft answers the agent's session. It reads the terminal text and needs no Screen Recording. With **Offer replies in chats** on, the draft comes when the agent finishes its turn. |
 | **Emoji and symbols** | `:shrug:` gives 🤷, `:rocket:` gives 🚀, `:cmd:` gives ⌘. |
 | **Arithmetic** | `12*7=` gives 84. |

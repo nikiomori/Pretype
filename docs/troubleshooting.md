@@ -110,11 +110,13 @@ The default model depends on the memory of your Mac:
 | Mac memory | Default model |
 |---|---|
 | 16 GB and more | A Gemma 4 tier, which has the widest language coverage |
-| 8 GB | Qwen3.5 2B, which is the strongest small model outside English |
+| 8 GB | Qwen3.5 2B M40. Its base model is the strongest small model outside English. On 8 GB, suggestions start in **Words** mode, and the model runs the fixes and the replies. |
 
 In **Settings → Model**, set **Accuracy in** to the language that you type. Each figure on that tab then shows the result for that language. The tooltip gives the sample size and the tolerance.
 
-Inline typo fixes use the macOS spell checker, in the language that it detects. All dictionaries that macOS has installed operate. English and Russian have the most tests.
+Inline typo fixes use the macOS spell checker, in the language that it detects. All dictionaries that macOS has installed operate. English and Russian have the most tests. For a missed space, Pretype knows the common joined phrases of 15 languages (for example "porfavor" and "garnicht"). For Russian, it also splits two words that are not in that list. The fix for the wrong keyboard layout needs two enabled layouts with different letters. It is on by default only if the layouts have different alphabets.
+
+If a word gets no pill, you possibly kept it before: after 2 times, or after <kbd>Esc</kbd>, Pretype does not correct that word. **Settings → Personalization → Clear** removes this list together with the journal.
 
 ### Where does my data go?
 

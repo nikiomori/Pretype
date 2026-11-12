@@ -3,7 +3,7 @@
 We measure every model in the catalog on the same held-out eval. The Apple Intelligence system model is in the eval too. The eval measures first-word accuracy on real human text. If a model stays silent, the eval counts a miss. We ran the full eval again on 2026-10-15, on the engine as it ships.
 
 <div align="center">
-<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English nine downloadable models score 26-29% first-word accuracy, a tie, EuroLLM 1.7B 25% and Apple Intelligence 22%; averaged over 17 other languages they fan out from 23.1% (Gemma 4 E4B) down to 8.4% (Apple Intelligence)" />
+<img src="chart-models.svg" width="720" alt="Dumbbell chart: on English ten downloadable models score 26-29% first-word accuracy, a tie, EuroLLM 1.7B 25% and Apple Intelligence 22%; averaged over 17 other languages they fan out from 23.1% (Gemma 4 E4B) down to 8.4% (Apple Intelligence)" />
 </div>
 
 ## Which model to use
@@ -44,10 +44,11 @@ We measure these two languages on a separate set: 560 held-out rows (first run 2
 
 | Model | Result |
 |---|---|
-| Every small model | 3–13%. |
+| Every small model (Qwen, MiniCPM5, Bonsai) | 3–13%. |
 | Gemma E2B 8-bit | 10% Arabic, 18% Hebrew. This is approximately two times the small models. Use a Gemma tier if your Mac has the memory. |
 | MiniCPM5 | 3% on Hebrew. Do not use it for Hebrew. |
 | EuroLLM 1.7B | 10% on Arabic. It shows no suggestions in Hebrew: it was correct on 6 of 255. |
+| Pretype One | 12% Arabic, 19% Hebrew (2026-11-12). This is level with the Gemma tiers, in 1.6 GB. |
 | Apple Intelligence | It shows a suggestion more frequently than any downloadable model (84–87% of the time). But only 6% of the suggestions are correct. |
 
 Inline typo fixes do not work in these two languages. macOS lists them as spell-check languages, but it has no dictionary for them.
@@ -59,6 +60,7 @@ We measure Danish on a separate set: 280 held-out rows (2026-10-28). The rows co
 | Model | Result |
 |---|---|
 | Every Gemma 4 tier | 27–28%. The four tiers tie (p ≥ 0.65). E2B 4-bit is the fastest of them. |
+| Pretype One | 30% (2026-11-12). This is inside the ±5 pp tolerance of the Gemma tiers. |
 | EuroLLM 1.7B | 26%. |
 | Qwen3.5 2B Base | 23%. |
 | Qwen3.5 2B M40 | 21%. This is less than every Gemma tier (p < 0.005). |
@@ -265,6 +267,7 @@ We measured the chords on 2026-10-15, each on its own held-out set:
 | Gemma E4B-it 4-bit | Gemma E2B 8-bit | 65% [61–69] | 20% | 0.24 s | 87% [83–90] | 0.24 s |
 | Gemma E2B-it 4-bit | Gemma E2B 4-bit | 50% [46–54] | 30% | 0.10 s | 83% [79–86] | 0.09 s |
 | EuroLLM 1.7B (itself) | EuroLLM 1.7B | 64% [60–68]² | 5% | 0.06 s | no replies | — |
+| Pretype One (itself) | Pretype One | 79% [75–82]³ | 4% | 0.07 s | 90% [86–92]³ | 0.11 s |
 | Qwen3.5 2B M40 (itself) | Qwen3.5 2B M40 | 41% [37–45] | 10% | 0.17 s | 56% [50–60]¹ | 0.16 s |
 | Qwen3.5 2B (post-trained) | Qwen3.5 2B Base; MiniCPM5 1B | 33% [29–37] | 28% | 0.13 s | 35% [30–40] | 0.14 s |
 | Bonsai 4B (itself) | Ternary Bonsai 4B | 19% [16–23] | 12% | 0.20 s | 22% [18–27] | 0.21 s |
@@ -273,7 +276,8 @@ We measured the chords on 2026-10-15, each on its own held-out set:
 
 Read these notes before you use the table as a ranking:
 
-* **The Gemma siblings are the best on both chords.**
+* **The Gemma models are the best on both chords.**
+  * Pretype One is also a Gemma model. It has the highest fix figure in the table, but the figure comes from a different run (see note ³). No test compares it directly with the E4B siblings.
   * Fix: the column is a clean ladder. Every adjacent gap is significant at p<0.001. The 6-bit E4B sibling is better than its 4-bit build (p=9×10⁻⁴).
   * Reply: E4B-it 6-bit is better than E2B-it 4-bit (p=0.002). The gaps between adjacent Gemma siblings are not significant. Every Gemma sibling is much better than Qwen3.5 (p<10⁻⁴⁰).
   * The small models often write a reply that does not answer the conversation. Thus the reply column of the small models is low.
@@ -283,7 +287,8 @@ Read these notes before you use the table as a ranking:
   * Four judges from four model families (GPT-6 Luna, DeepSeek V4.1 Flash, Claude Haiku 5.5, Gemma E4B-it) put all siblings in the same order. A judge from the Gemma family gives higher values to Gemma replies, but not a different order.
   * ¹ Qwen3.8 27B rated the M40 row (2026-10-16). It is the judge with the best separation of the two baselines (AUC 0.825). On the same replies, it agrees with GPT-6 Luna within 3 pp on every sibling. In the same run, it rates the post-trained Qwen3.5 sibling at 37% [32–42] (paired p=2.5×10⁻⁸).
 * ² The EuroLLM 1.7B row comes from its own run (2026-10-31). In that run, E2B-it 4-bit restores 49% and touches 31% of clean lines.
-* **"Touches clean text" is the cost of the fix chord.** If you select a line that is already correct, the sibling can still propose a change. This occurs on 5–30% of clean lines across the catalog. The figures include the app's minimal-edit gate. Press <kbd>Esc</kbd> to keep your original text.
+* ³ The Pretype One row comes from its own run (2026-11-12). In that run, E2B-it 4-bit restores 49% of the lines. Qwen3.8 27B rated the replies. In that run, it rates E2B-it 4-bit at 85% [81–88].
+* **"Touches clean text" is the cost of the fix chord.** If you select a line that is already correct, the sibling can still propose a change. This occurs on 4–30% of clean lines across the catalog. The figures include the app's minimal-edit gate. Press <kbd>Esc</kbd> to keep your original text.
 
 <sub>**Method.**</sub>
 
@@ -360,6 +365,7 @@ On some models, the fix needs an instruct sibling. The first <kbd>⌥Tab</kbd> d
 | Qwen3.5 | ≈1.1 GB (its post-trained build) |
 | Qwen3.5 M40 | None. M40 corrects with itself. |
 | EuroLLM 1.7B | None. It corrects with itself. |
+| Pretype One | None. It corrects with itself. The chat adapter comes in the same download. |
 | A Gemma tier in Base style | up to ≈5.6 GB (E4B-it 6-bit on the E4B tiers) |
 | Bonsai | None. Bonsai corrects with itself. |
 | Gemma E4B, if it used Instruct style before 2026-10-15 | None. The fix sibling is the instruct build that the install already has. |
