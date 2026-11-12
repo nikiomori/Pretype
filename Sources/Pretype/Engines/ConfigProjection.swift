@@ -256,6 +256,22 @@ struct ChordProjection: Equatable {
             ramGB: ModelMetrics.taskRamGB(for: t.measuredID).map { HostPLE.residentGB($0, of: t.measuredID, pleFromDisk: pleFromDisk) })
     }
 
+    /// The order of the list of fix models: best fixes first, then the
+    /// faster. A row booked on a run of its own (¹) comes after the table's
+    /// rows, as the goal cards leave it out: no test set its figure against
+    /// theirs, and at the top it read as the best where "Most accurate"
+    /// names another.
+    static func ranksBefore(_ a: (id: String, chords: ChordProjection), _ b: (id: String, chords: ChordProjection)) -> Bool {
+        func ownRun(_ id: String) -> Bool { ModelMetrics.taskMetrics(for: id)?.m.ownRun != nil }
+        if ownRun(a.id) != ownRun(b.id) { return ownRun(b.id) }
+        switch (a.chords.fixPct, b.chords.fixPct) {
+        case let (x?, y?) where x != y: return x > y
+        case (.some, .none): return true
+        case (.none, .some): return false
+        default: return (a.chords.p50Ms ?? .max) < (b.chords.p50Ms ?? .max)
+        }
+    }
+
     // Longer bar = better, on the rail's scales.
     var fixFraction: Double? { fixPct.map { max(0.04, Double($0) / 100) } }
     var replyFraction: Double? { replyPct.map { max(0.04, Double($0) / 100) } }

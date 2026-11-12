@@ -211,14 +211,7 @@ struct ModelTab: View {
                     also: members.filter { $0.id != rep }.map { ModelMetrics.metrics(for: $0.id)?.shortName ?? $0.title },
                     members: ids, chords: chords)
         }
-        return rows.sorted { a, b in
-            switch (a.chords.fixPct, b.chords.fixPct) {
-            case let (x?, y?) where x != y: return x > y
-            case (.some, .none): return true
-            case (.none, .some): return false
-            default: return (a.chords.p50Ms ?? .max) < (b.chords.p50Ms ?? .max)
-            }
-        }
+        return rows.sorted { ChordProjection.ranksBefore((id: $0.id, chords: $0.chords), (id: $1.id, chords: $1.chords)) }
     }
 
     /// The ranked rows: every model with its bars, download size and trash,

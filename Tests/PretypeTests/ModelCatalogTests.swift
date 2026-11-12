@@ -358,6 +358,16 @@ final class ModelCatalogTests: XCTestCase {
         }
     }
 
+    // The list of fix models: a row booked on its own run comes after the
+    // table's rows, whatever its figure: "Most accurate" leaves it out too.
+    func testFixListKeepsOwnRunRowsAfterTheTable() {
+        let (table, own) = ("mlx-community/gemma-4-e4b-6bit", "nikimoriOne/Pretype-One")
+        let lower = ChordProjection(fixPct: 60), higher = ChordProjection(fixPct: 80)
+        XCTAssertTrue(ChordProjection.ranksBefore((table, lower), (own, higher)))
+        XCTAssertFalse(ChordProjection.ranksBefore((own, higher), (table, lower)))
+        XCTAssertTrue(ChordProjection.ranksBefore((table, higher), (table, lower)))
+    }
+
     /// While the model only fixes, a card per fix model — two catalog
     /// entries sharing one would be the same card — and "Most accurate"
     /// lands on the best fixer, on the lighter of the entries that share it.
