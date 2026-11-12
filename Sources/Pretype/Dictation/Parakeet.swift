@@ -113,6 +113,27 @@ enum Parakeet {
 
     private static let loader = Loader()
 
+    /// How far the download is, and why the last one failed: the launch and
+    /// hourly passes run with no window open, and Settings reads them here
+    /// (`note`). A new attempt clears both.
+    static let fetch = LockedValue<(fraction: Double?, failure: String?)>((nil, nil))
+
+    /// The line under the Parakeet switch: the download with its progress,
+    /// or its failure; nil when there is nothing to say.
+    static func note(fetching: Bool = Transcription.isFetching(.parakeet),
+                     state: (fraction: Double?, failure: String?) = fetch.get()) -> String? {
+        if fetching {
+            // Past the last byte the model compiles (~15 s): no figure for that.
+            guard let fraction = state.fraction, fraction < 1 else {
+                return String(localized: "Downloading the Parakeet model (~610 MB)…")
+            }
+            return String(localized: "Downloading the Parakeet model: \(Int(fraction * 100))%")
+        }
+        return state.failure.map {
+            String(localized: "⚠︎ Download failed: \($0). The next dictation tries again.")
+        }
+    }
+
     /// Single-flight: a dictation started while the settings toggle's prefetch
     /// is still downloading joins it instead of starting a second download.
     /// Kept loaded for the app's lifetime — ~70 MB resident (the weights sit on
@@ -122,9 +143,15 @@ enum Parakeet {
 
         func manager() async throws -> AsrManager {
             let task = loading ?? Task {
-                let manager = try await Parakeet.fetchThenLoad(needsFetch: !Parakeet.isDownloaded,
-                                                               fetch: { try await AsrModels.download(version: .ultra) },
-                                                               load: Parakeet.load)
+                Parakeet.fetch.set((nil, nil))
+                let manager = try await Parakeet.fetchThenLoad(
+                    needsFetch: !Parakeet.isDownloaded,
+                    fetch: {
+                        try await AsrModels.download(version: .ultra) { progress in
+                            Parakeet.fetch.mutate { $0.fraction = progress.fractionCompleted }
+                        }
+                    },
+                    load: Parakeet.load)
                 // v3, which Ultra replaced; deleted only here, where nothing has it loaded.
                 try? FileManager.default.removeItem(at: AsrModels.defaultCacheDirectory(for: .v3))
                 return manager
@@ -134,6 +161,7 @@ enum Parakeet {
                 return try await task.value
             } catch {
                 loading = nil  // a failed download or load is retried next time
+                if !(error is CancellationError) { Parakeet.fetch.mutate { $0.failure = error.localizedDescription } }
                 throw error
             }
         }

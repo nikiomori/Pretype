@@ -200,6 +200,14 @@ struct DictationTab: View {
                     Text("Fewer errors and real punctuation. A one-time 610 MB download.")
                 }
                 .help("NVIDIA's open speech model, run locally. On Russian it makes under half the word errors of the system model, punctuates (F1 0.87 against 0.02) and runs three times faster.")
+                // The download may be the launch pass's or a dictation's:
+                // nothing tells the store, so the pane looks while it is open.
+                .task {
+                    while !Task.isCancelled {
+                        store.refreshParakeetNote()
+                        try? await Task.sleep(for: .seconds(1))
+                    }
+                }
                 if let note = store.parakeetNote {
                     Caption(note)
                 }

@@ -706,6 +706,18 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertFalse(try survives(on: true, ultra: true, refrain: true))
     }
 
+    /// The line under the Parakeet switch follows the download, whoever
+    /// started it: its progress, then nothing, or why it failed.
+    func testParakeetNoteFollowsTheDownload() {
+        XCTAssertNil(Parakeet.note(fetching: false, state: (nil, nil)))
+        XCTAssertEqual(Parakeet.note(fetching: true, state: (0.42, nil))?.contains("42"), true)
+        XCTAssertNotNil(Parakeet.note(fetching: true, state: (nil, nil)), "before the first byte")
+        XCTAssertEqual(Parakeet.note(fetching: true, state: (1, nil))?.contains("100"), false, "the compile has no figure")
+        XCTAssertEqual(Parakeet.note(fetching: false, state: (nil, "no network"))?.contains("no network"), true)
+        XCTAssertEqual(Parakeet.note(fetching: true, state: (0.1, "no network"))?.contains("no network"), false,
+                       "a new attempt outranks the last failure")
+    }
+
     /// The first CoreML compile counts as the download it follows; a model
     /// already here loads under no flag, so a press during it still waits it
     /// out instead of being refused.

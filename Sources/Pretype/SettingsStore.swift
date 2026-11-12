@@ -142,20 +142,23 @@ final class SettingsStore {
             refreshDictationLanguage()
             if dictationParakeet { prepareParakeet() } }
     }
-    /// The opt-in's download/load progress, or its failure; nil once ready.
+    /// The model's download progress, or its failure; nil once ready. Read
+    /// from the download itself (`Parakeet.note`), whoever started it: this
+    /// switch, a dictation, or the launch and hourly passes. The Dictation
+    /// pane asks every second while it is open.
     var parakeetNote: String?
+
+    func refreshParakeetNote() {
+        let note = dictationParakeet ? Parakeet.note() : nil
+        if parakeetNote != note { parakeetNote = note }
+    }
 
     /// Fetch and load the model the moment the user opts in, so the first
     /// dictation after it doesn't sit in "preparing" for a 610 MB download.
     func prepareParakeet() {
-        parakeetNote = Parakeet.isDownloaded ? nil : String(localized: "Downloading the Parakeet model (~610 MB)…")
         Task { @MainActor [weak self] in
-            do {
-                _ = try await Parakeet.prepare()
-                self?.parakeetNote = nil
-            } catch {
-                self?.parakeetNote = String(localized: "⚠︎ Download failed: \(error.localizedDescription). The next dictation tries again.")
-            }
+            _ = try? await Parakeet.prepare()
+            self?.refreshParakeetNote()
         }
     }
     /// Hosted models (Settings → API). A text change while it is on — or the
