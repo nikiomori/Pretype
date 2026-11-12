@@ -10,6 +10,7 @@ private final class FakeCorrectionHost: CorrectionHost, IndicatorHost {
     var focusGeneration = 0
     var lastCaretRect: CGRect?
     var knownTextBeforeCaret: String?
+    var typedTextBeforeCaret: String?
     var lastHostStyle = HostTextStyle()
     var hasActiveSuggestion = false
     var isWorking = false
@@ -116,10 +117,43 @@ final class CorrectionControllerTests: XCTestCase {
         XCTAssertEqual(fixes.handleKey(keyCode: KeyCode.tab, flags: []), .consumed)
         world.before = "I saw teh"
         host.knownTextBeforeCaret = "I saw teh "
+        host.typedTextBeforeCaret = "I saw teh "
         world.runHops()
         XCTAssertEqual(host.typed.map(\.text), ["the "])
         XCTAssertEqual(host.typed.first?.deleted, "teh ")
         XCTAssertEqual(host.typed.first?.before, "I saw teh ")
+    }
+
+    // A pill drawn on "teh, c" while "teh, ca" is typed: ⇥ on a read that
+    // trails the keys would count its Backspaces short. Nothing is typed.
+    func testAFixOnAReadThatTrailsTheKeysTypesNothing() {
+        XCTAssertTrue(fixes.handleCaret(read("I saw teh, c")))
+        XCTAssertEqual(fixes.handleKey(keyCode: KeyCode.tab, flags: []), .consumed)
+        world.before = "I saw teh, c"
+        host.knownTextBeforeCaret = "I saw teh, ca"
+        world.runHops()
+        XCTAssertTrue(host.typed.isEmpty)
+    }
+
+    // ⌥⇥ in a terminal's agent box counts on the keys: a read alone can hide
+    // a typed space, so it asks nothing; a space typed ends the word; the
+    // word typed to its end is fixed.
+    func testALastWordFixInATerminalCountsOnTheKeys() async {
+        world.terminalField = true
+        host.knownTextBeforeCaret = "I saw teh"
+        await fixLastWord("I saw teh", fixed: "I saw the")
+        XCTAssertTrue(world.engine.corrected.isEmpty, "a read alone: the end is unknown")
+        host.typedTextBeforeCaret = "I saw teh "
+        host.knownTextBeforeCaret = "I saw teh "
+        await fixLastWord("I saw teh", fixed: "I saw the")
+        XCTAssertTrue(world.engine.corrected.isEmpty, "a space ended the word")
+        host.typedTextBeforeCaret = "I saw teh"
+        host.knownTextBeforeCaret = "I saw teh"
+        await fixLastWord("I saw teh", fixed: "I saw the")
+        XCTAssertEqual(world.engine.corrected, ["I saw teh"])
+        _ = fixes.handleKey(keyCode: KeyCode.returnKey, flags: [])
+        world.runHops()
+        XCTAssertEqual(host.typed.map(\.deleted), ["teh"])
     }
 
     func testAnInlineTokenIsClosed() {

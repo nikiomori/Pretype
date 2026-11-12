@@ -46,6 +46,23 @@ final class FieldStateTests: XCTestCase {
         XCTAssertEqual(FieldState.keepingTypedSpaces("I saw teh", cache: nil), "I saw teh")
     }
 
+    // Only typed text says where a terminal's text ends: a read, or a read
+    // adopted, can't see a space typed there.
+    func testOnlyTypedTextVouchesForItsEnd() {
+        var field = FieldState()
+        field.adoptRead("I saw teh")
+        XCTAssertNil(field.typedCache)
+        _ = field.keystroke(" ", chord: false)
+        XCTAssertEqual(field.typedCache, "I saw teh ")
+        XCTAssertEqual(admit(&field, read("I saw teh "), at: 0), .taken("I saw teh "))
+        XCTAssertEqual(field.typedCache, "I saw teh ", "a read that agrees keeps it")
+        XCTAssertEqual(admit(&field, read("I saw"), at: 0), .taken("I saw"))
+        XCTAssertNil(field.typedCache, "one that disagrees is read only")
+        field.adoptRead("I saw teh")
+        _ = field.admit(read("I saw teh"), of: first, hidesTypedSpaces: true, probe: nil, clock: { self.t0 })
+        XCTAssertNil(field.typedCache)
+    }
+
     // Inside the window the cache outranks a read that disagrees with it; the
     // first read that agrees, or any read past the deadline, ends it.
     func testSettleWindowTrustsTheCacheOverATrailingRead() {

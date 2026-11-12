@@ -417,6 +417,9 @@ final class SuggestionController {
     /// The text before the caret as last known (`FieldState.cache`).
     var knownTextBeforeCaret: String? { field.cache }
 
+    /// …while its end was typed (`FieldState.typedCache`).
+    var typedTextBeforeCaret: String? { field.typedCache }
+
     /// Surfaced in the Context submenu.
     var screenContextStatus: String { promptContext.screenStatus }
 

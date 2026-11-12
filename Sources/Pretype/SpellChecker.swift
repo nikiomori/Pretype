@@ -30,7 +30,12 @@ enum SpellChecker {
     /// The best correction for `word` if it is a misspelling, else nil. Returns
     /// only a *close* fix (the shared divergence guard rejects a different word),
     /// so a real typo is corrected but a valid-but-unknown word is left alone.
+    /// False when the last `correction` got no answer from the spell server:
+    /// its nil says nothing about the word, so a caller must not keep it.
+    private(set) static var lastCallHeard = true
+
     static func correction(for word: String, context: String) -> String? {
+        lastCallHeard = true
         guard word.count >= 3, word.count <= 40, word.allSatisfy(\.isWordChar) else { return nil }
 
         let language = self.language(for: word, context: context)
@@ -52,11 +57,13 @@ enum SpellChecker {
         // is an abbreviation, and a guess only a lookalike ("dept" → "sept").
         // Autocorrect may only finish such a word: anything else replaces a
         // shorthand with a lookalike ("wip" → "rip", "завт" → "зав").
+        let completions = checker.completions(
+            forPartialWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
+        )
+        lastCallHeard = completions != nil
         let candidate = candidate(
             for: word,
-            completions: checker.completions(
-                forPartialWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
-            ),
+            completions: completions,
             corrected: checker.correction(
                 forWordRange: range, in: word, language: language, inSpellDocumentWithTag: 0
             ),
@@ -76,15 +83,15 @@ enum SpellChecker {
     /// The fix for a misspelled `word`. `completions` nil: the spell server
     /// did not answer (it is starting, or busy), which says nothing about the
     /// word, so nothing is offered. A prefix of real words takes autocorrect
-    /// only when it finishes the word, or swaps letters in one of 4+ ("доми" →
-    /// "дома"): a shorthand is shorter than its word ("завт"), and 3 letters
-    /// are too few to tell ("wip" → "rip"). `split`: a missed space, last.
+    /// only when it finishes the word, or is a slip in one of 4+ (`isSlip`):
+    /// a shorthand is shorter than its word ("завт"), and 3 letters are too
+    /// few to tell ("wip" → "rip"). `split`: a missed space, last.
     static func candidate(for word: String, completions: [String]?, corrected: String?,
                           guess: @autoclosure () -> String?,
                           split: @autoclosure () -> String? = nil) -> String? {
         guard let completions else { return nil }
         guard completions.isEmpty else {
-            return corrected.flatMap { finishes(word, with: $0) || (word.count >= 4 && $0.count == word.count) ? $0 : nil }
+            return corrected.flatMap { finishes(word, with: $0) || (word.count >= 4 && isSlip(word, to: $0)) ? $0 : nil }
         }
         return corrected ?? guess() ?? split()
     }
@@ -102,6 +109,20 @@ enum SpellChecker {
         }
         guard cuts.count == 1, let cut = cuts.first else { return nil }
         return String(letters[..<cut]) + " " + String(letters[cut...])
+    }
+
+    /// `fix` is `word` with two letters side by side swapped, or another vowel
+    /// at its end ("доми" → "дома"): a slip of the hand. Any other letter
+    /// changed makes a lookalike of a shorthand ("resp" → "rest", "пожа" →
+    /// "пока").
+    static func isSlip(_ word: String, to fix: String) -> Bool {
+        let (a, b) = (Array(word.lowercased()), Array(fix.lowercased()))
+        guard a.count == b.count else { return false }
+        let changed = a.indices.filter { a[$0] != b[$0] }
+        if changed.count == 2, changed[1] == changed[0] + 1,
+           a[changed[0]] == b[changed[1]], a[changed[1]] == b[changed[0]] { return true }
+        let vowels = "aeiouyаеёиоуыэюя"
+        return changed == [a.count - 1] && vowels.contains(a[a.count - 1]) && vowels.contains(b[b.count - 1])
     }
 
     /// `fix` only adds letters at the end of `word`, whatever the case.

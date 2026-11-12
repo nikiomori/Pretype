@@ -303,10 +303,23 @@ final class DanishSpellingTests: XCTestCase {
         XCTAssertEqual(SpellChecker.candidate(for: "доми", completions: ["домик"], corrected: "дома", guess: nil), "дома")
         XCTAssertNil(SpellChecker.candidate(for: "завт", completions: ["завтра"], corrected: "зав", guess: nil))
         XCTAssertNil(SpellChecker.candidate(for: "гед", completions: ["гедонизм"], corrected: "где", guess: nil))
+        XCTAssertNil(SpellChecker.candidate(for: "resp", completions: ["response"], corrected: "rest", guess: nil))
+        XCTAssertNil(SpellChecker.candidate(for: "пожа", completions: ["пожалуйста"], corrected: "пока", guess: nil))
+        XCTAssertEqual(SpellChecker.candidate(for: "frist", completions: ["fristed"], corrected: "first", guess: nil), "first")
+        XCTAssertNil(SpellChecker.correction(for: "resp", context: "see the resp"))
+        XCTAssertNil(SpellChecker.correction(for: "пожа", context: "ну пожа"))
         XCTAssertEqual(SpellChecker.candidate(for: "мыпоехали", completions: [], corrected: nil, guess: nil,
                                               split: "мы поехали"), "мы поехали")
         XCTAssertEqual(SpellChecker.candidate(for: "сабака", completions: [], corrected: nil, guess: "собака",
                                               split: "са бака"), "собака")
+    }
+
+    func testASlipIsASwapOrAnEnding() {
+        XCTAssertTrue(SpellChecker.isSlip("frist", to: "first"))
+        XCTAssertTrue(SpellChecker.isSlip("доми", to: "дома"))
+        XCTAssertFalse(SpellChecker.isSlip("resp", to: "rest"))
+        XCTAssertFalse(SpellChecker.isSlip("пожа", to: "пока"))
+        XCTAssertFalse(SpellChecker.isSlip("fisrt", to: "first!"))
     }
 
     func testAMissedSpaceIsSplitOnlyOneWay() {

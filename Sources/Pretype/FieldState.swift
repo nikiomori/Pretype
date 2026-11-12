@@ -65,6 +65,12 @@ struct FieldState {
     /// unknown. Lets a streamed partial and the ⌘Z gate tell — without an AX
     /// read, which the key tap can't afford — whether the field moved since.
     var cache: String? { didSet { cacheVouches = true } }
+    /// The cache's end was typed (a key the tap passed on, a synthetic
+    /// edit), not only read. A terminal's read hides a space typed at its end
+    /// (`keepingTypedSpaces`), so there only typed text says where it ends.
+    private var endTyped = false
+    /// The cache while its end was typed (`endTyped`), else nil.
+    var typedCache: String? { endTyped ? cache : nil }
     /// False once a pass saw the host move during a reply: `cache` still says
     /// a field is here (an agent's box keeps its chord), but `anchor` must
     /// read the field again, or a ghost lands where the caret used to be.
@@ -135,7 +141,7 @@ struct FieldState {
         let now = clock()
         var read = read
         if hidesTypedSpaces, let shown = read {
-            read = TextContext(textBeforeCaret: Self.keepingTypedSpaces(shown.textBeforeCaret, cache: cache),
+            read = TextContext(textBeforeCaret: Self.keepingTypedSpaces(shown.textBeforeCaret, cache: typedCache),
                                textAfterCaret: shown.textAfterCaret, caretRect: shown.caretRect, host: shown.host)
         }
         guard let read else {
@@ -151,6 +157,8 @@ struct FieldState {
             if now < deadline, let cache, cache != read.textBeforeCaret { return .retry }
             settleDeadline = nil
         }
+        // A read that says what the keys said keeps their end; any other is read only.
+        endTyped = endTyped && cache == read.textBeforeCaret
         cache = read.textBeforeCaret
         if let declined, declined.before != read.textBeforeCaret || declined.after != read.textAfterCaret {
             self.declined = nil
@@ -208,7 +216,10 @@ struct FieldState {
     /// A read made outside `admit` — the reply's own, of an empty chat box the
     /// pipeline's read refuses — becomes the cache, so a result asked for on
     /// it lands without another read and an accept advances from it.
-    mutating func adoptRead(_ before: String) { cache = before }
+    mutating func adoptRead(_ before: String) {
+        cache = before
+        endTyped = false
+    }
 
     /// Faster than this, a probe answered rather than waited out its timeout.
     static let fastProbe = TimeInterval(FocusTracker.axMessagingTimeout) / 2
@@ -326,6 +337,7 @@ struct FieldState {
         // read re-syncs it, so it can't grow unbounded.
         let isControl = Self.isControlInput(typed)
         if isControl { cache = nil } else { cache? += typed }
+        endTyped = cache != nil
         guard var ghost else { return nil }
         // The typed text alone, not appended to the anchor: a mark typed onto
         // the anchor's last letter (Thai, Devanagari) merges into it, and the
@@ -347,6 +359,7 @@ struct FieldState {
     mutating func injected(_ text: String, deleting deleted: String, over before: String?,
                            at now: Date) -> String? {
         cache = Self.textAfterInjection(text, deleting: deleted, over: before)
+        endTyped = true
         settleDeadline = now.addingTimeInterval(0.3)
         return cache
     }

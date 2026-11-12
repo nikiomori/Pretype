@@ -12,6 +12,8 @@ protocol CorrectionHost: AnyObject {
     var lastCaretRect: CGRect? { get }
     /// The text before the caret as last known, typed keys included.
     var knownTextBeforeCaret: String? { get }
+    /// …while its end was typed, not only read (`FieldState.typedCache`).
+    var typedTextBeforeCaret: String? { get }
     /// A fix measured where its text is (a selection, the word at the caret).
     func noteCaret(_ rect: CGRect)
     /// …or found the caret a scroll forgot.
@@ -190,7 +192,7 @@ final class CorrectionController {
         if pendingFix == nil, Settings.fixesEnabled, ctx.textAfterCaret.first?.isLetter != true,
            Self.typo(of: tokenAtCaret) != dismissedCorrectionWord,
            let caret = ctx.caretRect,
-           let fix = Self.inlineFix(for: tokenAtCaret, context: text) {
+           let fix = inlineFix(for: tokenAtCaret, in: text) {
             host.clearActiveCompletion()
             indicator.stop()
             // Redrawn on every read while its typo stands, the next word
@@ -217,12 +219,31 @@ final class CorrectionController {
     /// The inline fix for the token at the caret, each kind behind its own
     /// switch: a closed shortcode, a sum ending in "=", or a misspelling. A
     /// misspelling keeps what ended it: "teh, " gives "the, ".
-    static func inlineFix(for token: String, context: String) -> String? {
+    /// `correct`: the misspelling's fix (`SpellChecker.correction`).
+    static func inlineFix(for token: String, context: String,
+                          correct: ((String) -> String?)? = nil) -> String? {
         if token.hasPrefix(":") { return Settings.emojiShortcodes ? EmojiShortcodes.emoji(for: token) : nil }
         if token.hasSuffix("=") { return Settings.inlineMath ? InlineCalculator.completion(for: token) : nil }
         guard Settings.fixTypos else { return nil }
-        let word = token.prefix(while: \.isWordChar)
-        return SpellChecker.correction(for: String(word), context: context).map { $0 + token.dropFirst(word.count) }
+        let word = String(token.prefix(while: \.isWordChar))
+        let fix = correct.map { $0(word) } ?? SpellChecker.correction(for: word, context: context)
+        return fix.map { $0 + token.dropFirst(word.count) }
+    }
+
+    /// The text up to the word last spell-checked, and its fix.
+    private var spellChecked: (upTo: String, fix: String?)?
+
+    /// `inlineFix`, a word spell-checked once: while the next word grows
+    /// behind it ("teh, wor"), the text up to it stays, and so does its fix.
+    private func inlineFix(for token: String, in text: String) -> String? {
+        Self.inlineFix(for: token, context: text) { [self] word in
+            let upTo = String(text.dropLast(token.count - word.count))
+            if let spellChecked, spellChecked.upTo == upTo { return spellChecked.fix }
+            let fix = SpellChecker.correction(for: word, context: text)
+            // A spell server that did not answer is asked again at the next key.
+            self.spellChecked = fix != nil || SpellChecker.lastCallHeard ? (upTo, fix) : nil
+            return fix
+        }
     }
 
     /// Which of `inlineFix`'s three a token gets — the journal's `kind`.
@@ -393,15 +414,15 @@ final class CorrectionController {
               // tap-side check didn't know yet.
               !AppPolicy.isBlacklisted(host.typingContext),
               let ctx = env.context(of: element),
-              let rect = ctx.caretRect else { return }
+              let rect = ctx.caretRect,
+              let before = fixableText(ctx, of: element) else { return }
         // Not mid-word: the next character must not be a letter.
         guard ctx.textAfterCaret.first?.isLetter != true else { return }
-        let word = SpellChecker.trailingWord(of: ctx.textBeforeCaret)
+        let word = SpellChecker.trailingWord(of: before)
         guard word.count >= 3, word.count <= 40 else { return }
 
         host.clearActiveCompletion()
         host.noteCaret(rect)
-        let before = ctx.textBeforeCaret
         runFix(
             selectionText: word,
             deletesOriginal: true,
@@ -548,12 +569,8 @@ final class CorrectionController {
     private func liveRead(confirming fix: PendingFix) -> LiveRead? {
         guard let element = host.currentTextElement() else { return nil }
         if fix.deletesOriginal {
-            guard let ctx = env.context(of: element), ctx.textAfterCaret.first?.isLetter != true else { return nil }
-            // A terminal's read hides a space typed at its end: one Backspace
-            // short, and a letter of the typo stayed.
-            let before = env.isTerminalField(element)
-                ? FieldState.keepingTypedSpaces(ctx.textBeforeCaret, cache: host.knownTextBeforeCaret)
-                : ctx.textBeforeCaret
+            guard let ctx = env.context(of: element), ctx.textAfterCaret.first?.isLetter != true,
+                  let before = fixableText(ctx, of: element) else { return nil }
             guard Self.lastToken(of: before) == fix.original || Self.inlineToken(of: before) == fix.original
             else { return nil }
             host.recoverCaret(ctx.caretRect)
@@ -562,6 +579,22 @@ final class CorrectionController {
         guard let info = env.selection(element), info.text == fix.original else { return nil }
         host.recoverCaret(info.rect)
         return LiveRead(textBeforeCaret: nil)
+    }
+
+    /// The text before the caret in `ctx`, read from `element`, as a fix that
+    /// deletes may count its Backspaces on, or nil. A read shorter than what
+    /// the keys already typed trails them ("teh, wor" read, "teh, worl"
+    /// typed): counted on it, a fix deletes the wrong letters. A terminal's
+    /// read hides a space typed at its end, one Backspace short: only a cache
+    /// whose end was typed puts it back, and without one the end is unknown.
+    private func fixableText(_ ctx: TextContext, of element: AXUIElement) -> String? {
+        var before = ctx.textBeforeCaret
+        if env.isTerminalField(element) {
+            guard let typed = host.typedTextBeforeCaret else { return nil }
+            before = FieldState.keepingTypedSpaces(before, cache: typed)
+        }
+        if let known = host.knownTextBeforeCaret, known.count > before.count, known.hasPrefix(before) { return nil }
+        return before
     }
 
     /// Dismiss the previewed fix and keep the original text untouched.
