@@ -11,7 +11,7 @@ We measure every model in the catalog on the same held-out eval. The Apple Intel
 For most people, the correct answer is the default. Pretype selects the default from the memory of your Mac. Change it only for the cases in the diagram and the table below.
 
 <div align="center">
-<img src="diagram-models-choose.svg" width="720" alt="Decision diagram. Which language do you type? English only: if speed is most important, use MiniCPM5 1B (18 ms, among the fastest); if least memory is most important, use Qwen2.5 0.5B (about 1 GB); if the best fix and reply chords are most important, keep the default. Any other language, Russian included: keep the default. The default follows the memory of your Mac: 8 GB gives Qwen3.5 2B M40, 16 to 18 GB gives Gemma 4 E2B 4-bit, 24 GB gives Gemma 4 E2B 8-bit, 32 GB and up gives Gemma 4 E4B 6-bit." />
+<img src="diagram-models-choose.svg" width="720" alt="Decision diagram. Which language do you type? English only: if speed is most important, use MiniCPM5 1B (18 ms, among the fastest); if least memory is most important, use Qwen2.5 0.5B (about 1 GB); if the best fix and reply chords are most important, keep the default. Any other language, Russian included: keep the default. The default follows the memory of your Mac: 8 to 24 GB gives Pretype One, 32 GB and up gives Gemma 4 E4B 6-bit." />
 </div>
 
 | Situation | Model | Evidence |
@@ -19,8 +19,8 @@ For most people, the correct answer is the default. Pretype selects the default 
 | You type in English | Any downloadable model except EuroLLM 1.7B. For speed, MiniCPM5 1B. | Ten downloadable models score between 26% and 29%, and no model of the ten is measurably better than another. EuroLLM 1.7B gets 25%. That is inside the ±5 pp of a single-language cell. MiniCPM5 1B and Qwen2.5 0.5B are the fastest models in the catalog: 17–18 ms. |
 | You type in English and have little free memory | Qwen2.5 0.5B | It runs in ≈1 GB. On English, its accuracy is equal to the other models. |
 | You type in another language | The default | Outside English, the tie stops. The Gemma 4 tiers lose 4–9 points. MiniCPM5, Bonsai and Qwen 0.5B lose more than half of their English score. |
-| You type in another language on an 8 GB Mac | Qwen3.5 2B M40, the default | Of the small models, Qwen3.5 2B loses the least. It is the best model below 2 GB. It is better than Bonsai, Qwen 0.5B and the larger MiniCPM5 (all p<0.001). M40 ties its Base build on completions, and it fixes more (see [Qwen3.5 2B M40](#qwen35-2b-m40-one-model-for-text-and-chords)). |
-| You type in Russian | The default. A Gemma tier from 16 GB. | See [English and Russian are different](#english-and-russian-are-different). |
+| You type in another language on a Mac with 8–24 GB | Pretype One, the default | It is better than Gemma E2B 4-bit on 17 languages (p<0.001) and better than every model below 2 GB. One download also runs the fix and reply chords (see [Pretype One](#pretype-one-our-own-gemma-model)). |
+| You type in Russian | The default. | See [English and Russian are different](#english-and-russian-are-different). |
 | You type in Arabic or Hebrew | The default. Do not use MiniCPM5 for Hebrew. | See [Arabic and Hebrew](#arabic-and-hebrew). |
 | You type in Danish | Any Gemma 4 tier | The four Gemma tiers tie at 27–28%. The other models get 10–26%. See [Danish](#danish). |
 | You want no download and no app memory | Apple Intelligence (macOS 26+) | It is last on accuracy and on speed: 480 ms, against 17–81 ms. On macOS 27 it shows a suggestion for almost every prompt, also in Polish, Romanian and Czech. But it is correct less often than any downloadable model. |
@@ -97,7 +97,7 @@ Since 2026-10-11, Qwen3.5 2B completes text with its Base build. This build is o
 
 ### Qwen3.5 2B M40: one model for text and chords
 
-Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimoriOne/Qwen3.5-2B-M40-6bit](https://huggingface.co/nikimoriOne/Qwen3.5-2B-M40-6bit). Since 2026-10-27, it is the default on Macs with 8 GB. Before that date, the 8 GB default was the Base build.
+Since 2026-10-16, the catalog has a second Qwen3.5 2B option: [nikimoriOne/Qwen3.5-2B-M40-6bit](https://huggingface.co/nikimoriOne/Qwen3.5-2B-M40-6bit). From 2026-10-27 to 2026-11-13, it was the default on Macs with 8 GB. Since 2026-11-13, Pretype One is the default there.
 
 * The weights are a mix: 60% of the Base build and 40% of the post-trained build. The build is 6-bit.
 * One model completes text and runs the fix and reply chords. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
@@ -127,7 +127,7 @@ Do not select this model in these cases:
 
 ### Pretype One: our own Gemma model
 
-Since 2026-11-12, the catalog has a second model that we trained: [nikimoriOne/Pretype-One](https://huggingface.co/nikimoriOne/Pretype-One). It is an alternative. It is not a default.
+Since 2026-11-12, the catalog has a second model that we trained: [nikimoriOne/Pretype-One](https://huggingface.co/nikimoriOne/Pretype-One). Since 2026-11-13, it is the default on Macs with 8–24 GB.
 
 * The model is Gemma 4 E2B 4-bit with smaller token tables (82,000 tokens of 262,144), distilled from Gemma 4 E4B.
 * The download is 1.6 GB. It holds the model and a small chat adapter. Pretype switches the adapter on for fixes, replies and voice commands, and off for suggestions. Thus the first <kbd>⌥Tab</kbd> does not download a second model.
@@ -209,13 +209,12 @@ In Base style, a suggestion stops at the first word that the model is not sure o
 
 ## The default follows the memory of your Mac
 
-Since 2026-07-25, Pretype selects the default from the memory of your Mac. Before that date, your keyboard layouts selected it. The default comes from a fixed table with three thresholds: 14, 20 and 27.2 GB. Each threshold is four times the resident size of its tier on 2026-07-25. Since then, the slim re-packs and Base style made each tier smaller. Thus each default uses less than a quarter of physical memory. The table does not move with the sizes: a 24 GB Mac can hold E4B 6-bit in a quarter, but it gets E2B 8-bit.
+Since 2026-07-25, Pretype selects the default from the memory of your Mac. Before that date, your keyboard layouts selected it. The default comes from one fixed threshold: 27.2 GB. It is four times the resident size of Gemma E4B 6-bit on 2026-07-25. Since then, the slim re-pack and Base style made that tier smaller. Thus each default uses less than a quarter of physical memory. Below 27.2 GB, the default is Pretype One. Its peak memory is 2.0 GB, the same as Qwen3.5 2B M40, the 8 GB default before it. The threshold does not move with the sizes: a 24 GB Mac can hold E4B 6-bit in a quarter, but it gets Pretype One.
 
 | Mac memory | Default | Resident (recommended config) |
 |---|---|--:|
-| 8 GB | Qwen3.5 2B M40 (suggestions in Words mode) | ≈1.5 GB, only for a fix, a reply or a clean-up |
-| 16–18 GB | Gemma E2B 4-bit | ≈2.5 GB (≈1.2 GB on 16 GB, see [Reduce memory use](#reduce-memory-use-gemma)) |
-| 24 GB | Gemma E2B 8-bit | ≈3.4 GB |
+| 8 GB | Pretype One (suggestions in Words mode) | ≈1.1 GB, only for a fix, a reply or a clean-up |
+| 16–24 GB | Pretype One | ≈1.5 GB (≈1.1 GB on 16 GB, see [Reduce memory use](#reduce-memory-use-gemma)) |
 | 32 GB and up | Gemma E4B 6-bit | ≈5 GB |
 
 The rule does not use language, for two reasons:

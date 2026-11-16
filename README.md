@@ -201,8 +201,8 @@ If Pretype is useful to you, give it a star (⭐). Stars help other people find 
 | Project | Use in Pretype |
 |---|---|
 | [MLX](https://github.com/ml-explore/mlx) and [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) | The on-device ML stack from Apple |
-| [Gemma](https://ai.google.dev/gemma) | The default model on Macs with 16 GB or more |
-| [Qwen](https://huggingface.co/Qwen) | The default model on 8 GB Macs |
+| [Gemma](https://ai.google.dev/gemma) | The default model on Macs with 32 GB or more, and the base of Pretype One, the default below 32 GB |
+| [Qwen](https://huggingface.co/Qwen) | Small models in the catalog |
 | [MiniCPM](https://huggingface.co/openbmb) | One of the two fastest models in the catalog |
 | [swift-transformers](https://github.com/huggingface/swift-transformers) | The tokenizers |
 | [swift-huggingface](https://github.com/huggingface/swift-huggingface) | The Hugging Face hub client and cache |

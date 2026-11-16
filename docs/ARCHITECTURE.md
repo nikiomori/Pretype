@@ -116,18 +116,18 @@ Pretype selects the default model one time per launch, from the physical
 memory of the Mac. The function is `ModelCatalog.defaultID(forRamGB:)`.
 
 <div align="center">
-<img src="diagram-arch-ram-ladder.svg" width="560" alt="Default model by physical memory. 27.2 GB or more: Gemma 4 E4B 6-bit, Macs with 32 GB and more. Else 20 GB or more: Gemma 4 E2B 8-bit, Macs with 24 GB. Else 14 GB or more: Gemma 4 E2B 4-bit, Macs with 16 to 18 GB. Else Qwen3.5 2B M40, Macs with 8 GB, with suggestions in Words mode." />
+<img src="diagram-arch-ram-ladder.svg" width="560" alt="Default model by physical memory. 27.2 GB or more: Gemma 4 E4B 6-bit, Macs with 32 GB and more. Else Pretype One, Macs with 8 to 24 GB, with suggestions in Words mode on 8 GB." />
 </div>
 
-The rule selects the best Gemma tier whose resident model stays in about a
-quarter of the RAM. The quality sequence is E4B 6-bit, then E2B 8-bit, then
-E2B 4-bit. The resident model is the model in its recommended configuration
-(the base build: all Gemma tiers run Base style). Qwen3.5 2B M40 is the floor below the smallest Gemma tier
-([why](models.md)). On that tier, `Settings.suggestionMode` starts as Words:
-the model loads only for a fix, a reply or a dictation clean-up.
+The rule selects Gemma 4 E4B 6-bit where its resident model stays in about a
+quarter of the RAM. The resident model is the model in its recommended
+configuration (the base build: all Gemma tiers run Base style). Pretype One is
+the default below that ([why](models.md#pretype-one-our-own-gemma-model)). On 8 GB,
+`Settings.suggestionMode` starts as Words: the model loads only for a fix, a
+reply or a dictation clean-up.
 
-The thresholds are a fixed table. We sized them on the builds before the slim
-re-packs, thus the quarter rule has a margin. The default is not stored: the
+The threshold is fixed. We sized it on the build before the slim
+re-pack, thus the quarter rule has a margin. The default is not stored: the
 app calculates it at each launch. Thus, a change to a threshold moves each
 install of that memory size to a different model. That is a download of
 several GB that nobody asked for.
@@ -140,14 +140,14 @@ per-language nudge in the menu. You select all other models manually in
 |---|---|---|
 | Gemma 4 E4B 8-bit | ≈6.0 GB | Best measured quality. It holds up across all 20 eval languages. It is never the default, because it ties 6-bit. |
 | **Gemma 4 E4B 6-bit** | ≈5.0 GB | *Default from 32 GB.* It ties E4B 8-bit (p=0.28) and the download is smaller. Its fix sibling is the best of the instruct siblings (69% exact fixes). |
-| **Gemma 4 E2B 8-bit** | ≈3.4 GB | *Default at 24 GB.* Statistically level with E4B on completions, with less memory and ~40% less time per suggestion. |
-| **Gemma 4 E2B 4-bit** | ≈2.5 GB (≈1.2 GB on 16 GB, see [Reduce memory use](models.md#reduce-memory-use-gemma)) | *Default at 16–18 GB.* The smallest 4-bit cost in the field. |
+| Gemma 4 E2B 8-bit | ≈3.4 GB | Statistically level with E4B on completions, with less memory and ~40% less time per suggestion. It was the default at 24 GB until 2026-11-13. |
+| Gemma 4 E2B 4-bit | ≈2.5 GB (≈1.2 GB on 16 GB, see [Reduce memory use](models.md#reduce-memory-use-gemma)) | The smallest Gemma tier from Google. It was the default at 16–18 GB until 2026-11-13. |
 | MiniCPM5 1B | ≈1.1 GB | One of the two fastest models in the catalog, at 18 ms. Strong on English, weaker in other languages. |
 | Ternary Bonsai 4B | ≈1.1 GB | A 4B model in about one gigabyte. |
 | Qwen3.5 2B (Base) | ≈1.5 GB | The best model below 2 GB for many languages (p<0.001). |
-| **Qwen3.5 2B M40** | ≈1.5 GB | *Default on 8 GB.* A mix of the Base and post-trained builds. One model completes text and runs the chords. It ties the Base build on completion, and its fix is better than the post-trained sibling (p<0.001). |
+| Qwen3.5 2B M40 | ≈1.5 GB | It was the default on 8 GB until 2026-11-13. A mix of the Base and post-trained builds. One model completes text and runs the chords. It ties the Base build on completion, and its fix is better than the post-trained sibling (p<0.001). |
 | EuroLLM 1.7B | ≈1.1 GB | Our own model. One file completes text and fixes typos. It ties E2B 4-bit outside English, and it fixes better. It writes no replies. |
-| Pretype One | ≈1.6 GB | Our own Gemma model. One download completes text and runs the fix and reply chords. Its completions are better than E2B 4-bit (22.8% against 20.8% on 17 languages, p<0.001). Its fix restores 79% of the typo rows. |
+| **Pretype One** | ≈1.5 GB | *Default at 8–24 GB.* Our own Gemma model. One download completes text and runs the fix and reply chords. Its completions are better than E2B 4-bit (22.8% against 20.8% on 17 languages, p<0.001). Its fix restores 79% of the typo rows. |
 | Qwen2.5 0.5B | ≈1.0 GB | The smallest footprint in the catalog. |
 
 The sizes are the measured model memory (`ModelMetrics.ramGB`). A download
