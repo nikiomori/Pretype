@@ -262,9 +262,9 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertEqual(macs.filter { ModelCatalog.defaultID(forRamGB: $0) == option.id },
                            macs.filter { (low...high).contains($0) }, option.title)
         }
-        XCTAssertEqual(named, 1, "a title that names its Macs no longer reads as one")
+        XCTAssertEqual(named, 0, "a title that names Macs must match the ladder; none does now")
         let tiers = Dictionary(grouping: macs, by: { ModelCatalog.defaultID(forRamGB: $0) })
-        XCTAssertEqual(tiers.count, 4)
+        XCTAssertEqual(tiers.count, 2)
         for (id, sizes) in tiers {
             XCTAssertNotNil(ModelCatalog.option(for: id), id)
             let m = try XCTUnwrap(ModelMetrics.metrics(for: id), id)
@@ -408,18 +408,17 @@ final class ModelCatalogTests: XCTestCase {
         // no per-language gap between the small models survives p<0.01).
         XCTAssertEqual(ModelPriority.balanced.pick(axis: "ru"), ModelCatalog.defaultID)
         XCTAssertEqual(ModelPriority.balanced.pick(axis: "*"), ModelCatalog.defaultID)
-        // The RAM ladder: the best Gemma tier whose recommended-config
-        // resident model stays within about a quarter of physical memory;
-        // Qwen3.5 2B M40 is the floor below the smallest Gemma tier: one model
-        // for the chords an 8 GB Mac's Words suggestions leave it.
+        // The RAM ladder: E4B 6-bit where its recommended-config resident
+        // model stays within about a quarter of physical memory; Pretype One
+        // below it, one model for suggestions and every chord.
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 8),
-                       "nikimori/Qwen3.5-2B-M40-6bit")
+                       "nikimoriOne/Pretype-One")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 16),
-                       "mlx-community/gemma-4-e2b-4bit")
+                       "nikimoriOne/Pretype-One")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 18),
-                       "mlx-community/gemma-4-e2b-4bit")
+                       "nikimoriOne/Pretype-One")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 24),
-                       "mlx-community/gemma-4-e2b-8bit")
+                       "nikimoriOne/Pretype-One")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 32),
                        "mlx-community/gemma-4-e4b-6bit")
         XCTAssertEqual(ModelCatalog.defaultID(forRamGB: 64),
@@ -500,9 +499,8 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertTrue(why.contains("\(fix)%"), why)
         }
         XCTAssertEqual(ModelCatalog.rationale(for: "mlx-community/gemma-4-e4b-8bit", servesTable: served), "", "not a ladder tier")
-        // The small models' range comes from the table's run: M40's 41% is
-        // from its own, never tested against E2B-it's 50%.
-        XCTAssertTrue(ModelCatalog.rationale(for: "mlx-community/gemma-4-e2b-4bit", servesTable: served).contains("where the small models manage 11–33%."))
+        XCTAssertEqual(ModelCatalog.rationale(for: "mlx-community/gemma-4-e2b-4bit", servesTable: served), "", "off the ladder since 2026-11-13")
+        XCTAssertEqual(ModelCatalog.rationale(for: "mlx-community/gemma-4-e2b-8bit", servesTable: served), "", "off the ladder since 2026-11-13")
     }
 
     func testTypedLanguageSignal() {

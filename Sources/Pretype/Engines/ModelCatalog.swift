@@ -46,7 +46,7 @@ enum ModelCatalog {
         // 5.0 vs 3.5 GB) — the 4-bit quantization cliff hits E4B hardest.
         ModelOption(
             id: "mlx-community/gemma-4-e2b-4bit",
-            title: String(localized: "Gemma 4 E2B — for 16–18 GB Macs"),
+            title: String(localized: "Gemma 4 E2B — the lightest Gemma"),
             correctionModelID: "mlx-community/gemma-4-e2b-it-4bit"  // ~3 GB — the 16 GB tier can't hold more
         ),
         // The former EN/RU default (2026-07-07 → 07-25): base ties E4B-8bit
@@ -145,7 +145,7 @@ enum ModelCatalog {
         // (`MLXEngine.applyAdapter`). One 1.5 GB download. Completions are
         // ahead of E2B 4-bit (22.8 vs 20.8% of all on 17 languages); the fix
         // beats E2B-it (79 vs 49% restored, 4 vs 31% of clean lines touched).
-        // An alternative, not a default: the ladder was not re-tiered on it.
+        // The default below 27.2 GB since 2026-11-13 (`ramLadder`).
         ModelOption(
             id: "nikimoriOne/Pretype-One",
             title: String(localized: "Pretype One — one model for typing, fixes and replies"),
@@ -179,32 +179,33 @@ enum ModelCatalog {
     static let defaultID: String = defaultID(forRamGB: machineRamGB)
 
     /// The rule behind `defaultID`, memory injected so tests stay
-    /// machine-independent: the best Gemma tier whose RECOMMENDED-config
-    /// resident model (what the pick actually keeps loaded: the base build)
-    /// stays within about a QUARTER of
-    /// physical memory. Quality order on the 17-language catalog run
-    /// (2026-10-15): E4B 6-bit ≥ E2B 8-bit > E2B 4-bit — the first step a
-    /// tie on completions (p=0.11), carried by E4B's fix sibling (69 vs 65%,
-    /// p<0.001), the second p<0.001; E4B 8-bit is never the default — it
-    /// ties 6-bit (p=0.28) for more memory, so it stays the manual pick.
-    /// Below the smallest Gemma tier the floor is Qwen3.5 2B M40 (since
-    /// 2026-10-27; Qwen3.5 2B Base before): its completions tie the Base
-    /// build's (p=0.06), which beats every other small multilingually
-    /// (p<0.001), and it fixes with itself — 41% restored against the Base
-    /// pick's sibling's 33% (p<0.001) — in 1.5 GB, where Base needed its
-    /// 1.1 GB post-trained sibling for the chords. On an 8 GB Mac
-    /// suggestions default to Words (`Settings.suggestionMode`), so the
-    /// chords are what the model is there for.
+    /// machine-independent: E4B 6-bit where its RECOMMENDED-config resident
+    /// model (what the pick actually keeps loaded: the base build) stays
+    /// within about a QUARTER of physical memory, Pretype One below. E4B
+    /// 8-bit is never the default — it ties 6-bit (p=0.28) for more memory,
+    /// so it stays the manual pick.
+    /// Pretype One (since 2026-11-13; E2B 8-bit from 20 GB, E2B 4-bit from
+    /// 14 GB and Qwen3.5 2B M40 below it before) is one 1.5 GB download that
+    /// completes and runs every chord with its own adapter. Against E2B
+    /// 4-bit it completes better on 17 languages (22.8 vs 20.8% of all,
+    /// p=4e-7) and in the agent box (34.8 vs 28.4%, p=9e-9,
+    /// runs-2026-11-13-agent); against E2B 8-bit 24.2 vs 22.9% on 20
+    /// languages (p=0.0003) and 34.8 vs 32.3% in the agent box (p=0.016);
+    /// against M40 30.9% there (p=0.0012), 17.0 vs 21.9 on the 20-language
+    /// mean. Its fix restores 79% (E2B-it 49%, M40 41%), and a judge rates
+    /// 90% of its replies on topic. E4B 6-bit ties it on completions; it
+    /// keeps the Macs it fits for its long suggestions and its sibling's
+    /// rewrites (90 vs 81% good, p=0.0002). On an 8 GB Mac suggestions
+    /// still default to Words (`Settings.suggestionMode`).
     ///
-    /// A fixed table, not derived from the size tables: the thresholds are 4×
-    /// each tier's resident size as booked on 2026-07-25 (6.8 / 5.0 / 3.5 GB);
-    /// the slim re-packs and the Gemma tiers' move to base style (2026-10-14
-    /// and -15) only made every tier lighter (5.0 / 3.4 / 2.5), so the quarter rule
-    /// still holds. Moving a threshold moves every install that follows the
-    /// ladder (`Settings.autoModelID`) onto another model — fetched quietly
-    /// while the old one keeps serving, so a re-tier costs a background
-    /// download, not a dead engine. Re-tier on purpose (24 GB now fits E4B
-    /// 6-bit) and on the evals.
+    /// A fixed threshold, not derived from the size tables: 4× E4B 6-bit's
+    /// resident size as booked on 2026-07-25 (6.8 GB); the slim re-pack and
+    /// the move to base style (2026-10-14 and -15) only made it lighter
+    /// (5.0), so the quarter rule still holds. Moving a threshold moves
+    /// every install that follows the ladder (`Settings.autoModelID`) onto
+    /// another model — fetched quietly while the old one keeps serving, so a
+    /// re-tier costs a background download, not a dead engine. Re-tier on
+    /// purpose (24 GB now fits E4B 6-bit) and on the evals.
     static func defaultID(forRamGB ram: Double) -> String {
         (ramLadder.first { ram >= $0.minRam } ?? ramLadder[ramLadder.count - 1]).id
     }
@@ -213,9 +214,7 @@ enum ModelCatalog {
     /// memory (GiB) each needs. Why each was picked is `rationale(for:)`.
     private static let ramLadder: [(minRam: Double, id: String)] = [
         (27.2, "mlx-community/gemma-4-e4b-6bit"),
-        (20, "mlx-community/gemma-4-e2b-8bit"),
-        (14, "mlx-community/gemma-4-e2b-4bit"),
-        (0, "nikimori/Qwen3.5-2B-M40-6bit"),
+        (0, "nikimoriOne/Pretype-One"),
     ]
 
     /// The fit rule `defaultID` sizes on, for any resident size: past about a
@@ -230,8 +229,8 @@ enum ModelCatalog {
     /// Why the ladder picks `id` — told per tier, so the RECOMMENDED tooltip
     /// never tells the wrong tier's story; "" off the ladder. The figures are
     /// the ones the rows and the rail show, read when asked: the resident size
-    /// through `HostPLE.residentGB` (on the 14–16 GB tier "Reduce memory use"
-    /// is on by default, and E2B 4-bit keeps about half its 2.5 GB), the
+    /// through `HostPLE.residentGB` (up to 16 GB "Reduce memory use" is on by
+    /// default, and Pretype One keeps 1.1 of its 1.5 GB), the
     /// chords from `ModelMetrics.tasks`. The p-values stay prose: they are
     /// verdicts, not booked figures — and a range is drawn only from rows of
     /// one run, so it never implies a ranking the eval didn't test.
@@ -246,17 +245,8 @@ enum ModelCatalog {
         switch id {
         case "mlx-community/gemma-4-e4b-6bit":
             return String(localized: "Auto-picked for this Mac's memory: the best-quality tier that stays within about a quarter of it (~\(gb) resident, freed again after idle). Ahead of E2B 4-bit across the evaluated languages (p<0.001), level with E2B 8-bit and E4B 8-bit on completions, and its fix sibling restores \(fix)% of noisy lines exactly. Smaller tiers are one click below if you'd rather spend less memory.")
-        case "mlx-community/gemma-4-e2b-8bit":
-            return String(localized: "Auto-picked for this Mac's memory (~\(gb) resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (\(fix)% exact restores, \(reply)% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less.")
-        case "mlx-community/gemma-4-e2b-4bit":
-            // On the table's own run only: M40's 41% was never tested against
-            // E2B-it's 50% (`TaskMetrics.ownRun`).
-            let small = options.filter { !$0.id.contains("gemma") }.compactMap { chords($0.id) }
-                .filter { $0.ownRun == nil }.map(\.fixPct)
-            return String(localized: "Auto-picked for this Mac's memory (~\(gb) resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores \(fix)% of noisy lines exactly where the small models manage \(small.min() ?? 0)–\(small.max() ?? 0)%.")
-        case "nikimori/Qwen3.5-2B-M40-6bit":
-            let baseFix = chords("nikimori/Qwen3.5-2B-Base-6bit")?.fixPct ?? 0
-            return String(localized: "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — \(gb), no second download. Its completions tie Qwen3.5 2B Base's, the strongest other small model, and its fix chord restores \(fix)% of noisy lines exactly against the \(baseFix)% of Base's sibling (p<0.001). A Gemma tier is the accuracy upgrade on a Mac with more memory.")
+        case "nikimoriOne/Pretype-One":
+            return String(localized: "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — ~\(gb) resident, no second download. It completes better than Gemma E2B across 17 languages and in an AI agent's box (p<0.001), its fixes restore \(fix)% of noisy lines exactly, and \(reply)% of its reply drafts are on topic. A larger Gemma tier is the upgrade on a Mac with more memory.")
         default:
             return ""
         }

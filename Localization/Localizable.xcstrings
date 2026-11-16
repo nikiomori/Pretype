@@ -11041,326 +11041,114 @@
         }
       }
     },
-    "Auto-picked for this Mac's memory (~%@ resident, freed again after idle): robust across all 17 evaluated languages and measurably ahead of every small model, with its fix and reply chords riding E4B-it, loaded on first use (%lld%% exact restores, %lld%% of reply drafts on topic). E4B is the upgrade if this Mac gains memory; the small models spend less." : {
+    "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — ~%@ resident, no second download. It completes better than Gemma E2B across 17 languages and in an AI agent's box (p<0.001), its fixes restore %lld%% of noisy lines exactly, and %lld%% of its reply drafts are on topic. A larger Gemma tier is the upgrade on a Mac with more memory." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vybráno automaticky podle paměti tohoto Macu (~%@ v paměti, po nečinnosti se uvolní): stabilní ve všech 17 hodnocených jazycích a měřitelně před všemi malými modely; zkratky pro opravu a odpověď běží na E4B-it, načteném při prvním použití (%lld%% přesných oprav, %lld%% konceptů odpovědí k věci). E4B je krok výš, pokud Mac získá víc paměti; malé modely spotřebují méně."
+            "value" : "Vybráno automaticky podle paměti tohoto Macu: jeden model doplňuje, opravuje i píše návrhy odpovědí — ~%1$@ v paměti, bez druhého stahování. Doplňuje přesněji než Gemma E2B v 17 jazycích i v poli AI agenta (p<0.001), jeho opravy přesně obnoví %2$lld%% řádků s překlepy a %3$lld%% návrhů odpovědí je k tématu. Na Macu s větší pamětí je vylepšením větší varianta Gemma."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valgt automatisk ud fra denne Macs hukommelse (~%@ i brug, frigives igen ved inaktivitet): robust på alle 17 evaluerede sprog og målbart foran alle små modeller, med genvejene til rettelse og svar på E4B-it, der indlæses ved første brug (%lld %% eksakte rettelser, %lld %% relevante svarudkast). E4B er opgraderingen, hvis denne Mac får mere hukommelse; de små modeller bruger mindre."
+            "value" : "Valgt automatisk ud fra denne Macs hukommelse: én model fuldfører, retter og skriver svarudkast — ~%1$@ i hukommelsen, ingen ekstra overførsel. Den fuldfører bedre end Gemma E2B på 17 sprog og i en AI-agents felt (p<0.001), dens rettelser gendanner %2$lld %% af de fejlbehæftede linjer præcist, og %3$lld %% af dens svarudkast holder sig til emnet. Et større Gemma-niveau er opgraderingen på en Mac med mere hukommelse."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt (~%@ belegt, im Leerlauf wieder freigegeben): robust in allen 17 getesteten Sprachen und messbar vor jedem kleinen Modell; Korrektur und Antwort laufen über E4B-it, beim ersten Gebrauch geladen (%lld%% exakte Korrekturen, %lld%% Antwortentwürfe zum Thema). E4B ist das Upgrade, wenn dieser Mac mehr Speicher bekommt; die kleinen Modelle verbrauchen weniger."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elegido automáticamente según la memoria de este Mac (~%@ residentes, se liberan en reposo): robusto en los 17 idiomas evaluados y claramente por delante de todos los modelos pequeños; los atajos de corrección y respuesta usan E4B-it, que se carga al usarlos por primera vez (%lld%% de restauraciones exactas, %lld%% de borradores de respuesta pertinentes). E4B es la mejora si este Mac tiene más memoria; los modelos pequeños gastan menos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisi automatiquement selon la mémoire de ce Mac (~%@ résidents, libérés après inactivité) : fiable sur les 17 langues évaluées et nettement devant tous les petits modèles ; ses raccourcis de correction et de réponse utilisent E4B-it, chargé à la première utilisation (%lld%% de restaurations exactes, %lld%% de brouillons de réponse pertinents). E4B est l’étape suivante si ce Mac gagne de la mémoire ; les petits modèles consomment moins."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scelto automaticamente in base alla memoria di questo Mac (~%@ residenti, liberati di nuovo quando inattivo): affidabile su tutte le 17 lingue valutate e nettamente davanti a ogni modello piccolo; le combinazioni di correzione e risposta usano E4B-it, caricato al primo uso (%lld%% di correzioni esatte, %lld%% di bozze di risposta pertinenti). E4B è il passo successivo se questo Mac avrà più memoria; i modelli piccoli consumano meno."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このMacのメモリに合わせて自動選択（常駐約%@、アイドル時に解放）：評価した17言語すべてで安定し、どの小型モデルよりも明らかに優れています。修正と返信のショートカットは、初回使用時に読み込まれるE4B-itで動作します（正確な復元%lld%%、話題に沿った返信の下書き%lld%%）。メモリを増やすならE4Bが上位の選択肢、小型モデルならメモリを節約できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨(상주 약 %@, 대기 시 해제): 평가한 17개 언어 모두에서 안정적이며 모든 소형 모델보다 확실히 앞섭니다. 수정 및 답장 단축키는 처음 사용할 때 로드되는 E4B-it에서 실행됩니다(정확한 복원 %lld%%, 주제에 맞는 답장 초안 %lld%%). 이 Mac의 메모리가 늘어나면 E4B로 업그레이드할 수 있고, 소형 모델은 메모리를 덜 씁니다."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatisch gekozen voor het geheugen van deze Mac (~%@ in gebruik, weer vrijgegeven bij inactiviteit): robuust in alle 17 geteste talen en meetbaar beter dan elk klein model; correctie en antwoord lopen via E4B-it, geladen bij het eerste gebruik (%lld%% exacte correcties, %lld%% relevante conceptantwoorden). E4B is de upgrade als deze Mac meer geheugen krijgt; de kleine modellen verbruiken minder."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wybrany automatycznie według pamięci tego Maca (~%@ w pamięci, zwalniane po bezczynności): stabilny we wszystkich 17 badanych językach i mierzalnie przed każdym małym modelem; skróty poprawek i odpowiedzi działają na E4B-it, ładowanym przy pierwszym użyciu (%lld%% dokładnych poprawek, %lld%% trafnych szkiców odpowiedzi). E4B to krok wyżej, jeśli ten Mac zyska pamięć; małe modele zużywają mniej."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Escolhido automaticamente pela memória deste Mac (~%@ residentes, liberados quando ocioso): robusto nos 17 idiomas avaliados e claramente à frente de todos os modelos pequenos; os atalhos de correção e resposta usam o E4B-it, carregado no primeiro uso (%lld%% de restaurações exatas, %lld%% de rascunhos de resposta pertinentes). O E4B é o próximo passo se este Mac ganhar memória; os modelos pequenos gastam menos."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ales automat după memoria acestui Mac (~%@ rezident, eliberat la inactivitate): robust pe toate cele 17 limbi evaluate și măsurabil înaintea tuturor modelelor mici; combinațiile de corectare și răspuns rulează pe E4B-it, încărcat la prima utilizare (%lld%% corecturi exacte, %lld%% ciorne de răspuns la subiect). E4B este pasul următor dacă acest Mac primește mai multă memorie; modelele mici consumă mai puțin."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выбрана автоматически по памяти этого Mac (~%@ в памяти, освобождается в простое): стабильна на всех 17 проверенных языках и заметно опережает все малые модели; сочетания исправления и ответа работают на E4B-it, которая загружается при первом использовании (%lld%% точных исправлений, %lld%% черновиков ответа по теме). E4B — шаг вверх для Mac с большей памятью; малые модели расходуют меньше."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valdes automatiskt efter den här Macens minne (~%@ i minnet, frigörs igen vid inaktivitet): stabil på alla 17 utvärderade språk och mätbart före alla små modeller, med kortkommandona för rättning och svar på E4B-it, som läses in vid första användning (%lld %% exakta rättningar, %lld %% relevanta svarsutkast). E4B är uppgraderingen om den här Macen får mer minne; de små modellerna förbrukar mindre."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu Mac’in belleğine göre otomatik seçildi (bellekte ~%@, boşta kalınca yeniden boşaltılır): değerlendirilen 17 dilin tümünde sağlam ve tüm küçük modellerin ölçülebilir biçimde önünde; düzeltme ve yanıt kısayolları ilk kullanımda yüklenen E4B-it üzerinde çalışır (%%%lld birebir onarım, %%%lld konuyla ilgili yanıt taslağı). Bu Mac’in belleği artarsa E4B bir üst adım; küçük modeller daha az harcar."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac (~%@ у пам’яті, звільняється під час простою): стабільна на всіх 17 перевірених мовах і помітно випереджає всі малі моделі; комбінації виправлення й відповіді працюють на E4B-it, яка завантажується під час першого використання (%lld%% точних виправлень, %lld%% чернеток відповіді за темою). E4B — крок угору, якщо пам’яті в Mac стане більше; малі моделі витрачають менше."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "根据这台 Mac 的内存自动选择（常驻约 %@，闲置后释放）：在全部 17 种评测语言上表现稳定，明显领先所有小模型；修正和回复快捷键由 E4B-it 处理，首次使用时载入（%lld%% 精确还原，%lld%% 回复草稿切题）。如果这台 Mac 内存更大，可升级到 E4B；小模型占用更少。"
-          }
-        }
-      }
-    },
-    "Auto-picked for this Mac's memory (~%@ resident, freed again after idle): the lightest Gemma tier — ahead of every small model across 17 languages (p<0.001), measurably better Russian than MiniCPM5 (p=0.001), and its fix sibling, loaded on first use, restores %lld%% of noisy lines exactly where the small models manage %lld–%lld%%." : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vybráno automaticky podle paměti tohoto Macu (~%@ v paměti, po nečinnosti se uvolní): nejlehčí varianta Gemma — před všemi malými modely v 17 jazycích (p<0.001), měřitelně lepší ruština než MiniCPM5 (p=0.001) a její model oprav, načtený při prvním použití, přesně obnoví %lld%% chybových řádků, zatímco malé modely %lld–%lld%%."
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valgt automatisk ud fra denne Macs hukommelse (~%@ i brug, frigives igen ved inaktivitet): det letteste Gemma-niveau — foran alle små modeller på 17 sprog (p<0.001), målbart bedre på russisk end MiniCPM5 (p=0.001), og dets rettelsesmodel, der indlæses ved første brug, gendanner %lld %% af de fejlbehæftede linjer præcist, hvor de små modeller klarer %lld–%lld %%."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt (~%@ belegt, im Leerlauf wieder freigegeben): die leichteste Gemma-Stufe – vor jedem kleinen Modell in 17 Sprachen (p<0,001), messbar besser auf Russisch als MiniCPM5 (p=0,001), und ihr Korrekturmodell, beim ersten Gebrauch geladen, stellt %lld%% fehlerhafter Zeilen exakt wieder her, wo die kleinen Modelle %lld–%lld%% schaffen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elegido automáticamente según la memoria de este Mac (~%@ residentes, se liberan en reposo): el nivel más ligero de Gemma, por delante de todos los modelos pequeños en 17 idiomas (p<0.001), con un ruso claramente mejor que MiniCPM5 (p=0.001), y su modelo de corrección, que se carga al usarlo por primera vez, restaura exactamente el %lld%% de las líneas con errores, cuando los modelos pequeños logran un %lld–%lld%%."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisi automatiquement selon la mémoire de ce Mac (~%@ résidents, libérés après inactivité) : la variante Gemma la plus légère — devant tous les petits modèles sur 17 langues (p<0.001), nettement meilleure en russe que MiniCPM5 (p=0.001), et son modèle de correction, chargé à la première utilisation, restaure exactement %lld%% des lignes fautives, là où les petits modèles atteignent %lld–%lld%%."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scelto automaticamente in base alla memoria di questo Mac (~%@ residenti, liberati di nuovo quando inattivo): il livello Gemma più leggero, davanti a tutti i modelli piccoli su 17 lingue (p<0,001), con un russo nettamente migliore di MiniCPM5 (p=0,001); il suo modello di correzione, caricato al primo uso, ripristina esattamente il %lld%% delle righe con errori, dove i modelli piccoli arrivano a %lld–%lld%%."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このMacのメモリに合わせて自動選択（常駐約%@、アイドル時に解放）：最も軽いGemmaです。17言語すべてでどの小型モデルよりも優れ（p<0.001）、ロシア語ではMiniCPM5より明らかに高精度です（p=0.001）。初回使用時に読み込まれる修正用モデルは、誤りのある行の%lld%%を正確に復元します（小型モデルは%lld〜%lld%%）。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨(상주 약 %@, 대기 시 해제): 가장 가벼운 Gemma 등급입니다. 17개 언어 전체에서 모든 소형 모델보다 앞서고(p<0.001), 러시아어에서는 MiniCPM5보다 확실히 낫습니다(p=0.001). 처음 사용할 때 로드되는 수정용 모델은 오류가 있는 줄의 %lld%%를 정확히 복원하며, 소형 모델은 %lld–%lld%%에 그칩니다."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatisch gekozen voor het geheugen van deze Mac (~%@ in gebruik, weer vrijgegeven bij inactiviteit): de lichtste Gemma-variant – beter dan alle kleine modellen in 17 talen (p<0,001), meetbaar beter Russisch dan MiniCPM5 (p=0,001), en het correctiemodel, geladen bij het eerste gebruik, herstelt %lld%% van de foutieve regels exact, waar de kleine modellen %lld–%lld%% halen."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wybrany automatycznie według pamięci tego Maca (~%@ w pamięci, zwalniane po bezczynności): najlżejszy wariant Gemma — wyprzedza każdy mały model w 17 językach (p<0.001), mierzalnie lepszy po rosyjsku niż MiniCPM5 (p=0.001), a jego model poprawek, ładowany przy pierwszym użyciu, dokładnie przywraca %lld%% wierszy z błędami, gdy małe modele osiągają %lld–%lld%%."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Escolhido automaticamente pela memória deste Mac (~%@ residentes, liberados quando ocioso): o nível mais leve do Gemma, à frente de todos os modelos pequenos em 17 idiomas (p<0.001), com russo claramente melhor que o MiniCPM5 (p=0.001), e seu modelo de correção, carregado no primeiro uso, restaura exatamente %lld%% das linhas com erros, enquanto os modelos pequenos chegam a %lld–%lld%%."
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ales automat după memoria acestui Mac (~%@ rezident, eliberat la inactivitate): cel mai ușor nivel Gemma — înaintea tuturor modelelor mici pe 17 limbi (p<0.001), măsurabil mai bun în rusă decât MiniCPM5 (p=0.001), iar modelul său de corectare, încărcat la prima utilizare, restabilește exact %lld%% din rândurile cu greșeli, unde modelele mici reușesc %lld–%lld%%."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выбрана автоматически по памяти этого Mac (~%@ в памяти, освобождается в простое): самый лёгкий вариант Gemma — опережает все малые модели на 17 языках (p<0.001), заметно лучше MiniCPM5 на русском (p=0.001), а её модель исправлений, загружаемая при первом использовании, точно восстанавливает %lld%% строк с ошибками, тогда как малые модели — %lld–%lld%%."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valdes automatiskt efter den här Macens minne (~%@ i minnet, frigörs igen vid inaktivitet): den lättaste Gemma-nivån — före alla små modeller på 17 språk (p<0.001), mätbart bättre på ryska än MiniCPM5 (p=0.001), och dess rättningsmodell, som läses in vid första användning, återställer exakt %lld %% av de felaktiga raderna medan de små modellerna klarar %lld–%lld %%."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu Mac’in belleğine göre otomatik seçildi (bellekte ~%1$@, boşta kalınca yeniden boşaltılır): en hafif Gemma katmanı — 17 dilde tüm küçük modellerin önünde (p<0.001), Rusçada MiniCPM5’ten ölçülebilir biçimde daha iyi (p=0.001); ilk kullanımda yüklenen düzeltme modeli, küçük modellerin %%%3$lld–%4$lld düzeyinde kaldığı yerde hatalı satırları %%%2$lld oranında birebir onarır."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac (~%@ у пам’яті, звільняється під час простою): найлегший варіант Gemma — випереджає всі малі моделі на 17 мовах (p<0.001), помітно краща за MiniCPM5 у російській (p=0.001), а її модель виправлень, що завантажується під час першого використання, точно відновлює %lld%% рядків з помилками там, де малі моделі дають %lld–%lld%%."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "根据这台 Mac 的内存自动选择（常驻约 %@，闲置后释放）：最轻量的 Gemma 档位。在 17 种语言上领先所有小模型（p<0.001），俄语明显优于 MiniCPM5（p=0.001）；其修正模型在首次使用时载入，能将 %lld%% 的带噪文本行精确还原，而小模型只有 %lld–%lld%%。"
-          }
-        }
-      }
-    },
-    "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — %@, no second download. Its completions tie Qwen3.5 2B Base's, the strongest other small model, and its fix chord restores %lld%% of noisy lines exactly against the %lld%% of Base's sibling (p<0.001). A Gemma tier is the accuracy upgrade on a Mac with more memory." : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vybráno automaticky podle paměti tohoto Macu: jeden model doplňuje, opravuje i píše odpovědi — %1$@, bez druhého stahování. V doplňování je na úrovni Qwen3.5 2B Base, nejsilnějšího z ostatních malých modelů, a jeho zkratka pro opravu přesně obnoví %2$lld%% řádků s překlepy oproti %3$lld%% u dotrénované verze Base (p<0.001). Na Macu s větší pamětí je přesnější varianta Gemma."
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Valgt automatisk ud fra denne Macs hukommelse: én model fuldfører, retter og skriver svar — %@, ingen ekstra overførsel. Dens fuldførelser står lige med Qwen3.5 2B Base, den stærkeste anden lille model, og dens rettelsesgenvej gendanner %lld %% af de fejlbehæftede linjer præcist mod %lld %% for søstermodellen til Base (p<0.001). Et Gemma-niveau giver højere nøjagtighed på en Mac med mere hukommelse."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatisch für den Arbeitsspeicher dieses Mac gewählt: ein Modell vervollständigt, korrigiert und entwirft Antworten – %1$@, kein zweiter Download. Bei Vervollständigungen gleichauf mit Qwen3.5 2B Base, dem stärksten anderen kleinen Modell, und seine Korrektur stellt %2$lld%% der fehlerhaften Zeilen exakt wieder her, gegenüber %3$lld%% bei der nachtrainierten Variante von Base (p<0,001). Auf einem Mac mit mehr Arbeitsspeicher ist eine Gemma-Stufe genauer."
+            "value" : "Automatisch passend zum Arbeitsspeicher dieses Macs gewählt: ein Modell vervollständigt, korrigiert und entwirft Antworten – ~%1$@ im Speicher, kein zweiter Download. Es vervollständigt besser als Gemma E2B in 17 Sprachen und im Eingabefeld eines KI-Agenten (p<0.001), seine Korrekturen stellen %2$lld%% fehlerhafter Zeilen exakt wieder her, und %3$lld%% seiner Antwortentwürfe bleiben beim Thema. Auf einem Mac mit mehr Speicher ist eine größere Gemma-Stufe das Upgrade."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — %1$@, no second download. Its completions tie Qwen3.5 2B Base's, the strongest other small model, and its fix chord restores %2$lld%% of noisy lines exactly against the %3$lld%% of Base's sibling (p<0.001). A Gemma tier is the accuracy upgrade on a Mac with more memory."
+            "value" : "Auto-picked for this Mac's memory: one model types, fixes and drafts replies — ~%1$@ resident, no second download. It completes better than Gemma E2B across 17 languages and in an AI agent's box (p<0.001), its fixes restore %2$lld%% of noisy lines exactly, and %3$lld%% of its reply drafts are on topic. A larger Gemma tier is the upgrade on a Mac with more memory."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elegido automáticamente según la memoria de este Mac: un solo modelo completa, corrige y redacta respuestas, %1$@, sin una segunda descarga. En el autocompletado empata con Qwen3.5 2B Base, el más potente de los demás modelos pequeños, y su atajo de corrección restaura exactamente el %2$lld%% de las líneas con errores frente al %3$lld%% de la versión postentrenada de Base (p<0.001). Un nivel Gemma es la mejora de precisión en un Mac con más memoria."
+            "value" : "Elegido automáticamente según la memoria de este Mac: un solo modelo completa, corrige y redacta respuestas — ~%1$@ en memoria, sin una segunda descarga. Completa mejor que Gemma E2B en 17 idiomas y en el cuadro de un agente de IA (p<0.001), sus correcciones restauran exactamente el %2$lld%% de las líneas con errores y el %3$lld%% de sus borradores de respuesta van al tema. En un Mac con más memoria, un nivel Gemma mayor es la mejora."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choisi automatiquement selon la mémoire de ce Mac : un seul modèle complète, corrige et rédige les réponses — %1$@, sans second téléchargement. En complétion, il fait jeu égal avec Qwen3.5 2B Base, le plus performant des autres petits modèles, et son raccourci de correction rétablit exactement %2$lld%% des lignes fautives, contre %3$lld%% pour la version post-entraînée de Base (p<0.001). Sur un Mac doté de plus de mémoire, une variante Gemma est plus précise."
+            "value" : "Choisi automatiquement selon la mémoire de ce Mac : un seul modèle complète, corrige et rédige des réponses — ~%1$@ en mémoire, sans second téléchargement. Il complète mieux que Gemma E2B dans 17 langues et dans le champ d’un agent IA (p<0.001), ses corrections restaurent exactement %2$lld%% des lignes fautives et %3$lld%% de ses brouillons de réponse restent dans le sujet. Sur un Mac avec plus de mémoire, une variante Gemma plus grande est l’amélioration."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scelto automaticamente in base alla memoria di questo Mac: un solo modello completa, corregge e scrive le risposte, %1$@, senza un secondo download. Nei completamenti è alla pari con Qwen3.5 2B Base, il più forte degli altri modelli piccoli, e la sua combinazione di correzione ripristina esattamente il %2$lld%% delle righe con errori contro il %3$lld%% della versione post-addestrata di Base (p<0,001). Su un Mac con più memoria, un livello Gemma è più preciso."
+            "value" : "Scelto automaticamente in base alla memoria di questo Mac: un solo modello completa, corregge e scrive bozze di risposta — ~%1$@ in memoria, nessun secondo download. Completa meglio di Gemma E2B in 17 lingue e nel campo di un agente IA (p<0.001), le sue correzioni ripristinano esattamente il %2$lld%% delle righe con errori e il %3$lld%% delle sue bozze di risposta è in tema. Su un Mac con più memoria, un livello Gemma più grande è il passo successivo."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacのメモリに合わせて自動選択：1つのモデルで補完・修正・返信の下書きをこなします（%1$@、2つ目のダウンロードは不要）。補完はほかの小型モデルで最も強力なQwen3.5 2B Baseと互角で、修正のショートカットはタイプミスのある行の%2$lld%%を正確に復元します。Baseの追加学習版は%3$lld%%です（p<0.001）。メモリの多いMacなら、Gemmaで精度が上がります。"
+            "value" : "このMacのメモリに合わせて自動選択：1つのモデルで補完・修正・返信の下書きまで行います — 常駐約%1$@、追加のダウンロードは不要です。17言語とAIエージェントの入力欄でGemma E2Bより正確に補完し（p<0.001）、修正は誤りのある行の%2$lld%%を正確に復元し、返信の下書きの%3$lld%%が話題に沿っています。メモリの多いMacでは、より大きなGemmaが上位の選択肢です。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac의 메모리에 맞춰 자동 선택됨: 모델 하나로 완성, 수정, 답장 초안을 모두 처리합니다(%1$@, 두 번째 다운로드 없음). 완성에서는 다른 소형 모델 중 가장 강력한 Qwen3.5 2B Base와 대등하고, 수정 단축키는 오타가 있는 줄의 %2$lld%%를 정확히 복원합니다. Base의 추가 학습 버전은 %3$lld%%입니다(p<0.001). 메모리가 더 많은 Mac에서는 Gemma 등급이 더 정확합니다."
+            "value" : "이 Mac의 메모리에 맞춰 자동 선택: 하나의 모델로 완성, 교정, 답장 초안 작성까지 합니다 — 상주 약 %1$@, 추가 다운로드 없음. 17개 언어와 AI 에이전트 입력란에서 Gemma E2B보다 정확하게 완성하고(p<0.001), 교정은 오류가 있는 줄의 %2$lld%%를 정확히 복원하며, 답장 초안의 %3$lld%%가 주제에 맞습니다. 메모리가 더 많은 Mac에서는 더 큰 Gemma 등급이 업그레이드입니다."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatisch gekozen voor het geheugen van deze Mac: één model vult aan, corrigeert en schrijft antwoorden – %1$@, geen tweede download. Bij aanvullingen gelijk aan Qwen3.5 2B Base, het sterkste andere kleine model, en de correctie herstelt %2$lld%% van de foutieve regels exact, tegenover %3$lld%% bij de nagetrainde variant van Base (p<0,001). Een Gemma-variant is de upgrade in nauwkeurigheid op een Mac met meer geheugen."
+            "value" : "Automatisch gekozen voor het geheugen van deze Mac: één model vult aan, corrigeert en schrijft conceptantwoorden – ~%1$@ in het geheugen, geen tweede download. Het vult beter aan dan Gemma E2B in 17 talen en in het invoerveld van een AI-agent (p<0.001), zijn correcties herstellen %2$lld%% van de foutieve regels exact en %3$lld%% van zijn conceptantwoorden blijft bij het onderwerp. Op een Mac met meer geheugen is een grotere Gemma-variant de upgrade."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wybrany automatycznie według pamięci tego Maca: jeden model uzupełnia tekst, poprawia i pisze odpowiedzi — %1$@, bez drugiego pobierania. W uzupełnieniach dorównuje Qwen3.5 2B Base, najmocniejszemu z pozostałych małych modeli, a jego skrót poprawek dokładnie przywraca %2$lld%% wierszy z literówkami wobec %3$lld%% w dotrenowanej wersji Base (p<0.001). Na Macu z większą pamięcią dokładniejszy będzie wariant Gemma."
+            "value" : "Wybrano automatycznie według pamięci tego Maca: jeden model uzupełnia, poprawia i pisze szkice odpowiedzi — ~%1$@ w pamięci, bez drugiego pobierania. Uzupełnia lepiej niż Gemma E2B w 17 językach i w polu agenta AI (p<0.001), jego poprawki dokładnie przywracają %2$lld%% wierszy z błędami, a %3$lld%% szkiców odpowiedzi trzyma się tematu. Na Macu z większą pamięcią ulepszeniem jest większy wariant Gemma."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escolhido automaticamente pela memória deste Mac: um só modelo completa, corrige e escreve respostas, %1$@, sem um segundo download. No autocompletar empata com o Qwen3.5 2B Base, o mais forte dos outros modelos pequenos, e seu atalho de correção restaura exatamente %2$lld%% das linhas com erros, contra %3$lld%% da versão pós-treinada do Base (p<0.001). Um nível Gemma é o ganho de precisão em um Mac com mais memória."
+            "value" : "Escolhido automaticamente pela memória deste Mac: um só modelo completa, corrige e escreve rascunhos de resposta — ~%1$@ em memória, sem segundo download. Ele completa melhor que o Gemma E2B em 17 idiomas e na caixa de um agente de IA (p<0.001), suas correções restauram exatamente %2$lld%% das linhas com erros e %3$lld%% dos rascunhos de resposta ficam no assunto. Em um Mac com mais memória, um nível Gemma maior é o upgrade."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ales automat după memoria acestui Mac: un singur model completează, corectează și scrie răspunsuri — %1$@, fără o a doua descărcare. La completări egalează Qwen3.5 2B Base, cel mai puternic dintre celelalte modele mici, iar combinația sa de corectare restabilește exact %2$lld%% din rândurile cu greșeli, față de %3$lld%% la versiunea post-antrenată a Base (p<0.001). Un nivel Gemma oferă mai multă acuratețe pe un Mac cu mai multă memorie."
+            "value" : "Ales automat după memoria acestui Mac: un singur model completează, corectează și scrie ciorne de răspuns — ~%1$@ în memorie, fără a doua descărcare. Completează mai bine decât Gemma E2B în 17 limbi și în câmpul unui agent AI (p<0.001), corecturile lui restabilesc exact %2$lld%% din rândurile cu greșeli, iar %3$lld%% din ciornele de răspuns sunt la subiect. Pe un Mac cu mai multă memorie, o variantă Gemma mai mare este pasul următor."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Выбрана автоматически по памяти этого Mac: одна модель и дополняет текст, и исправляет, и пишет ответы — %1$@, без второй загрузки. В дополнениях она наравне с Qwen3.5 2B Base, самой сильной из остальных малых моделей, а её сочетание исправления точно восстанавливает %2$lld%% строк с опечатками против %3$lld%% у дообученной версии Base (p<0.001). На Mac с большим объёмом памяти точнее работает Gemma."
+            "value" : "Выбрано автоматически по памяти этого Mac: одна модель дополняет, исправляет и пишет черновики ответов — ~%1$@ в памяти, без второй загрузки. Она дополняет точнее Gemma E2B на 17 языках и в поле ИИ-агента (p<0.001), её исправления точно восстанавливают %2$lld%% строк с опечатками, а %3$lld%% черновиков ответов — по теме. На Mac с большей памятью точнее более крупная модель Gemma."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Valdes automatiskt efter den här Macens minne: en modell kompletterar, rättar och skriver svar — %1$@, ingen andra hämtning. Vid kompletteringar står den jämnt med Qwen3.5 2B Base, den starkaste av de andra små modellerna, och dess rättning återställer %2$lld %% av raderna med fel exakt, mot %3$lld %% för Base eftertränade syskonmodell (p<0.001). En Gemma-nivå ger högre träffsäkerhet på en Mac med mer minne."
+            "value" : "Valt automatiskt efter den här Macens minne: en modell kompletterar, rättar och skriver svarsutkast — ~%1$@ i minnet, ingen andra hämtning. Den kompletterar bättre än Gemma E2B på 17 språk och i en AI-agents fält (p<0.001), dess rättningar återställer %2$lld %% av de felaktiga raderna exakt och %3$lld %% av dess svarsutkast håller sig till ämnet. På en Mac med mer minne är en större Gemma-nivå uppgraderingen."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu Mac’in belleğine göre otomatik seçildi: tek model hem tamamlar hem düzeltir hem de yanıt yazar — %1$@, ikinci indirme yok. Tamamlamalarda diğer küçük modellerin en güçlüsü Qwen3.5 2B Base ile başa baş; düzeltme kısayolu ise hatalı satırların %%%2$lld kadarını birebir onarır, Base’in sonradan eğitilmiş kardeşi %%%3$lld’de kalır (p<0.001). Daha fazla belleği olan bir Mac’te bir Gemma katmanı daha doğrudur."
+            "value" : "Bu Mac’in belleğine göre otomatik seçildi: tek model tamamlar, düzeltir ve yanıt taslakları yazar — bellekte ~%1$@, ikinci indirme yok. 17 dilde ve bir yapay zekâ ajanının giriş alanında Gemma E2B’den daha iyi tamamlar (p<0.001), düzeltmeleri hatalı satırların %%%2$lld kadarını birebir onarır ve yanıt taslaklarının %%%3$lld kadarı konuya uygundur. Daha fazla belleği olan bir Mac’te daha büyük bir Gemma katmanı yükseltmedir."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вибрано автоматично за обсягом пам’яті цього Mac: одна модель і доповнює текст, і виправляє, і пише відповіді — %1$@, без другого завантаження. У доповненнях вона нарівні з Qwen3.5 2B Base, найсильнішою з інших малих моделей, а її комбінація виправлення точно відновлює %2$lld%% рядків з одруківками проти %3$lld%% у дотренованої версії Base (p<0.001). На Mac з більшим обсягом пам’яті точніше працює Gemma."
+            "value" : "Вибрано автоматично за пам’яттю цього Mac: одна модель доповнює, виправляє і пише чернетки відповідей — ~%1$@ у пам’яті, без другого завантаження. Вона доповнює точніше за Gemma E2B 17 мовами та в полі ШІ-агента (p<0.001), її виправлення точно відновлюють %2$lld%% рядків з помилками, а %3$lld%% чернеток відповідей — за темою. На Mac з більшою пам’яттю кращий вибір — більша модель Gemma."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "根据这台 Mac 的内存自动选择：一个模型同时完成补全、修正和回复草稿，%1$@，无需第二次下载。补全与其他小模型中最强的 Qwen3.5 2B Base 持平，修正快捷键能准确恢复 %2$lld%% 的有错行，而 Base 的后训练版本为 %3$lld%%（p<0.001）。在内存更大的 Mac 上，Gemma 档位的准确率更高。"
+            "value" : "根据这台 Mac 的内存自动选择：一个模型即可补全、纠错并起草回复——常驻约 %1$@，无需第二次下载。在 17 种语言和 AI 智能体输入框中，它的补全都优于 Gemma E2B（p<0.001），纠错能精确还原 %2$lld%% 的带错文本行，%3$lld%% 的回复草稿切题。内存更大的 Mac 可升级到更大的 Gemma 档位。"
           }
         }
       }
@@ -26377,108 +26165,108 @@
         }
       }
     },
-    "Gemma 4 E2B — for 16–18 GB Macs" : {
+    "Gemma 4 E2B — the lightest Gemma" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — pro Macy s 16–18 GB"
+            "value" : "Gemma 4 E2B — nejlehčí Gemma"
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — til Mac med 16–18 GB"
+            "value" : "Gemma 4 E2B — den letteste Gemma"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B – für Macs mit 16–18 GB"
+            "value" : "Gemma 4 E2B – die leichteste Gemma"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — para Mac de 16–18 GB"
+            "value" : "Gemma 4 E2B — la Gemma más ligera"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — pour Mac de 16–18 Go"
+            "value" : "Gemma 4 E2B — la Gemma la plus légère"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — per Mac da 16–18 GB"
+            "value" : "Gemma 4 E2B — la Gemma più leggera"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 16〜18 GBのMac向け"
+            "value" : "Gemma 4 E2B — 最も軽いGemma"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 16–18 GB Mac용"
+            "value" : "Gemma 4 E2B — 가장 가벼운 Gemma"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B – voor Macs met 16–18 GB"
+            "value" : "Gemma 4 E2B – de lichtste Gemma"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — dla Maców z 16–18 GB"
+            "value" : "Gemma 4 E2B — najlżejsza Gemma"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — para Macs de 16–18 GB"
+            "value" : "Gemma 4 E2B — a Gemma mais leve"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — pentru Mac cu 16–18 GB"
+            "value" : "Gemma 4 E2B — cea mai ușoară Gemma"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — для Mac с 16–18 ГБ"
+            "value" : "Gemma 4 E2B — самая лёгкая Gemma"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — för Mac med 16–18 GB"
+            "value" : "Gemma 4 E2B — den lättaste Gemma"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 16–18 GB Mac’ler için"
+            "value" : "Gemma 4 E2B — en hafif Gemma"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — для Mac з 16–18 ГБ"
+            "value" : "Gemma 4 E2B — найлегша Gemma"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemma 4 E2B — 适合 16–18 GB 的 Mac"
+            "value" : "Gemma 4 E2B — 最轻的 Gemma"
           }
         }
       }
