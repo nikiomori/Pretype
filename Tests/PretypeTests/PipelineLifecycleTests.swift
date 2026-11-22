@@ -120,12 +120,13 @@ final class PipelineLifecycleTests: PipelineTestCase {
         XCTAssertEqual(focusApp?.wakes, 1)
     }
 
-    // Paused, nothing asks the model; resuming warms it, the model a launch
-    // while paused left out.
+    // Paused, nothing asks the model, so it goes at once; resuming warms it,
+    // the model a launch or the pause left out.
     func testResumingWarmsTheModel() {
         set(\.suggestionMode, .sentences)
         controller.setEnabled(false)
         XCTAssertFalse(Settings.completionsAskModel)
+        XCTAssertEqual(fake.engine.releases, 1, "the pause frees the model")
         let before = fake.engine.prewarms
         controller.setEnabled(false)
         XCTAssertEqual(fake.engine.prewarms, before)

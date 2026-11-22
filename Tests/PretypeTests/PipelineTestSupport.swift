@@ -161,6 +161,9 @@ final class FakeEngine: CompletionEngine {
         prewarms += 1
         if prewarmRecovers { state = .preparing("loading") }
     }
+    /// Times the model was let go of right away.
+    private(set) var releases = 0
+    func releaseModelNow() { releases += 1 }
 
     /// What `correct` proposes (nil: nothing to fix).
     var correction: String?

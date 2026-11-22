@@ -159,16 +159,18 @@ final class SuggestionController {
     /// The master switch — the menu's Pause and the Settings toggle both land
     /// here. Pause means the microphone too: a capture that survived the
     /// toggle would keep listening — and then type — under an app the user
-    /// just switched off.
+    /// just switched off. And the model: paused, nothing asks it, and the
+    /// idle timer held its gigabytes up to 15 min more — resume warms it.
     func setEnabled(_ on: Bool) {
         Settings.enabled = on
         guard !on else {
-            // Paused, nothing asked the model: a launch left it out.
+            // Paused, nothing asked the model: a launch or the pause left it out.
             if Settings.completionsAskModel, completionsWelcome { engine.prewarmIfNeeded() }
             return focusTracker.wakeAccessibility()
         }
         dictationController.invalidate()
         dismiss()
+        engine.releaseModelNow()
     }
 
     /// A feature switch moved (Settings → General). What is on screen goes —
